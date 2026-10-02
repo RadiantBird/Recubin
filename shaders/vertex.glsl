@@ -6,6 +6,7 @@ layout (location = 3) in vec3 aVertexColor; // Terrain 頂点カラー
 layout (location = 4) in float aMatAlpha;   // MeshCube マテリアルアルファ
 layout (location = 5) in mat4 aInstModel;  // インスタンス描画時のみ有効(divisor=1)。location 5..8 を占有
 layout (location = 9) in vec4 aInstColor;  // インスタンスごとの色
+layout (location = 10) in vec4 aInstPbr;   // インスタンスごとのPBR値 (metallic, roughness, reflectance, enabled)
 
 uniform mat4 model;
 uniform mat4 view;
@@ -13,7 +14,9 @@ uniform mat4 projection;
 uniform float uTime;      // 経過秒（波アニメ用）
 uniform float uIsLiquid;  // LiquidCube 描画時 1.0
 uniform float uInstanced;                  // 1.0 でインスタンス属性からモデル行列と色を取る
+uniform vec4 uPbrMaterial;                 // 個別描画用のPBR値 (metallic, roughness, reflectance, enabled)。w=0でPBR無効
 
+flat out vec4 PbrParams;
 out vec3 Normal;
 out vec3 FragPos;
 out vec2 TexCoord;
@@ -44,6 +47,7 @@ void main() {
     LocalPos = p;
     LocalNormal = aNormal;
     InstColor = (uInstanced > 0.5) ? aInstColor : vec4(1.0);
+    PbrParams = (uInstanced > 0.5) ? aInstPbr : uPbrMaterial;
     vec4 viewPosition = view * vec4(FragPos, 1.0);
     ViewDepth = -viewPosition.z;
     gl_Position = projection * viewPosition;

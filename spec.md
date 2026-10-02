@@ -43,6 +43,23 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   `EnableIPCAPI`では`Connect`/`Send`/`Receive`/`Close`のstubを公開するが未実装エラーを返す。拡張同意receiptは
   構成versionとIO/IPC/External権限集合を保存・比較し、Editorと`--editor-test`では警告とreceiptをバイパスする。
 
+## Material / MaterialService
+  `MaterialService`はSystem直下に自動生成されるサービスで、配下に`Material`を置く。`BaseCube`は
+  `Material`プロパティ（`MaterialService\<名前>`形式のパス文字列）でMaterialを参照する。
+  - Materialは`Metallic`/`Roughness`/`Reflectance`（PBR）、`DynamicFriction`/`Restitution`/`MassDensity`
+    （物理）、`Conductive`（雷の標的）を持つ。`StaticFriction`はBox3Dが使わないためエディタ/Luaから隠蔽し、
+    YAMLにのみ保存する。
+  - 参照中のBaseCubeは、物理値とConductiveがMaterialの値になる。参照が無い（または未解決の）BaseCubeは
+    従来の`MaterialType`/摩擦/`MassDensity`を使い、見た目も従来のLambert描画のまま。
+  - Materialの子の`Decal`/`Texture`は、そのMaterialを参照する全BaseCubeの対応する面（BaseCubeのローカル面。
+    Front = -Z）へ投影される。BaseCube直下のDecal/Texture/SurfaceGui/Canvasが面を占有している場合は直下を優先し、
+    空いた面だけをMaterialの子で補う。MeshCubeのUV空間Decalは対象外。
+  - 参照はロード時に全ツリーが揃ってから解決する。解決できないパスは保持して警告し、クローンは解決済みの参照を
+    引き継ぐ。Materialの改名・移動後も、保存されるパスは現在のツリー位置から再計算される。
+  - PBR描画はMaterialを参照するBaseCubeだけで、Cook-Torrance GGX（metallic-roughness）に、Skyboxの6面から焼いた
+    環境キューブマップの鏡面反射を加える。Skyboxが無い／テクスチャ未読込のときは手続き的な空を使う。
+    パイプライン全体が非リニアのため、PBRも同じ表示空間で計算し、拡散アンビエントは従来の0.3固定とする。
+
 ## システム拡張API
 - **System**: シングルトン。常に1つのみ存在。Insert Objectリストには登録しない。
   `EnableIOAPI`、`EnableIPCAPI`、`EnableExternalFileAccess`の

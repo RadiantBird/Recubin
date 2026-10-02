@@ -11,6 +11,7 @@
 #include "include/Instances/Gyro.hpp"
 #include "include/Instances/Sound.hpp"
 #include "include/Instances/Lighting.hpp"
+#include "include/Instances/MaterialInstance.hpp"
 #include "include/Instances/Rope.hpp"
 #include "include/Instances/Rod.hpp"
 #include "include/Instances/BallSocket.hpp"
@@ -440,6 +441,7 @@ void LuauEngine::InitDispatchTable_World() {
     PropertyRegistry::applyToDispatch("Texture", DispatchTable, SetterTable);
 
     PropertyRegistry::applyToDispatch("Lighting", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Material", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("PostEffect", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("LightSource", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("PointLight", DispatchTable, SetterTable);

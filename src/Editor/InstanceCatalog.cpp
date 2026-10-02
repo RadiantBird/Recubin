@@ -10,7 +10,7 @@ const std::vector<InstanceCatalogEntry> kEntries = {
     {"MeshCube", C::Cubes}, {"LiquidCube", C::Cubes}, {"SpawnLocation", C::Cubes},
     {"Sound", C::Effects}, {"Decal", C::Effects}, {"Texture", C::Effects},
     {"SurfaceMark", C::Effects}, {"PostEffect", C::Effects}, {"ParticleEmitter", C::Effects},
-    {"Highlight", C::Effects}, {"Workspace", C::Environment}, {"Weather", C::Environment}, {"Skybox", C::Environment},
+    {"Highlight", C::Effects}, {"Material", C::Effects}, {"Workspace", C::Environment}, {"Weather", C::Environment}, {"Skybox", C::Environment},
     {"Lighting", C::Environment}, {"PointLight", C::Environment}, {"SpotLight", C::Environment},
     {"Sun", C::Environment}, {"Moon", C::Environment}, {"Terrain", C::Environment},
     {"TextLabel", C::Gui}, {"TextButton", C::Gui}, {"SurfaceGui", C::Gui},

@@ -10,6 +10,7 @@ in float MatAlpha;
 in vec3 LocalPos;
 in vec3 LocalNormal;
 in vec4 InstColor;
+flat in vec4 PbrParams;  // (metallic, roughness, reflectance, enabled)。w<=0.5なら従来のLambert描画
 
 uniform sampler2D ourTexture;
 uniform sampler2DArray shadowMap;
@@ -59,6 +60,10 @@ struct Light {
 };
 uniform Light uLights[MAX_LIGHTS];
 uniform int   uLightCount;
+
+// ---- PBR用の環境反射。Skyboxの6面から焼いた、roughnessごとにぼかしたキューブマップ ----
+uniform samplerCube uEnvSpecular;
+uniform float       uEnvMaxLod;  // キューブマップの最大mipレベル(roughness=1に対応)
 
 // ---- MeshCube用UV空間Decal合成。uDecalCountはMeshCube描画時のみ>0で、他クラス描画時は常に0のためループがno-op ----
 #define MAX_DECALS 8
@@ -121,6 +126,96 @@ float shadowCalc(vec4 fragPosLightSpace, vec3 norm, vec3 lightDirNorm, int casca
 float shadowForCascade(int cascadeIndex, vec3 norm, vec3 lightDirNorm) {
     vec4 fragPosLightSpace = lightSpaceMatrices[cascadeIndex] * vec4(FragPos, 1.0);
     return shadowCalc(fragPosLightSpace, norm, lightDirNorm, cascadeIndex);
+}
+
+// Point/Spot光源iの減衰（円錐込み）と、フラグメントから光源へ向かう方向を返す。
+// 既存のLambert描画とPBR描画で共用する。
+float pointSpotAttenuation(int i, out vec3 Ldir) {
+    vec3  toL  = uLights[i].position - FragPos;
+    float dist = length(toL);
+    Ldir = toL / max(dist, 1e-4);
+    float atten = clamp(1.0 - dist / max(uLights[i].range, 1e-4), 0.0, 1.0);
+    atten *= atten;
+    float cone = 1.0;
+    if (uLights[i].type == 1) {
+        float theta = dot(normalize(-Ldir), uLights[i].direction);
+        cone = step(uLights[i].cosCutoff, theta);  // 簡易ハードエッジ
+    }
+    return atten * cone;
+}
+
+// ---- PBR (metallic-roughness) ----
+// パイプライン全体が非リニア(sRGBデコードなし)のため、PBR個体も同じ表示空間で計算する。
+// 既存Lambertの拡散(1/πなし)と明るさを揃えるため、スペキュラ側にπを掛けて合成する。
+const float PBR_PI = 3.14159265;
+
+float pbrDistributionGGX(float NdotH, float alpha) {
+    float a2 = alpha * alpha;
+    float d = NdotH * NdotH * (a2 - 1.0) + 1.0;
+    return a2 / max(PBR_PI * d * d, 1e-6);
+}
+
+float pbrGeometrySmith(float NdotV, float NdotL, float roughness) {
+    float r = roughness + 1.0;
+    float k = (r * r) / 8.0;
+    float gv = NdotV / (NdotV * (1.0 - k) + k);
+    float gl = NdotL / (NdotL * (1.0 - k) + k);
+    return gv * gl;
+}
+
+vec3 pbrFresnel(float cosTheta, vec3 F0) {
+    return F0 + (vec3(1.0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+// Karis(UE4 mobile)の解析的EnvBRDF近似。BRDF LUTを焼かずに済ませる。
+vec3 pbrEnvBrdfApprox(vec3 F0, float roughness, float NdotV) {
+    const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+    const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+    vec4 r = roughness * c0 + c1;
+    float a004 = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;
+    vec2 AB = vec2(-1.04, 1.04) * a004 + r.zw;
+    return F0 * AB.x + vec3(AB.y);
+}
+
+// 1つの光源からの寄与。lightIrradianceは従来Lambertと同じ単位（色*明るさ*減衰、N·Lは含まない）。
+vec3 pbrDirectLight(vec3 N, vec3 V, vec3 L, vec3 lightIrradiance,
+                    vec3 albedo, float metallic, float roughness, vec3 F0) {
+    float NdotL = max(dot(N, L), 0.0);
+    if (NdotL <= 0.0) return vec3(0.0);
+    vec3 H = normalize(V + L);
+    float NdotV = max(dot(N, V), 1e-4);
+    float NdotH = max(dot(N, H), 0.0);
+    float VdotH = max(dot(V, H), 0.0);
+    float D = pbrDistributionGGX(NdotH, roughness * roughness);
+    float G = pbrGeometrySmith(NdotV, NdotL, roughness);
+    vec3  F = pbrFresnel(VdotH, F0);
+    vec3 specular = (D * G) * F / max(4.0 * NdotV * NdotL, 1e-4);
+    vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
+    return (kD * albedo + specular * PBR_PI) * lightIrradiance * NdotL;
+}
+
+vec3 pbrShade(vec3 albedo, vec3 N, float shadow) {
+    float metallic    = clamp(PbrParams.x, 0.0, 1.0);
+    float roughness   = clamp(PbrParams.y, 0.045, 1.0);  // 0付近は鏡面ハイライトが点に潰れるため下限を設ける
+    float reflectance = clamp(PbrParams.z, 0.0, 1.0);
+    vec3  V  = normalize(viewPos - FragPos);
+    vec3  F0 = mix(vec3(0.16 * reflectance * reflectance), albedo, metallic);
+
+    vec3 Lo = pbrDirectLight(N, V, normalize(-lightDir), lightColor * brightness * (1.0 - shadow),
+                             albedo, metallic, roughness, F0);
+    for (int i = 0; i < uLightCount; ++i) {
+        vec3 Ldir;
+        float atten = pointSpotAttenuation(i, Ldir);
+        Lo += pbrDirectLight(N, V, Ldir, uLights[i].color * uLights[i].brightness * atten,
+                             albedo, metallic, roughness, F0);
+    }
+
+    // 拡散アンビエントは従来(0.3)と揃え、金属は拡散を持たない。環境はスペキュラ反射のみに使う。
+    vec3 ambientDiffuse = (1.0 - metallic) * albedo * 0.3;
+    vec3 R = reflect(-V, N);
+    vec3 prefiltered = textureLod(uEnvSpecular, R, roughness * uEnvMaxLod).rgb;
+    vec3 ambientSpecular = prefiltered * pbrEnvBrdfApprox(F0, roughness, max(dot(N, V), 1e-4));
+    return ambientDiffuse + ambientSpecular + Lo;
 }
 
 void main() {
@@ -324,22 +419,20 @@ if (useTriplanar > 0.5) {
     }
     float shadow = hasShadows * cascadedShadow * shadowFade;
 
+    // Materialを参照するBaseCubeはPBRで描画する。それ以外は従来のLambert。
+    if (PbrParams.w > 0.5) {
+        FragColor = vec4(pbrShade(baseColor, norm, shadow), outAlpha);
+        return;
+    }
+
     vec3 lighting = ambient + (1.0 - shadow) * diffuse;
 
     // ---- 追加 Point/Spot 光源を加算 ----
     for (int i = 0; i < uLightCount; ++i) {
-        vec3  toL  = uLights[i].position - FragPos;
-        float dist = length(toL);
-        vec3  Ldir = toL / max(dist, 1e-4);
-        float atten = clamp(1.0 - dist / max(uLights[i].range, 1e-4), 0.0, 1.0);
-        atten *= atten;
+        vec3  Ldir;
+        float atten = pointSpotAttenuation(i, Ldir);
         float d = max(dot(norm, Ldir), 0.0);
-        float cone = 1.0;
-        if (uLights[i].type == 1) {
-            float theta = dot(normalize(-Ldir), uLights[i].direction);
-            cone = step(uLights[i].cosCutoff, theta);  // 簡易ハードエッジ
-        }
-        lighting += d * atten * cone * uLights[i].color * uLights[i].brightness;
+        lighting += d * atten * uLights[i].color * uLights[i].brightness;
     }
 
     vec3 result = lighting * baseColor;

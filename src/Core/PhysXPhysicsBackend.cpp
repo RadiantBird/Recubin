@@ -636,7 +636,7 @@ physx::PxRigidActor* PhysXPhysicsBackend::buildActor(
     }
 
     if (cube->CanCollide) {
-        physx::PxMaterial* pxMat = getOrCreateMaterial(cube->material);
+        physx::PxMaterial* pxMat = getOrCreateMaterial(cube->effectiveMaterial());
         if (!pxMat) {
             actor->release();
             return nullptr;
@@ -707,7 +707,7 @@ physx::PxRigidActor* PhysXPhysicsBackend::buildActor(
         // 浮力/質量比が発散して吹き飛ぶ(applyBuoyancy参照)。cube->MassDensity はユーザーが
         // Properties パネルで調整できる密度（BaseCube::MassDensity）。0以下はPhysXがrejectするため下限を設ける。
         auto* dyn = static_cast<physx::PxRigidDynamic*>(actor);
-        if (actor->getNbShapes() > 0 && !physx::PxRigidBodyExt::updateMassAndInertia(*dyn, std::max(cube->MassDensity, 0.01f))) {
+        if (actor->getNbShapes() > 0 && !physx::PxRigidBodyExt::updateMassAndInertia(*dyn, std::max(cube->effectiveMassDensity(), 0.01f))) {
             // 失敗時（縮退ジオメトリ等）は質量ゼロ/不正な慣性のアクターをシーンに残さないよう固定値で保険をかける
             RCBN_WARN("updateMassAndInertia failed for: " << cube->Name << " — falling back to mass=1.0");
             dyn->setMass(1.0f);
@@ -2152,11 +2152,11 @@ void PhysXPhysicsBackend::rebuildGroup(const std::vector<std::shared_ptr<BaseCub
         const physx::PxTransform localOffset = originPose.getInverse()
             .transform(savedPoses[cube.get()]).getNormalized();
         localOffsets[cube.get()] = localOffset;
-        physx::PxMaterial* material = getOrCreateMaterial(cube->material);
+        physx::PxMaterial* material = getOrCreateMaterial(cube->effectiveMaterial());
         const bool attached = material && attachShapeToCompound(
             s_pxPhysics, cube, compound, localOffset, material);
         if (attached)
-            shapeDensities.push_back(std::max(cube->MassDensity, 0.01f));
+            shapeDensities.push_back(std::max(cube->effectiveMassDensity(), 0.01f));
         else if (cube->CanCollide)
             constructionFailed = true;
         anyAnchored = anyAnchored || cube->Anchored;

@@ -55,6 +55,8 @@ Instance
   ├─ Rod                     ← 物理制約（固定長距離拘束）
   ├─ Animation               ← キーフレームアニメーション
   ├─ PostEffect              ← ポストプロセスエフェクト
+  ├─ MaterialService         ← Materialを置くサービス（System直下に自動生成）
+  ├─ Material                ← PBR値・物理特性・6面テクスチャ投影を持つ素材（BaseCubeが参照）
   └─ PathfindingService      ← ナビメッシュパスファインディング
 ```
 
@@ -113,5 +115,7 @@ Instance
 | [Rod](Rod.md) | `include/Instances/Rod.hpp` | 物理制約（固定長距離拘束） |
 | [Animation](Animation.md) | `include/Instances/Animation.hpp` | キーフレームアニメーション |
 | [PostEffect](PostEffect.md) | `include/Instances/PostEffect.hpp` | ポストプロセスエフェクト |
+| [MaterialService](MaterialService.md) | `include/Instances/MaterialService.hpp` | Materialを置くサービス（System直下に自動生成） |
+| [Material](Material.md) | `include/Instances/MaterialInstance.hpp` | PBR値・物理特性・6面テクスチャ投影を持つ素材（BaseCubeが参照） |
 | [PathfindingService](PathfindingService.md) | `include/Instances/PathfindingService.hpp` | ナビメッシュパスファインディング |
 | [Program](Program.md) | `include/Instances/Program.hpp` | exeを所有し、標準入出力パイプで文字列をやり取りするIPC |

@@ -259,7 +259,7 @@ void Weather::attemptStrike() {
         if (!inst) return;
         if (inst->IsA("BaseCube")) {
             BaseCube* bc = static_cast<BaseCube*>(inst);
-            if (bc->material.type == MaterialType::Metal && bc->Color.a > 0.001f) {
+            if (bc->isConductive() && bc->Color.a > 0.001f) {
                 candidates.push_back(bc);
                 float h = std::max(bc->getWorldPosition().y, 0.0f) + 1.0f;
                 weights.push_back(h * h);

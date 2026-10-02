@@ -4,6 +4,7 @@
 #include "include/Util/Logger.hpp"
 #include "include/Core/PropertyRegistry.hpp"
 #include "include/Instances/Model.hpp"
+#include "include/Instances/MaterialInstance.hpp"
 #include <cmath>
 
 namespace {
@@ -151,6 +152,22 @@ static const bool s_baseCubeRegistered = []{
         return d;
     };
 
+    // Material: MaterialService配下のMaterialへのパス参照。解決済みなら現在のツリー位置から
+    // 再計算した値を返す（Materialの改名・移動でも保存パスが古くならない）。
+    PropertyDesc materialRef = custom("Material", PropType::String,
+        [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->getMaterialPath()); },
+        [](Instance* o, const PropValue& v) {
+            static_cast<BaseCube*>(o)->setMaterialPath(std::get<std::string>(v));
+        });
+    materialRef.omitEmpty();
+    materialRef.instanceRefClass = "Material";
+    materialRef.editorWidget = EditorWidget::InstanceReference;
+    // クローンはパス解決できない切り離し状態で作られるため、解決済みの参照を直接引き継ぐ。
+    materialRef.copyStateWith([](const Instance* src, Instance* dst) {
+        if (auto material = static_cast<const BaseCube*>(src)->getMaterialInstance())
+            static_cast<BaseCube*>(dst)->setMaterialInstance(material);
+    });
+
     registerClass("BaseCube", "Spatial", {
         field<&BaseCube::Color>("Color").group("Appearance"),
         field<&BaseCube::CastShadow>("CastShadow"),
@@ -171,6 +188,7 @@ static const bool s_baseCubeRegistered = []{
         frictionProp("StaticFriction", &Material::staticFriction),
         frictionProp("DynamicFriction", &Material::dynamicFriction),
         frictionProp("Restitution", &Material::restitution),
+        materialRef,
         locked,
         lockFlags,
     });
@@ -207,6 +225,9 @@ void BaseCube::init() {
     material = Material::GetDefault(MaterialType::Plastic);
     MassDensity = 1.0f;
     LockFlags = PhysicsLockFlags::None;
+    if (auto previous = m_materialRef.lock()) previous->unregisterUser(this);
+    m_materialRef.reset();
+    m_materialPath.clear();
 }
 
 void BaseCube::refreshTouchObservation() {
@@ -373,6 +394,102 @@ void BaseCube::setMaterial(const Material& m) {
     }
 }
 
+std::shared_ptr<MaterialInstance> BaseCube::findMaterialByPath(
+    const std::string& path, Instance* fallbackRoot) {
+    const auto asMaterial = [](Instance* candidate) -> std::shared_ptr<MaterialInstance> {
+        if (!candidate || !candidate->IsA("Material")) return nullptr;
+        return std::static_pointer_cast<MaterialInstance>(candidate->shared_from_this());
+    };
+
+    // Workspace配下のMaterialはWorkspace相対、それ以外は最上位祖先(System)相対で保存される。
+    if (Instance* workspace = findFirstAncestorWorkspace()) {
+        if (auto found = asMaterial(workspace->getChildByPath(path))) return found;
+    }
+    Instance* top = this;
+    for (auto p = Parent.lock(); p; p = p->Parent.lock()) top = p.get();
+    if (top != this) {
+        if (auto found = asMaterial(top->getChildByPath(path))) return found;
+    }
+    if (fallbackRoot && fallbackRoot != top) {
+        if (auto found = asMaterial(fallbackRoot->getChildByPath(path))) return found;
+    }
+    return nullptr;
+}
+
+std::string BaseCube::getMaterialPath() {
+    if (auto material = m_materialRef.lock()) return material->getWorkspaceRelativePath();
+    return m_materialPath;
+}
+
+void BaseCube::setMaterialPath(const std::string& path) {
+    if (path.empty()) {
+        setMaterialInstance(nullptr);
+        return;
+    }
+    if (auto current = m_materialRef.lock()) {
+        if (current->getWorkspaceRelativePath() == path) return;
+    }
+    if (auto found = findMaterialByPath(path, nullptr)) {
+        setMaterialInstance(found);
+        return;
+    }
+    // 未解決。ロード中はツリーが揃っていないため、パスだけ保持して後から解決する。
+    if (auto previous = m_materialRef.lock()) {
+        previous->unregisterUser(this);
+        m_materialRef.reset();
+        refreshPhysicsFromMaterial();
+    }
+    m_materialPath = path;
+}
+
+void BaseCube::setMaterialInstance(const std::shared_ptr<MaterialInstance>& materialInstance) {
+    auto previous = m_materialRef.lock();
+    if (previous == materialInstance) {
+        if (materialInstance) m_materialPath = materialInstance->getWorkspaceRelativePath();
+        return;
+    }
+    if (previous) previous->unregisterUser(this);
+    m_materialRef = materialInstance;
+    if (materialInstance) {
+        if (auto self = std::static_pointer_cast<BaseCube>(weak_from_this().lock()))
+            materialInstance->registerUser(self);
+        m_materialPath = materialInstance->getWorkspaceRelativePath();
+    } else {
+        m_materialPath.clear();
+    }
+    refreshPhysicsFromMaterial();
+}
+
+bool BaseCube::resolveMaterialRef(Instance* fallbackRoot) {
+    if (m_materialPath.empty() || m_materialRef.lock()) return true;
+    auto found = findMaterialByPath(m_materialPath, fallbackRoot);
+    if (!found) return false;
+    setMaterialInstance(found);
+    return true;
+}
+
+Material BaseCube::effectiveMaterial() const {
+    if (auto materialInstance = m_materialRef.lock())
+        return materialInstance->applyPhysicsTo(material);
+    return material;
+}
+
+float BaseCube::effectiveMassDensity() const {
+    if (auto materialInstance = m_materialRef.lock()) return materialInstance->MassDensity;
+    return MassDensity;
+}
+
+bool BaseCube::isConductive() const {
+    if (auto materialInstance = m_materialRef.lock()) return materialInstance->Conductive;
+    return material.type == MaterialType::Metal;
+}
+
+void BaseCube::refreshPhysicsFromMaterial() {
+    if (lastWorkspace && lastWorkspace->physicsEngine) {
+        lastWorkspace->physicsEngine->recreateActor(std::static_pointer_cast<BaseCube>(shared_from_this()));
+    }
+}
+
 void BaseCube::setMassDensity(float d) {
     if (!std::isfinite(d) || d <= 0.0f) {
         RCBN_ERROR("Rejected invalid MassDensity for " << Name);
@@ -431,7 +548,27 @@ unsigned int BaseCube::getDecalTexture(Face face, unsigned int fallback) const {
             }
         }
     }
+    // 直下のDecalが無い面は、参照中のMaterialの子Decalで補う。
+    if (auto materialInstance = m_materialRef.lock()) {
+        for (auto const& [name, child] : materialInstance->children) {
+            if (child->IsA("Decal")) {
+                Decal* d = static_cast<Decal*>(child.get());
+                if (d->face == face && d->TextureID != 0) {
+                    return d->TextureID;
+                }
+            }
+        }
+    }
     return fallback;
+}
+
+bool BaseCube::hasMaterialFaceVisuals() const {
+    auto materialInstance = m_materialRef.lock();
+    if (!materialInstance) return false;
+    for (auto const& [name, child] : materialInstance->children) {
+        if (child->IsA("Decal") || child->IsA("Texture")) return true;
+    }
+    return false;
 }
 
 void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {

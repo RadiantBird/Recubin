@@ -18,7 +18,8 @@ Box3D物理シミュレーション対応の3D基底クラス。Workspaceへ追�
 | `CastShadow` | `bool` | false の場合は常に影を生成しない |
 | `ShadowMode` | `ShadowMode` | `Always`（透明度を無視）、`Never`（影なし）、`Normal`（`Color.a > 0.001`）。既定値は `Normal`。MeshCube の fallback geometry は `Normal` でも影を生成する |
 | `Color` | `Color4` | オブジェクト色 |
-| `material` | `Material` | 物理マテリアル（摩擦・反発） |
+| `material` | `Material` | 物理マテリアル（摩擦・反発）。C++ の `struct Material`（Instance の [Material](Material.md) とは別物）。`Material` 参照が無いときに使われる |
+| `Material`（プロパティ） | `string` | `MaterialService` 配下の [Material](Material.md) へのパス。設定中は摩擦・反発・密度・`Conductive`・PBR・6 面投影が Material の値になる（`effectiveMaterial()` / `effectiveMassDensity()` / `isConductive()`）。空なら従来値 |
 | `lastWorkspace` | `Workspace*` | 登録済み Workspace のキャッシュ |
 | `LockFlags` | `PhysicsLockFlags` | 軸ロック設定 |
 

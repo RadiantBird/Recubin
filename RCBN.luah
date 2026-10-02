@@ -47,6 +47,9 @@ export type BaseCube = Spatial & {
     TextureScale: number,
     Locked: boolean,
     CCDMode: "Default" | "Bullet",
+    -- MaterialService配下のMaterialへのパス（例: "MaterialService\\Brick"）。空文字で解除。
+    -- 設定中は物理値(摩擦/反発/密度)・Conductive・PBR・6面投影がMaterialのものになる。
+    Material: string,
 }
 
 export type Cube = BaseCube & {}
@@ -110,6 +113,20 @@ export type Lighting = Instance & {
     Brightness: number,
     Direction: Vector3,
     Color: Color4,
+}
+
+-- System直下の自動生成サービス。配下にMaterialを置く。
+export type MaterialService = Instance & {}
+
+-- BaseCubeがMaterialプロパティで参照する素材。子のDecal/Textureが参照元の6面へ投影される。
+export type Material = Instance & {
+    Metallic: number, -- 0..1
+    Roughness: number, -- 0..1
+    Reflectance: number, -- 0..1（非金属のF0 = 0.16 * Reflectance^2）
+    DynamicFriction: number,
+    Restitution: number,
+    MassDensity: number,
+    Conductive: boolean, -- 雷の標的になるか
 }
 
 export type LightSource = Instance & {

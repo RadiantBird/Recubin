@@ -250,6 +250,8 @@ static const char* getClassIcon(const std::string& cn) {
                                                                               return ICON_VALUE;
     if (cn == "Users") return ICON_USERS;
     if (cn == "ChatService") return ICON_CHATSERVICE;
+    if (cn == "MaterialService") return ICON_MATERIALSERVICE;
+    if (cn == "Material") return ICON_MATERIAL;
 
     return ICON_INSTANCE;
 }

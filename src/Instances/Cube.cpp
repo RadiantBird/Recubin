@@ -1,6 +1,7 @@
 #include <Instances/Cube.hpp>
 #include <Instances/SurfaceGui.hpp>
 #include <Instances/Canvas.hpp>
+#include <Instances/MaterialInstance.hpp>
 #include <Util/GLUniformCache.hpp>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -74,6 +75,42 @@ Cube::Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex)
     // faceTextures は廃止
 }
 
+namespace {
+
+// 6面ぶんの描画スロット。直下の子とMaterialの子の収集結果をまとめる。
+struct FaceSlots {
+    unsigned int textures[6];
+    Decal*       decals[6];
+    Texture*     texInsts[6];
+    bool         surfaceGui[6];
+    bool         claimed[6];  // 直下の子が面を占有済み(Materialの子で上書きしない)
+    bool         any = false;
+};
+
+// Decal/Textureを面スロットへ割り当てる。fillOnlyUnclaimedが真のときは、直下の子が
+// 占有済みの面を上書きしない(Materialの子の補完用)。偽のときは占有済みとして記録する。
+void assignDecalOrTexture(Instance& child, FaceSlots& slots, bool fillOnlyUnclaimed) {
+    if (child.IsA("Decal")) {
+        auto& decal = static_cast<Decal&>(child);
+        const int idx = static_cast<int>(decal.face);
+        if (idx < 0 || idx >= 6 || (fillOnlyUnclaimed && slots.claimed[idx])) return;
+        slots.textures[idx] = decal.TextureID;
+        slots.decals[idx]   = &decal;
+        slots.any = true;
+        if (!fillOnlyUnclaimed) slots.claimed[idx] = true;
+    } else if (child.IsA("Texture")) {
+        auto& tex = static_cast<Texture&>(child);
+        const int idx = static_cast<int>(tex.face);
+        if (idx < 0 || idx >= 6 || (fillOnlyUnclaimed && slots.claimed[idx])) return;
+        slots.texInsts[idx] = &tex;
+        if (!slots.decals[idx]) slots.textures[idx] = tex.TextureID;
+        slots.any = true;
+        if (!fillOnlyUnclaimed) slots.claimed[idx] = true;
+    }
+}
+
+} // namespace
+
 // 描画の実装
 void Cube::draw(int modelLoc, int shaderProgram) {
     glBindVertexArray(s_VAO);
@@ -89,36 +126,23 @@ void Cube::draw(int modelLoc, int shaderProgram) {
     int useTexTintLoc      = cachedUniformLocation(shaderProgram, s_useTexTintLocCache,   "uUseTextureTint");
 
     // フェイスごとのデカール・テクスチャ収集
-    unsigned int activeTextures[6];
-    Decal*       activeDecals[6];
-    Texture*     activeTexInst[6];
-    bool         activeSurfaceGui[6];
+    FaceSlots slots;
     for (int i = 0; i < 6; i++) {
-        activeTextures[i]   = defaultTextureID;
-        activeDecals[i]     = nullptr;
-        activeTexInst[i]    = nullptr;
-        activeSurfaceGui[i] = false;
+        slots.textures[i]   = defaultTextureID;
+        slots.decals[i]     = nullptr;
+        slots.texInsts[i]   = nullptr;
+        slots.surfaceGui[i] = false;
+        slots.claimed[i]    = false;
     }
+    unsigned int (&activeTextures)[6] = slots.textures;
+    Decal*       (&activeDecals)[6]   = slots.decals;
+    Texture*     (&activeTexInst)[6]  = slots.texInsts;
+    bool         (&activeSurfaceGui)[6] = slots.surfaceGui;
 
-    bool anyFaceOverride = false;
+    // 直下の子が優先。SurfaceGui/Canvasも面を占有するので、Materialの子は上書きしない。
     for (auto const& [name, child] : getChildren()) {
-        if (child->IsA("Decal")) {
-            Decal* decal = static_cast<Decal*>(child.get());
-            int idx = static_cast<int>(decal->face);
-            if (idx >= 0 && idx < 6) {
-                activeTextures[idx] = decal->TextureID;
-                activeDecals[idx]   = decal;
-                anyFaceOverride = true;
-            }
-        } else if (child->IsA("Texture")) {
-            Texture* tex = static_cast<Texture*>(child.get());
-            int idx = static_cast<int>(tex->face);
-            if (idx >= 0 && idx < 6) {
-                activeTexInst[idx] = tex;
-                if (!activeDecals[idx])
-                    activeTextures[idx] = tex->TextureID;
-                anyFaceOverride = true;
-            }
+        if (child->IsA("Decal") || child->IsA("Texture")) {
+            assignDecalOrTexture(*child, slots, false);
         } else if (child->getClassName() == "SurfaceGui") {
             auto* sg = static_cast<SurfaceGui*>(child.get());
             int idx = static_cast<int>(sg->face);
@@ -126,7 +150,8 @@ void Cube::draw(int modelLoc, int shaderProgram) {
                 !activeDecals[idx]) {
                 activeTextures[idx]   = sg->m_texID;
                 activeSurfaceGui[idx] = true;
-                anyFaceOverride = true;
+                slots.claimed[idx]    = true;
+                slots.any = true;
             }
         } else if (child->getClassName() == "Canvas") {
             auto* cv = static_cast<Canvas*>(child.get());
@@ -135,10 +160,20 @@ void Cube::draw(int modelLoc, int shaderProgram) {
             if (idx >= 0 && idx < 6 && cv->m_texID != 0 && !activeDecals[idx]) {
                 activeTextures[idx]   = cv->m_texID;
                 activeSurfaceGui[idx] = true;  // 同じ isSurfaceGui=1 ブレンド経路を再利用
-                anyFaceOverride = true;
+                slots.claimed[idx]    = true;
+                slots.any = true;
             }
         }
     }
+
+    // 参照中のMaterialの子Decal/Textureで、直下の子が占有していない面を補う。
+    if (auto materialInstance = getMaterialInstance()) {
+        for (auto const& [name, child] : materialInstance->getChildren()) {
+            if (child->IsA("Decal") || child->IsA("Texture"))
+                assignDecalOrTexture(*child, slots, true);
+        }
+    }
+    const bool anyFaceOverride = slots.any;
 
     if (!anyFaceOverride) {
         // 面子要素が1つもない場合: 6面すべて素材同一のため1ドローで短絡

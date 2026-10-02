@@ -853,9 +853,9 @@ b3ShapeId Box3DPhysicsBackend::createCubeShape(
 
     b3ShapeDef definition = b3DefaultShapeDef();
     definition.userData = cube.get();
-    definition.baseMaterial = toB3Material(cube->material);
+    definition.baseMaterial = toB3Material(cube->effectiveMaterial());
     definition.density = sensor ? 0.0f
-        : std::max(cube->MassDensity, 0.01f) * DENSITY_TO_MKS;
+        : std::max(cube->effectiveMassDensity(), 0.01f) * DENSITY_TO_MKS;
     configureCubeFilter(
         definition.filter,
         sensor,

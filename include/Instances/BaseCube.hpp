@@ -15,6 +15,7 @@ class Physics;
 class PhysXPhysicsBackend;
 class Box3DPhysicsBackend;
 class Workspace;
+class MaterialInstance;
 
 enum class PhysicsShape { Box, Sphere, ConvexMesh };
 enum class ShadowMode { Always, Never, Normal };
@@ -33,6 +34,14 @@ private:
     std::uint32_t m_characterCollisionGroup = 0;
 
     void refreshTouchObservation();
+
+    // MaterialService配下のMaterialへの参照。パスは保存形式、weak_ptrは解決済み実体。
+    // 未解決(ロード中など)の間はパスだけを保持し、SceneLoaderが後から解決する。
+    std::string m_materialPath;
+    std::weak_ptr<MaterialInstance> m_materialRef;
+
+    std::shared_ptr<MaterialInstance> findMaterialByPath(
+        const std::string& path, Instance* fallbackRoot);
 
 public:
     std::shared_ptr<RCBNScriptSignal> Touched;
@@ -82,7 +91,11 @@ public:
     // 子デカールから指定方向のテクスチャIDを取得するヘルパー
     // 該当するデカールがなければ fallback を返す
     unsigned int getDecalTexture(Face face, unsigned int fallback) const;
-    
+
+    // 参照中のMaterialが面へ投影するDecal/Textureを子に持つか。
+    // 持つ個体は面ごとの描画が必要なので、インスタンス描画の対象外にする。
+    bool hasMaterialFaceVisuals() const;
+
     virtual bool IsA(std::string name) override;
     bool shouldCastShadow(bool hasVisibleFallbackGeometry = false) const;
     void syncPhysics();
@@ -97,6 +110,21 @@ public:
     bool isTouchObserved() const { return m_touchObservationActive; }
     void setLocked(bool locked);
     void setMaterial(const Material& m);
+
+    // Material参照。参照があるときは物理値(摩擦/反発/密度)とConductiveが
+    // 参照先Materialの値になり、未指定のときは従来のmaterial/MassDensityを使う。
+    std::shared_ptr<MaterialInstance> getMaterialInstance() const { return m_materialRef.lock(); }
+    std::string getMaterialPath();
+    void setMaterialPath(const std::string& path);
+    void setMaterialInstance(const std::shared_ptr<MaterialInstance>& materialInstance);
+    // パスからMaterialを解決する。未設定なら真、設定済みで見つからなければ偽。
+    bool resolveMaterialRef(Instance* fallbackRoot = nullptr);
+    Material effectiveMaterial() const;
+    float effectiveMassDensity() const;
+    bool isConductive() const;
+    // 参照先Materialの物理値が変わったときに物理actorを作り直す。
+    void refreshPhysicsFromMaterial();
+
     void setMassDensity(float d);
     void setCCDMode(CCDMode mode);
     void setLockFlags(PhysicsLockFlags flags);

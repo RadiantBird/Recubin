@@ -51,6 +51,8 @@
 #include <Instances/QuaternionValue.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
+#include <Instances/MaterialService.hpp>
+#include <Instances/MaterialInstance.hpp>
 #include <Util/YamlLoadResult.hpp>
 #include <Util/EditorLaunchPath.hpp>
 #include <stb_image.h>
@@ -9223,7 +9225,8 @@ static int runSceneLoadTransactionRegression() {
                liveUser->getToolInSlot(0) && liveUser->getToolInSlot(0)->Name == "Hammer",
            "commit adopts Inventory and synchronizes staged Tools");
     expect(liveSystem->getChild("PathfindingService") &&
-               liveSystem->getChild("ChatService"),
+               liveSystem->getChild("ChatService") &&
+               liveSystem->getChild("MaterialService"),
            "commit supplies default runtime services");
 
     auto missingUserSystem = std::make_shared<System>();
@@ -13259,6 +13262,156 @@ int runRagdollMotorRecoveryRegression() {
     return failures;
 }
 
+// MaterialService/Material の生成・スキーマ・BaseCubeからの参照解決・物理実効値・
+// YAML往復・クローン・未解決パスの後解決を検証する。
+static int runMaterialServiceRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[MaterialService] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+    const auto near = [](float a, float b) { return std::abs(a - b) < 1.0e-5f; };
+
+    auto serviceBase = SceneLoader::createInstance("MaterialService");
+    auto materialBase = SceneLoader::createInstance("Material");
+    expect(serviceBase && serviceBase->getClassName() == "MaterialService",
+           "createInstance builds MaterialService");
+    expect(materialBase && materialBase->getClassName() == "Material" &&
+               materialBase->IsA("Material"),
+           "createInstance builds Material");
+
+    const auto schema = PropertyRegistry::collectApplicableSchema(materialBase.get());
+    const auto findProperty = [&](std::string_view name) -> const PropertyDesc* {
+        for (const PropertyDesc* desc : schema)
+            if (desc && desc->name == name) return desc;
+        return nullptr;
+    };
+    const PropertyDesc* staticFriction = findProperty("StaticFriction");
+    expect(staticFriction && !staticFriction->editable && staticFriction->noLuaRead &&
+               staticFriction->noLuaWrite && staticFriction->serialize,
+           "StaticFriction is hidden from editor/Lua but still serialized");
+    expect(findProperty("Metallic") && findProperty("Roughness") &&
+               findProperty("Reflectance") && findProperty("Conductive") &&
+               findProperty("DynamicFriction") && findProperty("Restitution") &&
+               findProperty("MassDensity"),
+           "Material schema exposes PBR and physics properties");
+
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    auto materialService = std::make_shared<MaterialService>();
+    system->addChild(workspace);
+    system->addChild(materialService);
+
+    auto brick = std::static_pointer_cast<MaterialInstance>(
+        SceneLoader::createInstance("Material"));
+    brick->Name = "Brick";
+    materialService->addChild(brick);
+    brick->setProperty("DynamicFriction", YAML::Node(0.9f));
+    brick->setProperty("Restitution", YAML::Node(0.3f));
+    brick->setProperty("MassDensity", YAML::Node(2.0f));
+    brick->setProperty("Conductive", YAML::Node(true));
+    brick->setProperty("MassDensity", YAML::Node(-1.0f));
+    expect(near(brick->MassDensity, 2.0f), "invalid MassDensity is rejected");
+
+    auto cube = std::static_pointer_cast<BaseCube>(SceneLoader::createInstance("Cube"));
+    cube->Name = "TestCube";
+    workspace->addChild(cube);
+
+    expect(!cube->getMaterialInstance() && cube->getMaterialPath().empty() &&
+               !cube->isConductive() && near(cube->effectiveMassDensity(), 1.0f),
+           "cube without Material keeps legacy values");
+    cube->setMaterial(Material::GetDefault(MaterialType::Metal));
+    expect(cube->isConductive(), "legacy Metal MaterialType stays conductive");
+    cube->setMaterial(Material::GetDefault(MaterialType::Plastic));
+
+    {
+        YAML::Emitter output;
+        output << YAML::BeginMap;
+        PropertyRegistry::saveProperties(output, cube.get(), "BaseCube");
+        output << YAML::EndMap;
+        expect(!YAML::Load(output.c_str())["Material"],
+               "cube without Material does not serialize a Material key");
+    }
+
+    cube->setProperty("Material", YAML::Node(std::string("MaterialService\\Brick")));
+    expect(cube->getMaterialInstance() == brick, "Material path resolves to the instance");
+    expect(cube->getMaterialPath() == "MaterialService\\Brick",
+           "Material path is derived from the tree location");
+    {
+        const Material effective = cube->effectiveMaterial();
+        expect(near(effective.dynamicFriction, 0.9f) && near(effective.restitution, 0.3f) &&
+                   near(cube->effectiveMassDensity(), 2.0f) && cube->isConductive(),
+               "referenced Material overrides friction, restitution, density and conductivity");
+    }
+    brick->setProperty("DynamicFriction", YAML::Node(0.4f));
+    expect(near(cube->effectiveMaterial().dynamicFriction, 0.4f),
+           "Material edits are visible through referencing cubes");
+
+    auto clone = std::dynamic_pointer_cast<BaseCube>(cube->clone());
+    expect(clone && clone->getMaterialInstance() == brick,
+           "detached clone keeps the resolved Material reference");
+
+    const auto yamlPath = std::filesystem::temp_directory_path() /
+        "recubin_material_service_regression.yaml";
+    expect(SceneLoader::saveSceneResult(system.get(), yamlPath.string()),
+           "scene with Material saves");
+    const auto loaded = SceneLoader::loadSceneResult(yamlPath.string());
+    std::error_code removeError;
+    std::filesystem::remove(yamlPath, removeError);
+    expect(static_cast<bool>(loaded) && loaded.root != nullptr, "scene with Material loads");
+    if (loaded.root) {
+        Instance* loadedCube = loaded.root->getChildByPath("Workspace\\TestCube");
+        Instance* loadedBrick = loaded.root->getChildByPath("MaterialService\\Brick");
+        expect(loadedCube && loadedBrick && loadedCube->IsA("BaseCube") &&
+                   static_cast<BaseCube*>(loadedCube)->getMaterialInstance().get() == loadedBrick,
+               "Material reference survives YAML round-trip and resolves after load");
+        expect(loadedBrick && near(static_cast<MaterialInstance*>(loadedBrick)->DynamicFriction, 0.4f) &&
+                   static_cast<MaterialInstance*>(loadedBrick)->Conductive,
+               "Material properties survive YAML round-trip");
+    }
+
+    // 未解決パスは保持し、Materialが現れてから後解決できる。
+    cube->setProperty("Material", YAML::Node(std::string("MaterialService\\Late")));
+    expect(!cube->getMaterialInstance() &&
+               cube->getMaterialPath() == "MaterialService\\Late" &&
+               near(cube->effectiveMaterial().dynamicFriction,
+                    Material::GetDefault(MaterialType::Plastic).dynamicFriction),
+           "unresolved Material path is kept and falls back to legacy values");
+    auto late = std::static_pointer_cast<MaterialInstance>(
+        SceneLoader::createInstance("Material"));
+    late->Name = "Late";
+    materialService->addChild(late);
+    expect(cube->resolveMaterialRef(system.get()) && cube->getMaterialInstance() == late,
+           "unresolved Material path resolves once the Material exists");
+
+    // フェーズ②: Materialの子Decalは参照元の面へ投影され、直下のDecalが優先される。
+    cube->setProperty("Material", YAML::Node(std::string("MaterialService\\Brick")));
+    expect(!cube->hasMaterialFaceVisuals() && cube->getDecalTexture(Face::Top, 1u) == 1u,
+           "Material without Decal children projects nothing");
+    brick->addChild(std::make_shared<Decal>(7u, Face::Top));
+    expect(cube->hasMaterialFaceVisuals(),
+           "Material with a Decal child opts out of plain instancing");
+    expect(cube->getDecalTexture(Face::Top, 1u) == 7u &&
+               cube->getDecalTexture(Face::Front, 1u) == 1u,
+           "Material Decal projects only onto its own face");
+    auto directDecal = std::make_shared<Decal>(9u, Face::Top);
+    cube->addChild(directDecal);
+    expect(cube->getDecalTexture(Face::Top, 1u) == 9u,
+           "a Decal directly under the cube wins over the Material Decal");
+    cube->removeChild(directDecal->Name);
+    expect(cube->getDecalTexture(Face::Top, 1u) == 7u,
+           "removing the direct Decal restores the Material Decal");
+
+    cube->setProperty("Material", YAML::Node(std::string()));
+    expect(!cube->getMaterialInstance() && cube->getMaterialPath().empty(),
+           "empty path clears the Material reference");
+    expect(!cube->hasMaterialFaceVisuals() && cube->getDecalTexture(Face::Top, 1u) == 1u,
+           "clearing the Material removes its projected faces");
+
+    return failures == 0 ? 0 : 1;
+}
+
 struct RegressionEntry {
     std::string_view name;
     int (*runner)(int, char**);
@@ -13321,6 +13474,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--physical-file-instance-regression", runPhysicalFileInstanceRegression),
         REG("--property-text-input-regression", runPropertyTextInputRegression),
         REG("--property-schema-regression", runPropertySchemaRegression),
+        REG("--material-service-regression", runMaterialServiceRegression),
         REG("--quaternion-invariant-regression", runQuaternionInvariantRegression),
         REG("--spatial-coordinate-regression", runSpatialCoordinateRegression),
         REG("--coordinate-recalculate-regression", runCoordinateRecalculateRegression),

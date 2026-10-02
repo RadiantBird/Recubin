@@ -35,6 +35,6 @@ enum Face { Front=0, Back=1, Top=2, Bottom=3, Right=4, Left=5 }
 
 ## 使われる場所
 
-- `Cube::draw()` が子の `Decal` を検索し、その `TextureID` でテクスチャをオーバーライドする
+- `Cube::draw()` が子の `Decal` を検索し、その `TextureID` でテクスチャをオーバーライドする。BaseCube 直下に無い面は、参照中の [Material](Material.md) の子 `Decal`/`Texture` で補う（直下が優先）。Material の子の Decal は、その Material を参照する全 BaseCube の対応面へ投影される
 - `LuauEngine` のバインディングで `TextureID` と `Face` を Luau スクリプトから操作可能
-- Editor で選択すると、直接親の `Cube` 上の対象 `Face` の外縁4辺を選択色で表示する。親が `Cube` 以外の Decal はこの補助表示を行わない
+- Editor で選択すると、直接親の `Cube` 上の対象 `Face` の外縁4辺を選択色で表示する。親が [Material](Material.md) の Decal は、その Material を参照する全 Cube の対応面を表示する。親が `Cube`/Material 以外の Decal はこの補助表示を行わない

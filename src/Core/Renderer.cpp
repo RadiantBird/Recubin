@@ -14,6 +14,7 @@
 #include <Instances/Sphere.hpp>
 #include <Instances/Sun.hpp>
 #include <Instances/Moon.hpp>
+#include <Instances/Skybox.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/LightSource.hpp>
 #include <Instances/SpotLight.hpp>
@@ -21,6 +22,7 @@
 #include <Instances/SurfaceMark.hpp>
 #include <Instances/SurfaceGui.hpp>
 #include <Instances/Decal.hpp>
+#include <Instances/MaterialInstance.hpp>
 #include <Instances/LiquidCube.hpp>
 #include <Instances/ParticleEmitter.hpp>
 #include <Instances/Highlight.hpp>
@@ -248,6 +250,7 @@ static int instanceableShapeIndex(BaseCube* bc) {
     if (bc->Color.a < 0.999f) return -1;  // 半透明はブレンド順の問題があるため除外
     if (bc->Unlit || bc->UseTriplanar) return -1;
     if (bc->TextureScale != 1.0f) return -1;
+    if (bc->hasMaterialFaceVisuals()) return -1;  // Materialが面へ投影するDecal/Textureは面ごとに描く
     for (auto const& [name, child] : bc->getChildren()) {
         if (child->IsA("Decal") || child->IsA("Texture") ||
             child->getClassName() == "Canvas") {
@@ -259,6 +262,18 @@ static int instanceableShapeIndex(BaseCube* bc) {
         }
     }
     return shapeIdx;
+}
+
+// BaseCubeのMaterial参照からPBR値(metallic, roughness, reflectance, enabled)を取り出す。
+// 参照が無ければ全て0（PBR無効 = 従来のLambert描画）。
+static void getPbrParams(const BaseCube& bc, float out[4]) {
+    out[0] = out[1] = out[2] = out[3] = 0.0f;
+    if (auto material = bc.getMaterialInstance()) {
+        out[0] = material->Metallic;
+        out[1] = material->Roughness;
+        out[2] = material->Reflectance;
+        out[3] = 1.0f;
+    }
 }
 
 // Shadow depth passではTexture/Decal/Triplanar等の見た目状態を読まないため、
@@ -290,6 +305,10 @@ void Renderer::attachInstanceAttribs(unsigned int vao) {
                           (void*)offsetof(CubeInstanceData, color));
     glEnableVertexAttribArray(9);
     glVertexAttribDivisor(9, 1);
+    glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(CubeInstanceData),
+                          (void*)offsetof(CubeInstanceData, pbr));
+    glEnableVertexAttribArray(10);
+    glVertexAttribDivisor(10, 1);
     glBindVertexArray(0);
 }
 
@@ -719,6 +738,8 @@ void Renderer::init(GLFWwindow* window) {
     surfaceMarkDepthLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkDepth");
     uLightCountLoc      = glGetUniformLocation(shaderProgram, "uLightCount");
     m_uInstancedLoc     = glGetUniformLocation(shaderProgram, "uInstanced");
+    m_uPbrMaterialLoc   = glGetUniformLocation(shaderProgram, "uPbrMaterial");
+    m_uEnvMaxLodLoc     = glGetUniformLocation(shaderProgram, "uEnvMaxLod");
     for (int i = 0; i < MAX_LIGHTS; i++) {
         std::string b = "uLights[" + std::to_string(i) + "].";
         lightLocs[i].type       = glGetUniformLocation(shaderProgram, (b + "type").c_str());
@@ -735,6 +756,10 @@ void Renderer::init(GLFWwindow* window) {
     // SurfaceMark uses dedicated units 2 (image) and 3 (viewpoint depth).
     glUniform1i(surfaceMarkTextureLoc, 2);
     glUniform1i(surfaceMarkDepthLoc, 3);
+    // 環境キューブマップ専用のユニット。sampler2Dと同じユニットを指すとdraw時にGL_INVALID_OPERATION
+    // になるため、既定値(0)のままにせず必ず専用ユニットを割り当てる。
+    glUniform1i(glGetUniformLocation(shaderProgram, "uEnvSpecular"), ENV_SPECULAR_UNIT);
+    if (m_uPbrMaterialLoc != -1) glUniform4f(m_uPbrMaterialLoc, 0.0f, 0.0f, 0.0f, 0.0f);
     glUniform1f(surfaceMarkPassLoc, 0.0f);
     glUniform1f(hasShadowsLoc, 0.0f);
 
@@ -841,6 +866,7 @@ void Renderer::init(GLFWwindow* window) {
     initSelectionRenderer();
     initParticleRenderer();
     initCloudRenderer();
+    initEnvironmentRenderer();
 }
 
 // ===================================================
@@ -897,6 +923,7 @@ Renderer::~Renderer() {
     if (m_selectionMaskDepth) glDeleteRenderbuffers(1, &m_selectionMaskDepth);
     if (m_selectionMaskShader) glDeleteProgram(m_selectionMaskShader);
     if (m_selectionOutlineShader) glDeleteProgram(m_selectionOutlineShader);
+    destroyEnvironmentRenderer();
     for (auto& [path, entry] : m_customPostEffectPrograms) {
         if (entry.program) glDeleteProgram(entry.program);
     }
@@ -2181,8 +2208,18 @@ void Renderer::drawDecalFaceHighlight(Decal* decal, const Color4& outlineColor,
         return;
     }
 
+    // Decalは、Cubeの直下か、Materialの子(そのMaterialを参照する全Cubeの面へ投影)のどちらか。
     const auto parent = decal->Parent.lock();
-    if (!parent || !parent->IsA("Cube")) return;
+    if (!parent) return;
+    std::vector<const BaseCube*> targetCubes;
+    if (parent->IsA("Cube")) {
+        targetCubes.push_back(static_cast<const BaseCube*>(parent.get()));
+    } else if (parent->IsA("Material")) {
+        static_cast<MaterialInstance*>(parent.get())->forEachUser([&](BaseCube& user) {
+            if (user.IsA("Cube")) targetCubes.push_back(&user);
+        });
+    }
+    if (targetCubes.empty()) return;
     const int faceIndex = static_cast<int>(decal->face);
     if (faceIndex < static_cast<int>(Face::Front) || faceIndex > static_cast<int>(Face::Left)) return;
 
@@ -2195,20 +2232,21 @@ void Renderer::drawDecalFaceHighlight(Decal* decal, const Color4& outlineColor,
         { {-0.5f, -0.5f,  0.5f}, {-0.5f, -0.5f, -0.5f}, {-0.5f,  0.5f, -0.5f}, {-0.5f,  0.5f,  0.5f} }, // Left
     };
 
-    const BaseCube* cube = static_cast<const BaseCube*>(parent.get());
-    const CFrame worldCFrame = cube->getWorldCFrame();
-    const Vector3 size = cube->Size;
     std::vector<float> worldSegments;
-    worldSegments.reserve(4 * 6);
-    for (int cornerIndex = 0; cornerIndex < 4; ++cornerIndex) {
-        const Vector3 localStart = faceCorners[faceIndex][cornerIndex] * size;
-        const Vector3 localEnd = faceCorners[faceIndex][(cornerIndex + 1) % 4] * size;
-        const Vector3 worldStart = worldCFrame.pointToWorld(localStart);
-        const Vector3 worldEnd = worldCFrame.pointToWorld(localEnd);
-        worldSegments.insert(worldSegments.end(), {
-            worldStart.x, worldStart.y, worldStart.z,
-            worldEnd.x, worldEnd.y, worldEnd.z,
-        });
+    worldSegments.reserve(4 * 6 * targetCubes.size());
+    for (const BaseCube* cube : targetCubes) {
+        const CFrame worldCFrame = cube->getWorldCFrame();
+        const Vector3 size = cube->Size;
+        for (int cornerIndex = 0; cornerIndex < 4; ++cornerIndex) {
+            const Vector3 localStart = faceCorners[faceIndex][cornerIndex] * size;
+            const Vector3 localEnd = faceCorners[faceIndex][(cornerIndex + 1) % 4] * size;
+            const Vector3 worldStart = worldCFrame.pointToWorld(localStart);
+            const Vector3 worldEnd = worldCFrame.pointToWorld(localEnd);
+            worldSegments.insert(worldSegments.end(), {
+                worldStart.x, worldStart.y, worldStart.z,
+                worldEnd.x, worldEnd.y, worldEnd.z,
+            });
+        }
     }
 
     std::vector<float> ribbonVerts;
@@ -2303,12 +2341,15 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     }
 
     // Sun・Moon の位置を毎フレーム Angle から再計算（フォーカス外でも Angle 変更を即反映するため）
+    // 同じ走査でSkyboxも拾う（PBRの環境反射キューブマップの元になる）。
+    Skybox* skyboxInst = nullptr;
     {
         Sun*  sunInst  = nullptr;
         Moon* moonInst = nullptr;
         for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) {
             if (cube->IsA("Sun"))       sunInst = static_cast<Sun*>(cube);
             else if (cube->IsA("Moon")) moonInst = static_cast<Moon*>(cube);
+            else if (cube->IsA("Skybox")) skyboxInst = static_cast<Skybox*>(cube);
         }
         if (sunInst) {
             float rad = sunInst->Angle * (3.14159265f / 180.0f);
@@ -2357,6 +2398,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             std::memcpy(d.model, mtx.m, sizeof(d.model));
             d.color[0] = inst->Color.r; d.color[1] = inst->Color.g;
             d.color[2] = inst->Color.b; d.color[3] = inst->Color.a;
+            getPbrParams(*inst, d.pbr);
             if (shadowShapeIdx >= 0 && shouldCastShadow(inst)) {
                 m_instBatches[shadowShapeIdx].shadow.push_back({
                     d, wcf.Position, inst->Size.length() * 0.5f
@@ -2687,6 +2729,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         writeGpuTimestamp(GpuTimestamp::ShadowEnd);
     }
 
+    // ---- PBR環境反射キューブマップ（Skyboxの入力が変わったときだけ再生成） ----
+    updateEnvironmentMap(skyboxInst);
+
     // ---- Main Pass ----
     if (captureGpuViewport) writeGpuTimestamp(GpuTimestamp::MainBegin);
     FrameProfiler::get().beginSection("main");
@@ -2753,6 +2798,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D_ARRAY, shadowReady ? shadowMapTex : 0);
     glActiveTexture(GL_TEXTURE0);
+    bindEnvironmentMap();
     if (lightSpaceMatricesLoc != -1) {
         glUniformMatrix4fv(lightSpaceMatricesLoc, SHADOW_CASCADE_COUNT, GL_FALSE,
                            lightSpaceMatrices[0].m);
@@ -2805,6 +2851,12 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         FrameProfiler::get().addCount("treeMainNodes", 1);
         FrameProfiler::get().addCount("baseCubesVisited", 1);
         BaseCube* bc = inst;
+            // 個別描画のPBR値。Material未参照の個体は全て0（従来のLambert描画）に戻す。
+            if (m_uPbrMaterialLoc != -1) {
+                float pbr[4];
+                getPbrParams(*bc, pbr);
+                glUniform4f(m_uPbrMaterialLoc, pbr[0], pbr[1], pbr[2], pbr[3]);
+            }
             if (unlitLoc     != -1) glUniform1f(unlitLoc,     bc->Unlit        ? 1.0f : 0.0f);
             if (triplanarLoc != -1) glUniform1f(triplanarLoc, bc->UseTriplanar ? 1.0f : 0.0f);
             if (texScaleLoc  != -1) glUniform1f(texScaleLoc,  bc->TextureScale);
@@ -3057,6 +3109,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             glBindFramebuffer(GL_FRAMEBUFFER, desc.fbo); glViewport(0, 0, desc.width, desc.height);
             glUseProgram(shaderProgram); glUniform1f(m_uInstancedLoc, 0.0f); glDepthFunc(GL_LEQUAL); glDepthMask(GL_FALSE); glEnable(GL_BLEND);
             glUniform1f(surfaceMarkPassLoc, 1.0f);
+            if (m_uPbrMaterialLoc != -1) glUniform4f(m_uPbrMaterialLoc, 0.0f, 0.0f, 0.0f, 0.0f);  // 重ね描画はPBR対象外
             glUniform1i(glGetUniformLocation(shaderProgram, "uDecalCount"), 0);
             glUniformMatrix4fv(surfaceMarkWorldToLocalLoc, 1, GL_FALSE, markCf.inverse().toMatrix4().m);
             glUniformMatrix4fv(surfaceMarkProjectionLoc, 1, GL_FALSE, markVP.m);
@@ -3423,6 +3476,7 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection, Wor
     if (texScaleLoc       != -1) glUniform1f(texScaleLoc,       1.0f);
     if (useVertexColorLoc != -1) glUniform1f(useVertexColorLoc, 1.0f);
     if (ourColorLoc       != -1) glUniform4f(ourColorLoc,       1.0f, 1.0f, 1.0f, 1.0f);
+    if (m_uPbrMaterialLoc != -1) glUniform4f(m_uPbrMaterialLoc, 0.0f, 0.0f, 0.0f, 0.0f);  // 地形はPBR対象外
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, whiteTexture);

@@ -33,6 +33,7 @@
 class IEditorManager;
 class ChatService;
 class Decal;
+class Skybox;
 class GuiButton;
 class SurfaceGui;
 class ScreenGuiObject;
@@ -41,6 +42,7 @@ class ScreenGuiObject;
 struct CubeInstanceData {
     float model[16]; // ワールド行列（Matrix4::m と同レイアウト）
     float color[4];  // RGBA
+    float pbr[4];    // Material参照時: metallic, roughness, reflectance, 1。未参照は全て0（従来のLambert描画）
 };
 
 // Shadow depth pass用。深度シェーダーはdrawだけを使い、中心と半径は
@@ -133,6 +135,9 @@ class Renderer {
         int          surfaceMarkDepthLoc = -1;
         int          surfaceMarkTextureLoc = -1;
 
+        int          m_uPbrMaterialLoc   = -1;  // 個別描画用のPBR値(w=0でPBR無効)
+        int          m_uEnvMaxLodLoc     = -1;
+
         unsigned int m_instanceVBO = 0;  // 毎フレーム上書きするインスタンスバッファ（全形状共有）
 
         // 素のプリミティブ形状のGPUインスタンシング用バッチ（Cube/Cylinder/Sphere/TriangularPrismの4種）
@@ -174,6 +179,25 @@ class Renderer {
             bool hasFileMetadata = false;
         };
         std::map<std::string, TextureCacheEntry> textureCache;
+
+        // ---- PBRの環境反射（Renderer_Environment.cpp） ----
+        // Skyboxの6面から焼いた、mipがroughnessに対応するキューブマップ。Skyboxが無い/
+        // テクスチャ未読込のときは手続き的な空のグラデーションを使う。メインシェーダーでは
+        // テクスチャユニット ENV_SPECULAR_UNIT の samplerCube uEnvSpecular に束縛する。
+        static constexpr int ENV_SPECULAR_UNIT = 10;
+        unsigned int m_envSpecularTex = 0;
+        float        m_envMaxLod = 0.0f;
+        std::size_t  m_envSignature = 0;       // 焼いた時のSkybox入力の識別値。0は手続き的フォールバック
+        bool         m_envBuilt = false;
+        unsigned int m_envPrefilterShader = 0;
+        unsigned int m_envFbo = 0;
+        void initEnvironmentRenderer();
+        void destroyEnvironmentRenderer();
+        // Skyboxの入力が変わったときだけキューブマップを作り直す。呼び出し側のFBO・
+        // viewport・各GL状態は保存して復元する。メインパスの直前に呼ぶこと。
+        void updateEnvironmentMap(Skybox* skybox);
+        // メインシェーダー(使用中)へ環境キューブマップとmax lodを設定する。
+        void bindEnvironmentMap();
 
         unsigned int whiteTexture;
         void createWhiteTexture();

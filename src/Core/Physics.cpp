@@ -42,17 +42,20 @@ bool validQuaternion(const Quaternion& value) {
 }
 
 bool validCubeDescriptor(const BaseCube& cube) {
+    // Material参照があれば参照先の値が実際に物理へ渡るため、実効値を検証する。
+    const Material effectiveMaterial = cube.effectiveMaterial();
+    const float effectiveDensity = cube.effectiveMassDensity();
     const bool baseValid = finiteVector(cube.Size) && cube.Size.x > 0.0f &&
            cube.Size.y > 0.0f && cube.Size.z > 0.0f &&
            finiteVector(cube.getWorldPosition()) &&
            validQuaternion(cube.getWorldCFrame().Rotation) &&
-           std::isfinite(cube.MassDensity) && cube.MassDensity > 0.0f &&
-           std::isfinite(cube.material.staticFriction) &&
-           std::isfinite(cube.material.dynamicFriction) &&
-           std::isfinite(cube.material.restitution) &&
-           cube.material.staticFriction >= 0.0f &&
-           cube.material.dynamicFriction >= 0.0f &&
-           cube.material.restitution >= 0.0f;
+           std::isfinite(effectiveDensity) && effectiveDensity > 0.0f &&
+           std::isfinite(effectiveMaterial.staticFriction) &&
+           std::isfinite(effectiveMaterial.dynamicFriction) &&
+           std::isfinite(effectiveMaterial.restitution) &&
+           effectiveMaterial.staticFriction >= 0.0f &&
+           effectiveMaterial.dynamicFriction >= 0.0f &&
+           effectiveMaterial.restitution >= 0.0f;
     if (!baseValid) return false;
     if (cube.getPhysicsShape() != PhysicsShape::ConvexMesh) return true;
     const auto vertices = cube.getConvexVertices();

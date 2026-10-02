@@ -26,6 +26,8 @@
 #include <Instances/SignalEvent.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/PathfindingService.hpp>
+#include <Instances/MaterialService.hpp>
+#include <Instances/MaterialInstance.hpp>
 #include <Core/PropertyRegistry.hpp>
 #include <Instances/Animation.hpp>
 #include <Instances/StarterCharacter.hpp>
@@ -423,6 +425,8 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "System")    return std::make_shared<System>();
     if (className == "Workspace") return std::make_shared<Workspace>();
     if (className == "PathfindingService") return std::make_shared<PathfindingService>();
+    if (className == "MaterialService") return std::make_shared<MaterialService>();
+    if (className == "Material")  return std::make_shared<MaterialInstance>();
     if (className == "Script")    return std::make_shared<Script>("");
     if (className == "Model")     return std::make_shared<Model>();
     if (className == "Decal")     return std::make_shared<Decal>(0, Face::Front);
@@ -537,6 +541,16 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
     auto walk = [&](auto& self, Instance* inst) -> void {
         for (auto& [name, child] : inst->children) {
             Instance* c = child.get();
+            // BaseCubeのMaterial参照は、全ツリーが揃ったこの段階で解決する。
+            // Propertiesは子ツリー・兄弟より先に適用されるため。
+            if (child->IsA("BaseCube")) {
+                auto cube = std::static_pointer_cast<BaseCube>(child);
+                if (!cube->resolveMaterialRef(sceneRoot)) {
+                    std::cerr << "[SceneLoader] BaseCube \"" << cube->getFullPath()
+                              << "\": Material not found (Material=\"" << cube->getMaterialPath()
+                              << "\")\n";
+                }
+            }
             if (child->IsA("SurfaceMark")) {
                 static_cast<SurfaceMark*>(child.get())->resolveFilterInstances(sceneRoot);
             } else if (child->IsA("Rope")) {

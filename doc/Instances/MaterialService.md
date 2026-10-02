@@ -1,0 +1,24 @@
+# MaterialService
+
+`include/Instances/MaterialService.hpp`
+
+`System` 直下に自動生成されるサービス。配下に [Material](Material.md) を置く。自身はプロパティを持たないコンテナ。
+
+## 継承
+
+`Instance` → `MaterialService`
+
+## 生成・保存
+
+- `SceneRuntime::commitAndBind` が、読み込んだシーンに無ければ System 直下へ自動生成する（古いシーンの互換と、BaseCube の Material 参照解決の前提）。
+- YAML には通常のインスタンスとして保存される（`Properties` は空のため出力されない）。
+- `SceneLoader::createInstance` に登録済み。Explorer の Insert Object には載せない（シングルトン）。`Instance.new` でも生成不可。
+- Luau からは `System.MaterialService` の子名参照でアクセスする（PathfindingService と同じ方式）。
+
+## 親子の制約
+
+親子の許可ルールは存在しないため、Material を MaterialService 以外に置くこともできる（参照パスは `getWorkspaceRelativePath()` で解決される）。
+
+## 継承クラス
+
+なし

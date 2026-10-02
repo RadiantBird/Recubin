@@ -33,6 +33,9 @@
 #define ICON_USERS        "" // many people
 #define ICON_CHATSERVICE  "" // 2 talking bubbles
 
+#define ICON_MATERIALSERVICE "\xef\x97\x83"  // f5c3 fa-swatchbook
+#define ICON_MATERIAL     "\xef\x94\xbf"  // f53f fa-palette
+
 // ---- ツールバー再設計で追加 ----
 #define ICON_PLAY               "\xef\x81\x8b"  // f04b fa-play
 #define ICON_PAUSE              "\xef\x81\x8c"  // f04c fa-pause

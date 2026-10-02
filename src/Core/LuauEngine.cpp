@@ -43,6 +43,7 @@
 #include "include/Instances/SurfaceMark.hpp"
 #include "include/Instances/Texture.hpp"
 #include "include/Instances/Lighting.hpp"
+#include "include/Instances/MaterialInstance.hpp"
 #include "include/Instances/PointLight.hpp"
 #include "include/Instances/SpotLight.hpp"
 #include "include/Instances/PostEffect.hpp"
@@ -3041,6 +3042,7 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
               return AudioService::instance ? std::make_shared<Sound>(*AudioService::instance) : nullptr;
           } },
         { "Lighting",         [] { return std::make_shared<Lighting>(); } },
+        { "Material",         [] { return std::make_shared<MaterialInstance>(); } },
         { "PointLight",       [] { return std::make_shared<PointLight>(); } },
         { "SpotLight",        [] { return std::make_shared<SpotLight>(); } },
         { "PostEffect",       [] { return std::make_shared<PostEffect>(); } },

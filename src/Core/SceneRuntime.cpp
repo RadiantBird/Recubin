@@ -11,6 +11,7 @@
 #include <Instances/Folder.hpp>
 #include <Instances/Users.hpp>
 #include <Instances/ChatService.hpp>
+#include <Instances/MaterialService.hpp>
 #include <Core/Terrain.hpp>
 #include <include/GLFW/glfw3.h>
 #include "include/stb_image.h"
@@ -349,6 +350,11 @@ Bound commitAndBind(StagedSceneLoad&& staged,
     // NavMeshディスクキャッシュのパス算出に使うため、シーン読み込みのたびに更新する
     if (auto it = system->children.find("PathfindingService"); it != system->children.end()) {
         static_cast<PathfindingService*>(it->second.get())->ScenePath = staged.scenePath;
+    }
+
+    // MaterialService も System直下に無ければ自動生成する（古いシーンの互換と参照解決の前提）
+    if (system->children.find("MaterialService") == system->children.end()) {
+        system->addChild(std::make_shared<MaterialService>());
     }
 
     if (system->children.find("ChatService") == system->children.end()) {

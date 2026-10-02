@@ -495,7 +495,7 @@ static int runGenTestScene(const std::string& outputPath) {
     static const char* kClassNames[] = {
         "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere", "MeshCube", "LiquidCube", "SpawnLocation",
         "Skybox", "Sun", "Moon", "Model", "Sound", "SurfaceMark",
-        "Lighting", "PointLight", "SpotLight", "PostEffect",
+        "Lighting", "Material", "PointLight", "SpotLight", "PostEffect",
         "AppImage", "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance",
         "Rope", "Rod", "Weld", "Motor", "Attachment", "Force",
         "TextLabel", "TextButton", "ImageLabel", "ImageButton", "SurfaceGui", "BillboardGui",
