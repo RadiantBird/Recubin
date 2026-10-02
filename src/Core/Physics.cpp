@@ -13,6 +13,7 @@
 #include "include/Instances/Rope.hpp"
 #include "include/Instances/Weld.hpp"
 #include "include/Instances/Workspace.hpp"
+#include "include/Util/FrameProfiler.hpp"
 #include "include/Util/Logger.hpp"
 #include <algorithm>
 #include <cmath>
@@ -246,19 +247,11 @@ bool Physics::ownsBody(const BaseCube& cube) const {
 }
 
 void Physics::reconcileConstraints(Workspace& workspace) {
+    // Workspaceが登録時に集めたリストを使う（毎フレーム全ツリーをIsAで走査しない）。
     std::vector<std::shared_ptr<Instance>> constraints;
-    auto collect = [&](auto& self, const std::shared_ptr<Instance>& value) -> void {
-        if (!value) return;
-        if (value->IsA("PhysicsConstraint"))
-            constraints.push_back(value);
-        for (const auto& [name, child] : value->getChildren()) {
-            (void)name;
-            self(self, child);
-        }
-    };
-    for (const auto& [name, child] : workspace.getChildren()) {
-        (void)name;
-        collect(collect, child);
+    constraints.reserve(workspace.getRenderConstraints().size());
+    for (Instance* value : workspace.getRenderConstraints()) {
+        constraints.push_back(value->shared_from_this());
     }
 
     std::unordered_set<Instance*> live;
@@ -457,12 +450,16 @@ void Physics::reconcileConstraints(Workspace& workspace) {
 
 void Physics::update(Workspace& workspace, float dt) {
     if (!isAvailable()) return;
-    reconcileConstraints(workspace);
+    {
+        FrameProfiler::Scope reconcile("physics.reconcileConstraints");
+        reconcileConstraints(workspace);
+    }
     const std::uint64_t before = m_backend->getSimulationTick();
     m_backend->update(workspace, dt);
     advanceWavePhaseCorrection(m_backend->getSimulationTick() - before);
     // 物理で動いた子に合わせて、Modelの原点を重心へ追従させる
-    Model::syncPivotsToCentroid(workspace);
+    FrameProfiler::Scope syncPivots("physics.syncPivots");
+    Model::syncPivotsToCentroid(workspace.getRenderModels());
 }
 void Physics::stepOnce(float dt) {
     if (!isAvailable()) return;

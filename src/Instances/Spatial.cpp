@@ -117,6 +117,14 @@ struct DescendantPose {
     std::size_t depth;
 };
 
+// 値が完全に同じ書き込みでboundsEpochを進めない(Skyboxは毎フレームカメラ位置へ
+// 書き込むが、カメラが止まっていれば空間インデックスを無効化したくない)。
+bool sameFrameExact(const CFrame& a, const CFrame& b) {
+    return a.Position == b.Position &&
+        a.Rotation.w == b.Rotation.w && a.Rotation.x == b.Rotation.x &&
+        a.Rotation.y == b.Rotation.y && a.Rotation.z == b.Rotation.z;
+}
+
 void collectDescendantPoses(Instance& root, std::vector<DescendantPose>& out,
                             std::size_t depth = 1) {
     for (const auto& [_, child] : root.children) {
@@ -136,7 +144,20 @@ void assignWorldCFrame(Spatial& target, const CFrame& world) {
 }
 }
 
+void Spatial::refreshHierarchyCache() {
+    auto parent = Parent.lock();
+    while (parent) {
+        if (dynamic_cast<Spatial*>(parent.get())) {
+            m_hasSpatialAncestor = true;
+            return;
+        }
+        parent = parent->Parent.lock();
+    }
+    m_hasSpatialAncestor = false;
+}
+
 CFrame Spatial::getWorldCFrame() const {
+    if (!m_hasSpatialAncestor) return m_cframe;
     if (auto* coordinateParent = getCoordinateParent()) {
         // 親もワールド CFrame を持つ → 親ワールド * 自ローカル で合成
         return coordinateParent->getWorldCFrame() * m_cframe;
@@ -145,6 +166,7 @@ CFrame Spatial::getWorldCFrame() const {
 }
 
 Spatial* Spatial::getCoordinateParent() const {
+    if (!m_hasSpatialAncestor) return nullptr;
     auto parent = Parent.lock();
     while (parent) {
         if (auto* spatial = dynamic_cast<Spatial*>(parent.get())) return spatial;
@@ -169,6 +191,7 @@ void Spatial::setCFrame(const CFrame& value) {
     if (!normalized.Rotation.tryNormalize()) return;
     std::vector<DescendantPose> descendants;
     collectDescendantPoses(*this, descendants);
+    if (!sameFrameExact(m_cframe, normalized)) notifyBoundsChanged();
     m_cframe = normalized;
     std::stable_sort(descendants.begin(), descendants.end(),
         [](const DescendantPose& a, const DescendantPose& b) { return a.depth < b.depth; });
@@ -181,6 +204,7 @@ void Spatial::commitCFrame(const CFrame& value, SpatialUpdateOrigin origin) {
     std::vector<DescendantPose> descendants;
     if (origin == SpatialUpdateOrigin::Physics || origin == SpatialUpdateOrigin::Network)
         collectDescendantPoses(*this, descendants);
+    if (!sameFrameExact(m_cframe, normalized)) notifyBoundsChanged();
     m_cframe = normalized;
     if (!descendants.empty()) {
         std::stable_sort(descendants.begin(), descendants.end(),
@@ -233,6 +257,7 @@ void Spatial::setSize(const Vector3& value) {
         value.z <= 0.0f) {
         return;
     }
+    if (!(Size == value)) notifyBoundsChanged();
     Size = value;
 }
 

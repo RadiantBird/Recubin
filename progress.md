@@ -120,3 +120,72 @@
 - **`RuntimeFileSystem`のrootはCWD**（コンストラクタ引数なし時）。エディターと配布ランタイムでTextFileのoverlay(`textfiles/<StorageId>.txt`)が分離される。
 - **RecubinTest.exeは`<scene>`引数でシーンをヘッドレス実行できる**（Scriptがそのまま動く）。`[Luau]`print出力で挙動確認に使える。
 - **MSVCの既定文字コードはCP932**。日本語UTF-8ソースには`/utf-8`が必要。`.bat`はASCIIのみ。
+
+
+## 2026-10-02 大量Cube(50k→100k)のCPU負荷削減・プロファイラー強化
+
+### 1. 何をしたか
+**プロファイラー**
+- `ProfilerPanel.cpp`: 表を定義ベース(`TableDef`/`Entry`/`Label`)に組み替え、UI表示とMarkdown出力で同じ定義を共有。「Copy as Markdown」ボタン(`buildMarkdownReport`)を追加。行描画関数4本を`drawEntryRow`に統合。
+- `Renderer.cpp`: ドローコール系カウンター追加(`drawCallsMain/Shadow/Instanced/Terrain`、`instanceUploadBytes`)。
+- 計測スコープ追加: `physics.reconcileConstraints/staleScan/syncPivots`(`Physics.cpp`/`Box3DPhysicsBackend.cpp`)、`ui.viewportScene/Click/Gizmo/HoverPick/HoverOutline/FreeDrag`(`ViewportPanel.cpp`)、`ui.newFrame/renderPanels/toolbar/imguiRenderDrawData`と各パネル(`EditorManager.cpp`)、`main.processInput/humanoids/terrains/weather/particles`(`main.cpp`)。
+
+**全ツリー走査の撤廃（Workspaceの登録リスト化）**
+- `Workspace::registerRenderSubtree/unregisterRenderSubtree`が種別ごとのリストを保持: Constraints/Models/Humanoids/Skyboxes/Forces/Attachments(既存のParticleEmitters/Weathers/Terrains/BaseCubesに追加)。`getTreeRevision()`を追加。
+- 置き換えた毎フレーム走査: `Physics::reconcileConstraints`、`Model::syncPivotsToCentroid(リスト版)`、`Box3DPhysicsBackend::hasEnabledForce`(`m_updateWorkspace`経由)、`Humanoid::updateAll(リスト版)`、`ParticleEmitter::updateAll(リスト版)`、`Weather::updateAll(リスト版・直下のみ)`、`SceneRuntime::updateTerrains`、`Renderer::renderConstraints/renderPhysicsDebug`、レンダラーのSkybox探索。
+- `Box3DPhysicsBackend::update`の`staleScan`はツリーリビジョン変化時のみ実行。
+
+**描画CPU**
+- `Renderer.cpp`: 収集ループ内の`addCount`をループ後にまとめて加算、クラス名比較を1回に、`shouldCastShadow`の`IsA("MeshCube")`を除去、`visibleShadowInstances`をカスケード外で再利用。
+- **`instanceCollect`の並列化**: 新規`ThreadPool`(`include/Util/ThreadPool.hpp`、`src/Util/ThreadPool.cpp`、最大7ワーカー)。Cube範囲を最大32チャンクに分け、結果は元の順序で結合(並列コピー)。
+
+**Spatial/座標**
+- `Spatial::getWorldCFrame()/getCoordinateParent()`の高速経路(`m_hasSpatialAncestor`)。`Instance::refreshHierarchyCache()`(新規仮想関数)を`setParent`が部分木全体へ呼んで更新。
+- `Spatial::boundsEpoch()/notifyBoundsChanged()`を追加。`setCFrame/commitCFrame/setSize`で値が実際に変わると増える。`BaseCube::setSize`と`ViewportPanel.cpp`のギズモSize直書きにも通知を追加。
+
+**選択レイキャスト**
+- 新規`BaseCubeBvh`(`include/Core/BaseCubeBvh.hpp`、`src/Core/BaseCubeBvh.cpp`)。`Workspace::getPickBvh()`で保持、`ViewportSceneQueries::findNearestBaseCube`が使用。ツリー/エポックが2回連続で不変のときだけ構築、動いている間は線形走査にフォールバック。
+- `ViewportPanel::drawHoverHighlight`: ホバー結果のキャッシュ(`m_hoverPickCache`、レイ+ツリーリビジョン一致かつ非Playのとき)。
+
+**その他**
+- `EditorManager.cpp`: ツールバーが毎フレーム呼んでいた`computeSpawnPos`(全Cubeレイキャスト)を、クリック時のみ評価する`LazySpawnPos`に変更。
+- `test_main.cpp`: `ViewportHelperRegression`にBVH等価性テストを追加(700個×ランダムレイ、移動/リサイズ/削除後も線形基準と一致)。
+
+### 2. なぜそうしたか
+- **「レンダラー並列化」を最初にやらなかった理由**: 計測でドローコールは2+3、GPUは8%で、ボトルネックは個数比例のCPU処理(全走査)と判明。無駄を消すほうが安全で効果が大きく、並列化は`instanceCollect`が最後に残ってから導入した。
+- **登録リスト方式 vs 変更検知フラグ(Step 2の静的Cubeキャッシュ)で迷って前者**: `Color`/`Size`等が公開フィールドでフックが無く、キャッシュは設計コストが高い。登録リストは既存の`registerRenderSubtree`に乗れて副作用が小さい。60FPSが出たためキャッシュは見送り。
+- **`onAncestorChanged`ではなく新規`refreshHierarchyCache`にした理由**: `BaseCube`/`Tool`等が`Instance::onAncestorChanged`を直接呼ぶためSpatialの上書きを素通りする。`setParent`から部分木を直接走査すれば漏れない。古いtrueは遅い経路で正しく解決され、危険なのは古いfalseだけ。
+- **ホバーピックをキャッシュのみ vs BVH**: キャッシュは静止時しか効かない(マウスを動かすと毎フレーム再計算)ため、BVHも追加。Playでは物理が毎フレームエポックを進めるのでBVHを使わず線形走査にフォールバック(構築を繰り返すほうが遅い)。
+- **BVHの境界エポックで「同値書き込みでは増やさない」理由**: Skyboxが毎フレームカメラ位置へ書き込むため、増やすと永遠にBVHが無効になる。
+- **ThreadPoolでタスク取得を世代つきロックにした理由**: 完了後に次のジョブが始まったあと、古いtaskポインタで新しいindexを実行する競合を防ぐため。
+
+### 3. 経緯
+- 最初の指示: 「50k Cubeで平均10FPS、GPU8%。CPU側が重い。プロファイラーをMarkdownでコピーできるボタンと、ドローコール項目を追加して計測したい」→ 実装。
+- 計測→調査(Exploreエージェント)→プラン承認→Step0(計測追加)/Step1(描画の無駄削減)→再計測を繰り返した。順に: 物理の全ツリー走査(27→8ms)→Humanoid/Particle/Weather/Terrainの`updateAll`(main.terrainsなど)→`getWorldCFrame`高速化→ツールバーの`computeSpawnPos`(7.7ms)→追加描画の全走査→`instanceCollect`の並列化→選択BVH。
+- 結果: 50kで平均10FPS→(VSyncオフ)80FPS。100kでもVSyncありで60FPS維持。ユーザー確認済み。
+- ユーザーが「ギズモのハイライトでFPSが落ちる」と指摘 → 原因はギズモではなく`drawHoverHighlight`のレイキャスト(ホバー中のみ毎フレーム全Cube走査)。計測スコープを足して確認。
+
+### 試して失敗・やり直した方法
+- **`python run_regression.py`をそのまま実行した**: 専用テスト後に必ずRecubin.exeのGUI自動操作スモークが起動する(スキップ引数なし)。ユーザーの「GUI自動テスト禁止」ルールに反した。以降はスクラッチパッドで`run_regression.list_regressions`/`run_dedicated`だけを回す方法に切り替え、メモリ(`feedback_no_gui_smoketest.md`)に追記。
+- **ヒアドキュメント経由のPython/補助スクリプトが通らない箇所があった**: Writeで直接ファイルを書き換えて回避(`ProfilerPanel.cpp`)。
+- **スレッドプール単体テストのコンパイル**: 日本語コメント入りUTF-8をMSVCがCP932で読んで構文崩壊 → `/utf-8`を付ける。
+- **BVHテスト**: `Quaternion::fromAxisAngle`に正規化していない軸を渡して`[ASSERT]`で異常終了 → `.normalize()`で修正。
+- **ベンチ用のレイが全Cubeを外れていた**: 最初の測定が無意味(0.0000ms)だった。当たるレイに直して測り直した。
+
+### 4. 未解決・保留
+- **実機確認が必要**(GUI自動起動禁止のため未確認): 並列化した描画でCubeの欠け・重複・順序が起きていないか、ホバーのBVH経路、Skybox追従、ギズモのSizeドラッグ後の選択。
+- **残るホットパス(100k)**: `physics.syncCubes` 4.8ms(Anchoredの変更検知が必要。`Spatial::boundsEpoch`方式で取れる見込み)、`render.instanceCollect` 3.7ms、`mainInstanceUpload` 0.4〜1.2ms。60FPSが出ているため見送り。
+- `GuiAutomation`スモークが`Editor/CrashRecovery/*`でタイムアウトした(今回の変更が原因か既存かは未確認)。
+- 回帰テストは「GUIなし専用テスト」で54 passed/11 failed、`[ERROR]`14件(ベースラインと同数)。**失敗名のHEADとの突合は未実施**(以前のログとの比較のみ)。シーン実行(`run_scene`)は回していない。
+- `Weather::updateAll(リスト版)`は「Workspace直下のみ」を維持するため`Parent`で絞っている。ネストしたWeatherの扱いは従来から未定義。
+- `Humanoid::updateAll`のグローバルな呼び出しID(`g_currentHumanoidUpdateAllInvocation`)はリスト版でも1呼び出し1IDで維持。
+
+### 5. 暗黙仕様の発見（spec.mdにない）
+- **`Spatial::Size`は公開フィールドで、書き換えフックが無い**。BVHなどの境界キャッシュは`setSize`または`notifyBoundsChanged()`に依存する。直接書いたら必ず`notifyBoundsChanged()`を呼ぶこと(忘れるとBVHが古くなり拡大したCubeを取りこぼす)。
+- **`Parent`を書くのは`Instance::setParent`だけ**(例外: `Workspace`のデストラクタ)。登録リストやキャッシュの整合はここに乗る。
+- **`Spatial::setCFrame`は子孫のワールド姿勢を保存する**設計(子孫のローカルを再コミットする)ため、親が動いても子孫のワールド位置は動かない。選択・描画のキャッシュはこの前提に依存しない作りにした。
+- **`ui`セクションは`render`に包含される**(エディターでは`renderViewport`が`renderUI`内の`ViewportPanel`から呼ばれる)。`swap`は`render`の外。フレーム時間 ≒ ui + physics + swap + 計測外。
+- **エディターではPlay中のみ物理・Luauが動く**(`SystemState::isPlaying`)。VSyncオフ計測では`swap`がほぼ0になりCPU律速が見える。
+- **`Quaternion::fromAxisAngle`は正規化済みの軸を要求する**(デバッグアサート)。
+- **`computeSpawnPos`は全Cubeへのレイキャスト**。毎フレームのUIから呼ぶと個数に比例して重くなる。
+- **MSVCの既定文字コードはCP932**。日本語UTF-8ソースを単体で`cl`コンパイルするには`/utf-8`が必要(CMakeビルドは通る)。

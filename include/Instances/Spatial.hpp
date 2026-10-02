@@ -4,6 +4,7 @@
 #include "Math/Vector3.hpp"
 #include "Math/Quaternion.hpp"
 #include "Math/CFrame.hpp"
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -40,11 +41,24 @@ public:
     // local frames without recursively preserving descendants per element.
     static void applyLocalCFrameBatch(
         const std::vector<std::pair<Spatial*, CFrame>>& values);
+    // いずれかのSpatialの姿勢(m_cframe)またはSizeが実際に変わるたびに増えるカウンター。
+    // 全Cubeのワールド境界に依存する空間インデックスの無効化検知に使う。値自体に意味は
+    // 無い。Sizeは公開フィールドなので、setSize以外で直接書き換えたら
+    // notifyBoundsChanged()を呼ぶこと。
+    static std::uint64_t boundsEpoch() { return s_boundsEpoch; }
+    static void notifyBoundsChanged() { ++s_boundsEpoch; }
     // 座標基準となる最近傍 Spatial 親。Folder 等の非 Spatial は透過する。
     Spatial* getCoordinateParent() const;
+    void refreshHierarchyCache() override;
     // ワールドCFrameを親SpatialからのローカルCFrameへ変換して設定する。
     void setWorldCFrame(const CFrame& worldCFrame);
 
 private:
     CFrame m_cframe;
+    // Spatialの祖先を持つか。falseなら親チェーンを辿らずlocal==worldで返せる(50000個の
+    // Workspace直下Cubeを毎フレーム読むため)。親の付け替え時にsetParentが更新する。
+    // 古いtrueは遅い経路で正しく解決されるだけだが、古いfalseは誤った姿勢になるので、
+    // 祖先のSpatialが増える経路(setParent)では必ず更新すること。
+    bool m_hasSpatialAncestor = false;
+    static inline std::uint64_t s_boundsEpoch = 0;
 };

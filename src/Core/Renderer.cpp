@@ -3,6 +3,7 @@
 #include <Core/FileLoader.hpp>
 #include <Util/Logger.hpp>
 #include <Util/FrameProfiler.hpp>
+#include <Util/ThreadPool.hpp>
 #include <Util/AssetGuard.hpp>
 #include <Util/AssetPath.hpp>
 #include <Util/MeshEdges.hpp>
@@ -244,8 +245,8 @@ static int primitiveShapeIndex(BaseCube* bc) {
 // メインパスでインスタンス描画できる「素のプリミティブ」の形状インデックスを返す。
 // Cube/Cylinder等は面デカール描画を持つため、視覚状態が個体ごとに異なる場合は
 // 個別描画へフォールバックする。
-static int instanceableShapeIndex(BaseCube* bc) {
-    const int shapeIdx = primitiveShapeIndex(bc);
+// primitiveShapeIndex()の結果を既に持っている呼び出し側向け（クラス名比較の重複を避ける）。
+static int instanceableShapeIndexForShape(BaseCube* bc, int shapeIdx) {
     if (shapeIdx < 0) return -1;
     if (bc->Color.a < 0.999f) return -1;  // 半透明はブレンド順の問題があるため除外
     if (bc->Unlit || bc->UseTriplanar) return -1;
@@ -262,6 +263,10 @@ static int instanceableShapeIndex(BaseCube* bc) {
         }
     }
     return shapeIdx;
+}
+
+static int instanceableShapeIndex(BaseCube* bc) {
+    return instanceableShapeIndexForShape(bc, primitiveShapeIndex(bc));
 }
 
 // BaseCubeのMaterial参照からPBR値(metallic, roughness, reflectance, enabled)を取り出す。
@@ -1273,7 +1278,9 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
         }
 
     };
-    for (Instance* inst : workspace.getRenderInstances()) scan(inst);
+    // Rope/Rodは必ずPhysicsConstraint。登録リストだけを見ればよい(全インスタンスの
+    // クラス名比較をしない)。
+    for (Instance* inst : workspace.getRenderConstraints()) scan(inst);
 
     glBindVertexArray(0);
     glUseProgram(shaderProgram);
@@ -1488,7 +1495,11 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
         }
 
     };
-    for (Instance* inst : workspace.getRenderInstances()) scan(inst);
+    // 対象はWeld/Motor/BallSocket/NoCollision(=PhysicsConstraint)・Attachment・Force。
+    // 登録リストだけを見る(全インスタンスのクラス名比較をしない)。
+    for (Instance* inst : workspace.getRenderConstraints()) scan(inst);
+    for (Attachment* attachment : workspace.getRenderAttachments()) scan(attachment);
+    for (Force* force : workspace.getRenderForces()) scan(force);
 
     glBindVertexArray(0);
     glUseProgram(shaderProgram);
@@ -2344,9 +2355,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     // Skybox を拾う（PBRの環境反射キューブマップの元になる）。
     Skybox* skyboxInst = nullptr;
-    for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) {
-        if (cube->IsA("Skybox")) skyboxInst = static_cast<Skybox*>(cube);
-    }
+    // Workspaceが登録時にSkyboxを集めているので、全Cubeを走査しない。
+    const std::vector<Skybox*>& skyboxes = desc.workspace->getRenderSkyboxes();
+    if (!skyboxes.empty()) skyboxInst = skyboxes.back();
 
     // 最初のSunが平行光源の向きを決める（Sun::Angleが光の向きの唯一の正）。
     const Sun* primarySun = nullptr;
@@ -2356,10 +2367,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     // Skybox の位置をカメラに同期 (フォーカス中のみ)
     if (desc.isFocused) {
-        for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) {
-            if (cube->IsA("Skybox")) {
-                cube->teleportTo(desc.cameraPosition);
-            }
+        for (Skybox* skybox : skyboxes) {
+            skybox->teleportTo(desc.cameraPosition);
         }
     }
 
@@ -2371,19 +2380,43 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     std::vector<BaseCube*> individuallyRenderedMainCubes;
     std::vector<BaseCube*> individuallyRenderedShadowCubes;
     const auto& renderBaseCubes = desc.workspace->getRenderBaseCubes();
-    long long instCulled = 0;
-    auto collectInstCubes = [&](BaseCube* inst) -> void {
+
+    // 1チャンク(連続したCube範囲)の収集結果。チャンクごとに独立して作り、元の順序のまま
+    // 結合するので、直列実行と同じ並びになる。vectorの容量はフレーム間で使い回す。
+    struct CollectChunk {
+        std::vector<CubeInstanceData> main[INST_SHAPE_COUNT];
+        std::vector<ShadowInstanceData> shadow[INST_SHAPE_COUNT];
+        std::vector<BaseCube*> individualMain;
+        std::vector<BaseCube*> individualShadow;
+        long long culled = 0;
+        std::size_t mainOffset[INST_SHAPE_COUNT] = {};
+        std::size_t shadowOffset[INST_SHAPE_COUNT] = {};
+
+        void reset() {
+            for (int s = 0; s < INST_SHAPE_COUNT; ++s) {
+                main[s].clear();
+                shadow[s].clear();
+            }
+            individualMain.clear();
+            individualShadow.clear();
+            culled = 0;
+        }
+    };
+    static std::vector<CollectChunk> s_collectChunks;
+
+    // ワーカースレッドから呼ばれる。Instanceは読み取りのみで、描画スレッドは
+    // parallelForの完了まで待つため、シーンは変更されない。FrameProfilerなどの
+    // 共有状態には触れない。
+    auto collectInstCubes = [&](BaseCube* inst, CollectChunk& chunk) -> void {
         if (!inst) return;
-        FrameProfiler::get().addCount("treeInstancesNodes", 1);
-        FrameProfiler::get().addCount("baseCubesVisited", 1);
-        const int mainShapeIdx = instanceableShapeIndex(inst);
         const int shadowShapeIdx = shadowInstanceableShapeIndex(inst);
+        const int mainShapeIdx = instanceableShapeIndexForShape(inst, shadowShapeIdx);
         const bool canInstanceMain = mainShapeIdx >= 0 &&
             m_uInstancedLoc != -1 && instShapes[mainShapeIdx].vao != 0;
         const bool canInstanceShadow = shadowShapeIdx >= 0 &&
             m_uInstancedDepthLoc != -1 && instShapes[shadowShapeIdx].vao != 0;
-        if (!canInstanceMain) individuallyRenderedMainCubes.push_back(inst);
-        if (!canInstanceShadow) individuallyRenderedShadowCubes.push_back(inst);
+        if (!canInstanceMain) chunk.individualMain.push_back(inst);
+        if (!canInstanceShadow) chunk.individualShadow.push_back(inst);
         if (mainShapeIdx >= 0 || shadowShapeIdx >= 0) {
             CFrame wcf = inst->getWorldCFrame();
             Matrix4 mtx = wcf.toMatrix4() * Matrix4::Scale(inst->Size.x, inst->Size.y, inst->Size.z);
@@ -2392,25 +2425,85 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             d.color[0] = inst->Color.r; d.color[1] = inst->Color.g;
             d.color[2] = inst->Color.b; d.color[3] = inst->Color.a;
             getPbrParams(*inst, d.pbr);
-            if (shadowShapeIdx >= 0 && shouldCastShadow(inst)) {
-                m_instBatches[shadowShapeIdx].shadow.push_back({
-                    d, wcf.Position, inst->Size.length() * 0.5f
+            const float boundRadius = inst->Size.length() * 0.5f;
+            // shadowShapeIdx>=0 は素のCube/Cylinder/Sphere/TriangularPrismのみで、
+            // MeshCubeのフォールバック描画は無いため hasFallback は常に false。
+            if (shadowShapeIdx >= 0 && inst->shouldCastShadow(false)) {
+                chunk.shadow[shadowShapeIdx].push_back({
+                    d, wcf.Position, boundRadius
                 });
             }
             if (mainShapeIdx >= 0 &&
-                sphereInFrustum(camFrustum, wcf.Position, inst->Size.length() * 0.5f)) {
-                m_instBatches[mainShapeIdx].main.push_back(d);
+                sphereInFrustum(camFrustum, wcf.Position, boundRadius)) {
+                chunk.main[mainShapeIdx].push_back(d);
             } else {
-                if (mainShapeIdx >= 0) instCulled++;
+                if (mainShapeIdx >= 0) chunk.culled++;
             }
         }
     };
     {
         FrameProfiler::Scope treeInstances("treeInstances");
         FrameProfiler::Scope instanceCollect("render.instanceCollect");
-        for (BaseCube* cube : renderBaseCubes) collectInstCubes(cube);
+
+        // 小さなシーンでは並列化の起動コストのほうが大きいので1チャンクにする。
+        constexpr std::size_t MIN_CHUNK_SIZE = 2048;
+        constexpr std::size_t TARGET_CHUNKS = 32;
+        const std::size_t cubeCount = renderBaseCubes.size();
+        const std::size_t chunkSize = std::max(
+            MIN_CHUNK_SIZE, (cubeCount + TARGET_CHUNKS - 1) / TARGET_CHUNKS);
+        const std::size_t chunkCount =
+            std::max<std::size_t>(1, (cubeCount + chunkSize - 1) / chunkSize);
+        if (s_collectChunks.size() < chunkCount) s_collectChunks.resize(chunkCount);
+
+        ThreadPool::get().parallelFor(chunkCount, [&](std::size_t chunkIndex) {
+            CollectChunk& chunk = s_collectChunks[chunkIndex];
+            chunk.reset();
+            const std::size_t begin = chunkIndex * chunkSize;
+            const std::size_t end = std::min(cubeCount, begin + chunkSize);
+            for (std::size_t i = begin; i < end; ++i) {
+                collectInstCubes(renderBaseCubes[i], chunk);
+            }
+        });
+
+        // 結合: チャンクの出力先オフセットを求め、バッチを確保してから並列にコピーする。
+        long long instCulled = 0;
+        std::size_t mainTotal[INST_SHAPE_COUNT] = {};
+        std::size_t shadowTotal[INST_SHAPE_COUNT] = {};
+        for (std::size_t c = 0; c < chunkCount; ++c) {
+            CollectChunk& chunk = s_collectChunks[c];
+            for (int s = 0; s < INST_SHAPE_COUNT; ++s) {
+                chunk.mainOffset[s] = mainTotal[s];
+                chunk.shadowOffset[s] = shadowTotal[s];
+                mainTotal[s] += chunk.main[s].size();
+                shadowTotal[s] += chunk.shadow[s].size();
+            }
+            instCulled += chunk.culled;
+            individuallyRenderedMainCubes.insert(
+                individuallyRenderedMainCubes.end(),
+                chunk.individualMain.begin(), chunk.individualMain.end());
+            individuallyRenderedShadowCubes.insert(
+                individuallyRenderedShadowCubes.end(),
+                chunk.individualShadow.begin(), chunk.individualShadow.end());
+        }
+        for (int s = 0; s < INST_SHAPE_COUNT; ++s) {
+            m_instBatches[s].main.resize(mainTotal[s]);
+            m_instBatches[s].shadow.resize(shadowTotal[s]);
+        }
+        ThreadPool::get().parallelFor(chunkCount, [&](std::size_t chunkIndex) {
+            const CollectChunk& chunk = s_collectChunks[chunkIndex];
+            for (int s = 0; s < INST_SHAPE_COUNT; ++s) {
+                std::copy(chunk.main[s].begin(), chunk.main[s].end(),
+                          m_instBatches[s].main.begin() + chunk.mainOffset[s]);
+                std::copy(chunk.shadow[s].begin(), chunk.shadow[s].end(),
+                          m_instBatches[s].shadow.begin() + chunk.shadowOffset[s]);
+            }
+        });
+
+        // FrameProfiler::addCountは名前の線形探索を伴うため、個数はまとめて加算する。
+        FrameProfiler::get().addCount("treeInstancesNodes", static_cast<long long>(cubeCount));
+        FrameProfiler::get().addCount("baseCubesVisited", static_cast<long long>(cubeCount));
+        if (instCulled > 0) FrameProfiler::get().addCount("cubesCulled", instCulled);
     }
-    if (instCulled > 0) FrameProfiler::get().addCount("cubesCulled", instCulled);
 
     // Sunが平行光源の向きを決める。Sunが無ければ平行光源なし（環境光のみ・影なし）。
     // 影のライト空間とメインパスのライティングで同じ正規化済みの方向を使う
@@ -2560,6 +2653,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         static CachedUniform s_modelDepthLocCache;
         int lsmDepthLoc  = cachedUniformLocation(depthShader, s_lsmDepthLocCache,  "lightSpaceMatrix");
         int modelDepthLoc = cachedUniformLocation(depthShader, s_modelDepthLocCache, "model");
+        // カスケード・形状をまたいで容量を使い回す（毎回の巨大な再確保を避ける）。
+        std::vector<CubeInstanceData> visibleShadowInstances;
         for (int cascade = 0; cascade < SHADOW_CASCADE_COUNT; ++cascade) {
             glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
                                       shadowMapTex, 0, cascade);
@@ -2577,7 +2672,6 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 extractFrustumPlanes(lightSpaceMatrices[cascade]);
             if (m_uInstancedDepthLoc != -1) {
                 bool anyShadowInst = false;
-                std::vector<CubeInstanceData> visibleShadowInstances;
                 for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
                     const auto& batch = m_instBatches[shapeIdx].shadow;
                     if (batch.empty() || instShapes[shapeIdx].vao == 0) continue;
@@ -2617,6 +2711,12 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                         "shadowCubes",
                         (long long)visibleShadowInstances.size()
                     );
+                    FrameProfiler::get().addCount("drawCallsShadow", 1);
+                    FrameProfiler::get().addCount("drawCallsInstanced", 1);
+                    FrameProfiler::get().addCount(
+                        "instanceUploadBytes",
+                        (long long)(visibleShadowInstances.size() *
+                                    sizeof(CubeInstanceData)));
                 }
                 if (anyShadowInst) {
                     glBindVertexArray(0);
@@ -2666,6 +2766,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
                     }
                     FrameProfiler::get().addCount("shadowCubes", 1);
+                    FrameProfiler::get().addCount("drawCallsShadow", 1);
                     if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, 0.0f);
                 }
             }
@@ -2682,6 +2783,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 if (chunk.mesh.indexCount > 0) {
                     glBindVertexArray(chunk.mesh.VAO);
                     glDrawElements(GL_TRIANGLES, (GLsizei)chunk.mesh.indexCount, GL_UNSIGNED_INT, nullptr);
+                    FrameProfiler::get().addCount("drawCallsShadow", 1);
+                    FrameProfiler::get().addCount("drawCallsTerrain", 1);
                 }
             }
         }
@@ -2849,7 +2952,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
                         setBlendForAlpha(cube->Color.a);
                         cube->draw(modelLoc, shaderProgram);
-                        FrameProfiler::get().addCount("cubesDrawn", 1);
+                        FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                     } else {
                         FrameProfiler::get().addCount("cubesCulled", 1);
                     }
@@ -2865,7 +2968,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
                         setBlendForAlpha(c->Color.a);
                         c->draw(modelLoc, shaderProgram);
-                        FrameProfiler::get().addCount("cubesDrawn", 1);
+                        FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                     } else {
                         FrameProfiler::get().addCount("cubesCulled", 1);
                     }
@@ -2881,7 +2984,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
                         setBlendForAlpha(tp->Color.a);
                         tp->draw(modelLoc, shaderProgram);
-                        FrameProfiler::get().addCount("cubesDrawn", 1);
+                        FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                     } else {
                         FrameProfiler::get().addCount("cubesCulled", 1);
                     }
@@ -2897,7 +3000,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
                         setBlendForAlpha(sp->Color.a);
                         sp->draw(modelLoc, shaderProgram);
-                        FrameProfiler::get().addCount("cubesDrawn", 1);
+                        FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                     } else {
                         FrameProfiler::get().addCount("cubesCulled", 1);
                     }
@@ -2912,7 +3015,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
                     setBlendForAlpha(mc->isUsingFallback() ? 1.0f : mc->Color.a);
                     mc->draw(modelLoc, shaderProgram);
-                    FrameProfiler::get().addCount("cubesDrawn", 1);
+                    FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                 } else {
                     FrameProfiler::get().addCount("cubesCulled", 1);
                 }
@@ -2928,7 +3031,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     setBlendForAlpha(lc->Color.a);
                     lc->draw(modelLoc, shaderProgram);
                     glUniform1f(uIsLiquidLoc, 0.0f);
-                    FrameProfiler::get().addCount("cubesDrawn", 1);
+                    FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                 } else {
                     FrameProfiler::get().addCount("cubesCulled", 1);
                 }
@@ -2977,6 +3080,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 }
                 FrameProfiler::get().addCount("cubesDrawn", (long long)batch.size());
                 FrameProfiler::get().addCount("instanced",  (long long)batch.size());
+                FrameProfiler::get().addCount("drawCallsMain", 1);
+                FrameProfiler::get().addCount("drawCallsInstanced", 1);
+                FrameProfiler::get().addCount(
+                    "instanceUploadBytes",
+                    (long long)(batch.size() * sizeof(CubeInstanceData)));
             }
             glUniform1f(m_uInstancedLoc, 0.0f);
             glBindVertexArray(VAO); // 以降の個別描画は既存VAO前提
@@ -3275,6 +3383,11 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
     FrameProfiler::get().addCount("treeGuiNodes", 0);
     FrameProfiler::get().addCount("baseCubesVisited", 0);
     FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 0);
+    FrameProfiler::get().addCount("drawCallsMain", 0);
+    FrameProfiler::get().addCount("drawCallsShadow", 0);
+    FrameProfiler::get().addCount("drawCallsInstanced", 0);
+    FrameProfiler::get().addCount("drawCallsTerrain", 0);
+    FrameProfiler::get().addCount("instanceUploadBytes", 0);
     // Primary Viewport用の描画（スタンドアロンまたはエディターのメインビュー）
     // シーンを editor 側が描くのは ownsSceneRender()==true の実エディターのみ
     // (ViewportPanel が描き直すため、ここで描くと無駄な二重描画になる)。
@@ -3472,6 +3585,8 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection, Wor
             glBindVertexArray(chunk.mesh.VAO);
             glDrawElements(GL_TRIANGLES, (GLsizei)chunk.mesh.indexCount,
                            GL_UNSIGNED_INT, nullptr);
+            FrameProfiler::get().addCount("drawCallsMain", 1);
+            FrameProfiler::get().addCount("drawCallsTerrain", 1);
         }
     }
 

@@ -790,7 +790,7 @@ int main(int argc, char* argv[]) {
         // 再生中のAnimationを評価し、対象Cubeのcframeを上書きする(main.cppの対応処理と同じ)
         // workspace内の全Humanoid(NPC含む)が対象
         if (!navMeshBusy)
-            Humanoid::updateAll(workspace.get(), deltaTime, workspace->getPhysicsEngine());
+            Humanoid::updateAll(workspace->getRenderHumanoids(), deltaTime, workspace->getPhysicsEngine());
 
         if (!navMeshBusy) {
             Vector3 terrainCenter = user->cpos;
@@ -799,8 +799,8 @@ int main(int argc, char* argv[]) {
                     terrainCenter = root->getWorldCFrame().Position;
             }
             SceneRuntime::updateTerrains(workspace.get(), terrainCenter);
-            Weather::updateAll(workspace.get(), deltaTime, user->cpos);
-            ParticleEmitter::updateAll(workspace.get(), deltaTime);
+            Weather::updateAll(workspace.get(), workspace->getRenderWeathers(), deltaTime, user->cpos);
+            ParticleEmitter::updateAll(workspace->getRenderParticleEmitters(), deltaTime);
         }
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

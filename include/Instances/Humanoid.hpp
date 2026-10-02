@@ -185,6 +185,9 @@ public:
     // メインループから毎フレーム1回だけ呼ぶ。ツリーを再帰的に辿り、見つけた全Humanoidの
     // 死亡・Ragdoll復帰・Animationを更新する(ParticleEmitter::updateAllと同じ木構造走査パターン)
     static void updateAll(Instance* root, float dt, Physics* physics);
+    // Workspaceが登録時に集めたHumanoidへ適用する(全ツリー走査なし)。更新中の付け替え・破棄に
+    // 備え、先にshared_ptrへ控える。
+    static void updateAll(const std::vector<Humanoid*>& humanoids, float dt, Physics* physics);
 
     // 一人称視点かどうかをUser側から渡し、身体パーツの透明化/復元を行う
     void updateFirstPersonState(bool wantsFirstPerson);

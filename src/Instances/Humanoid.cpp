@@ -2629,3 +2629,23 @@ void Humanoid::updateAll(Instance* root, float dt, Physics* physics) {
         updateAll(child.get(), dt, physics);
     --g_humanoidUpdateAllDepth;
 }
+
+void Humanoid::updateAll(const std::vector<Humanoid*>& humanoids, float dt, Physics* physics) {
+    std::vector<std::shared_ptr<Instance>> snapshot;
+    snapshot.reserve(humanoids.size());
+    for (Humanoid* humanoid : humanoids) {
+        if (humanoid) snapshot.push_back(humanoid->shared_from_this());
+    }
+    if (g_humanoidUpdateAllDepth == 0) {
+        ++g_humanoidUpdateAllInvocation;
+        g_currentHumanoidUpdateAllInvocation = g_humanoidUpdateAllInvocation;
+    }
+    ++g_humanoidUpdateAllDepth;
+    for (const auto& value : snapshot) {
+        auto* humanoid = static_cast<Humanoid*>(value.get());
+        humanoid->updateDeath(dt, physics);
+        humanoid->updateRagdoll(dt, physics);
+        humanoid->updateAnimation(dt);
+    }
+    --g_humanoidUpdateAllDepth;
+}

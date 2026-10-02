@@ -30,6 +30,10 @@ class Instance : public std::enable_shared_from_this<Instance> {
         std::unordered_map<string, std::shared_ptr<Instance>> children = {};
 
         virtual void onAncestorChanged();
+        // 親が付け替わった部分木の全ノードで、setParentから必ず呼ばれる。
+        // onAncestorChangedと違い、派生クラスの上書きが基底を呼び忘れても漏れない
+        // ので、祖先構造に依存するキャッシュの更新はここで行う。
+        virtual void refreshHierarchyCache() {}
         virtual void onChildrenChanged();
         virtual void setParent(std::shared_ptr<Instance> newParent);
 

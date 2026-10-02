@@ -1405,6 +1405,7 @@ int main(int argc, char* argv[]) {
         state.viewportFocused    = primaryFocused;
         state.viewportHovered = ed && ed->viewportPanel && ed->viewportPanel->isHoveringViewport;
         if (!navMeshBusy) {
+            FrameProfiler::Scope processInput("main.processInput");
             user->processInput(workspace->getPhysicsEngine(), deltaTime,
                                state.viewportFocused, state.viewportHovered,
                                state.inputState == InputState::Gameplay,
@@ -1420,7 +1421,8 @@ int main(int argc, char* argv[]) {
         // (processInput内のapplyBodyAnimationより後に行うことでアニメーションを優先させる)
         // workspace内の全Humanoid(NPC含む)が対象(旧: user->humanoidのみに限定されていた)
         if (isPlaying && runtimeFrameOk && !isPaused && !navMeshBusy) {
-            Humanoid::updateAll(workspace.get(), deltaTime, workspace->getPhysicsEngine());
+            FrameProfiler::Scope humanoids("main.humanoids");
+            Humanoid::updateAll(workspace->getRenderHumanoids(), deltaTime, workspace->getPhysicsEngine());
         }
 
         // ---- Pキー: Workspace 切り替え ----
@@ -1450,6 +1452,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (!navMeshBusy) beta({
+            FrameProfiler::Scope terrains("main.terrains");
             Vector3 centerPos = user->cpos;
             if (user->humanoid) {
                 if (auto root = user->humanoid->getRootPart())
@@ -1459,12 +1462,16 @@ int main(int argc, char* argv[]) {
         });
 
         // ---- 天気更新（Edit/Play問わず常時。ParticleEmitter更新より前に風/発生源位置を反映） ----
-        if (!navMeshBusy)
-            Weather::updateAll(workspace.get(), deltaTime, user->cpos);
+        if (!navMeshBusy) {
+            FrameProfiler::Scope weather("main.weather");
+            Weather::updateAll(workspace.get(), workspace->getRenderWeathers(), deltaTime, user->cpos);
+        }
 
         // ---- パーティクル更新（Edit/Play問わず常時。Terrainと同じくアクティブworkspaceのみ） ----
-        if (!navMeshBusy)
-            ParticleEmitter::updateAll(workspace.get(), deltaTime);
+        if (!navMeshBusy) {
+            FrameProfiler::Scope particles("main.particles");
+            ParticleEmitter::updateAll(workspace->getRenderParticleEmitters(), deltaTime);
+        }
 
         // ---- 描画 ----
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

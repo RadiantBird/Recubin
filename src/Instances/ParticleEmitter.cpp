@@ -263,3 +263,11 @@ void ParticleEmitter::updateAll(Instance* root, float dt) {
     for (auto const& [name, child] : root->getChildren())
         updateAll(child.get(), dt);
 }
+
+void ParticleEmitter::updateAll(const std::vector<ParticleEmitter*>& emitters, float dt) {
+    // update中にリストが変わっても安全なよう、コピーに対して回す
+    const std::vector<ParticleEmitter*> snapshot = emitters;
+    for (ParticleEmitter* emitter : snapshot) {
+        if (emitter) emitter->update(dt);
+    }
+}

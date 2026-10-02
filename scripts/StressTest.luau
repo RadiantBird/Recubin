@@ -1,7 +1,7 @@
 -- StressTest
 local center = Vector3.new(25, 100, 25)
 
-local amount = 20000
+local amount = 100000
 local range = 500
 local hr = range/2
 local anchored = true
@@ -46,7 +46,7 @@ function main()
         cube.Position = center + genRainPos()
         cube.Parent = workspace
         cube.Name = `TCube{i}`
-        if i % 5000 == 0 then
+        if i % 100000 == 0 then
             wait()
         end
     end

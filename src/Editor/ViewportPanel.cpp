@@ -6,6 +6,7 @@
 #include <Editor/ViewportGeometry.hpp>
 #include <Editor/ViewportSceneQueries.hpp>
 #include <Math/Matrix4.hpp>
+#include <Util/FrameProfiler.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/ImGuizmo.h>
 #include <Instances/BaseCube.hpp>
@@ -134,12 +135,21 @@ void ViewportPanel::onRender() {
     updateOwnCameraInput();
     const bool terrainBrushActive = updateTerrainBrush(layout);
     const bool weldModeConsumedClick = updateWeldMode(layout);
-    handleViewportClick(layout, terrainBrushActive, weldModeConsumedClick);
+    {
+        FrameProfiler::Scope click("ui.viewportClick");
+        handleViewportClick(layout, terrainBrushActive, weldModeConsumedClick);
+    }
     updateBoxSelection(layout);
     drawFocusBorder();
-    updateGizmo(layout);
+    {
+        FrameProfiler::Scope gizmo("ui.viewportGizmo");
+        updateGizmo(layout);
+    }
     drawHoverHighlight(layout);
-    updateFreeDrag(layout);
+    {
+        FrameProfiler::Scope freeDrag("ui.viewportFreeDrag");
+        updateFreeDrag(layout);
+    }
     handlePivotShortcut(layout);
     handleFocusShortcut();
 
@@ -192,6 +202,7 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
         desc.isFocused         = isViewportFocused;
 
         // レンダラーにこのサブテクスチャへ描き込ませる！
+        FrameProfiler::Scope viewportScene("ui.viewportScene");
         Renderer::instance->renderViewport(desc);
     }
 
@@ -1090,6 +1101,7 @@ void ViewportPanel::updateGizmo(const ViewportLayout& layout) {
                             ViewportGeometry::applyEditorWorldCFrame(
                                 *s, CFrame(newWorldPos, s->getWorldCFrame().Rotation));
                             s->Size = newSize;
+                            Spatial::notifyBoundsChanged(); // Sizeの直接書き込み(空間インデックスの無効化)
                         }
                     }
                 } else if (gizmoOp == ImGuizmo::ROTATE && haveMultiCenter) {
@@ -1155,13 +1167,33 @@ void ViewportPanel::drawHoverHighlight(const ViewportLayout& layout) {
         return;
     }
 
-    const ViewportSceneQueries::SelectionRayHit hoverHit =
-        ViewportSceneQueries::findSelectionTarget(*workspace, makeMouseRay(layout));
-    if (!hoverHit.hit || hoverHit.locked || !hoverHit.target) {
+    const ViewportGeometry::Ray hoverRay = makeMouseRay(layout);
+    HoverPickCache& cache = m_hoverPickCache;
+    // Playなど、ツリーが変わらなくてもCubeが動く場面ではキャッシュしない。
+    // (編集中の移動はギズモ/プロパティ経由で、マウスが動けば再計算される)
+    const bool cacheUsable = cache.valid && cache.workspace == workspace &&
+        cache.treeRevision == workspace->getTreeRevision() &&
+        cache.ray.origin == hoverRay.origin &&
+        cache.ray.direction == hoverRay.direction &&
+        !SystemState::get().isPlaying;
+    if (!cacheUsable) {
+        FrameProfiler::Scope hoverPick("ui.viewportHoverPick");
+        const ViewportSceneQueries::SelectionRayHit found =
+            ViewportSceneQueries::findSelectionTarget(*workspace, hoverRay);
+        cache.valid = true;
+        cache.workspace = workspace;
+        cache.treeRevision = workspace->getTreeRevision();
+        cache.ray = hoverRay;
+        cache.hit = found.hit;
+        cache.locked = found.locked;
+        cache.target = found.target;
+    }
+    if (!cache.hit || cache.locked || !cache.target) {
         return;
     }
+    Instance* const hoverTarget = cache.target;
     if (selectedInstances && std::find(
-            selectedInstances->begin(), selectedInstances->end(), hoverHit.target)
+            selectedInstances->begin(), selectedInstances->end(), hoverTarget)
             != selectedInstances->end()) {
         return;
     }
@@ -1170,7 +1202,8 @@ void ViewportPanel::drawHoverHighlight(const ViewportLayout& layout) {
     const Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
     const Matrix4 view = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
     const std::vector<BaseCube*> hoverTargets =
-        ViewportSceneQueries::collectHighlightBaseCubes(*hoverHit.target);
+        ViewportSceneQueries::collectHighlightBaseCubes(*hoverTarget);
+    FrameProfiler::Scope hoverOutline("ui.viewportHoverOutline");
     Renderer::instance->renderSelectionOutline(
         hoverTargets, framebuffer, w, h, view, projection,
         Color4(1.0f, 1.0f, 1.0f, 0.45f), 1.5f);

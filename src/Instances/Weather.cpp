@@ -339,6 +339,16 @@ void Weather::update(float dt, const Vector3& cameraPosition) {
     }
 }
 
+void Weather::updateAll(const Instance* workspaceRoot, const std::vector<Weather*>& weathers,
+                        float dt, const Vector3& cameraPosition) {
+    if (!workspaceRoot) return;
+    const std::vector<Weather*> snapshot = weathers;
+    for (Weather* weather : snapshot) {
+        if (weather && weather->Parent.lock().get() == workspaceRoot)
+            weather->update(dt, cameraPosition);
+    }
+}
+
 void Weather::updateAll(Instance* workspaceRoot, float dt, const Vector3& cameraPosition) {
     if (!workspaceRoot) return;
     for (auto const& [name, child] : workspaceRoot->getChildren()) {

@@ -1,46 +1,27 @@
 #include <Editor/ViewportSceneQueries.hpp>
 
+#include <Core/BaseCubeBvh.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Instances/Instance.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/Spatial.hpp>
+#include <Instances/Skybox.hpp>
 #include <Instances/Workspace.hpp>
 
+#include <algorithm>
 #include <cmath>
 
 namespace ViewportSceneQueries {
 namespace {
 
-void findNearestBaseCubeRecursive(
-    Instance* instance,
-    const ViewportGeometry::Ray& ray,
-    Instance* exclude,
-    float& nearestDistance,
-    BaseCubeRayHit& nearest) {
-    if (!instance || instance == exclude) {
-        return;
+// cubeがexclude自身またはその子孫か。
+bool isInSubtree(const Instance* cube, const Instance* exclude) {
+    for (const Instance* node = cube; node;) {
+        if (node == exclude) return true;
+        auto parent = node->Parent.lock();
+        node = parent.get();
     }
-    if (instance->getClassName() == "Skybox") {
-        return;
-    }
-
-    if (instance->IsA("BaseCube")) {
-        auto* cube = static_cast<BaseCube*>(instance);
-        const ViewportGeometry::ObbRayHit hit = ViewportGeometry::raycastObb(
-            ray,
-            cube->getWorldCFrame(),
-            cube->Size);
-        if (hit.hit && hit.distance < nearestDistance) {
-            nearestDistance = hit.distance;
-            nearest.hit = true;
-            nearest.cube = cube;
-            nearest.obb = hit;
-        }
-    }
-
-    for (auto const& [_, child] : instance->getChildren()) {
-        findNearestBaseCubeRecursive(child.get(), ray, exclude, nearestDistance, nearest);
-    }
+    return false;
 }
 
 void findPickerTargetRecursive(
@@ -274,7 +255,45 @@ BaseCubeRayHit findNearestBaseCube(
     Instance* exclude) {
     BaseCubeRayHit result;
     float nearestDistance = 1e30f;
-    findNearestBaseCubeRecursive(&workspace, ray, exclude, nearestDistance, result);
+    std::uint32_t nearestOrder = 0;
+
+    // 厳密な判定。BVH経路と線形経路で共通。同距離のときは登録順(order)が早い方を採り、
+    // 従来の線形走査と同じ結果にする。
+    auto test = [&](BaseCube* cube, std::uint32_t order, float& best) {
+        if (exclude && isInSubtree(cube, exclude)) return;
+        const ViewportGeometry::ObbRayHit hit = ViewportGeometry::raycastObb(
+            ray, cube->getWorldCFrame(), cube->Size);
+        if (!hit.hit) return;
+        if (hit.distance < best || (hit.distance == best && result.hit && order < nearestOrder)) {
+            best = hit.distance;
+            nearestOrder = order;
+            result.hit = true;
+            result.cube = cube;
+            result.obb = hit;
+        }
+    };
+
+    // 動いていないシーンでは境界階層で候補を絞る。動いている間(Playの物理、ギズモの
+    // ドラッグなど)は構築せず、従来どおりの線形走査にフォールバックする。
+    BaseCubeBvh& bvh = workspace.getPickBvh();
+    if (bvh.prepare(workspace)) {
+        bvh.traverseRay(ray.origin, ray.direction, nearestDistance, test);
+        return result;
+    }
+
+    // Workspaceが登録時に集めたBaseCubeの平坦なリストを使う(毎回の全ツリー走査と
+    // クラス名の文字列比較を避ける)。Skyboxと、excludeの部分木は対象外。
+    const auto& skyboxes = workspace.getRenderSkyboxes();
+    std::uint32_t order = 0;
+    for (BaseCube* cube : workspace.getRenderBaseCubes()) {
+        const std::uint32_t cubeOrder = order++;
+        if (!cube) continue;
+        if (!skyboxes.empty() &&
+            std::find(skyboxes.begin(), skyboxes.end(), cube) != skyboxes.end()) {
+            continue;
+        }
+        test(cube, cubeOrder, nearestDistance);
+    }
     return result;
 }
 

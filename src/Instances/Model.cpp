@@ -129,6 +129,12 @@ void Model::syncPivotsToCentroid(Instance& root) {
     }
 }
 
+void Model::syncPivotsToCentroid(const std::vector<Model*>& models) {
+    for (Model* model : models) {
+        if (model) model->syncPivotToCentroid();
+    }
+}
+
 void Model::pivotTo(const CFrame& worldCFrame) {
     CFrame normalized = worldCFrame;
     if (!normalized.Rotation.tryNormalize()) return;

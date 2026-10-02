@@ -1572,6 +1572,16 @@ void Box3DPhysicsBackend::applyForces() {
 }
 
 bool Box3DPhysicsBackend::hasEnabledForce(bool maintainVelocityOnly) const {
+    if (m_updateWorkspace) {
+        // Workspaceが登録時に集めたForceを使う（全ボディのlockと子走査を避ける）。
+        // 親Cubeがボディを持たないForceでもtrueになりうるが、その場合は後段の
+        // 本処理が実際のボディ単位で判定するので、遅くなるだけで結果は変わらない。
+        for (const Force* force : m_updateWorkspace->getRenderForces()) {
+            if (!force || !force->Enabled) continue;
+            if (!maintainVelocityOnly || force->MaintainVelocity) return true;
+        }
+        return false;
+    }
     for (const BodyEntry& entry : m_bodies) {
         auto member = entry.cube.lock();
         if (!member) continue;
@@ -3572,6 +3582,14 @@ void Box3DPhysicsBackend::createPendingConstraints(Workspace& workspace) {
 
 void Box3DPhysicsBackend::update(Workspace& workspace, float dt) {
     if (!workspace.PhysicsEnabled || !isAvailable()) return;
+    // update中だけ有効。applyForcesなどがWorkspaceの登録リストを参照できるようにする。
+    struct UpdateWorkspaceScope {
+        const Workspace*& slot;
+        UpdateWorkspaceScope(const Workspace*& value, const Workspace* workspace) : slot(value) {
+            slot = workspace;
+        }
+        ~UpdateWorkspaceScope() { slot = nullptr; }
+    } updateWorkspaceScope(m_updateWorkspace, &workspace);
     setGravity(workspace.Gravity);
     removeExpiredEntries();
 
@@ -3620,10 +3638,18 @@ void Box3DPhysicsBackend::update(Workspace& workspace, float dt) {
     for (const auto& value : invalidConstraints) removeConstraint(value);
 
     std::vector<std::shared_ptr<BaseCube>> removed;
-    for (const BodyEntry& entry : m_bodies) {
-        auto cube = entry.cube.lock();
-        if (cube && cube->findFirstAncestorWorkspace() != &workspace)
-            removed.push_back(cube);
+    // 付け替え・削除はWorkspaceのツリーリビジョンを必ず進めるため、変化が無ければ走査不要。
+    // 新規ボディはpendingInstances経由で作られ、そこで所属を確認している。
+    if (m_staleScanWorkspace != &workspace ||
+        m_staleScanTreeRevision != workspace.getTreeRevision()) {
+        FrameProfiler::Scope scope("physics.staleScan");
+        for (const BodyEntry& entry : m_bodies) {
+            auto cube = entry.cube.lock();
+            if (cube && cube->findFirstAncestorWorkspace() != &workspace)
+                removed.push_back(cube);
+        }
+        m_staleScanWorkspace = &workspace;
+        m_staleScanTreeRevision = workspace.getTreeRevision();
     }
     for (const auto& cube : removed) removeCube(cube);
 

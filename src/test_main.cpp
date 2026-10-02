@@ -50,6 +50,8 @@
 #include <Instances/IntValue.hpp>
 #include <Instances/CFrameValue.hpp>
 #include <Instances/QuaternionValue.hpp>
+#include <Core/BaseCubeBvh.hpp>
+#include <random>
 #include <Instances/Decal.hpp>
 #include <Instances/Texture.hpp>
 #include <Instances/MaterialService.hpp>
@@ -7082,6 +7084,106 @@ int runViewportHelperRegression() {
     gapModel->addChild(gapRight);
     expect(!ViewportSceneQueries::findSelectionTarget(*gapWorkspace, sceneRay).hit,
            "empty space inside a Model AABB is not selectable");
+
+    {
+        // 選択レイキャストの空間インデックス(BVH)は、旧来の線形走査(登録順で最初に最短を
+        // 採る)と同じ結果を返さなければならない。回転したCube・入れ子のModel・巨大な床を含む。
+        auto bvhWorkspace = std::make_shared<Workspace>();
+        std::mt19937 rng(20261002);
+        auto uniform = [&](float low, float high) {
+            return std::uniform_real_distribution<float>(low, high)(rng);
+        };
+        auto bvhModel = std::make_shared<Model>();
+        bvhModel->Name = "BvhModel";
+        bvhWorkspace->addChild(bvhModel);
+        std::vector<std::shared_ptr<BaseCube>> bvhCubes;
+        for (int i = 0; i < 700; ++i) {
+            auto cube = std::make_shared<BaseCube>(
+                Vector3(uniform(-60.0f, 60.0f), uniform(-60.0f, 60.0f), uniform(-60.0f, 60.0f)),
+                Vector3(uniform(0.5f, 6.0f), uniform(0.5f, 6.0f), uniform(0.5f, 6.0f)));
+            cube->Name = "BvhCube" + std::to_string(i);
+            cube->setRotation(Quaternion::fromAxisAngle(
+                Vector3(uniform(-1.0f, 1.0f), uniform(-1.0f, 1.0f), 1.0f).normalize(),
+                uniform(0.0f, 180.0f)));
+            (i % 3 == 0 ? static_cast<Instance&>(*bvhModel) : static_cast<Instance&>(*bvhWorkspace))
+                .addChild(cube);
+            bvhCubes.push_back(cube);
+        }
+        auto bvhFloor = std::make_shared<BaseCube>(
+            Vector3(0.0f, -70.0f, 0.0f), Vector3(2048.0f, 20.0f, 2048.0f));
+        bvhFloor->Name = "BvhFloor";
+        bvhWorkspace->addChild(bvhFloor);
+
+        const auto referenceNearest = [&](const ViewportGeometry::Ray& ray, Instance* exclude) {
+            ViewportSceneQueries::BaseCubeRayHit best;
+            float bestDistance = 1e30f;
+            for (BaseCube* cube : bvhWorkspace->getRenderBaseCubes()) {
+                if (!cube) continue;
+                if (exclude) {
+                    bool excluded = false;
+                    for (Instance* node = cube; node; ) {
+                        if (node == exclude) { excluded = true; break; }
+                        auto parent = node->Parent.lock();
+                        node = parent.get();
+                    }
+                    if (excluded) continue;
+                }
+                const ViewportGeometry::ObbRayHit hit =
+                    ViewportGeometry::raycastObb(ray, cube->getWorldCFrame(), cube->Size);
+                if (hit.hit && hit.distance < bestDistance) {
+                    bestDistance = hit.distance;
+                    best.hit = true;
+                    best.cube = cube;
+                    best.obb = hit;
+                }
+            }
+            return best;
+        };
+        const auto sameAsReference = [&](int rayCount, const char* label) {
+            int mismatches = 0;
+            for (int i = 0; i < rayCount; ++i) {
+                const Vector3 origin(uniform(-80.0f, 80.0f), uniform(-50.0f, 80.0f), uniform(-80.0f, 80.0f));
+                Vector3 direction(uniform(-1.0f, 1.0f), uniform(-1.0f, 1.0f), uniform(-1.0f, 1.0f));
+                if (i % 7 == 0) direction.y = 0.0f;  // 軸に平行な成分を含む光線
+                if (i % 11 == 0) direction.x = 0.0f;
+                if (direction.length() < 1e-3f) direction = Vector3(0.0f, 0.0f, -1.0f);
+                direction = direction.normalize();
+                Instance* exclude = (i % 5 == 0) ? static_cast<Instance*>(bvhModel.get()) : nullptr;
+                const ViewportGeometry::Ray ray{origin, direction};
+                const auto expected = referenceNearest(ray, exclude);
+                const auto actual =
+                    ViewportSceneQueries::findNearestBaseCube(*bvhWorkspace, ray, exclude);
+                if (expected.hit != actual.hit || expected.cube != actual.cube) ++mismatches;
+            }
+            expect(mismatches == 0, label);
+        };
+
+        // 1回目のprepare()は線形走査、2回続けて変化が無いとBVHを構築する。
+        BaseCubeBvh& bvhRef = bvhWorkspace->getPickBvh();
+        sameAsReference(50, "pick BVH: first queries (linear fallback) match the reference");
+        expect(bvhRef.isBuilt(), "pick BVH builds once the scene is stable");
+        sameAsReference(600, "pick BVH: random rays match the linear reference");
+
+        // 姿勢の変更でBVHが無効になり、変更後も結果が一致する。
+        const std::uint64_t epochBefore = Spatial::boundsEpoch();
+        bvhCubes[10]->setPosition(bvhCubes[10]->getPosition() + Vector3(30.0f, 0.0f, 0.0f));
+        expect(Spatial::boundsEpoch() != epochBefore, "moving a cube advances the bounds epoch");
+        sameAsReference(100, "pick BVH: matches after a cube moves");
+        sameAsReference(300, "pick BVH: matches after rebuild following a move");
+
+        // Sizeの変更も検知される(AABBが古いと取りこぼす)。
+        const std::uint64_t epochBeforeSize = Spatial::boundsEpoch();
+        bvhCubes[20]->setSize(Vector3(40.0f, 40.0f, 40.0f));
+        expect(Spatial::boundsEpoch() != epochBeforeSize, "resizing a cube advances the bounds epoch");
+        sameAsReference(100, "pick BVH: matches after a cube is resized");
+        sameAsReference(300, "pick BVH: matches after rebuild following a resize");
+
+        // 付け替え・削除(ツリーの変更)も検知される。
+        bvhWorkspace->removeChild(bvhCubes[30]->Name);
+        bvhCubes[40]->setParent(nullptr);
+        sameAsReference(100, "pick BVH: matches after cubes are removed");
+        sameAsReference(300, "pick BVH: matches after rebuild following removals");
+    }
 
     const ViewportSceneQueries::PickerRayHit cubePick =
         ViewportSceneQueries::findPickerTarget(

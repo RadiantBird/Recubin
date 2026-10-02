@@ -301,6 +301,7 @@ void BaseCube::setSize(const Vector3& newSize) {
     }
     if (Size == newSize) return;
     Size = newSize;
+    notifyBoundsChanged(); // 空間インデックスの無効化
     if (lastWorkspace && lastWorkspace->physicsEngine) {
         auto self = std::static_pointer_cast<BaseCube>(shared_from_this());
         if (SystemState::get().isPlaying) {

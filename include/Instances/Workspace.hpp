@@ -4,6 +4,7 @@
 #include <include/Math/Units.hpp>
 
 #include <include/Instances/Instance.hpp>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -21,6 +22,12 @@ class Lighting;
 class CelestialBody;
 class Weather;
 class Terrain;
+class Model;
+class Humanoid;
+class Skybox;
+class Force;
+class Attachment;
+class BaseCubeBvh;
 
 class Workspace : public Instance {
     private:
@@ -60,6 +67,17 @@ class Workspace : public Instance {
         std::vector<CelestialBody*> m_renderCelestialBodies;
         std::vector<Weather*> m_renderWeathers;
         std::vector<Terrain*> m_renderTerrains;
+        // 物理が毎フレーム全ツリーを走査しなくて済むよう、登録時に種別ごとに集めておく。
+        std::vector<Instance*> m_renderConstraints; // PhysicsConstraint系
+        std::vector<Model*> m_renderModels;
+        std::vector<Humanoid*> m_renderHumanoids;
+        std::vector<Skybox*> m_renderSkyboxes;
+        std::vector<Force*> m_renderForces;
+        std::vector<Attachment*> m_renderAttachments;
+        // 選択レイキャスト用の空間インデックス(初回の問い合わせで生成する)
+        std::unique_ptr<BaseCubeBvh> m_pickBvh;
+        // 子孫の追加・削除・付け替えのたびに増える。変化検知用（値自体に意味は無い）。
+        std::uint64_t m_treeRevision = 0;
 
     public:
         Vector3 Gravity = {0.0f, -METER_TO_STUD * EARTH_GRAVITY_MPS2, 0.0f};
@@ -98,6 +116,14 @@ class Workspace : public Instance {
         void unregisterRenderSubtree(Instance* root);
         const std::vector<Instance*>& getRenderInstances() const { return m_renderInstances; }
         const std::vector<BaseCube*>& getRenderBaseCubes() const { return m_renderBaseCubes; }
+        const std::vector<Instance*>& getRenderConstraints() const { return m_renderConstraints; }
+        const std::vector<Model*>& getRenderModels() const { return m_renderModels; }
+        const std::vector<Humanoid*>& getRenderHumanoids() const { return m_renderHumanoids; }
+        const std::vector<Skybox*>& getRenderSkyboxes() const { return m_renderSkyboxes; }
+        const std::vector<Force*>& getRenderForces() const { return m_renderForces; }
+        const std::vector<Attachment*>& getRenderAttachments() const { return m_renderAttachments; }
+        BaseCubeBvh& getPickBvh();
+        std::uint64_t getTreeRevision() const { return m_treeRevision; }
         const std::vector<SurfaceMark*>& getRenderSurfaceMarks() const { return m_renderSurfaceMarks; }
         const std::vector<LightSource*>& getRenderLights() const { return m_renderLights; }
         const std::vector<ParticleEmitter*>& getRenderParticleEmitters() const { return m_renderParticleEmitters; }

@@ -68,6 +68,8 @@ public:
 
     // ワークスペース内の全ParticleEmitterを再帰的に見つけてupdate(dt)する
     static void updateAll(Instance* root, float dt);
+    // Workspaceが登録時に集めたエミッターへ適用する(全ツリー走査なし)
+    static void updateAll(const std::vector<ParticleEmitter*>& emitters, float dt);
 
 private:
     std::vector<Particle> particles;

@@ -4,6 +4,7 @@
 #include <Editor/UiHelpers.hpp>
 #include <Editor/WelcomePanel.hpp>
 #include <Core/Renderer.hpp>
+#include <Util/FrameProfiler.hpp>
 #include <Core/Packager.hpp>
 #include <Editor/SpawnUtil.hpp>
 #include <Editor/ViewportFocusManager.hpp>
@@ -501,7 +502,10 @@ void EditorManager::render(GLFWwindow* window) {
     ImGui::End(); // DockSpaceHost
 
     // ---- ツールバー（Play / Pause / Stop）----
-    renderToolbar();
+    {
+        FrameProfiler::Scope toolbar("ui.toolbar");
+        renderToolbar();
+    }
 
     // ---- 各パネル ----
     // パネルタイトルは毎フレーム現在の言語で更新する（###以降のIDは固定のまま、表示のみ切替）。
@@ -516,14 +520,20 @@ void EditorManager::render(GLFWwindow* window) {
     welcomePanel->title        = std::string(Loc::t(Loc::LocKey::PanelWelcome)) + "###Welcome";
     profilerPanel->title       = std::string(Loc::t(Loc::LocKey::PanelProfiler)) + "###Profiler";
 
-    if (hierarchyPanel->isOpen)      hierarchyPanel->onRender();
-    if (propertiesPanel->isOpen)     propertiesPanel->onRender();
-    if (viewportPanel->isOpen)       viewportPanel->onRender();
-    if (contentBrowserPanel->isOpen) contentBrowserPanel->onRender();
-    if (consolePanel->isOpen)        consolePanel->onRender();
-    if (animationPanel->isOpen)      animationPanel->onRender();
-    if (welcomePanel->isOpen)        welcomePanel->onRender();
-    if (profilerPanel->isOpen)       profilerPanel->onRender();
+    // プロファイラーのEditor UI Breakdown用に、パネルごとのCPU時間を計測する。
+    auto renderPanel = [](const char* sectionName, auto& panel) {
+        if (!panel->isOpen) return;
+        FrameProfiler::Scope scope(sectionName);
+        panel->onRender();
+    };
+    renderPanel("ui.sceneHierarchy", hierarchyPanel);
+    renderPanel("ui.properties", propertiesPanel);
+    renderPanel("ui.viewportPanelTotal", viewportPanel);
+    renderPanel("ui.contentBrowser", contentBrowserPanel);
+    renderPanel("ui.console", consolePanel);
+    renderPanel("ui.animationEditor", animationPanel);
+    renderPanel("ui.welcome", welcomePanel);
+    renderPanel("ui.profiler", profilerPanel);
 
     // Auxiliary Script/TextFile editors are ordinary dock windows.  They use
     // the same central DockSpace ID as Welcome, so ImGui creates a tab beside
@@ -1283,6 +1293,17 @@ void EditorManager::tryAddObjectButton(const char* icon, const std::string& labe
     }
 }
 
+namespace {
+// computeSpawnPosは全Cubeへレイキャストするため、毎フレーム描画されるツールバーで
+// 先に計算してはいけない。Vector3として使われた時(=ボタンが押されてインスタンスを
+// 作る時)にだけ計算する。
+struct LazySpawnPos {
+    User* user;
+    Instance* workspace;
+    operator Vector3() const { return computeSpawnPos(user, workspace); }
+};
+}
+
 void EditorManager::renderToolbar() {
     ImGuiViewport* vp = ImGui::GetMainViewport();
     const float toolbarHeight = 140.0f * m_uiLayoutScale;
@@ -1593,7 +1614,7 @@ void EditorManager::renderToolbarBasic() {
     // ---- New Cube / New Script クイックボタン ----
     if (m_workspace) {
         auto ws = m_workspace->shared_from_this();
-        Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+        const LazySpawnPos spawnPos{m_user, m_workspace};
         tryAddObjectButton<Cube>(ICON_CUBE, "New Cube", "Cube", ws, iconBtnSz,
             spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
     }
@@ -1620,7 +1641,7 @@ void EditorManager::renderToolbarBasic() {
 void EditorManager::renderToolbarCubes() {
     if (!m_workspace) return;
     auto ws = m_workspace->shared_from_this();
-    Vector3 spawnPos = computeSpawnPos(m_user, m_workspace);
+    const LazySpawnPos spawnPos{m_user, m_workspace};
     const ImVec2 btnSz(78.0f * m_uiLayoutScale, 58.0f * m_uiLayoutScale);
 
     tryAddObjectButton<Cube>(ICON_CUBE, "Cube", "Cube", ws, btnSz,
@@ -1867,15 +1888,21 @@ void EditorManager::clearForImGui(GLFWwindow* window) {
 }
 
 void EditorManager::renderUI(User& user, GLFWwindow* window, Workspace& workspace) {
-    if (Renderer::instance) Renderer::instance->prepareGuiFonts(workspace);
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    GuiAutomation::beforeNewFrame();
-    ImGui::NewFrame();
-    GuiAutomation::afterNewFrame();
-    ImGuizmo::BeginFrame();
+    {
+        FrameProfiler::Scope newFrame("ui.newFrame");
+        if (Renderer::instance) Renderer::instance->prepareGuiFonts(workspace);
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        GuiAutomation::beforeNewFrame();
+        ImGui::NewFrame();
+        GuiAutomation::afterNewFrame();
+        ImGuizmo::BeginFrame();
+    }
 
-    render(window);
+    {
+        FrameProfiler::Scope panels("ui.renderPanels");
+        render(window);
+    }
 
     // ImGui restores its own cursor during NewFrame; apply the game's cursor
     // at the end of the frame only while the primary gameplay viewport is hot.
@@ -1894,8 +1921,11 @@ void EditorManager::renderUI(User& user, GLFWwindow* window, Workspace& workspac
 
     if (Renderer::instance) Renderer::instance->drawCameraRotationCursor(user, window);
 
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    {
+        FrameProfiler::Scope drawData("ui.imguiRenderDrawData");
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
     GuiAutomation::afterRender(window);
 
     ImGuiIO& io = ImGui::GetIO();

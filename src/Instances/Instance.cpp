@@ -64,6 +64,16 @@ void Instance::onChildrenChanged() {
     ++m_childrenRevision;
 }
 
+namespace {
+void refreshHierarchyCacheRecursive(Instance& node) {
+    node.refreshHierarchyCache();
+    for (const auto& [name, child] : node.children) {
+        (void)name;
+        if (child) refreshHierarchyCacheRecursive(*child);
+    }
+}
+}
+
 void Instance::setParent(std::shared_ptr<Instance> newParent) {
     auto currentParent = this->Parent.lock();
     if (currentParent == newParent) return;
@@ -106,6 +116,7 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
     }
 
     this->Parent = newParent;
+    refreshHierarchyCacheRecursive(*this);
 
     // 新しい親のリストに自分を追加
     if (newParent) {

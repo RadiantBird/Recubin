@@ -25,6 +25,8 @@ public:
     void syncPivotToCentroid();
     // root配下の全Modelに対してsyncPivotToCentroidを適用する(親から子の順)
     static void syncPivotsToCentroid(Instance& root);
+    // 登録済みModelのリストに対して適用する(ツリー走査なし。リストは親から子の順)
+    static void syncPivotsToCentroid(const std::vector<Model*>& models);
     void onChildrenChanged() override;
     std::shared_ptr<Instance> clone() const override;
 };

@@ -1,5 +1,11 @@
 #include <Instances/Workspace.hpp>
 #include <Instances/BaseCube.hpp>
+#include <Instances/Model.hpp>
+#include <Instances/Humanoid.hpp>
+#include <Instances/Skybox.hpp>
+#include <Instances/Force.hpp>
+#include <Instances/Attachment.hpp>
+#include <Core/BaseCubeBvh.hpp>
 #include <Instances/SurfaceMark.hpp>
 #include <Instances/LightSource.hpp>
 #include <Instances/ParticleEmitter.hpp>
@@ -67,10 +73,22 @@ void Workspace::unregisterConstraint(const Instance* c) {
 
 Workspace::Workspace() : Instance("Workspace") {}
 
+BaseCubeBvh& Workspace::getPickBvh() {
+    if (!m_pickBvh) m_pickBvh = std::make_unique<BaseCubeBvh>();
+    return *m_pickBvh;
+}
+
 void Workspace::registerRenderSubtree(Instance* root) {
     if (!root || root == this) return;
 
+    ++m_treeRevision;
     m_renderInstances.push_back(root);
+    if (root->IsA("PhysicsConstraint")) m_renderConstraints.push_back(root);
+    if (root->IsA("Model")) m_renderModels.push_back(static_cast<Model*>(root));
+    if (root->IsA("Humanoid")) m_renderHumanoids.push_back(static_cast<Humanoid*>(root));
+    if (root->IsA("Skybox")) m_renderSkyboxes.push_back(static_cast<Skybox*>(root));
+    if (root->IsA("Force")) m_renderForces.push_back(static_cast<Force*>(root));
+    if (root->IsA("Attachment")) m_renderAttachments.push_back(static_cast<Attachment*>(root));
     if (root->IsA("BaseCube")) m_renderBaseCubes.push_back(static_cast<BaseCube*>(root));
     if (root->IsA("SurfaceMark")) m_renderSurfaceMarks.push_back(static_cast<SurfaceMark*>(root));
     if (root->IsA("LightSource")) m_renderLights.push_back(static_cast<LightSource*>(root));
@@ -97,7 +115,14 @@ void Workspace::unregisterRenderSubtree(Instance* root) {
     auto remove = [root](auto& values) {
         values.erase(std::remove(values.begin(), values.end(), root), values.end());
     };
+    ++m_treeRevision;
     remove(m_renderInstances);
+    if (root->IsA("PhysicsConstraint")) remove(m_renderConstraints);
+    if (root->IsA("Model")) remove(m_renderModels);
+    if (root->IsA("Humanoid")) remove(m_renderHumanoids);
+    if (root->IsA("Skybox")) remove(m_renderSkyboxes);
+    if (root->IsA("Force")) remove(m_renderForces);
+    if (root->IsA("Attachment")) remove(m_renderAttachments);
     if (root->IsA("BaseCube")) remove(m_renderBaseCubes);
     if (root->IsA("SurfaceMark")) remove(m_renderSurfaceMarks);
     if (root->IsA("LightSource")) remove(m_renderLights);
@@ -125,6 +150,12 @@ void Workspace::setGravity(const Vector3& value) {
 
 Workspace::~Workspace() {
     m_renderInstances.clear();
+    m_renderConstraints.clear();
+    m_renderModels.clear();
+    m_renderHumanoids.clear();
+    m_renderSkyboxes.clear();
+    m_renderForces.clear();
+    m_renderAttachments.clear();
     m_renderBaseCubes.clear();
     m_renderSurfaceMarks.clear();
     m_renderLights.clear();

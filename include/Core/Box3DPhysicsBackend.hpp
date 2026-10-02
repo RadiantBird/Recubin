@@ -97,6 +97,10 @@ private:
     bool m_safetyBreakActive = false;
     std::uint64_t m_nextLogicalConstraintHandle = 1;
     std::vector<BodyEntry> m_bodies;
+    // 所属Workspaceの確認(staleScan)は、ツリーが変化したときだけ行う。
+    const Workspace* m_updateWorkspace = nullptr; // update()実行中のみ非null
+    const Workspace* m_staleScanWorkspace = nullptr;
+    std::uint64_t m_staleScanTreeRevision = 0;
     // Rebuilt once before a fixed step and reused after the solver. The
     // previous implementation rediscovered each shared body by scanning all
     // BodyEntry values for every body.

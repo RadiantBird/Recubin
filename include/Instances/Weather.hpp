@@ -59,6 +59,9 @@ public:
 
     // Workspace直下からWeatherを探してupdate()する（Sun/Moonと同じ直接の子スキャン）
     static void updateAll(Instance* workspaceRoot, float dt, const Vector3& cameraPosition);
+    // Workspaceが登録時に集めたWeatherのうち、Workspace直下のものだけへ適用する(全子の走査なし)
+    static void updateAll(const Instance* workspaceRoot, const std::vector<Weather*>& weathers,
+                          float dt, const Vector3& cameraPosition);
 
 private:
     bool m_childrenBuilt = false;

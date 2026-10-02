@@ -4,8 +4,10 @@
 #include <Util/FrameProfiler.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 namespace {
 void drawSection(
@@ -59,102 +61,102 @@ void drawSection(
     ImGui::PopStyleColor(2);
 }
 
-void drawTimingRow(const char* sectionName, Loc::LocKey labelKey) {
-    FrameProfiler::SectionSnapshot snapshot;
-    const bool available =
-        FrameProfiler::get().getSectionSnapshot(sectionName, snapshot) &&
-        snapshot.count != 0;
-    ImGui::TableNextRow();
-    ImGui::TableSetColumnIndex(0);
-    ImGui::TextUnformatted(Loc::t(labelKey));
-    for (int column = 1; column < 4; ++column) {
-        ImGui::TableSetColumnIndex(column);
-        if (!available) {
-            ImGui::TextDisabled("--");
-            continue;
-        }
-        const float value = column == 1 ? snapshot.latestMs
-            : (column == 2 ? snapshot.averageMs : snapshot.peakMs);
-        ImGui::Text("%.2f ms", value);
+// ローカライズ済みキーまたはリテラル文字列のどちらでも表せるラベル。
+struct Label {
+    const char* text = nullptr;
+    Loc::LocKey key{};
+    bool localized = false;
+
+    Label() = default;
+    Label(const char* literal) : text(literal) {}
+    Label(Loc::LocKey locKey) : key(locKey), localized(true) {}
+
+    bool empty() const { return !localized && text == nullptr; }
+    const char* resolve() const { return localized ? Loc::t(key) : text; }
+};
+
+enum class EntryKind { Timing, GpuTiming, Counter };
+
+struct Entry {
+    EntryKind kind;
+    const char* name;
+    Label label;
+};
+
+struct TableDef {
+    const char* id;
+    Label title;
+    Label hint;
+    std::vector<Entry> entries;
+};
+
+Entry timing(const char* name, Loc::LocKey key) {
+    return {EntryKind::Timing, name, Label(key)};
+}
+Entry rawTiming(const char* name) {
+    return {EntryKind::Timing, name, Label(name)};
+}
+Entry gpuTiming(const char* name, Loc::LocKey key) {
+    return {EntryKind::GpuTiming, name, Label(key)};
+}
+Entry counter(const char* name, Loc::LocKey key) {
+    return {EntryKind::Counter, name, Label(key)};
+}
+Entry rawCounter(const char* name) {
+    return {EntryKind::Counter, name, Label(name)};
+}
+
+using Cells = std::array<std::string, 3>;
+
+std::string formatMs(float value) {
+    char buffer[32];
+    std::snprintf(buffer, sizeof(buffer), "%.2f ms", value);
+    return buffer;
+}
+
+template <typename Snapshot>
+Cells timingCells(const Snapshot& snapshot) {
+    return {
+        formatMs(snapshot.latestMs),
+        formatMs(snapshot.averageMs),
+        formatMs(snapshot.peakMs)
+    };
+}
+
+Cells counterCells(const FrameProfiler::CounterSnapshot& snapshot) {
+    char latest[32];
+    char average[32];
+    char peak[32];
+    std::snprintf(latest, sizeof(latest), "%lld", snapshot.latest);
+    std::snprintf(average, sizeof(average), "%.1f", snapshot.average);
+    std::snprintf(peak, sizeof(peak), "%lld", snapshot.peak);
+    return {latest, average, peak};
+}
+
+// サンプルが無い項目は全セル "--" を返す。
+Cells entryCells(const Entry& entry) {
+    const Cells none{"--", "--", "--"};
+    switch (entry.kind) {
+    case EntryKind::Timing: {
+        FrameProfiler::SectionSnapshot snapshot;
+        if (!FrameProfiler::get().getSectionSnapshot(entry.name, snapshot) ||
+            snapshot.count == 0) return none;
+        return timingCells(snapshot);
     }
-}
-
-void drawGpuTimingRow(const char* metricName, Loc::LocKey labelKey) {
-    FrameProfiler::GpuSnapshot snapshot;
-    const bool available =
-        FrameProfiler::get().getGpuSnapshot(metricName, snapshot) &&
-        snapshot.count != 0;
-    ImGui::TableNextRow();
-    ImGui::TableSetColumnIndex(0);
-    ImGui::TextUnformatted(Loc::t(labelKey));
-    for (int column = 1; column < 4; ++column) {
-        ImGui::TableSetColumnIndex(column);
-        if (!available) {
-            ImGui::TextDisabled("--");
-            continue;
-        }
-        const float value = column == 1 ? snapshot.latestMs
-            : (column == 2 ? snapshot.averageMs : snapshot.peakMs);
-        ImGui::Text("%.2f ms", value);
+    case EntryKind::GpuTiming: {
+        FrameProfiler::GpuSnapshot snapshot;
+        if (!FrameProfiler::get().getGpuSnapshot(entry.name, snapshot) ||
+            snapshot.count == 0) return none;
+        return timingCells(snapshot);
     }
-}
-
-void drawCounterRow(const char* counterName, Loc::LocKey labelKey) {
-    FrameProfiler::CounterSnapshot snapshot;
-    const bool available =
-        FrameProfiler::get().getCounterSnapshot(counterName, snapshot) &&
-        snapshot.count != 0;
-    ImGui::TableNextRow();
-    ImGui::TableSetColumnIndex(0);
-    ImGui::TextUnformatted(Loc::t(labelKey));
-    ImGui::TableSetColumnIndex(1);
-    if (available) ImGui::Text("%lld", snapshot.latest);
-    else ImGui::TextDisabled("--");
-    ImGui::TableSetColumnIndex(2);
-    if (available) ImGui::Text("%.1f", snapshot.average);
-    else ImGui::TextDisabled("--");
-    ImGui::TableSetColumnIndex(3);
-    if (available) ImGui::Text("%lld", snapshot.peak);
-    else ImGui::TextDisabled("--");
-}
-
-void drawRawTimingRow(const char* sectionName) {
-    FrameProfiler::SectionSnapshot snapshot;
-    const bool available =
-        FrameProfiler::get().getSectionSnapshot(sectionName, snapshot) &&
-        snapshot.count != 0;
-    ImGui::TableNextRow();
-    ImGui::TableSetColumnIndex(0);
-    ImGui::TextUnformatted(sectionName);
-    for (int column = 1; column < 4; ++column) {
-        ImGui::TableSetColumnIndex(column);
-        if (!available) {
-            ImGui::TextDisabled("--");
-            continue;
-        }
-        const float value = column == 1 ? snapshot.latestMs
-            : (column == 2 ? snapshot.averageMs : snapshot.peakMs);
-        ImGui::Text("%.2f ms", value);
+    case EntryKind::Counter: {
+        FrameProfiler::CounterSnapshot snapshot;
+        if (!FrameProfiler::get().getCounterSnapshot(entry.name, snapshot) ||
+            snapshot.count == 0) return none;
+        return counterCells(snapshot);
     }
-}
-
-void drawRawCounterRow(const char* counterName) {
-    FrameProfiler::CounterSnapshot snapshot;
-    const bool available =
-        FrameProfiler::get().getCounterSnapshot(counterName, snapshot) &&
-        snapshot.count != 0;
-    ImGui::TableNextRow();
-    ImGui::TableSetColumnIndex(0);
-    ImGui::TextUnformatted(counterName);
-    ImGui::TableSetColumnIndex(1);
-    if (available) ImGui::Text("%lld", snapshot.latest);
-    else ImGui::TextDisabled("--");
-    ImGui::TableSetColumnIndex(2);
-    if (available) ImGui::Text("%.1f", snapshot.average);
-    else ImGui::TextDisabled("--");
-    ImGui::TableSetColumnIndex(3);
-    if (available) ImGui::Text("%lld", snapshot.peak);
-    else ImGui::TextDisabled("--");
+    }
+    return none;
 }
 
 bool beginMetricTable(const char* id) {
@@ -172,6 +174,271 @@ bool beginMetricTable(const char* id) {
     ImGui::TableSetupColumn(Loc::t(Loc::LocKey::ProfilerPeak));
     ImGui::TableHeadersRow();
     return true;
+}
+
+void drawEntryRow(const Entry& entry) {
+    const Cells cells = entryCells(entry);
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+    ImGui::TextUnformatted(entry.label.resolve());
+    for (int column = 0; column < 3; ++column) {
+        ImGui::TableSetColumnIndex(column + 1);
+        if (cells[column] == "--") ImGui::TextDisabled("--");
+        else ImGui::TextUnformatted(cells[column].c_str());
+    }
+}
+
+void drawTableBody(const TableDef& table) {
+    if (!table.hint.empty()) {
+        ImGui::TextWrapped("%s", table.hint.resolve());
+    }
+    if (!beginMetricTable(table.id)) return;
+    for (const Entry& entry : table.entries) drawEntryRow(entry);
+    ImGui::EndTable();
+}
+
+void appendMarkdownTable(std::string& out, const TableDef& table) {
+    out += "## ";
+    out += table.title.resolve();
+    out += "\n\n| ";
+    out += Loc::t(Loc::LocKey::ProfilerSection);
+    out += " | ";
+    out += Loc::t(Loc::LocKey::ProfilerCurrent);
+    out += " | ";
+    out += Loc::t(Loc::LocKey::ProfilerAverage);
+    out += " | ";
+    out += Loc::t(Loc::LocKey::ProfilerPeak);
+    out += " |\n|---|---:|---:|---:|\n";
+    for (const Entry& entry : table.entries) {
+        out += "| ";
+        out += entry.label.resolve();
+        for (const std::string& cell : entryCells(entry)) {
+            out += " | ";
+            out += cell;
+        }
+        out += " |\n";
+    }
+    out += "\n";
+}
+
+// グラフ表示される3区間。UIではグラフ、Markdownでは表として出力する。
+const TableDef& frameSectionsTable() {
+    static const TableDef table{
+        "##ProfilerFrameSectionsTable", "Frame Sections", Label(),
+        {
+            timing("render", Loc::LocKey::ProfilerRendering),
+            timing("physics", Loc::LocKey::ProfilerPhysics),
+            timing("luau", Loc::LocKey::ProfilerScripts),
+        }
+    };
+    return table;
+}
+
+const TableDef& gpuTimingTable() {
+    static const TableDef table{
+        "##ProfilerGpuTimingTable",
+        Label(Loc::LocKey::ProfilerGpuTiming),
+        Label(Loc::LocKey::ProfilerGpuTimingHint),
+        {
+            gpuTiming("gpuTotal", Loc::LocKey::ProfilerGpuTotal),
+            gpuTiming("gpuShadow", Loc::LocKey::ProfilerShadow),
+            gpuTiming("gpuMain", Loc::LocKey::ProfilerMainGeometry),
+            gpuTiming("gpuSurfaceMarks", Loc::LocKey::ProfilerSurfaceMarks),
+            gpuTiming("gpuExtras", Loc::LocKey::ProfilerExtras),
+        }
+    };
+    return table;
+}
+
+// GPUタイミング以外の折りたたみ表。UI表示とMarkdownコピーで同じ定義を共有する。
+const std::vector<TableDef>& breakdownTables() {
+    static const std::vector<TableDef> tables{
+        {
+            "##ProfilerRenderingBreakdownTable",
+            Label(Loc::LocKey::ProfilerRenderingBreakdown),
+            Label(Loc::LocKey::ProfilerNestedHint),
+            {
+                timing("shadow", Loc::LocKey::ProfilerShadow),
+                timing("main", Loc::LocKey::ProfilerMainGeometry),
+                rawTiming("render.instanceCollect"),
+                rawTiming("render.shadowCull"),
+                rawTiming("render.shadowUpload"),
+                rawTiming("render.shadowDraw"),
+                rawTiming("render.mainInstanceUpload"),
+                rawTiming("render.mainInstanceDraw"),
+                timing("surfaceMarks", Loc::LocKey::ProfilerSurfaceMarks),
+                timing("extras", Loc::LocKey::ProfilerExtras),
+                timing("highlights", Loc::LocKey::ProfilerHighlights),
+                timing("constraints", Loc::LocKey::ProfilerConstraints),
+                timing("renderDebug", Loc::LocKey::ProfilerRenderDebug),
+                timing("terrain", Loc::LocKey::ProfilerTerrain),
+                timing("weather", Loc::LocKey::ProfilerWeather),
+                timing("particles", Loc::LocKey::ProfilerParticles),
+                timing("selectionOutline", Loc::LocKey::ProfilerSelectionOutline),
+                timing("postEffects", Loc::LocKey::ProfilerPostEffects),
+                timing("surfaceGuiBakes", Loc::LocKey::ProfilerSurfaceGuiBakeTime),
+                timing("ui", Loc::LocKey::ProfilerEditorUi),
+                timing("swap", Loc::LocKey::ProfilerSwap),
+            }
+        },
+        {
+            "##ProfilerMainLoopTable",
+            Label("Main Loop"),
+            Label("CPU time of per-frame updates outside render/physics/luau."),
+            {
+                rawTiming("main.processInput"),
+                rawTiming("main.humanoids"),
+                rawTiming("main.terrains"),
+                rawTiming("main.weather"),
+                rawTiming("main.particles"),
+            }
+        },
+        {
+            "##ProfilerEditorUiBreakdownTable",
+            Label("Editor UI Breakdown"),
+            Label("Per-panel CPU time inside EditorManager::render()."),
+            {
+                rawTiming("ui.newFrame"),
+                rawTiming("ui.renderPanels"),
+                rawTiming("ui.toolbar"),
+                rawTiming("ui.imguiRenderDrawData"),
+                rawTiming("ui.sceneHierarchy"),
+                rawTiming("ui.properties"),
+                rawTiming("ui.viewportPanelTotal"),
+                rawTiming("ui.viewportScene"),
+                rawTiming("ui.viewportClick"),
+                rawTiming("ui.viewportGizmo"),
+                rawTiming("ui.viewportHoverPick"),
+                rawTiming("ui.viewportHoverOutline"),
+                rawTiming("ui.viewportFreeDrag"),
+                rawTiming("ui.contentBrowser"),
+                rawTiming("ui.console"),
+                rawTiming("ui.animationEditor"),
+                rawTiming("ui.welcome"),
+                rawTiming("ui.profiler"),
+            }
+        },
+        {
+            "##ProfilerPhysicsBreakdownTable",
+            Label("Physics Breakdown"),
+            Label("Box3D internal step and Recubin physics synchronization time."),
+            {
+                rawTiming("physics.reconcileConstraints"),
+                rawTiming("physics.staleScan"),
+                rawTiming("physics.syncPivots"),
+                rawTiming("physics.buoyancy"),
+                rawTiming("physics.forces"),
+                rawTiming("physics.gyro"),
+                rawTiming("physics.box3dStep"),
+                rawTiming("physics.maintainedVelocity"),
+                rawTiming("physics.contactEvents"),
+                rawTiming("physics.syncCubes"),
+                rawCounter("physicsBodies"),
+                rawCounter("physicsContacts"),
+                rawCounter("physicsAwakeBodies"),
+                rawCounter("physicsAwakeBeforeStep"),
+                rawCounter("physicsAwakeAfterStep"),
+                rawCounter("physicsAwakeAfterMaintain"),
+            }
+        },
+        {
+            "##ProfilerDrawCallsTable",
+            Label("Draw Calls"),
+            Label(
+                "Main/Shadow = glDraw* calls per pass (an individually drawn "
+                "object counts one per draw() call). Instanced = instanced "
+                "batches (main + shadow). Terrain = chunk draws, already "
+                "included in Main/Shadow. instanceUploadBytes = instance data "
+                "sent via glBufferData."
+            ),
+            {
+                rawCounter("drawCallsMain"),
+                rawCounter("drawCallsShadow"),
+                rawCounter("drawCallsInstanced"),
+                rawCounter("drawCallsTerrain"),
+                rawCounter("instanceUploadBytes"),
+            }
+        },
+        {
+            "##ProfilerDrawCountersTable",
+            Label(Loc::LocKey::ProfilerDrawCounters),
+            Label(),
+            {
+                counter("cubesDrawn", Loc::LocKey::ProfilerCubesDrawn),
+                counter("cubesCulled", Loc::LocKey::ProfilerCubesCulled),
+                counter("instanced", Loc::LocKey::ProfilerInstanced),
+                counter("shadowCubes", Loc::LocKey::ProfilerShadowCubes),
+                counter("shadowCubesCulled", Loc::LocKey::ProfilerShadowCubesCulled),
+                rawCounter("shadowMapReused"),
+                counter("surfaceGuiBaked", Loc::LocKey::ProfilerSurfaceGuiBaked),
+                counter("surfaceGuiReused", Loc::LocKey::ProfilerSurfaceGuiReused),
+                rawCounter("treeLightingNodes"),
+                rawCounter("treeInstancesNodes"),
+                rawCounter("treeShadowNodes"),
+                rawCounter("treeMainNodes"),
+                rawCounter("treeSurfaceMarkNodes"),
+                rawCounter("treeGuiNodes"),
+                rawCounter("baseCubesVisited"),
+                rawCounter("surfaceGuiChildrenVisited"),
+            }
+        },
+        {
+            "##ProfilerTreeTraversalTable",
+            Label("Tree Traversal"),
+            Label(),
+            {
+                rawTiming("treeLighting"),
+                rawTiming("treeInstances"),
+                rawTiming("treeShadow"),
+                rawTiming("treeMain"),
+                rawTiming("treeSurfaceMarks"),
+                rawTiming("treeGui"),
+                rawTiming("treeGuiFonts"),
+                rawCounter("treeLightingNodes"),
+                rawCounter("treeInstancesNodes"),
+                rawCounter("treeShadowNodes"),
+                rawCounter("treeMainNodes"),
+                rawCounter("treeSurfaceMarkNodes"),
+                rawCounter("treeGuiNodes"),
+                rawCounter("baseCubesVisited"),
+                rawCounter("surfaceGuiChildrenVisited"),
+            }
+        },
+    };
+    return tables;
+}
+
+std::string buildMarkdownReport() {
+    std::string out = "# Profiler\n\n";
+
+    FrameProfiler::FrameSnapshot frame;
+    if (FrameProfiler::get().getFrameSnapshot(frame)) {
+        char line[192];
+        std::snprintf(
+            line, sizeof(line),
+            "FPS: current %.1f / average %.1f (average frame %.2f ms, %zu frames)\n\n",
+            frame.latestFps, frame.averageFps,
+            frame.averageFrameMs, frame.count
+        );
+        out += line;
+    } else {
+        out += "FPS: no samples\n\n";
+    }
+
+    appendMarkdownTable(out, frameSectionsTable());
+    if (FrameProfiler::get().isGpuTimingAvailable()) {
+        appendMarkdownTable(out, gpuTimingTable());
+    } else {
+        out += "## ";
+        out += gpuTimingTable().title.resolve();
+        out += "\n\n";
+        out += Loc::t(Loc::LocKey::ProfilerUnavailable);
+        out += "\n\n";
+    }
+    for (const TableDef& table : breakdownTables()) {
+        appendMarkdownTable(out, table);
+    }
+    return out;
 }
 }
 
@@ -206,17 +473,20 @@ void ProfilerPanel::onRender() {
             Loc::t(Loc::LocKey::ProfilerNoSamples)
         );
     }
+    if (ImGui::Button("Copy as Markdown")) {
+        ImGui::SetClipboardText(buildMarkdownReport().c_str());
+    }
     ImGui::Separator();
 
     if (ImGui::BeginChild(
             "##ProfilerScrollableBody",
             ImVec2(0.0f, 0.0f),
             false)) {
+        const TableDef& gpuTable = gpuTimingTable();
         if (ImGui::CollapsingHeader(
-                Loc::t(Loc::LocKey::ProfilerGpuTiming),
+                gpuTable.title.resolve(),
                 ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::TextWrapped(
-                "%s", Loc::t(Loc::LocKey::ProfilerGpuTimingHint));
+            ImGui::TextWrapped("%s", gpuTable.hint.resolve());
             if (!FrameProfiler::get().isGpuTimingAvailable()) {
                 ImGui::TextDisabled(
                     "%s", Loc::t(Loc::LocKey::ProfilerUnavailable));
@@ -229,17 +499,10 @@ void ProfilerPanel::onRender() {
                 if (!hasGpuSamples) {
                     ImGui::TextDisabled(
                         "%s", Loc::t(Loc::LocKey::ProfilerNoSamples));
-                } else if (beginMetricTable("##ProfilerGpuTimingTable")) {
-                    drawGpuTimingRow(
-                        "gpuTotal", Loc::LocKey::ProfilerGpuTotal);
-                    drawGpuTimingRow(
-                        "gpuShadow", Loc::LocKey::ProfilerShadow);
-                    drawGpuTimingRow(
-                        "gpuMain", Loc::LocKey::ProfilerMainGeometry);
-                    drawGpuTimingRow(
-                        "gpuSurfaceMarks", Loc::LocKey::ProfilerSurfaceMarks);
-                    drawGpuTimingRow(
-                        "gpuExtras", Loc::LocKey::ProfilerExtras);
+                } else if (beginMetricTable(gpuTable.id)) {
+                    for (const Entry& entry : gpuTable.entries) {
+                        drawEntryRow(entry);
+                    }
                     ImGui::EndTable();
                 }
             }
@@ -258,127 +521,12 @@ void ProfilerPanel::onRender() {
             ImVec4(0.38f, 0.86f, 0.50f, 1.0f)
         );
 
-        if (ImGui::CollapsingHeader(
-                Loc::t(Loc::LocKey::ProfilerRenderingBreakdown),
-                ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::TextWrapped(
-                "%s", Loc::t(Loc::LocKey::ProfilerNestedHint));
-            if (beginMetricTable("##ProfilerRenderingBreakdownTable")) {
-                drawTimingRow("shadow", Loc::LocKey::ProfilerShadow);
-                drawTimingRow("main", Loc::LocKey::ProfilerMainGeometry);
-                drawRawTimingRow("render.instanceCollect");
-                drawRawTimingRow("render.shadowCull");
-                drawRawTimingRow("render.shadowUpload");
-                drawRawTimingRow("render.shadowDraw");
-                drawRawTimingRow("render.mainInstanceUpload");
-                drawRawTimingRow("render.mainInstanceDraw");
-                drawTimingRow(
-                    "surfaceMarks", Loc::LocKey::ProfilerSurfaceMarks);
-                drawTimingRow("extras", Loc::LocKey::ProfilerExtras);
-                drawTimingRow("highlights", Loc::LocKey::ProfilerHighlights);
-                drawTimingRow("constraints", Loc::LocKey::ProfilerConstraints);
-                drawTimingRow("renderDebug", Loc::LocKey::ProfilerRenderDebug);
-                drawTimingRow("terrain", Loc::LocKey::ProfilerTerrain);
-                drawTimingRow("weather", Loc::LocKey::ProfilerWeather);
-                drawTimingRow("particles", Loc::LocKey::ProfilerParticles);
-                drawTimingRow(
-                    "selectionOutline", Loc::LocKey::ProfilerSelectionOutline);
-                drawTimingRow("postEffects", Loc::LocKey::ProfilerPostEffects);
-                drawTimingRow(
-                    "surfaceGuiBakes",
-                    Loc::LocKey::ProfilerSurfaceGuiBakeTime);
-                drawTimingRow("ui", Loc::LocKey::ProfilerEditorUi);
-                drawTimingRow("swap", Loc::LocKey::ProfilerSwap);
-                ImGui::EndTable();
+        for (const TableDef& table : breakdownTables()) {
+            if (ImGui::CollapsingHeader(
+                    table.title.resolve(),
+                    ImGuiTreeNodeFlags_DefaultOpen)) {
+                drawTableBody(table);
             }
-        }
-
-        if (ImGui::CollapsingHeader(
-                "Editor UI Breakdown",
-                ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::TextWrapped(
-                "Per-panel CPU time inside EditorManager::render().");
-            if (beginMetricTable("##ProfilerEditorUiBreakdownTable")) {
-                drawRawTimingRow("ui.sceneHierarchy");
-                drawRawTimingRow("ui.properties");
-                drawRawTimingRow("ui.viewportPanelTotal");
-                drawRawTimingRow("ui.viewportScene");
-                drawRawTimingRow("ui.contentBrowser");
-                drawRawTimingRow("ui.console");
-                drawRawTimingRow("ui.animationEditor");
-                drawRawTimingRow("ui.welcome");
-                drawRawTimingRow("ui.profiler");
-                ImGui::EndTable();
-            }
-        }
-
-        if (ImGui::CollapsingHeader(
-                "Physics Breakdown",
-                ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::TextWrapped(
-                "Box3D internal step and Recubin physics synchronization time.");
-            if (beginMetricTable("##ProfilerPhysicsBreakdownTable")) {
-                drawRawTimingRow("physics.buoyancy");
-                drawRawTimingRow("physics.forces");
-                drawRawTimingRow("physics.gyro");
-                drawRawTimingRow("physics.box3dStep");
-                drawRawTimingRow("physics.maintainedVelocity");
-                drawRawTimingRow("physics.contactEvents");
-                drawRawTimingRow("physics.syncCubes");
-                drawRawCounterRow("physicsBodies");
-                drawRawCounterRow("physicsContacts");
-                drawRawCounterRow("physicsAwakeBodies");
-                drawRawCounterRow("physicsAwakeBeforeStep");
-                drawRawCounterRow("physicsAwakeAfterStep");
-                drawRawCounterRow("physicsAwakeAfterMaintain");
-                ImGui::EndTable();
-            }
-        }
-
-        if (ImGui::CollapsingHeader(
-                Loc::t(Loc::LocKey::ProfilerDrawCounters),
-                ImGuiTreeNodeFlags_DefaultOpen) &&
-            beginMetricTable("##ProfilerDrawCountersTable")) {
-            drawCounterRow("cubesDrawn", Loc::LocKey::ProfilerCubesDrawn);
-            drawCounterRow("cubesCulled", Loc::LocKey::ProfilerCubesCulled);
-            drawCounterRow("instanced", Loc::LocKey::ProfilerInstanced);
-            drawCounterRow("shadowCubes", Loc::LocKey::ProfilerShadowCubes);
-            drawCounterRow(
-                "shadowCubesCulled", Loc::LocKey::ProfilerShadowCubesCulled);
-            drawRawCounterRow("shadowMapReused");
-            drawCounterRow(
-                "surfaceGuiBaked", Loc::LocKey::ProfilerSurfaceGuiBaked);
-            drawCounterRow(
-                "surfaceGuiReused", Loc::LocKey::ProfilerSurfaceGuiReused);
-            drawRawCounterRow("treeLightingNodes");
-            drawRawCounterRow("treeInstancesNodes");
-            drawRawCounterRow("treeShadowNodes");
-            drawRawCounterRow("treeMainNodes");
-            drawRawCounterRow("treeSurfaceMarkNodes");
-            drawRawCounterRow("treeGuiNodes");
-            drawRawCounterRow("baseCubesVisited");
-            drawRawCounterRow("surfaceGuiChildrenVisited");
-            ImGui::EndTable();
-        }
-
-        if (ImGui::CollapsingHeader("Tree Traversal", ImGuiTreeNodeFlags_DefaultOpen) &&
-            beginMetricTable("##ProfilerTreeTraversalTable")) {
-            drawRawTimingRow("treeLighting");
-            drawRawTimingRow("treeInstances");
-            drawRawTimingRow("treeShadow");
-            drawRawTimingRow("treeMain");
-            drawRawTimingRow("treeSurfaceMarks");
-            drawRawTimingRow("treeGui");
-            drawRawTimingRow("treeGuiFonts");
-            drawRawCounterRow("treeLightingNodes");
-            drawRawCounterRow("treeInstancesNodes");
-            drawRawCounterRow("treeShadowNodes");
-            drawRawCounterRow("treeMainNodes");
-            drawRawCounterRow("treeSurfaceMarkNodes");
-            drawRawCounterRow("treeGuiNodes");
-            drawRawCounterRow("baseCubesVisited");
-            drawRawCounterRow("surfaceGuiChildrenVisited");
-            ImGui::EndTable();
         }
     }
     ImGui::EndChild();

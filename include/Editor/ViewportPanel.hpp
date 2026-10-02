@@ -73,6 +73,19 @@ public:
     std::vector<TerrainStreamer::VoxelDiffEntry> m_terrainBrushDiff;   // 現在のストロークで変更されたブロックの差分
     std::shared_ptr<Terrain> m_terrainBrushStrokeTarget;               // ストローク中のTerrainインスタンス（Undo用に保持）
 
+    // ホバーハイライトのレイキャスト結果キャッシュ。マウス/カメラ(=レイ)とWorkspaceの
+    // ツリーが前フレームと同じ間は、全Cubeへのレイキャストを再実行しない。
+    struct HoverPickCache {
+        bool valid = false;
+        const Workspace* workspace = nullptr;
+        std::uint64_t treeRevision = 0;
+        ViewportGeometry::Ray ray;
+        bool hit = false;
+        bool locked = false;
+        Instance* target = nullptr;
+    };
+    HoverPickCache m_hoverPickCache;
+
     // ギズモ / フリードラッグ undo 用状態
     bool m_wasUsingGizmo = false;
     bool m_wasDraggingSelected = false; // 前フレームの m_isDraggingSelected（同一フレーム内更新の影響を受けない値）
