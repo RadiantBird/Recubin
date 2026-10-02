@@ -535,6 +535,12 @@ void EditorManager::render(GLFWwindow* window) {
     renderPanel("ui.welcome", welcomePanel);
     renderPanel("ui.profiler", profilerPanel);
 
+    // ようこそを閉じた直後、ImGuiのフォールバックは最後に描画されたウィンドウ
+    // (プロファイラー等)へフォーカスし、そのドックの選択タブを奪ってしまう。
+    // 閉じたフレームで明示的にビューポートへフォーカスを移して防ぐ。
+    if (m_welcomeWasOpen && !welcomePanel->isOpen) ImGui::SetWindowFocus(viewportPanel->title.c_str());
+    m_welcomeWasOpen = welcomePanel->isOpen;
+
     // Auxiliary Script/TextFile editors are ordinary dock windows.  They use
     // the same central DockSpace ID as Welcome, so ImGui creates a tab beside
     // the existing Viewport instead of a floating tool window.

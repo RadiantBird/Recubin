@@ -243,6 +243,7 @@ private:
     bool m_externalPlayCleanup    = false;
     bool m_vsyncEnabled           = true;
     EditorTheme m_theme           = EditorTheme::Classic;
+    bool m_welcomeWasOpen         = false; // ようこそを閉じた瞬間の検出用
 
     enum class PlayStartErrorKind { Generic, NetworkRequired };
     bool m_showPlayStartError = false;

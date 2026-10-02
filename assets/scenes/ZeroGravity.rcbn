@@ -100,13 +100,13 @@ Root:
             Angle: [135, 35.26439]
             Color: [1, 0.95, 0.8, 1]
             Distance: 1000
-            GlowIntensity: 0
+            GlowIntensity: 1
             GlowRadius: 6
             VeilIntensity: 0
             VeilFalloff: 6
-            SpikeIntensity: 0
-            SpikeCount: 4
-            SpikeLength: 12
+            SpikeIntensity: 0.1
+            SpikeCount: 6
+            SpikeLength: 3
             SpikeRotation: 0
             HorizonFade: true
         - ClassName: Cube
