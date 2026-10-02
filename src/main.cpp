@@ -16,6 +16,7 @@
 #include <Instances/Cube.hpp>
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
+#include <Instances/Model.hpp>
 #include <Instances/Script.hpp>
 #include <Instances/Sound.hpp>
 #include <Instances/Lighting.hpp>
@@ -1395,6 +1396,11 @@ int main(int argc, char* argv[]) {
                 RCBN_LOG("[INFO] Stopped due to safety limit breach. Switched to Free Camera mode.");
             }
         }
+        // 編集中は、PrimaryCubeを持つModelの原点をその座標へ追従させる
+        // (Play中はPhysics::updateのsyncPivotsToCentroidが担う)
+        if (!isPlaying && workspace)
+            Model::syncPivotsToPrimaryCube(workspace->getRenderModels());
+
         // このフレームのScriptがFindPathを開始した場合、以降のゲーム更新を即座に止める。
         navMeshBusy = PathfindingService::IsBuildActive();
 

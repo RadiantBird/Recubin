@@ -1,5 +1,6 @@
 #include <include/Instances/Model.hpp>
 #include <include/Core/Physics.hpp>
+#include <include/Core/PropertyRegistry.hpp>
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/Weld.hpp>
 #include <include/Util/Logger.hpp>
@@ -41,6 +42,95 @@ void collectPivotPoses(Instance& root, std::vector<PivotPose>& out,
         collectPivotPoses(*child, out, depth + 1);
     }
 }
+
+bool isDescendantOf(const Instance& root, const Instance& node) {
+    for (auto parent = node.Parent.lock(); parent; parent = parent->Parent.lock()) {
+        if (parent.get() == &root) return true;
+    }
+    return false;
+}
+
+const bool s_modelRegistered = [] {
+    using namespace PropertyRegistry;
+    PropertyDesc primaryCube = custom("PrimaryCube", PropType::String,
+        [](Instance* instance) {
+            return PropValue(static_cast<Model*>(instance)->getPrimaryCubePath());
+        },
+        [](Instance* instance, const PropValue& value) {
+            static_cast<Model*>(instance)->setPrimaryCubePath(std::get<std::string>(value));
+        });
+    primaryCube.omitEmpty();
+    primaryCube.instanceRefClass = "BaseCube";
+    primaryCube.editorWidget = EditorWidget::InstanceReference;
+    registerClass("Model", "Spatial", {primaryCube});
+    return true;
+}();
+}
+
+std::shared_ptr<BaseCube> Model::resolvePrimaryCube(const std::string& path) const {
+    if (path.empty()) return nullptr;
+    // 解決の起点はTool::resolveHandle/getWorkspaceRelativePathの規約と一致させる
+    auto* self = const_cast<Model*>(this);
+    Instance* base = self->findFirstAncestorWorkspace();
+    if (!base) {
+        base = self;
+        for (auto p = Parent.lock(); p; p = p->Parent.lock()) base = p.get();
+    }
+    Instance* found = base->getChildByPath(path);
+    if (!found || !found->IsA("BaseCube")) return nullptr;
+    return std::static_pointer_cast<BaseCube>(found->shared_from_this());
+}
+
+BaseCube* Model::getPrimaryCube() const {
+    std::shared_ptr<BaseCube> cube = m_primaryCube.lock();
+    if (!cube) {
+        cube = resolvePrimaryCube(m_primaryCubeName);
+        if (!cube) return nullptr;
+        m_primaryCube = cube;
+    }
+    if (!isDescendantOf(*this, *cube)) {
+        if (!m_primaryCubeWarned) {
+            RCBN_ERROR("Model '" << Name << "' PrimaryCube '" << cube->Name
+                       << "' is not a descendant of the Model; ignored");
+            m_primaryCubeWarned = true;
+        }
+        return nullptr;
+    }
+    return cube.get();
+}
+
+std::string Model::getPrimaryCubePath() const {
+    // リネーム/リペアレントでパスが古くならないよう、解決済みなら生きている参照から作り直す
+    if (const BaseCube* cube = getPrimaryCube())
+        m_primaryCubeName = const_cast<BaseCube*>(cube)->getWorkspaceRelativePath();
+    return m_primaryCubeName;
+}
+
+void Model::setPrimaryCubePath(const std::string& path) {
+    std::shared_ptr<BaseCube> cube = resolvePrimaryCube(path);
+    if (cube && !isDescendantOf(*this, *cube)) {
+        RCBN_ERROR("Model '" << Name << "' PrimaryCube must be a descendant of the Model: "
+                   << path);
+        return;
+    }
+    // 解決できない場合(読み込み中で子がまだ無い等)はパスだけ保持し、後で遅延解決する
+    m_primaryCubeName = path;
+    m_primaryCube = cube;
+    m_primaryCubeWarned = false;
+    if (cube) syncPivotToPrimaryCube();
+}
+
+void Model::setPrimaryCube(const std::shared_ptr<BaseCube>& cube) {
+    m_primaryCube = cube;
+    m_primaryCubeName = cube ? cube->getWorkspaceRelativePath() : std::string{};
+    m_primaryCubeWarned = false;
+    syncPivotToPrimaryCube();
+}
+
+void Model::collectInstanceReferences(std::vector<InstanceReference>& out) {
+    getPrimaryCube();
+    out.push_back({m_primaryCube.lock(), "BaseCube", "Model.PrimaryCube",
+        [this](std::shared_ptr<Instance> v) { setPrimaryCube(std::dynamic_pointer_cast<BaseCube>(v)); }});
 }
 
 void Model::refreshCharacterCollisionGroup() {
@@ -65,6 +155,9 @@ void Model::refreshCharacterCollisionGroup() {
 }
 
 CFrame Model::getPivotCFrame() const {
+    if (const BaseCube* primary = getPrimaryCube())
+        return CFrame(primary->getWorldPosition(), getWorldCFrame().Rotation);
+
     Vector3 sumPositions(0, 0, 0);
     std::size_t count = 0;
 
@@ -98,6 +191,8 @@ CFrame Model::getPivotCFrame() const {
 
 namespace {
 constexpr float PIVOT_SYNC_EPSILON = 0.01f;
+// PrimaryCubeはPositionの表示値になるため、重心(近似)より厳しく追従する
+constexpr float PRIMARY_PIVOT_SYNC_EPSILON = 1.0e-4f;
 
 bool hasDynamicCube(const Instance& root) {
     for (const auto& [_, child] : root.children) {
@@ -111,7 +206,27 @@ bool hasDynamicCube(const Instance& root) {
 }
 }
 
+void Model::syncPivotToPrimaryCube() {
+    const BaseCube* primary = getPrimaryCube();
+    if (!primary || IsA("Tool")) return;
+    const CFrame world = getWorldCFrame();
+    const Vector3 target = primary->getWorldPosition();
+    if ((target - world.Position).length() < PRIMARY_PIVOT_SYNC_EPSILON) return;
+    // setWorldCFrameは子孫のワールド姿勢を保存する。物理ボディは動かさない。
+    setWorldCFrame(CFrame(target, world.Rotation));
+}
+
+void Model::syncPivotsToPrimaryCube(const std::vector<Model*>& models) {
+    for (Model* model : models) {
+        if (model) model->syncPivotToPrimaryCube();
+    }
+}
+
 void Model::syncPivotToCentroid() {
+    if (getPrimaryCube()) {
+        syncPivotToPrimaryCube();
+        return;
+    }
     if (IsA("Tool") || !hasDynamicCube(*this)) return;
     const CFrame world = getWorldCFrame();
     const CFrame pivot = getPivotCFrame();
@@ -189,6 +304,14 @@ std::shared_ptr<Instance> Model::clone() const {
 
     for (auto const& [name, child] : children) {
         copy->addChild(child->clone());
+    }
+
+    // 複製先の子孫へ張り替える(元のCubeを指したままにしない)
+    if (BaseCube* primary = getPrimaryCube()) {
+        const std::string relative = primary->getPathUpTo(const_cast<Model*>(this));
+        Instance* target = copy->getChildByPath(relative);
+        if (target && target->IsA("BaseCube"))
+            copy->setPrimaryCube(std::static_pointer_cast<BaseCube>(target->shared_from_this()));
     }
 
     return copy;

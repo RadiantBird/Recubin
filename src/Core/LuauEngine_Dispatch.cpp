@@ -386,6 +386,7 @@ void LuauEngine::InitDispatchTable_Base() {
         pushCFrame(L, static_cast<Spatial*>(obj)->getWorldCFrame());
         return 1;
     };
+    PropertyRegistry::applyToDispatch("Model", DispatchTable, SetterTable);
     DispatchTable["Model"]["PivotTo"] = getter_closure(
         model_pivot_to_closure, "PivotTo");
     DispatchTable["Model"]["MoveOrigin"] = getter_closure(

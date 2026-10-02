@@ -11605,6 +11605,55 @@ static int runSpatialCoordinateAssertions() {
                sameCFrame(attachmentChild->getWorldCFrame(), expectedAttachmentWorld),
            "Model.PivotTo preserves attachment world transforms on physics-backed children");
 
+    // PrimaryCube: 設定するとModelの原点/Pivotがその座標になり、子のワールド姿勢は変わらない
+    auto primaryModel = std::make_shared<Model>(Vector3(0, 0, 0));
+    primaryModel->Name = "PrimaryModel";
+    auto primaryA = std::make_shared<Cube>(Vector3(-16, 1, 6), Vector3(4, 1, 4), 0);
+    primaryA->Name = "PrimaryA";
+    primaryA->Anchored = true;
+    auto primaryB = std::make_shared<Cube>(Vector3(-15.8f, 2.5f, 6.06f), Vector3(1, 1, 1), 0);
+    primaryB->Name = "PrimaryB";
+    primaryB->Anchored = true;
+    auto outsideCube = std::make_shared<Cube>(Vector3(50, 1, 50), Vector3(1, 1, 1), 0);
+    outsideCube->Name = "PrimaryOutside";
+    outsideCube->Anchored = true;
+    primaryModel->addChild(primaryA);
+    primaryModel->addChild(primaryB);
+    luauWorkspace->addChild(primaryModel);
+    luauWorkspace->addChild(outsideCube);
+    const CFrame primaryBBefore = primaryB->getWorldCFrame();
+
+    primaryModel->setPrimaryCubePath(outsideCube->getWorkspaceRelativePath());
+    expect(primaryModel->getPrimaryCube() == nullptr &&
+               primaryModel->getPrimaryCubePath().empty(),
+           "PrimaryCube rejects a BaseCube that is not a descendant of the Model");
+
+    primaryModel->setPrimaryCubePath(primaryA->getWorkspaceRelativePath());
+    expect(primaryModel->getPrimaryCube() == primaryA.get() &&
+               primaryModel->getPrimaryCubePath() == primaryA->getWorkspaceRelativePath(),
+           "PrimaryCube resolves a descendant BaseCube and round-trips its path");
+    expect(positionDistance(primaryModel->getWorldPosition(), Vector3(-16, 1, 6)) < 0.001f &&
+               positionDistance(primaryModel->getPivotCFrame().Position, Vector3(-16, 1, 6)) < 0.001f,
+           "PrimaryCube makes the Model origin and pivot the PrimaryCube position");
+    expect(sameCFrame(primaryB->getWorldCFrame(), primaryBBefore),
+           "PrimaryCube origin sync preserves descendant world poses");
+
+    primaryA->setWorldPosition(Vector3(-10, 3, 2));
+    Model::syncPivotsToPrimaryCube(luauWorkspace->getRenderModels());
+    expect(positionDistance(primaryModel->getWorldPosition(), Vector3(-10, 3, 2)) < 0.001f,
+           "PrimaryCube origin follows the PrimaryCube after it moves");
+
+    primaryModel->setWorldPosition(Vector3(5, 6, 7));
+    expect(positionDistance(primaryA->getWorldPosition(), Vector3(5, 6, 7)) < 0.001f &&
+               positionDistance(primaryModel->getWorldPosition(), Vector3(5, 6, 7)) < 0.001f,
+           "Assigning Model.Position moves the PrimaryCube to that position");
+
+    auto primaryClone = std::static_pointer_cast<Model>(primaryModel->clone());
+    expect(primaryClone->getPrimaryCube() != nullptr &&
+               primaryClone->getPrimaryCube() != primaryA.get() &&
+               primaryClone->getPrimaryCube()->Name == "PrimaryA",
+           "Cloned Model points PrimaryCube at its own cloned descendant");
+
     auto invalidPivotScript = std::make_shared<Script>();
     invalidPivotScript->Source =
         "PivotModel:PivotTo(Vector3.new(1, 2, 3))\n";

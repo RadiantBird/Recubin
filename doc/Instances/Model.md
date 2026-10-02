@@ -10,7 +10,9 @@
 
 ## メンバ変数
 
-追加メンバなし（`Spatial` をそのまま継承）
+| プロパティ | 説明 |
+|---|---|
+| `PrimaryCube` | 原点とみなす子孫の `BaseCube`（Workspace相対パス文字列で保存、エディターはPickで指定、`Tool.Handle` と同じ方式）。設定するとModelの `Position`/Pivotがその座標になる。未設定なら従来どおり重心 |
 
 ## メソッド
 
@@ -18,6 +20,9 @@
 |---|---|
 | `GetClassName()` | `"Model"` を返す |
 | `IsA(className)` | `"Model"`, `"Spatial"`, `"Instance"` に対して true |
+| `getPrimaryCube()` | 解決済みのPrimaryCube（未設定・未解決・子孫でない場合は `nullptr`） |
+| `syncPivotToPrimaryCube()` | 原点をPrimaryCubeのワールド座標へ更新（子のワールド姿勢は不変）。編集中は `main.cpp` が毎フレーム、Play中は `Physics::update` 経由の `syncPivotToCentroid()` が呼ぶ |
+| `getPivotCFrame()` | PrimaryCubeがあればその座標、なければ子孫BaseCubeの重心 |
 
 ## 依存関係
 
