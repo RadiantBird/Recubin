@@ -16,6 +16,7 @@ enum class LocKey {
 
     // ---- Settingsメニュー ----
     MenuSettings, LanguageJapanese, LanguageEnglish, SettingsVSync,
+    SettingsTheme, ThemeClassic, ThemeFrutiger,
 
     // ---- EditorManager: メニューバー / パネルタイトル ----
     MenuFile, MenuSaveScene, MenuOpenScene, MenuNewScene, MenuPackageGame, MenuQuit,

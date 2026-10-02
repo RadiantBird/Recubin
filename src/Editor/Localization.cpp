@@ -20,6 +20,9 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "日本語",            "Japanese" },
     { "English",           "English" },
     { "垂直同期（診断用）", "Vertical Sync (diagnostic)" },
+    { "テーマ",            "Theme" },
+    { "Classic",           "Classic" },
+    { "Frutiger",          "Frutiger" },
 
     // ---- EditorManager: メニューバー / パネルタイトル ----
     { "ファイル",           "File" },

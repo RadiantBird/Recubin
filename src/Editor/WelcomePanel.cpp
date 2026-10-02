@@ -1,5 +1,6 @@
 #include <Editor/WelcomePanel.hpp>
 #include <Editor/Localization.hpp>
+#include <Editor/UiHelpers.hpp>
 #include <include/stb_image.h>
 #include <Util/Logger.hpp>
 #include <algorithm>
@@ -51,6 +52,19 @@ void WelcomePanel::loadLogo() {
 void WelcomePanel::onRender() {
     if (dockspaceId != 0) ImGui::SetNextWindowDockID(dockspaceId, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(480, 320), ImGuiCond_FirstUseEver);
+    // 開いた直後(起動時・メニューから再表示)は前面のタブとして表示する。
+    // 前フレームに描画されていなければ「開いた直後」とみなす。
+    // 起動直後はドックのタブバーが再生成され、保存済みの選択タブ(ビューポート)で
+    // フォーカス結果が上書きされるため、1回の要求では前面にならない。
+    // タブバーが安定するまで数フレーム連続で要求する。
+    constexpr int FOCUS_REQUEST_FRAMES = 10;
+    const int frame = ImGui::GetFrameCount();
+    if (m_lastRenderFrame < 0 || frame - m_lastRenderFrame > 1) m_focusRequestFramesLeft = FOCUS_REQUEST_FRAMES;
+    m_lastRenderFrame = frame;
+    if (m_focusRequestFramesLeft > 0) {
+        ImGui::SetNextWindowFocus();
+        --m_focusRequestFramesLeft;
+    }
     if (!ImGui::Begin(title.c_str(), &isOpen)) {
         ImGui::End();
         return;
@@ -87,8 +101,11 @@ void WelcomePanel::onRender() {
             ImVec2(logoWidth, logoHeight), ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
     }
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (groupWidth - cardWidth) * 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.10f, 0.16f, 0.30f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.24f, 0.34f, 0.55f, 1.0f));
+    const bool lightSurface = EditorUi::glassPalette().lightSurface;
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, lightSurface
+        ? ImVec4(0.93f, 0.98f, 1.0f, 1.0f) : ImVec4(0.10f, 0.16f, 0.30f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Border, lightSurface
+        ? ImVec4(0.55f, 0.74f, 0.90f, 1.0f) : ImVec4(0.24f, 0.34f, 0.55f, 1.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
     if (ImGui::BeginChild("##WelcomeActions", ImVec2(cardWidth, cardHeight),

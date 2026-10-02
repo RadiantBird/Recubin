@@ -26,4 +26,6 @@ private:
     int m_logoWidth = 0;
     int m_logoHeight = 0;
     bool m_logoLoadAttempted = false;
+    int m_focusRequestFramesLeft = 0; // 開いた直後にフォーカス要求を続ける残りフレーム数
+    int m_lastRenderFrame = -1;  // 直近にonRenderが呼ばれたImGuiフレーム番号
 };

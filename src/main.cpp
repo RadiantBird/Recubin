@@ -256,7 +256,7 @@ static void saveLastScenePath(const std::string& path) {
 }
 
 // 各パネルの開閉状態を editor_settings.yaml から復元する。
-// 記録が無い場合は既定（Animation のみ非表示、他は表示）を使う。
+// 記録が無い場合は既定（Animation/Profiler は非表示、他は表示）を使う。
 static void loadPanelVisibility(EditorManager* ed) {
     if (!ed) return;
     YAML::Node root = loadEditorSettings();
@@ -277,6 +277,7 @@ static void loadPanelVisibility(EditorManager* ed) {
         ed->contentBrowserPanel->isOpen = get("ContentBrowser", true);
         ed->consolePanel->isOpen        = get("Console",        true);
         ed->animationPanel->isOpen      = get("Animation",      false);
+        ed->profilerPanel->isOpen       = get("Profiler",       false);
     } catch (const std::exception& error) {
         g_editorSettingsLoadFailed = true;
         RCBN_ERROR("Invalid panel visibility in editor settings: " << error.what());
@@ -294,6 +295,7 @@ static void savePanelVisibility(EditorManager* ed) {
     p["ContentBrowser"] = ed->contentBrowserPanel->isOpen;
     p["Console"]        = ed->consolePanel->isOpen;
     p["Animation"]      = ed->animationPanel->isOpen;
+    p["Profiler"]       = ed->profilerPanel->isOpen;
     root["Panels"] = p;
     writeEditorSettings(root);
 }
@@ -323,6 +325,12 @@ static void loadEditorPreferences(
         std::string lang = p["Language"].as<std::string>();
         if (lang == "JA") Loc::setLanguage(Loc::Lang::JA);
         else if (lang == "EN") Loc::setLanguage(Loc::Lang::EN);
+    }
+
+    if (p["Theme"]) {
+        std::string theme = p["Theme"].as<std::string>();
+        if (theme == "Frutiger") ed->setTheme(EditorTheme::Frutiger);
+        else if (theme == "Classic") ed->setTheme(EditorTheme::Classic);
     }
 
     if (p["Camera"]) {
@@ -403,6 +411,7 @@ static void saveEditorPreferences(EditorManager* ed, User* user) {
     p["RenderingDebug"] = ed->viewportPanel->showRenderingDebug;
     p["VSync"] = ed->vsyncEnabled();
     p["Language"] = (Loc::getLanguage() == Loc::Lang::JA) ? std::string("JA") : std::string("EN");
+    p["Theme"] = (ed->theme() == EditorTheme::Frutiger) ? std::string("Frutiger") : std::string("Classic");
 
     CFrame camCf = user->getCameraCFrame();
     YAML::Node c;

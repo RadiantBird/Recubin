@@ -418,6 +418,17 @@ Replication、Luau の `workspace`、Primary Viewport、Explorer を追従させ
 通常起動ではreader、入力注入、target登録、captureはno-op。captureはmain viewportの
 default back framebufferをphysical pixel sizeでRGBA PNGとして保存する。
 
+## Editor パネル表示とテーマ
+
+- パネルの開閉状態は`editor_settings.yaml`の`Panels`へ終了時に保存し、起動時に復元する。
+  対象はExplorer / Properties / Viewport / ContentBrowser / Console / Animation / Profiler。
+  記録が無い場合の既定は、Animation・Profilerが非表示、他は表示。
+- ようこそタブは保存対象外で、起動時に毎回必ず表示する。クラッシュ復旧候補があり復旧ダイアログを
+  出す場合も表示する。シーンを読み込むと閉じる。
+- エディターのテーマは`Preferences.Theme`(`Classic` / `Frutiger`)に保存し、設定メニューから
+  即時切替する。未指定はClassic。Classicは紺色、Frutigerは淡い空色のガラス調（アクティブタブ・
+  タイトルバーは青、非アクティブは灰色）。ボタンの光沢は`EditorUi::GlassPalette`で切り替える。
+
 ## Scene Autosave / Crash Recovery
 
 Windows版Editorと平坦portable配布のmacOS Editorは実行中の`Recubin`と同じディレクトリの

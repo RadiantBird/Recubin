@@ -2,10 +2,51 @@
 
 #include <include/imgui/imgui.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
 namespace EditorUi {
+
+namespace {
+GlassPalette g_glassPalette = classicGlassPalette();
+}
+
+GlassPalette classicGlassPalette() {
+    GlassPalette p;
+    p.selectedHighlight = ImVec4(0.62f, 0.82f, 1.0f, 1.0f);
+    p.selectedMixScale  = 1.0f;
+    p.topTint           = ImVec4(0.82f, 0.93f, 1.0f, 1.0f);
+    p.bottomScale       = 1.0f;
+    p.sheenTint         = ImVec4(0.78f, 0.93f, 1.0f, 1.0f);
+    p.sheenAlphaScale   = 1.0f;
+    p.highlightActive   = ImVec4(0.44f, 0.64f, 0.90f, 0.36f);
+    p.highlightHot      = ImVec4(0.68f, 0.88f, 1.0f, 0.82f);
+    p.highlightRest     = ImVec4(0.52f, 0.74f, 1.0f, 0.50f);
+    p.borderScale       = 0.34f;
+    p.lightSurface      = false;
+    return p;
+}
+
+GlassPalette frutigerGlassPalette() {
+    GlassPalette p;
+    p.selectedHighlight = ImVec4(0.22f, 0.58f, 1.0f, 1.0f);
+    p.selectedMixScale  = 2.2f;
+    p.topTint           = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    p.bottomScale       = 1.30f;
+    p.sheenTint         = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    p.sheenAlphaScale   = 1.9f;
+    p.highlightActive   = ImVec4(0.85f, 0.95f, 1.0f, 0.45f);
+    p.highlightHot      = ImVec4(1.0f, 1.0f, 1.0f, 0.95f);
+    p.highlightRest     = ImVec4(1.0f, 1.0f, 1.0f, 0.80f);
+    p.borderScale       = 0.62f;
+    p.lightSurface      = true;
+    return p;
+}
+
+void setGlassPalette(const GlassPalette& palette) { g_glassPalette = palette; }
+
+const GlassPalette& glassPalette() { return g_glassPalette; }
 
 bool dangerButton(const char* label, double popupOpenedAt, float cooldownSec) {
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.18f, 0.18f, 1.0f));
@@ -54,6 +95,7 @@ bool glassButton(const char* label, const ImVec2& size, bool selected) {
     // Keep ImGui in charge of layout, clipping, ID handling, and interaction.
     // Its frame is made transparent and the replacement frame is emitted into
     // an earlier draw-list channel, so it cannot cover the button text.
+    const GlassPalette& palette = g_glassPalette;
     const ImVec4 buttonColor = style.Colors[ImGuiCol_Button];
     const ImVec4 hoveredColor = style.Colors[ImGuiCol_ButtonHovered];
     const ImVec4 activeColor = style.Colors[ImGuiCol_ButtonActive];
@@ -85,16 +127,15 @@ bool glassButton(const char* label, const ImVec2& size, bool selected) {
     if (selected) {
         // Brighten the current semantic color instead of replacing it with blue:
         // selected Weld/Play controls must retain their green meaning.
-        const ImVec4 selectedHighlight(0.62f, 0.82f, 1.0f, 1.0f);
-        stateColor = mix(stateColor, selectedHighlight, hovered ? 0.34f : 0.24f);
+        const float selectedMix = (hovered ? 0.34f : 0.24f) * palette.selectedMixScale;
+        stateColor = mix(stateColor, palette.selectedHighlight, (std::min)(selectedMix, 0.85f));
     }
 
     const float topLightness = active ? 0.16f : (selected ? 0.36f : (hovered ? 0.32f : 0.27f));
-    const ImVec4 topColor = mix(stateColor, ImVec4(0.82f, 0.93f, 1.0f, 1.0f),
-                                topLightness);
+    const ImVec4 topColor = mix(stateColor, palette.topTint, topLightness);
     const ImVec4 bottomColor = scale(stateColor,
-                                     active ? 0.56f : (hovered || selected ? 0.74f : 0.64f), 1.0f);
-    const ImVec4 borderColor = scale(stateColor, 0.34f, 0.90f);
+                                     (active ? 0.56f : (hovered || selected ? 0.74f : 0.64f)) * palette.bottomScale, 1.0f);
+    const ImVec4 borderColor = scale(stateColor, palette.borderScale, 0.90f);
     const float rounding = style.FrameRounding;
     const ImVec2 innerMin(min.x + 1.0f, min.y + 1.0f);
     const ImVec2 innerMax(max.x - 1.0f, max.y - 1.0f);
@@ -109,9 +150,11 @@ bool glassButton(const char* label, const ImVec2& size, bool selected) {
         ImGui::GetColorU32(bottomColor), ImGui::GetColorU32(bottomColor));
 
     const float sheenBottom = min.y + (max.y - min.y) * 0.32f;
-    const ImVec4 sheenTop(0.78f, 0.93f, 1.0f,
-                           active ? 0.14f : (selected || hovered ? 0.38f : 0.28f));
-    const ImVec4 sheenFade(0.75f, 0.90f, 1.0f, 0.0f);
+    const float sheenAlpha = (active ? 0.14f : (selected || hovered ? 0.38f : 0.28f))
+        * palette.sheenAlphaScale;
+    const ImVec4 sheenTop(palette.sheenTint.x, palette.sheenTint.y, palette.sheenTint.z,
+                          (std::min)(sheenAlpha, 0.95f));
+    const ImVec4 sheenFade(palette.sheenTint.x, palette.sheenTint.y, palette.sheenTint.z, 0.0f);
     drawList->AddRectFilledMultiColor(
         innerMin, ImVec2(innerMax.x, sheenBottom),
         ImGui::GetColorU32(sheenTop), ImGui::GetColorU32(sheenTop),
@@ -120,14 +163,14 @@ bool glassButton(const char* label, const ImVec2& size, bool selected) {
     const ImU32 border = ImGui::GetColorU32(borderColor);
     drawList->AddRect(min, max, border, rounding, 0, 1.0f);
     const ImVec4 topHighlight = active
-        ? ImVec4(0.44f, 0.64f, 0.90f, 0.36f)
+        ? palette.highlightActive
         : selected || hovered
-        ? ImVec4(0.68f, 0.88f, 1.0f, 0.82f)
-        : ImVec4(0.52f, 0.74f, 1.0f, 0.50f);
+        ? palette.highlightHot
+        : palette.highlightRest;
     drawList->AddLine(ImVec2(min.x + rounding + 1.0f, min.y + 1.0f),
                       ImVec2(max.x - rounding - 1.0f, min.y + 1.0f),
                       ImGui::GetColorU32(topHighlight), 1.0f);
-    const ImU32 lowerBorder = ImGui::GetColorU32(scale(stateColor, 0.24f, 0.78f));
+    const ImU32 lowerBorder = ImGui::GetColorU32(scale(stateColor, palette.borderScale * 0.7f, 0.78f));
     drawList->AddLine(ImVec2(min.x + rounding, max.y - 1.0f),
                       ImVec2(max.x - rounding, max.y - 1.0f), lowerBorder, 1.0f);
     drawList->AddLine(ImVec2(max.x - 1.0f, min.y + rounding),

@@ -66,14 +66,33 @@ static bool treeContainsInstance(Instance* root, Instance* target) {
 namespace {
 
 struct EditorThemeColors {
-    ImVec4 toolbarActive   = ImVec4(0.24f, 0.52f, 0.90f, 1.0f);
-    ImVec4 toolbarInactive = ImVec4(0.11f, 0.25f, 0.54f, 1.0f);
-    ImVec4 toolbarHover    = ImVec4(0.18f, 0.40f, 0.76f, 1.0f);
+    ImVec4 toolbarActive;
+    ImVec4 toolbarInactive;
+    ImVec4 toolbarHover;
+    ImVec4 separatorDark;
+    ImVec4 separatorLight;
 };
 
+// applyTheme()が設定する、現在適用中のテーマ。ファイル内の自前描画の配色判断用。
+EditorTheme g_activeTheme = EditorTheme::Classic;
+
 const EditorThemeColors& editorThemeColors() {
-    static const EditorThemeColors colors;
-    return colors;
+    static const EditorThemeColors classic = {
+        ImVec4(0.24f, 0.52f, 0.90f, 1.0f),
+        ImVec4(0.11f, 0.25f, 0.54f, 1.0f),
+        ImVec4(0.18f, 0.40f, 0.76f, 1.0f),
+        ImVec4(0.055f, 0.12f, 0.24f, 0.90f),
+        ImVec4(0.38f, 0.64f, 0.88f, 0.66f),
+    };
+    // Frutiger: 選択=発光する青、非選択=灰みの水色。
+    static const EditorThemeColors frutiger = {
+        ImVec4(0.20f, 0.58f, 1.0f, 1.0f),
+        ImVec4(0.70f, 0.77f, 0.84f, 1.0f),
+        ImVec4(0.52f, 0.76f, 0.96f, 1.0f),
+        ImVec4(0.45f, 0.58f, 0.70f, 0.60f),
+        ImVec4(1.0f, 1.0f, 1.0f, 0.85f),
+    };
+    return g_activeTheme == EditorTheme::Frutiger ? frutiger : classic;
 }
 
 // A toolbar separator owns its horizontal spacing as well as its two-line groove.
@@ -94,9 +113,9 @@ void drawToolbarMajorSeparator(float scale) {
 
     ImDrawList* drawList = ImGui::GetWindowDrawList();
     drawList->AddLine(ImVec2(x, top), ImVec2(x, top + lineHeight),
-                      ImGui::GetColorU32(ImVec4(0.055f, 0.12f, 0.24f, 0.90f)), 1.0f);
+                      ImGui::GetColorU32(editorThemeColors().separatorDark), 1.0f);
     drawList->AddLine(ImVec2(x + 1.0f, top), ImVec2(x + 1.0f, top + lineHeight),
-                      ImGui::GetColorU32(ImVec4(0.38f, 0.64f, 0.88f, 0.66f)), 1.0f);
+                      ImGui::GetColorU32(editorThemeColors().separatorLight), 1.0f);
     ImGui::Dummy(ImVec2(padding * 2.0f + 2.0f, rowHeight));
     ImGui::SameLine();
 }
@@ -452,6 +471,16 @@ void EditorManager::render(GLFWwindow* window) {
                 Loc::setLanguage(Loc::Lang::JA);
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::LanguageEnglish), nullptr, isEn))
                 Loc::setLanguage(Loc::Lang::EN);
+            ImGui::Separator();
+            if (ImGui::BeginMenu(Loc::t(Loc::LocKey::SettingsTheme))) {
+                if (ImGui::MenuItem(Loc::t(Loc::LocKey::ThemeClassic), nullptr,
+                                    m_theme == EditorTheme::Classic))
+                    setTheme(EditorTheme::Classic);
+                if (ImGui::MenuItem(Loc::t(Loc::LocKey::ThemeFrutiger), nullptr,
+                                    m_theme == EditorTheme::Frutiger))
+                    setTheme(EditorTheme::Frutiger);
+                ImGui::EndMenu();
+            }
             ImGui::Separator();
             bool vsync = vsyncEnabled();
             if (ImGui::MenuItem(
@@ -929,14 +958,12 @@ void EditorManager::renderPlayLoadConfirmDialog() {
 }
 
 void EditorManager::initializeAutosaveRecovery() {
+    // ようこそタブは復旧候補の有無に関わらず起動時に必ず表示する（保存対象外）。
+    welcomePanel->isOpen = true;
     m_recoveryCandidate = m_autosave.findLatestCrashRecovery();
     if (m_recoveryCandidate) {
         m_showCrashRecovery = true;
-        welcomePanel->isOpen = false;
         return;
-    }
-    else {
-        welcomePanel->isOpen = true;
     }
     beginAutosaveSession();
 }
@@ -1960,12 +1987,14 @@ void EditorManager::updateResponsiveScale() {
     style.ScrollbarSize     = 14.0f * m_uiLayoutScale;
     style.GrabMinSize       = 12.0f * m_uiLayoutScale;
 
+    // 角丸の基準値はテーマごとに異なる（Frutigerはガラス調で大きめ）。
+    const bool frutiger = m_theme == EditorTheme::Frutiger;
     style.WindowRounding    = 0.0f;
-    style.FrameRounding     = 2.0f * m_uiLayoutScale;
-    style.PopupRounding     = 2.0f * m_uiLayoutScale;
-    style.ScrollbarRounding = 3.0f * m_uiLayoutScale;
-    style.GrabRounding      = 2.0f * m_uiLayoutScale;
-    style.TabRounding       = 1.0f * m_uiLayoutScale;
+    style.FrameRounding     = (frutiger ? 5.0f : 2.0f) * m_uiLayoutScale;
+    style.PopupRounding     = (frutiger ? 6.0f : 2.0f) * m_uiLayoutScale;
+    style.ScrollbarRounding = (frutiger ? 6.0f : 3.0f) * m_uiLayoutScale;
+    style.GrabRounding      = (frutiger ? 5.0f : 2.0f) * m_uiLayoutScale;
+    style.TabRounding       = (frutiger ? 5.0f : 1.0f) * m_uiLayoutScale;
 
     // 細線はDPI倍率で太くせず、既存の視覚的な軽さを維持する。
     style.WindowBorderSize = 1.0f;
@@ -1974,8 +2003,28 @@ void EditorManager::updateResponsiveScale() {
     style.FrameBorderSize  = 0.0f;
 }
 
+void EditorManager::setTheme(EditorTheme theme) {
+    m_theme = theme;
+    applyTheme();
+}
+
 void EditorManager::applyTheme() {
+    // 色を既定へ戻してからテーマ固有色を上書きする（切替時に前テーマの色を残さない）。
+    ImGui::StyleColorsDark();
+    g_activeTheme = m_theme;
+    if (m_theme == EditorTheme::Frutiger) {
+        EditorUi::setGlassPalette(EditorUi::frutigerGlassPalette());
+        applyFrutigerTheme();
+    } else {
+        EditorUi::setGlassPalette(EditorUi::classicGlassPalette());
+        applyClassicTheme();
+    }
+    ImGuizmo::GetStyle().CenterCircleSize = 0.0f;
+}
+
+void EditorManager::applyClassicTheme() {
     ImGuiStyle& style = ImGui::GetStyle();
+    style.TabBarOverlineSize = 2.0f;
 
     style.WindowRounding    = 0.0f;
     style.FrameRounding     = 2.0f;
@@ -2040,6 +2089,76 @@ void EditorManager::applyTheme() {
 
     c[ImGuiCol_DockingPreview]    = ImVec4(0.30f, 0.55f, 0.95f, 0.48f);
     c[ImGuiCol_DockingEmptyBg]    = ImVec4(0.08f, 0.09f, 0.11f, 1.0f);
+}
 
-    ImGuizmo::GetStyle().CenterCircleSize = 0.0f;
+void EditorManager::applyFrutigerTheme() {
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    style.WindowRounding    = 0.0f;
+    style.FrameRounding     = 5.0f;
+    style.PopupRounding     = 6.0f;
+    style.ScrollbarRounding = 6.0f;
+    style.GrabRounding      = 5.0f;
+    style.TabRounding       = 5.0f;
+    style.WindowBorderSize  = 1.0f;
+    style.FrameBorderSize   = 1.0f;
+    style.TabBarOverlineSize = 3.0f;
+    style.ItemSpacing       = ImVec2(7, 4);
+    style.FramePadding      = ImVec2(6, 4);
+
+    ImVec4* c = style.Colors;
+
+    // 淡い空色の面 + 濃紺の文字。
+    c[ImGuiCol_WindowBg]          = ImVec4(0.80f, 0.91f, 0.98f, 1.0f);
+    c[ImGuiCol_ChildBg]           = ImVec4(0.88f, 0.95f, 1.00f, 1.0f);
+    c[ImGuiCol_PopupBg]           = ImVec4(0.92f, 0.97f, 1.00f, 0.98f);
+    c[ImGuiCol_Border]            = ImVec4(0.55f, 0.74f, 0.90f, 1.0f);
+    c[ImGuiCol_MenuBarBg]         = ImVec4(0.72f, 0.87f, 0.97f, 1.0f);
+
+    c[ImGuiCol_Header]            = ImVec4(0.55f, 0.78f, 0.97f, 0.55f);
+    c[ImGuiCol_HeaderHovered]     = ImVec4(0.45f, 0.72f, 0.97f, 0.70f);
+    c[ImGuiCol_HeaderActive]      = ImVec4(0.32f, 0.62f, 0.95f, 0.85f);
+
+    c[ImGuiCol_Button]            = ImVec4(0.45f, 0.74f, 0.96f, 1.0f);
+    c[ImGuiCol_ButtonHovered]     = ImVec4(0.56f, 0.82f, 1.00f, 1.0f);
+    c[ImGuiCol_ButtonActive]      = ImVec4(0.28f, 0.58f, 0.88f, 1.0f);
+
+    c[ImGuiCol_FrameBg]           = ImVec4(0.96f, 0.99f, 1.00f, 1.0f);
+    c[ImGuiCol_FrameBgHovered]    = ImVec4(0.88f, 0.95f, 1.00f, 1.0f);
+    c[ImGuiCol_FrameBgActive]     = ImVec4(0.80f, 0.91f, 1.00f, 1.0f);
+
+    // アクティブタブは青く発光、非アクティブは灰みの水色。
+    c[ImGuiCol_Tab]               = ImVec4(0.70f, 0.77f, 0.84f, 1.0f);
+    c[ImGuiCol_TabHovered]        = ImVec4(0.45f, 0.72f, 0.97f, 1.0f);
+    c[ImGuiCol_TabSelected]       = ImVec4(0.25f, 0.62f, 1.00f, 1.0f);
+    c[ImGuiCol_TabSelectedOverline] = ImVec4(0.80f, 0.97f, 1.0f, 1.0f);
+    c[ImGuiCol_TabDimmed]         = ImVec4(0.66f, 0.72f, 0.78f, 1.0f);
+    c[ImGuiCol_TabDimmedSelected] = ImVec4(0.58f, 0.70f, 0.82f, 1.0f);
+    c[ImGuiCol_TabDimmedSelectedOverline] = ImVec4(0.80f, 0.90f, 0.97f, 0.90f);
+
+    c[ImGuiCol_NavHighlight]      = ImVec4(0.20f, 0.52f, 0.95f, 0.90f);
+
+    c[ImGuiCol_TitleBg]           = ImVec4(0.68f, 0.74f, 0.80f, 1.0f);
+    c[ImGuiCol_TitleBgActive]     = ImVec4(0.30f, 0.64f, 1.00f, 1.0f);
+    c[ImGuiCol_TitleBgCollapsed]  = ImVec4(0.68f, 0.74f, 0.80f, 0.88f);
+
+    c[ImGuiCol_Text]              = ImVec4(0.06f, 0.14f, 0.28f, 1.0f);
+    c[ImGuiCol_TextDisabled]      = ImVec4(0.45f, 0.54f, 0.64f, 1.0f);
+
+    c[ImGuiCol_ScrollbarBg]       = ImVec4(0.84f, 0.92f, 0.98f, 1.0f);
+    c[ImGuiCol_ScrollbarGrab]     = ImVec4(0.56f, 0.72f, 0.88f, 1.0f);
+    c[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.45f, 0.65f, 0.86f, 1.0f);
+    c[ImGuiCol_ScrollbarGrabActive]  = ImVec4(0.32f, 0.56f, 0.84f, 1.0f);
+
+    c[ImGuiCol_Separator]         = ImVec4(0.55f, 0.72f, 0.88f, 0.80f);
+    c[ImGuiCol_SeparatorHovered]  = ImVec4(0.30f, 0.60f, 0.95f, 0.80f);
+    c[ImGuiCol_SeparatorActive]   = ImVec4(0.20f, 0.52f, 0.95f, 1.0f);
+
+    c[ImGuiCol_CheckMark]         = ImVec4(0.12f, 0.45f, 0.90f, 1.0f);
+    c[ImGuiCol_SliderGrab]        = ImVec4(0.30f, 0.62f, 0.95f, 1.0f);
+    c[ImGuiCol_SliderGrabActive]  = ImVec4(0.18f, 0.50f, 0.90f, 1.0f);
+    c[ImGuiCol_TextSelectedBg]    = ImVec4(0.30f, 0.62f, 1.0f, 0.35f);
+
+    c[ImGuiCol_DockingPreview]    = ImVec4(0.25f, 0.60f, 1.00f, 0.45f);
+    c[ImGuiCol_DockingEmptyBg]    = ImVec4(0.72f, 0.85f, 0.95f, 1.0f);
 }

@@ -36,6 +36,12 @@ enum class EditorMode {
 // ===================================================
 //  テストプレイの起動方式
 // ===================================================
+// エディターUIのテーマ。Classic=紺色、Frutiger=淡い空色のガラス調。
+enum class EditorTheme {
+    Classic,
+    Frutiger,
+};
+
 enum class EditorPlayMode {
     Normal,
     PlayHere,
@@ -139,6 +145,9 @@ public:
     // VSyncはOpenGL context単位のため、対象windowのcontextへ明示適用する。
     void setVSyncEnabled(bool enabled, GLFWwindow* window);
 
+    EditorTheme theme() const { return m_theme; }
+    void setTheme(EditorTheme theme);
+
     // LocalServer の外部ライフサイクル状態を main.cpp から反映する。
     void setNetworkClientStatus(int connected, int expected);
     void setExternalPlayCleanup(bool cleaningUp);
@@ -233,6 +242,7 @@ private:
     int  m_expectedClientCount    = 0;
     bool m_externalPlayCleanup    = false;
     bool m_vsyncEnabled           = true;
+    EditorTheme m_theme           = EditorTheme::Classic;
 
     enum class PlayStartErrorKind { Generic, NetworkRequired };
     bool m_showPlayStartError = false;
@@ -267,6 +277,8 @@ private:
     void renderToolbarPhysics();
     void renderToolbarCharacter();
     void applyTheme();
+    void applyClassicTheme();
+    void applyFrutigerTheme();
     void updateResponsiveScale();
     void handleEditorShortcuts();
     void renderSaveDialog();
