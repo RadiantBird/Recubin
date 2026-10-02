@@ -9,6 +9,9 @@
 #include <Editor/GuiAutomation.hpp>
 #include <Instances/BaseCube.hpp>
 #include <algorithm>
+#include <initializer_list>
+#include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
@@ -216,45 +219,106 @@ void SceneHierarchyPanel::onRender() {
     ImGui::End();
 }
 
-static const char* getClassIcon(const std::string& cn) {
-    if (cn == "Workspace")                                                   return ICON_WORKSPACE;
-    if (cn == "Terrain")                                                     return ICON_TERRAIN;
-    if (cn == "Lighting" || cn == "PointLight" || cn == "SpotLight")         return ICON_LIGHT;
-    if (cn == "Skybox")                                                      return ICON_SKYBOX;
-    if (cn == "Model")                                                       return ICON_MODEL;
-    if (cn == "Folder")                                                      return ICON_FOLDER;
-    if (cn == "Tool")                                                        return ICON_TOOL;
-    if (cn == "Script" || cn == "LocalScript" || cn == "ModuleScript")       return ICON_SCRIPT;
-    if (cn == "Sound")                                                       return ICON_SOUND;
-    if (cn == "Humanoid")                                                    return ICON_HUMANOID;
-    if (cn == "User")                                                        return ICON_USER;
-    if (cn == "Decal" || cn == "Texture" || cn == "SurfaceMark" || cn == "Canvas" ||
-        cn == "ImageLabel" || cn == "ImageButton")                           return ICON_DECAL;
-    if (cn == "FileRef")                                                     return ICON_FILE;
-    if (cn == "Sphere")                                                      return ICON_SPHERE;
-    if (cn == "Cube"   || cn == "Cylinder" || cn == "LiquidCube" || cn == "SpawnLocation" ||
-        cn == "TriangularPrism" || cn == "Truss" || cn == "Seat")            return ICON_CUBE;
-    if (cn == "MeshCube") return ICON_MESHCUBE;
-    if (cn == "TextLabel"  || cn == "TextButton" || cn == "GuiButton" ||
-        cn == "ScreenGui"  || cn == "SurfaceGui" || cn == "BillboardGui" ||
-        cn == "WorldGuiObject")                                              return ICON_GUI;
-    if (cn == "Rope" || cn == "Rod" || cn == "BallSocket" || cn == "NoCollision" || cn == "Weld" || cn == "Motor" ||
-        cn == "Attachment" || cn == "Force")                                 return ICON_CONSTRAINT;
-    if (cn == "System") return ICON_SYSTEM;
-    if (cn == "Weather") return ICON_WEATHER;
-    if (cn == "StarterCharacter") return ICON_STARTERCHARACTER;
-    if (cn == "AppImage") return ICON_APPIMAGE;
-    if (cn == "PathfindingService") return ICON_PATHFINDINGSERVICE;
-    if (cn == "PostEffect") return ICON_POSTEFFECT;
-    if (cn == "IntValue" || cn == "BoolValue" || cn == "NumberValue" || cn == "Vector3Value" ||
-        cn == "Color4Value" || cn == "CFrameValue" || cn == "QuaternionValue" || cn == "ObjectValue")
-                                                                              return ICON_VALUE;
-    if (cn == "Users") return ICON_USERS;
-    if (cn == "ChatService") return ICON_CHATSERVICE;
-    if (cn == "MaterialService") return ICON_MATERIALSERVICE;
-    if (cn == "Material") return ICON_MATERIAL;
+namespace {
+struct ClassIconEntry {
+    const char* icon;
+    std::initializer_list<std::string_view> classNames;
+};
 
-    return ICON_INSTANCE;
+// クラス名 → アイコンの定義表。InstanceCatalog の全クラスとサービス類を網羅する。
+// 新しいクラスを足すときはここへ1行追加する（未登録は ICON_INSTANCE にフォールバック）。
+const ClassIconEntry kClassIcons[] = {
+    // コンテナ / 環境
+    {ICON_WORKSPACE,        {"Workspace"}},
+    {ICON_TERRAIN,          {"Terrain"}},
+    {ICON_LIGHT,            {"Lighting", "PointLight", "SpotLight"}},
+    {ICON_SUN,              {"Sun"}},
+    {ICON_MOON,             {"Moon"}},
+    {ICON_SKYBOX,           {"Skybox"}},
+    {ICON_WEATHER,          {"Weather"}},
+    {ICON_MODEL,            {"Model"}},
+    {ICON_FOLDER,           {"Folder"}},
+    {ICON_TOOL,             {"Tool"}},
+    {ICON_STARTERCHARACTER, {"StarterCharacter"}},
+    // スクリプト / ファイル
+    {ICON_SCRIPT,           {"Script", "LocalScript", "ModuleScript"}},
+    {ICON_FILE,             {"FileRef"}},
+    {ICON_TEXTFILE,         {"TextFile"}},
+    {ICON_TEXT,             {"FontFile"}},
+    {ICON_PROGRAM,          {"Program"}},
+    {ICON_APPIMAGE,         {"AppImage"}},
+    // パーツ
+    {ICON_CUBE,             {"Cube"}},
+    {ICON_SPHERE,           {"Sphere"}},
+    {ICON_CYLINDER,         {"Cylinder"}},
+    {ICON_TRIANGULARPRISM,  {"TriangularPrism"}},
+    {ICON_TRUSS,            {"Truss"}},
+    {ICON_SEAT,             {"Seat"}},
+    {ICON_MESHCUBE,         {"MeshCube"}},
+    {ICON_LIQUIDCUBE,       {"LiquidCube"}},
+    {ICON_SPAWNLOCATION,    {"SpawnLocation"}},
+    // エフェクト
+    {ICON_SOUND,            {"Sound"}},
+    {ICON_DECAL,            {"Decal", "ImageLabel"}},
+    {ICON_TEXTURE,          {"Texture"}},
+    {ICON_SURFACEMARK,      {"SurfaceMark"}},
+    {ICON_CANVAS,           {"Canvas"}},
+    {ICON_POSTEFFECT,       {"PostEffect"}},
+    {ICON_PARTICLEEMITTER,  {"ParticleEmitter"}},
+    {ICON_HIGHLIGHT,        {"Highlight"}},
+    {ICON_MATERIAL,         {"Material"}},
+    {ICON_MATERIALSERVICE,  {"MaterialService"}},
+    // GUI
+    {ICON_TEXT,             {"TextLabel"}},
+    {ICON_BUTTON,           {"TextButton", "GuiButton", "ImageButton"}},
+    {ICON_SCREENGUI,        {"ScreenGui"}},
+    {ICON_GUI,              {"SurfaceGui", "BillboardGui", "WorldGuiObject"}},
+    {ICON_PROXIMITYPROMPT,  {"ProximityPrompt"}},
+    // 物理制約
+    {ICON_WELD,             {"Weld"}},
+    {ICON_MOTOR,            {"Motor"}},
+    {ICON_MOTOR6D,          {"Motor6D"}},
+    {ICON_GYRO,             {"Gyro"}},
+    {ICON_ROD,              {"Rod"}},
+    {ICON_ROPE,             {"Rope"}},
+    {ICON_BALLSOCKET,       {"BallSocket"}},
+    {ICON_NOCOLLISION,      {"NoCollision"}},
+    {ICON_ATTACHMENT,       {"Attachment"}},
+    {ICON_FORCE,            {"Force"}},
+    // 値
+    {ICON_VALUE,            {"IntValue"}},
+    {ICON_NUMBERVALUE,      {"NumberValue"}},
+    {ICON_BOOLVALUE,        {"BoolValue"}},
+    {ICON_VECTOR3VALUE,     {"Vector3Value"}},
+    {ICON_COLORVALUE,       {"Color4Value"}},
+    {ICON_CFRAMEVALUE,      {"CFrameValue"}},
+    {ICON_QUATERNIONVALUE,  {"QuaternionValue"}},
+    {ICON_OBJECTVALUE,      {"ObjectValue"}},
+    // その他 / サービス
+    {ICON_HUMANOID,         {"Humanoid"}},
+    {ICON_ANIMATION,        {"Animation"}},
+    {ICON_EVENT,            {"SignalEvent", "Event"}},
+    {ICON_USERINPUT,        {"UserInput"}},
+    {ICON_USER,             {"User"}},
+    {ICON_USERS,            {"Users"}},
+    {ICON_SYSTEM,           {"System"}},
+    {ICON_CHATSERVICE,      {"ChatService"}},
+    {ICON_PATHFINDINGSERVICE, {"PathfindingService"}},
+};
+
+std::unordered_map<std::string_view, const char*> buildClassIconMap() {
+    std::unordered_map<std::string_view, const char*> map;
+    for (const auto& entry : kClassIcons)
+        for (std::string_view name : entry.classNames)
+            map.emplace(name, entry.icon);
+    return map;
+}
+} // namespace
+
+static const char* getClassIcon(const std::string& cn) {
+    static const auto s_iconMap = buildClassIconMap();
+    const auto it = s_iconMap.find(cn);
+    return it != s_iconMap.end() ? it->second : ICON_INSTANCE;
 }
 
 void SceneHierarchyPanel::requestReveal(Instance* inst) {
