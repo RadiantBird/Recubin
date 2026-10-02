@@ -2,23 +2,25 @@
 #include <include/Core/PropertyRegistry.hpp>
 
 static const bool s_moonRegistered = []{
-    using namespace PropertyRegistry;
-    registerClass("Moon", "Sphere", {});
+    CelestialBody::registerSchema("Moon", {});
     return true;
 }();
 
-Moon::Moon() : Named<Moon, Sphere>(Vector3(0, 0, 0), Vector3(150.0f, 150.0f, 150.0f)) {
-    Name = "Moon";
-    Anchored   = true;
-    CanCollide = false;
-    CastShadow = false;
-    Unlit      = true;
-    Color      = Color4(0.9f, 0.9f, 1.0f, 1.0f);
+Moon::Moon()
+    : Named<Moon, CelestialBody>("Moon", Color4(0.9f, 0.9f, 1.0f, 1.0f)) {}
+
+void Moon::setProperty(const std::string& name, const YAML::Node& value) {
+    if (PropertyRegistry::loadProperty(this, "Moon", name, value)) return;
+    CelestialBody::setProperty(name, value);
 }
 
 std::shared_ptr<Instance> Moon::clone() const {
     auto copy = std::make_shared<Moon>();
+    copy->Name = Name;
     PropertyRegistry::cloneFields(this, copy.get(), "Moon");
-    cloneBaseCubeStateAndChildrenTo(copy);
+    for (const auto& [name, child] : children) {
+        (void)name;
+        copy->addChild(child->clone());
+    }
     return copy;
 }

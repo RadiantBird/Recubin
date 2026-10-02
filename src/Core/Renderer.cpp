@@ -867,6 +867,7 @@ void Renderer::init(GLFWwindow* window) {
     initParticleRenderer();
     initCloudRenderer();
     initEnvironmentRenderer();
+    initSkyFlareRenderer();
 }
 
 // ===================================================
@@ -924,6 +925,7 @@ Renderer::~Renderer() {
     if (m_selectionMaskShader) glDeleteProgram(m_selectionMaskShader);
     if (m_selectionOutlineShader) glDeleteProgram(m_selectionOutlineShader);
     destroyEnvironmentRenderer();
+    destroySkyFlareRenderer();
     for (auto& [path, entry] : m_customPostEffectPrograms) {
         if (entry.program) glDeleteProgram(entry.program);
     }
@@ -2340,25 +2342,16 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         if (!lightings.empty()) lighting = lightings.front();
     }
 
-    // Sun・Moon の位置を毎フレーム Angle から再計算（フォーカス外でも Angle 変更を即反映するため）
-    // 同じ走査でSkyboxも拾う（PBRの環境反射キューブマップの元になる）。
+    // Skybox を拾う（PBRの環境反射キューブマップの元になる）。
     Skybox* skyboxInst = nullptr;
-    {
-        Sun*  sunInst  = nullptr;
-        Moon* moonInst = nullptr;
-        for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) {
-            if (cube->IsA("Sun"))       sunInst = static_cast<Sun*>(cube);
-            else if (cube->IsA("Moon")) moonInst = static_cast<Moon*>(cube);
-            else if (cube->IsA("Skybox")) skyboxInst = static_cast<Skybox*>(cube);
-        }
-        if (sunInst) {
-            float rad = sunInst->Angle * (3.14159265f / 180.0f);
-            Vector3 sunDir(0.0f, std::sin(rad), std::cos(rad));
-            sunInst->teleportTo(desc.cameraPosition + sunDir * 1000.0f);
-            if (moonInst) {
-                moonInst->teleportTo(desc.cameraPosition - sunDir * 1000.0f);
-            }
-        }
+    for (BaseCube* cube : desc.workspace->getRenderBaseCubes()) {
+        if (cube->IsA("Skybox")) skyboxInst = static_cast<Skybox*>(cube);
+    }
+
+    // 最初のSunが平行光源の向きを決める（Sun::Angleが光の向きの唯一の正）。
+    const Sun* primarySun = nullptr;
+    for (CelestialBody* body : desc.workspace->getRenderCelestialBodies()) {
+        if (body->IsA("Sun")) { primarySun = static_cast<const Sun*>(body); break; }
     }
 
     // Skybox の位置をカメラに同期 (フォーカス中のみ)
@@ -2419,32 +2412,12 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     }
     if (instCulled > 0) FrameProfiler::get().addCount("cubesCulled", instCulled);
 
-    // Normalize once so the shadow basis and the main-pass lighting use the
-    // same direction. A zero/NaN direction would make LookAt and normalize
-    // in the shader produce undefined coordinates, so fall back visibly to
-    // the engine default and report the invalid authored value.
-    Vector3 lightDirection(1.0f, -1.0f, -1.0f);
-    bool lightDirectionValid = true;
-    static const Lighting* lastInvalidLighting = nullptr;
-    if (lighting) {
-        const Vector3 authoredDirection = lighting->lightDir;
-        const bool finite = std::isfinite(authoredDirection.x) &&
-                            std::isfinite(authoredDirection.y) &&
-                            std::isfinite(authoredDirection.z);
-        const float length = authoredDirection.length();
-        lightDirectionValid = finite && std::isfinite(length) && length > 0.001f;
-        if (lightDirectionValid) {
-            lightDirection = authoredDirection / length;
-            lastInvalidLighting = nullptr;
-        } else {
-            if (lastInvalidLighting != lighting) {
-                RCBN_WARN("Lighting '" << lighting->Name << "' has an invalid Direction (" <<
-                          authoredDirection.x << ", " << authoredDirection.y << ", " <<
-                          authoredDirection.z << "); using (1,-1,-1)");
-                lastInvalidLighting = lighting;
-            }
-        }
-    }
+    // Sunが平行光源の向きを決める。Sunが無ければ平行光源なし（環境光のみ・影なし）。
+    // 影のライト空間とメインパスのライティングで同じ正規化済みの方向を使う
+    // （Sun::directionFromAngleは非有限値でも既定角へ丸めるので、常に単位ベクトル）。
+    const bool hasDirectionalLight = primarySun != nullptr;
+    Vector3 lightDirection(1.0f, -1.0f, -1.0f);  // Sunが無いときは使われない（明るさを0にする）
+    if (primarySun) lightDirection = Sun::lightDirectionFromAngle(primarySun->Angle);
 
     // ---- Shadow Pass ----
     std::array<Matrix4, SHADOW_CASCADE_COUNT> lightSpaceMatrices{};
@@ -2452,7 +2425,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     std::array<float, SHADOW_CASCADE_COUNT - 1> shadowCascadeBlend = {1.0f, 1.0f};
     bool shadowReady = false;
     bool capturedGpuShadow = false;
-    if (desc.renderShadows && lighting && lightDirectionValid &&
+    if (desc.renderShadows && lighting && hasDirectionalLight &&
         std::isfinite(lighting->shadowDistance) && lighting->shadowDistance > 0.1f &&
         shadowFBO && shadowMapTex && depthShader) {
         // シャドウマップは毎フレーム再描画する。カメラ移動中に隔フレームで前フレームの
@@ -2750,14 +2723,15 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         glUniform1f(shadowFadeDistanceLoc, shadowFadeDistance);
     }
 
-    if (lighting) {
+    // 平行光源（太陽光）。向きはSun、強さと色はLighting（無ければ1.0/白）。Sunが無いときは
+    // 明るさを0にして寄与させない（拡散・鏡面とも lightColor*brightness を掛けるため）。
+    {
+        const float sunBrightness = !hasDirectionalLight ? 0.0f
+            : (lighting ? lighting->brightness : 1.0f);
+        const Color4 sunColor = lighting ? lighting->lightColor : Color4(1.0f, 1.0f, 1.0f, 1.0f);
         if (lightDirLoc   != -1) glUniform3f(lightDirLoc,   lightDirection.x,  lightDirection.y,  lightDirection.z);
-        if (brightnessLoc != -1) glUniform1f(brightnessLoc, lighting->brightness);
-        if (lightColorLoc != -1) glUniform3f(lightColorLoc, lighting->lightColor.r, lighting->lightColor.g, lighting->lightColor.b);
-    } else {
-        if (lightDirLoc   != -1) glUniform3f(lightDirLoc,   1.0f, -1.0f, -1.0f);
-        if (brightnessLoc != -1) glUniform1f(brightnessLoc, 1.0f);
-        if (lightColorLoc != -1) glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
+        if (brightnessLoc != -1) glUniform1f(brightnessLoc, sunBrightness);
+        if (lightColorLoc != -1) glUniform3f(lightColorLoc, sunColor.r, sunColor.g, sunColor.b);
     }
 
     // ---- 追加 Point/Spot 光源を uniform 配列へ ----
@@ -2962,6 +2936,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         }
     };
 
+    // ---- 太陽と月（空の円盤）。深度テストで他のオブジェクトの後ろに回る ----
+    renderCelestialBodies(*desc.workspace, desc.cameraPosition, primarySun);
+
     // ---- 素のプリミティブ形状のインスタンス一括描画（不透明なので最初に描く） ----
     {
         bool anyMainInst = false;
@@ -3040,7 +3017,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 const bool visible = cube->Color.a > 0.001f || (cube->IsA("MeshCube") && static_cast<MeshCube*>(cube)->isUsingFallback());
                 const bool hasGeometry = cube->IsA("LiquidCube") ||
                     (cube->getHighlightVAO() != 0 && cube->getHighlightIndexCount() != 0);
-                if (cn != "Skybox" && cn != "Sun" && cn != "Moon" && visible && hasGeometry)
+                if (cn != "Skybox" && visible && hasGeometry)
                     surfaceTargets.push_back(cube);
             }
         }
@@ -3242,6 +3219,12 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         Vector3 pRight = Vector3::Cross(desc.cameraForward, desc.cameraUp).normalize();
         Vector3 pUp    = Vector3::Cross(pRight, desc.cameraForward).normalize();
         renderParticles(*desc.workspace, view, projection, pRight, pUp);
+    }
+
+    // ---- 太陽・月の逆光と光条（深度テストなしの加算。手前の物体の上にも被さる） ----
+    {
+        FrameProfiler::Scope scope("skyFlares");
+        renderSkyFlares(*desc.workspace, desc, view, projection, fovYDegrees, primarySun);
     }
 
     // Screen-space editor selection outline is composited after scene overlays and before post effects.

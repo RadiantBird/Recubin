@@ -18,6 +18,7 @@ class SurfaceGui;
 class PostEffect;
 class Highlight;
 class Lighting;
+class CelestialBody;
 class Weather;
 class Terrain;
 
@@ -56,6 +57,7 @@ class Workspace : public Instance {
         std::vector<PostEffect*> m_renderPostEffects;
         std::vector<Highlight*> m_renderHighlights;
         std::vector<Lighting*> m_renderLightings;
+        std::vector<CelestialBody*> m_renderCelestialBodies;
         std::vector<Weather*> m_renderWeathers;
         std::vector<Terrain*> m_renderTerrains;
 
@@ -105,6 +107,7 @@ class Workspace : public Instance {
         const std::vector<PostEffect*>& getRenderPostEffects() const { return m_renderPostEffects; }
         const std::vector<Highlight*>& getRenderHighlights() const { return m_renderHighlights; }
         const std::vector<Lighting*>& getRenderLightings() const { return m_renderLightings; }
+        const std::vector<CelestialBody*>& getRenderCelestialBodies() const { return m_renderCelestialBodies; }
         const std::vector<Weather*>& getRenderWeathers() const { return m_renderWeathers; }
         const std::vector<Terrain*>& getRenderTerrains() const { return m_renderTerrains; }
 };

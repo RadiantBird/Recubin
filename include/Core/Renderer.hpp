@@ -34,6 +34,7 @@ class IEditorManager;
 class ChatService;
 class Decal;
 class Skybox;
+class Sun;
 class GuiButton;
 class SurfaceGui;
 class ScreenGuiObject;
@@ -198,6 +199,22 @@ class Renderer {
         void updateEnvironmentMap(Skybox* skybox);
         // メインシェーダー(使用中)へ環境キューブマップとmax lodを設定する。
         void bindEnvironmentMap();
+
+        // ---- 太陽・月の逆光(グロー+ベール)と光条(スパイク)（Renderer_Sky.cpp, sky_flare シェーダー） ----
+        // 不透明物の描画後に、深度テストなしの加算で重ねる（手前の物体の上にも被さる）。
+        unsigned int m_skyFlareShader = 0;
+        struct SkyFlareUniforms {
+            int fullscreen = -1, view = -1, projection = -1;
+            int center = -1, right = -1, up = -1, halfSize = -1;
+            int forward = -1, tanHalfFov = -1, aspect = -1;
+            int color = -1, strength = -1, extent = -1;
+            int glowIntensity = -1, glowRadius = -1;
+            int spikeIntensity = -1, spikeLength = -1, spikeRotation = -1, spikeCount = -1;
+            int veilIntensity = -1, veilFalloff = -1, bodyDirection = -1;
+        };
+        SkyFlareUniforms m_skyFlareLoc;
+        void initSkyFlareRenderer();
+        void destroySkyFlareRenderer();
 
         unsigned int whiteTexture;
         void createWhiteTexture();
@@ -387,6 +404,17 @@ class Renderer {
                                      const Color4& outlineColor, float outlineWidth);
 
     private:
+
+        // 太陽と月（CelestialBody）をカメラ基準の空の円盤として描く（Renderer_Sky.cpp）。メインパス内で、
+        // メインシェーダー使用中に呼ぶ。位置は常にカメラから一定距離、見かけの大きさは Distance で決まる。
+        // primarySunが無いとき、Moonは既定のSun角の反対側に描く。
+        void renderCelestialBodies(Workspace& workspace, const Vector3& cameraPosition,
+                                   const Sun* primarySun);
+
+        // 太陽・月の逆光と光条を、シーンの上に加算で重ねる。ポストエフェクトの前、シーン描画の最後に呼ぶ。
+        void renderSkyFlares(Workspace& workspace, const ViewportRenderDesc& desc,
+                             const Matrix4& view, const Matrix4& projection,
+                             float fovYDegrees, const Sun* primarySun);
 
         // Decal が直接貼り付く Cube Face の4辺だけを、エディタ選択表示として描画する。
         void drawDecalFaceHighlight(Decal* decal, const Color4& outlineColor,

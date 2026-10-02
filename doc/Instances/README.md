@@ -14,8 +14,6 @@ Instance
   │    │    │    └─ Seat     ← 座席(接触で着席・Steer/Throttle)
   │    │    ├─ Cylinder      ← 円柱プリミティブ
   │    │    ├─ Sphere        ← 球プリミティブ
-  │    │    │    ├─ Sun      ← 太陽
-  │    │    │    └─ Moon     ← 月
   │    │    ├─ TriangularPrism ← 三角柱プリミティブ
   │    │    ├─ MeshCube      ← GLBメッシュ描画キューブ
   │    │    └─ LiquidCube    ← 浮力を与える液体ボリューム
@@ -29,7 +27,10 @@ Instance
   │    └─ SpotLight          ← コーン状指向性光源
   ├─ ParticleEmitter          ← 汎用パーティクル発生源（火・煙・水しぶき・スクエア等）
   ├─ Weather                  ← 天気システム（雲・雨・雪・風・雷・環境音を統合）
-  ├─ Lighting                ← シーン全体の平行光源設定
+  ├─ Lighting                ← 太陽光の強さ・色と影の設定（向きはSunが決める）
+  ├─ CelestialBody           ← 空の円盤の基底（BaseCubeではない軽量Instance）
+  │    ├─ Sun                ← 太陽（平行光源の向きの唯一の正）
+  │    └─ Moon               ← 月（最初のSunの反対側）
   ├─ Workspace               ← シーンルート
   ├─ ScreenGuiObject         ← 画面空間 GUI 基底
   │    ├─ GuiButton          ← クリック可能 GUI 基底
@@ -73,8 +74,9 @@ Instance
 | [Seat](Seat.md) | `include/Instances/Seat.hpp` | 座席(接触で着席・Steer/Throttle) |
 | [Cylinder](Cylinder.md) | `include/Instances/Cylinder.hpp` | 円柱プリミティブ |
 | [Sphere](Sphere.md) | `include/Instances/Sphere.hpp` | 球プリミティブ |
-| [Sun](Sun.md) | `include/Instances/Sun.hpp` | 太陽 |
-| [Moon](Moon.md) | `include/Instances/Moon.hpp` | 月 |
+| [CelestialBody](CelestialBody.md) | `include/Instances/CelestialBody.hpp` | 太陽・月の共通基底（色と見かけの距離） |
+| [Sun](Sun.md) | `include/Instances/Sun.hpp` | 太陽（平行光源の向きの唯一の正） |
+| [Moon](Moon.md) | `include/Instances/Moon.hpp` | 月（最初のSunの反対側） |
 | [TriangularPrism](TriangularPrism.md) | `include/Instances/TriangularPrism.hpp` | 三角柱プリミティブ |
 | [MeshCube](MeshCube.md) | `include/Instances/MeshCube.hpp` | GLBメッシュ描画キューブ |
 | [LiquidCube](LiquidCube.md) | `include/Instances/LiquidCube.hpp` | 浮力を与える液体ボリューム |
@@ -89,7 +91,7 @@ Instance
 | [SpotLight](SpotLight.md) | `include/Instances/SpotLight.hpp` | コーン状指向性光源 |
 | [ParticleEmitter](ParticleEmitter.md) | `include/Instances/ParticleEmitter.hpp` | 汎用パーティクル発生源 |
 | [Weather](Weather.md) | `include/Instances/Weather.hpp` | 天気システム（雲・雨・雪・風・雷・環境音） |
-| [Lighting](Lighting.md) | `include/Instances/Lighting.hpp` | シーン全体の平行光源設定 |
+| [Lighting](Lighting.md) | `include/Instances/Lighting.hpp` | 太陽光の強さ・色と影の設定（向きはSunが決める） |
 | [Model](Model.md) | `include/Instances/Model.hpp` | オブジェクトグループ |
 | [ScreenGuiObject](ScreenGuiObject.md) | `include/Instances/ScreenGuiObject.hpp` | 画面空間 GUI 基底 |
 | [GuiButton](GuiButton.md) | `include/Instances/GuiButton.hpp` | クリック可能 GUI 基底 |

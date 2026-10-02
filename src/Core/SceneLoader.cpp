@@ -442,6 +442,8 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
         return nullptr;
     }
     if (className == "Lighting")  return std::make_shared<Lighting>();
+    if (className == "Sun")       return std::make_shared<Sun>();
+    if (className == "Moon")      return std::make_shared<Moon>();
     if (className == "PointLight") return std::make_shared<PointLight>();
     if (className == "SpotLight")  return std::make_shared<SpotLight>();
     if (className == "PostEffect") return std::make_shared<PostEffect>();

@@ -608,7 +608,7 @@ int main(int argc, char* argv[]) {
             for (auto& [n, child] : workspace->children) {
                 if (child->IsA("Lighting")) {
                     auto wsLighting = std::static_pointer_cast<Lighting>(child);
-                    wsLighting->lightDir   = oldLighting->lightDir;
+                    wsLighting->legacyDirection = oldLighting->legacyDirection;
                     wsLighting->brightness = oldLighting->brightness;
                     break;
                 }
@@ -619,6 +619,8 @@ int main(int argc, char* argv[]) {
             ++it;
         }
     }
+    // 上の移行で旧Directionを持つLightingが現れうるため、Sunへの引き継ぎをここでも行う。
+    for (const auto& ws : workspaces) SceneRuntime::migrateLegacyLightingDirection(*ws);
     ReplicationManager replication(workspace, user, system.get());
     NetworkManager::get().onGameMessage = [&](uint8_t type, const uint8_t* payload, size_t len, PeerId senderId) {
         replication.onGameMessage(type, payload, len, senderId);

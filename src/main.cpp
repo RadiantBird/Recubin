@@ -813,7 +813,7 @@ int main(int argc, char* argv[]) {
             auto oldLighting = std::static_pointer_cast<Lighting>(it->second);
             auto lighting = std::make_shared<Lighting>();
             lighting->Name = oldLighting->Name;
-            lighting->lightDir = oldLighting->lightDir;
+            lighting->legacyDirection = oldLighting->legacyDirection;
             lighting->brightness = oldLighting->brightness;
             it = system->children.erase(it);
             workspace->addChild(lighting);
@@ -822,6 +822,8 @@ int main(int argc, char* argv[]) {
             ++it;
         }
     }
+    // 上の移行で旧Directionを持つLightingが現れうるため、Sunへの引き継ぎをここでも行う。
+    for (const auto& ws : workspaces) SceneRuntime::migrateLegacyLightingDirection(*ws);
 
     renderer->m_onButtonActivated = [&](GuiButton* btn) {
         luauEngine->onGuiButtonActivated(btn);

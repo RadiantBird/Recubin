@@ -59,6 +59,12 @@ namespace SceneRuntime {
 
     void applyDefaultCameraMode(const System& system, User& user);
 
+    // 旧形式(Lighting.Direction)のWorkspaceへSunを補う。光の向きはSunが持つので、Sunを
+    // 持たず、Lightingが旧Directionを保持している旧シーンに限り、その向きを引き継ぐSunを生成する。
+    // Sunが既にある場合や、旧Directionを持たない新形式でSunが無い場合(意図的な平行光源なし)は
+    // 何もしない。生成したSunを返す（生成しなければnullptr）。
+    std::shared_ptr<Instance> migrateLegacyLightingDirection(Workspace& workspace);
+
     std::vector<std::shared_ptr<Workspace>> collectWorkspaces(const std::shared_ptr<System>& system);
 
     // Workspace配下のFolder/Modelを含めて全Terrainを列挙する。

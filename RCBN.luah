@@ -109,9 +109,9 @@ export type Sound = Spatial & {
     Source: FileRef, -- write only
 }
 
+-- 太陽光の強さ・色と影の設定。光の向きは持たない（Workspaceの最初のSun.Angleが決める）。
 export type Lighting = Instance & {
     Brightness: number,
-    Direction: Vector3,
     Color: Color4,
 }
 
@@ -602,10 +602,32 @@ export type Canvas = Instance & {
     WorldToUV: (Canvas, Vector3) -> Vector2?,
 }
 
-export type Sun = Sphere & {
-    Angle: number,
+-- 太陽。平行光源の向きの唯一の正（Workspaceの最初のSun。無ければ平行光源なし）。
+-- 太陽と月に共通のプロパティ。逆光・光条はすべて強さ0（既定）で無効。
+-- 効果は不透明物の描画後に加算で重なる。グロー・ベールは手前の物体の上にも被さり、光条は手前の物体に遮られる。
+export type CelestialBody = Instance & {
+    Color: Color4,
+    Distance: number, -- 見かけの距離。大きいほど小さく見える（既定1000）
+    -- 逆光（Backlight）
+    GlowIntensity: number, -- 円盤の周りの光のにじみの強さ
+    GlowRadius: number, -- にじみが円盤の半径の何倍まで広がるか
+    VeilIntensity: number, -- カメラが向くほど画面全体が白く霞む強さ
+    VeilFalloff: number, -- 大きいほど天体の方向のごく近くだけに効く
+    -- 光条（Spikes）
+    SpikeIntensity: number, -- 放射状の筋（回折スパイク）の強さ
+    SpikeCount: number, -- 筋の本数（4=十字、6/8=星形）。2〜16
+    SpikeLength: number, -- 筋の長さ（円盤の半径の何倍か）
+    SpikeRotation: number, -- 筋の回転（度）
+    -- 地平線の下へ沈むにつれて上記の効果を消す（既定true）
+    HorizonFade: boolean,
 }
-export type Moon = Sphere & {}
+-- 太陽。平行光源の向きの唯一の正（Workspaceの最初のSun。無ければ平行光源なし）。
+export type Sun = CelestialBody & {
+    -- Vector2(方角, 高度)（度）。方角は北0°・東90°の時計回り（+Xが北、+Zが東）、高度は水平0°・天頂90°。
+    Angle: Vector2,
+}
+-- 月。最初のSunの反対側に見える。光源にはならない。
+export type Moon = CelestialBody & {}
 export type Truss = Cube & {}
 export type Seat = Cube & { Steer: number, Throttle: number }
 export type LiquidCube = BaseCube & { Density: number }

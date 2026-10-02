@@ -34,6 +34,7 @@
 #include <Instances/Seat.hpp>
 #include <Instances/Skybox.hpp>
 #include <Instances/Sun.hpp>
+#include <Instances/Moon.hpp>
 #include <Instances/Weather.hpp>
 #include <Instances/FileRef.hpp>
 #include <Instances/FontFile.hpp>
@@ -1340,9 +1341,9 @@ int runSpawnLocationRegression() {
                spawnDefaults->IsA("Instance"),
            "Named supplies the complete SpawnLocation IsA inheritance chain");
 
-    constexpr std::array<const char*, 12> baseCubeClasses = {
+    constexpr std::array<const char*, 10> baseCubeClasses = {
         "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere",
-        "MeshCube", "LiquidCube", "SpawnLocation", "Skybox", "Sun", "Moon"
+        "MeshCube", "LiquidCube", "SpawnLocation", "Skybox"
     };
     bool factoryComplete = true;
     for (const char* className : baseCubeClasses) {
@@ -1350,7 +1351,8 @@ int runSpawnLocationRegression() {
         factoryComplete = factoryComplete && created &&
             created->getClassName() == className && created->IsA("BaseCube");
     }
-    expect(factoryComplete && !createBaseCubeInstance("Folder"),
+    expect(factoryComplete && !createBaseCubeInstance("Folder") &&
+               !createBaseCubeInstance("Sun") && !createBaseCubeInstance("Moon"),
            "shared BaseCube factory covers every concrete BaseCube class only");
 
     spawnDefaults->Enabled = false;
@@ -1373,7 +1375,7 @@ int runSpawnLocationRegression() {
     liquid->Density = 4.25f;
     auto liquidClone = std::dynamic_pointer_cast<LiquidCube>(liquid->clone());
     auto sun = std::make_shared<Sun>();
-    sun->Angle = 123.0f;
+    sun->Angle = Vector2(200.0f, 30.0f);
     auto sunClone = std::dynamic_pointer_cast<Sun>(sun->clone());
     auto skybox = std::make_shared<Skybox>();
     skybox->skyboxPaths[2] = "custom/top.png";
@@ -9263,6 +9265,9 @@ static int runSceneLoadTransactionRegression() {
         std::move(emptyStage), emptySystem, emptyUser, emptyEngine, nullptr);
     expect(emptyBound.workspace && emptyBound.workspace->getChild("Lighting"),
            "empty path commits a new scene with default Workspace and Lighting");
+    expect(emptyBound.workspace && emptyBound.workspace->getChild("Sun") &&
+               emptyBound.workspace->getChild("Sun")->IsA("Sun"),
+           "a newly created default Workspace also gets a default Sun (it decides the light direction)");
 
     auto mappedSystem = std::make_shared<System>();
     SceneLoader::LoadContext firstContext;
@@ -13412,6 +13417,290 @@ static int runMaterialServiceRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+// Sun / Moon（非BaseCubeの軽量Instance）と、Lighting.Direction廃止に伴う旧シーン移行を検証する。
+static int runSkyBodyRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[SkyBody] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    const auto near = [](float a, float b, float tolerance = 1.0e-4f) {
+        return std::abs(a - b) < tolerance;
+    };
+    const auto nearVector = [&](const Vector3& a, const Vector3& b) {
+        return near(a.x, b.x) && near(a.y, b.y) && near(a.z, b.z);
+    };
+
+    // ---- 座標規約: +Xが北、+Zが東。方角は北0°・東90°の時計回り、高度は水平0°・天頂90° ----
+    expect(nearVector(Sun::directionFromAngle(Vector2(90.0f, 0.0f)), Vector3(0, 0, 1)),
+           "azimuth 90 / elevation 0 points east (+Z)");
+    expect(nearVector(Sun::directionFromAngle(Vector2(0.0f, 0.0f)), Vector3(1, 0, 0)),
+           "azimuth 0 / elevation 0 points north (+X)");
+    expect(nearVector(Sun::directionFromAngle(Vector2(123.0f, 90.0f)), Vector3(0, 1, 0)),
+           "elevation 90 points at the zenith regardless of azimuth");
+    expect(nearVector(Sun::directionFromAngle(Vector2(270.0f, -90.0f)), Vector3(0, -1, 0)),
+           "elevation -90 points at the nadir");
+    expect(near(Sun::directionFromAngle(Vector2(40.0f, 200.0f)).y, 1.0f),
+           "elevation is clamped to [-90, 90]");
+    expect(nearVector(Sun::lightDirectionFromAngle(Vector2(90.0f, 30.0f)),
+                      -Sun::directionFromAngle(Vector2(90.0f, 30.0f))),
+           "light direction is the opposite of the sun direction");
+    {
+        bool roundTrips = true;
+        for (const Vector2 angle : {Vector2(10.0f, 5.0f), Vector2(200.0f, 60.0f),
+                                    Vector2(300.0f, -30.0f), Vector2(90.0f, 0.0f)}) {
+            const Vector2 back = Sun::angleFromDirection(Sun::directionFromAngle(angle));
+            roundTrips = roundTrips && near(back.x, angle.x, 1.0e-3f) && near(back.y, angle.y, 1.0e-3f);
+        }
+        expect(roundTrips, "angleFromDirection inverts directionFromAngle");
+    }
+    expect(nearVector(Sun::directionFromAngle(Vector2(std::nanf(""), 0.0f)),
+                      Sun::directionFromAngle(Sun::defaultAngle())),
+           "a non-finite angle falls back to the default direction instead of NaN");
+
+    // ---- 旧スカラーAngle（方向 (0, sin a, cos a)）の移行 ----
+    {
+        const Vector2 east = Sun::angleFromLegacyScalar(0.0f);
+        const Vector2 mid = Sun::angleFromLegacyScalar(45.0f);
+        const Vector2 west = Sun::angleFromLegacyScalar(180.0f);
+        expect(near(east.x, 90.0f, 1.0e-3f) && near(east.y, 0.0f, 1.0e-3f) &&
+                   near(mid.x, 90.0f, 1.0e-3f) && near(mid.y, 45.0f, 1.0e-3f) &&
+                   near(west.x, 270.0f, 1.0e-3f) && near(west.y, 0.0f, 1.0e-3f),
+               "legacy scalar angle maps 0->(90,0), 45->(90,45), 180->(270,0)");
+        // DayCycle.luau が手で入れていた旧式の光の向き (0, -sin a, -cos a) と一致する。
+        bool matchesOldDayCycle = true;
+        for (float degrees : {0.0f, 45.0f, 100.0f, 180.0f, 250.0f, 330.0f}) {
+            const float radians = degrees * 3.14159265f / 180.0f;
+            const Vector3 oldDirection(0.0f, -std::sin(radians), -std::cos(radians));
+            matchesOldDayCycle = matchesOldDayCycle &&
+                nearVector(Sun::lightDirectionFromAngle(Sun::angleFromLegacyScalar(degrees)), oldDirection);
+        }
+        expect(matchesOldDayCycle, "migrated Sun gives the light direction the old DayCycle script set by hand");
+    }
+    {
+        // 旧 Lighting.Direction (1,-1,-1) が指していた太陽は (135°, 35.26°)。既定の見た目と一致する。
+        const Vector2 fromDirection = Sun::angleFromDirection(-Vector3(1.0f, -1.0f, -1.0f));
+        const Vector2 defaults = Sun::defaultAngle();
+        expect(near(fromDirection.x, 135.0f, 1.0e-3f) && near(fromDirection.y, 35.264f, 1.0e-2f) &&
+                   near(defaults.x, fromDirection.x, 1.0e-3f) && near(defaults.y, fromDirection.y, 1.0e-3f),
+               "default Sun angle reproduces the old default Lighting.Direction");
+    }
+
+    // ---- 型: BaseCubeではない軽量Instance ----
+    auto sunBase = SceneLoader::createInstance("Sun");
+    auto moonBase = SceneLoader::createInstance("Moon");
+    expect(sunBase && sunBase->getClassName() == "Sun" && sunBase->IsA("CelestialBody") &&
+               sunBase->IsA("Instance") && !sunBase->IsA("BaseCube") && !sunBase->IsA("Spatial"),
+           "Sun is a CelestialBody Instance, not a BaseCube");
+    expect(moonBase && moonBase->getClassName() == "Moon" && moonBase->IsA("CelestialBody") &&
+               !moonBase->IsA("BaseCube"),
+           "Moon is a CelestialBody Instance, not a BaseCube");
+    {
+        const auto schema = PropertyRegistry::collectApplicableSchema(sunBase.get());
+        const auto has = [&](std::string_view name) {
+            return std::any_of(schema.begin(), schema.end(),
+                [name](const PropertyDesc* d) { return d && d->name == name; });
+        };
+        expect(has("Angle") && has("Distance") && has("Color") && !has("Size") && !has("Position"),
+               "Sun schema exposes Angle/Distance/Color and no longer Size/Position");
+    }
+
+    // ---- スキーマの往復・クローン・非有限値の拒否 ----
+    auto sun = std::static_pointer_cast<Sun>(sunBase);
+    sun->Name = "Sun";
+    sun->setAngle(Vector2(200.0f, 30.0f));
+    sun->Distance = 500.0f;
+    sun->Color = Color4(0.5f, 0.6f, 0.7f, 1.0f);
+    auto sunClone = std::dynamic_pointer_cast<Sun>(sun->clone());
+    expect(sunClone && sunClone->Angle == Vector2(200.0f, 30.0f) && sunClone->Distance == 500.0f &&
+               sunClone->Color.g == 0.6f,
+           "Sun clone keeps Angle, Distance and Color");
+    sun->setAngle(Vector2(std::nanf(""), 10.0f));
+    expect(sun->Angle == Vector2(200.0f, 30.0f), "a non-finite Angle is rejected");
+    expect(near(sun->apparentDiameter(), Sun::BASE_DIAMETER * 2.0f),
+           "Distance 500 doubles the apparent diameter (angular size is 1/Distance)");
+    sun->Distance = 0.0f;
+    expect(std::isfinite(sun->apparentDiameter()) && sun->apparentDiameter() > 0.0f,
+           "an out-of-range Distance is clamped instead of dividing by zero");
+    sun->Distance = CelestialBody::DEFAULT_DISTANCE;
+    auto moon = std::static_pointer_cast<Moon>(moonBase);
+    expect(near(sun->apparentDiameter(), 200.0f) && near(moon->apparentDiameter(), 150.0f),
+           "default Distance keeps the previous 200/150 stud look");
+
+    // ---- 逆光(グロー+ベール)と光条(スパイク)のプロパティ。描画自体はヘッドレスでは検証できない ----
+    {
+        const auto hasProperty = [](Instance* instance, std::string_view name) {
+            const auto schema = PropertyRegistry::collectApplicableSchema(instance);
+            return std::any_of(schema.begin(), schema.end(),
+                [name](const PropertyDesc* d) { return d && d->name == name; });
+        };
+        bool bothHaveAll = true;
+        for (Instance* instance : {static_cast<Instance*>(sun.get()), static_cast<Instance*>(moon.get())}) {
+            for (std::string_view name : {"GlowIntensity", "GlowRadius", "VeilIntensity", "VeilFalloff",
+                                          "SpikeIntensity", "SpikeCount", "SpikeLength", "SpikeRotation",
+                                          "HorizonFade"})
+                bothHaveAll = bothHaveAll && hasProperty(instance, name);
+        }
+        expect(bothHaveAll, "Sun and Moon share the backlight and spike properties through CelestialBody");
+
+        auto effectSun = std::make_shared<Sun>();
+        expect(!effectSun->hasFlareEffect() && effectSun->HorizonFade && effectSun->SpikeCount == 4,
+               "flare effects are off by default so existing scenes look unchanged");
+
+        effectSun->setProperty("GlowIntensity", YAML::Node(0.7f));
+        effectSun->setProperty("GlowRadius", YAML::Node(9.0f));
+        effectSun->setProperty("VeilIntensity", YAML::Node(0.3f));
+        effectSun->setProperty("SpikeIntensity", YAML::Node(0.5f));
+        effectSun->setProperty("SpikeCount", YAML::Node(6));
+        effectSun->setProperty("SpikeLength", YAML::Node(20.0f));
+        effectSun->setProperty("SpikeRotation", YAML::Node(15.0f));
+        effectSun->setProperty("HorizonFade", YAML::Node(false));
+        expect(effectSun->hasFlareEffect() && near(effectSun->GlowIntensity, 0.7f) &&
+                   effectSun->SpikeCount == 6 && !effectSun->HorizonFade,
+               "flare properties load from YAML values");
+
+        YAML::Emitter output;
+        output << YAML::BeginMap;
+        PropertyRegistry::saveApplicableProperties(output, effectSun.get());
+        output << YAML::EndMap;
+        const YAML::Node saved = YAML::Load(output.c_str());
+        expect(saved["SpikeCount"] && saved["SpikeCount"].as<int>() == 6 &&
+                   saved["GlowRadius"] && near(saved["GlowRadius"].as<float>(), 9.0f) &&
+                   saved["HorizonFade"] && !saved["HorizonFade"].as<bool>(),
+               "flare properties are serialized");
+
+        auto effectClone = std::dynamic_pointer_cast<Sun>(effectSun->clone());
+        expect(effectClone && near(effectClone->VeilIntensity, 0.3f) && effectClone->SpikeCount == 6 &&
+                   near(effectClone->SpikeRotation, 15.0f) && !effectClone->HorizonFade,
+               "flare properties survive clone");
+
+        auto effectMoon = std::make_shared<Moon>();
+        expect(!effectMoon->hasFlareEffect(), "Moon has no flare effect by default either");
+        effectMoon->VeilIntensity = 0.1f;
+        expect(effectMoon->hasFlareEffect(), "any single flare effect counts as active");
+    }
+
+    // ---- Workspaceへの登録 ----
+    {
+        auto workspace = std::make_shared<Workspace>();
+        auto registeredSun = std::make_shared<Sun>();
+        auto registeredMoon = std::make_shared<Moon>();
+        workspace->addChild(registeredSun);
+        workspace->addChild(registeredMoon);
+        expect(workspace->getRenderCelestialBodies().size() == 2, "Sun and Moon register with the Workspace");
+        workspace->removeChild(registeredSun->Name);
+        expect(workspace->getRenderCelestialBodies().size() == 1 &&
+                   workspace->getRenderCelestialBodies().front() == registeredMoon.get(),
+               "removing the Sun unregisters it from the Workspace");
+    }
+
+    // ---- 旧形式のYAML（BaseCube派生のSun/Moon、Lighting.Direction）の読み込み ----
+    const auto yamlPath = std::filesystem::temp_directory_path() / "recubin_sky_body_regression.yaml";
+    {
+        std::ofstream out(yamlPath, std::ios::binary | std::ios::trunc);
+        out << "recubin:\n  type: scene\n  version: 0\n"
+               "Root:\n"
+               "  ClassName: System\n"
+               "  Children:\n"
+               "    - ClassName: Workspace\n"
+               "      Name: Workspace\n"
+               "      Children:\n"
+               "        - ClassName: Lighting\n"
+               "          Name: Lighting\n"
+               "          Properties:\n"
+               "            Direction: [1.0, -1.0, -1.0]\n"
+               "            Brightness: 0.8\n"
+               "        - ClassName: Sun\n"
+               "          Name: OldSun\n"
+               "          Properties:\n"
+               "            Position: [0, 100, 1000]\n"
+               "            Size: [400, 400, 400]\n"
+               "            Anchored: true\n"
+               "            Unlit: true\n"
+               "            CanCollide: false\n"
+               "            Angle: 45\n"
+               "            Color: [1.0, 0.9, 0.7, 1.0]\n"
+               "        - ClassName: Moon\n"
+               "          Name: OldMoon\n"
+               "          Properties:\n"
+               "            Size: [150, 150, 150]\n"
+               "            MaterialType: 0\n";
+    }
+    const auto loaded = SceneLoader::loadSceneResult(yamlPath.string());
+    std::error_code removeError;
+    std::filesystem::remove(yamlPath, removeError);
+    expect(static_cast<bool>(loaded) && loaded.root != nullptr, "legacy sky scene loads");
+    if (loaded.root) {
+        Instance* loadedSun = loaded.root->getChildByPath("Workspace\\OldSun");
+        Instance* loadedMoon = loaded.root->getChildByPath("Workspace\\OldMoon");
+        Instance* loadedLighting = loaded.root->getChildByPath("Workspace\\Lighting");
+        expect(loadedSun && loadedSun->IsA("Sun") && !loadedSun->IsA("BaseCube"),
+               "a legacy Sun node loads as the lightweight Sun");
+        if (loadedSun && loadedSun->IsA("Sun")) {
+            const auto* legacySun = static_cast<const Sun*>(loadedSun);
+            expect(legacySun->Angle == Sun::angleFromLegacyScalar(45.0f) &&
+                       near(legacySun->Distance, 500.0f) && near(legacySun->Color.g, 0.9f),
+                   "legacy scalar Angle becomes a Vector2, Size 400 becomes Distance 500, Color is kept");
+        }
+        if (loadedMoon && loadedMoon->IsA("Moon")) {
+            expect(near(static_cast<const Moon*>(loadedMoon)->Distance, 1000.0f),
+                   "legacy Moon Size 150 becomes the default Distance");
+        } else {
+            expect(false, "a legacy Moon node loads as the lightweight Moon");
+        }
+        expect(loadedLighting && loadedLighting->IsA("Lighting") &&
+                   static_cast<Lighting*>(loadedLighting)->legacyDirection.has_value() &&
+                   near(static_cast<Lighting*>(loadedLighting)->brightness, 0.8f),
+               "legacy Lighting.Direction is held for migration and Brightness is kept");
+
+        // Sunが既にあるなら、旧Directionがあってもその向きを上書きするSunは生成しない。
+        auto* loadedWorkspace = static_cast<Workspace*>(loaded.root->getChild("Workspace"));
+        expect(loadedWorkspace && !SceneRuntime::migrateLegacyLightingDirection(*loadedWorkspace),
+               "an existing Sun is kept and no second Sun is generated");
+    }
+
+    // ---- Lighting.Direction廃止の移行 ----
+    {
+        auto workspace = std::make_shared<Workspace>();
+        auto lighting = std::make_shared<Lighting>();
+        lighting->Name = "Lighting";
+        workspace->addChild(lighting);
+
+        const auto noLegacy = SceneRuntime::migrateLegacyLightingDirection(*workspace);
+        expect(!noLegacy && workspace->getRenderCelestialBodies().empty(),
+               "no Sun is generated without a legacy Direction (an intentional no-sun scene)");
+
+        YAML::Node direction;
+        direction.push_back(1.0f);
+        direction.push_back(-1.0f);
+        direction.push_back(-1.0f);
+        lighting->setProperty("Direction", direction);
+        expect(lighting->legacyDirection.has_value(), "Lighting keeps a legacy Direction only for migration");
+        {
+            YAML::Emitter output;
+            output << YAML::BeginMap;
+            PropertyRegistry::saveApplicableProperties(output, lighting.get());
+            output << YAML::EndMap;
+            expect(!YAML::Load(output.c_str())["Direction"], "Lighting no longer serializes Direction");
+        }
+        auto lightingClone = std::dynamic_pointer_cast<Lighting>(lighting->clone());
+        expect(lightingClone && !lightingClone->legacyDirection.has_value(),
+               "Lighting clone does not copy the legacy Direction");
+
+        const auto generated = SceneRuntime::migrateLegacyLightingDirection(*workspace);
+        const auto* generatedSun = static_cast<const Sun*>(generated.get());
+        expect(generated && generated->IsA("Sun") && generated->Parent.lock().get() == workspace.get() &&
+                   near(generatedSun->Angle.x, 135.0f, 1.0e-3f) &&
+                   near(generatedSun->Angle.y, 35.264f, 1.0e-2f),
+               "a legacy Direction generates a Sun that inherits its direction");
+        expect(!lighting->legacyDirection.has_value() &&
+                   !SceneRuntime::migrateLegacyLightingDirection(*workspace),
+               "the migration runs only once");
+    }
+
+    return failures == 0 ? 0 : 1;
+}
+
 struct RegressionEntry {
     std::string_view name;
     int (*runner)(int, char**);
@@ -13475,6 +13764,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--property-text-input-regression", runPropertyTextInputRegression),
         REG("--property-schema-regression", runPropertySchemaRegression),
         REG("--material-service-regression", runMaterialServiceRegression),
+        REG("--sky-body-regression", runSkyBodyRegression),
         REG("--quaternion-invariant-regression", runQuaternionInvariantRegression),
         REG("--spatial-coordinate-regression", runSpatialCoordinateRegression),
         REG("--coordinate-recalculate-regression", runCoordinateRecalculateRegression),
@@ -13622,7 +13912,7 @@ int main(int argc, char* argv[]) {
     for (auto it = system->children.begin(); it != system->children.end(); ) {
         if (it->second->IsA("Lighting")) {
             auto oldLighting = std::static_pointer_cast<Lighting>(it->second);
-            lighting->lightDir   = oldLighting->lightDir;
+            lighting->legacyDirection = oldLighting->legacyDirection;
             lighting->brightness = oldLighting->brightness;
             it = system->children.erase(it);
             break;

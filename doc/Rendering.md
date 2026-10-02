@@ -51,8 +51,9 @@ main.cpp ループ
    - `shadowFBO`へ `GL_TEXTURE_2D_ARRAY` の layer 0/1/2として、2048×2048×3 の深度マップへ `depthShader` でシーン全体（`BaseCube` 系 + Terrain チャンク）を3回描画。Cube/Cylinder/Sphere/TriangularPrismはTexture、Decal、Triplanar等の見た目状態を無視して形状別にインスタンス化し、各cascadeのlight-space frustum外にあるbounding sphereは描画しない
    - 完了後メイン FBO に戻す
 7. **Main Pass**
-   - `shaderProgram` を使用、`view`/`projection`/`viewPos`/`lightDir`/`brightness` をセット
+   - `shaderProgram` を使用、`view`/`projection`/`viewPos`/`lightDir`（Sun の向き）/`brightness`（Sun が無ければ0）をセット
    - シャドウマップをテクスチャユニット1にバインド
+   - 太陽と月（`CelestialBody`、BaseCube ではない）を `renderCelestialBodies`（`Renderer_Sky.cpp`）でカメラ基準の unlit な球として描く
    - Workspace を再帰走査し、`Cube`/`Cylinder`/`TriangularPrism`/`Sphere`（すべて `BaseCube` 派生）を `Color.a > 0` のときだけ `draw()`
    - 各インスタンスの `Unlit`/`UseTriplanar`/`TextureScale` をユニフォームに反映
 8. **選択ハイライト**（`desc.renderHighlights` かつエディタの選択中インスタンスがある場合）
@@ -119,7 +120,7 @@ SurfaceGuiがCubeの通常面を上書きする条件は、`Visible`、有効な
 - `CastShadow == false` は常に影なし。true の場合は `ShadowMode`（Always/Never/Normal）で判定し、Normal は `Color.a > 0.001`、MeshCube の fallback geometry は例外として影を生成する。深度テクスチャは 24-bit + `GL_NEAREST`、シェーダは最近傍深度を9回比較する手動3×3 PCFを使用する。受け側の深度バイアスは `max(0.00035, 0.0012*(1-clamp(dot(normalize(N), normalize(L)),0,1)))` の slope-scaled bias とし、書き込み側は `glPolygonOffset(1.0, 1.0)` を使う
 - 各 cascade の light-space depth は slice の min/max と depth margin から設定し、casterがnear/farで切れない余裕を持たせる。
 - Shadow専用のインスタンス化・カリング結果はProfilerの`Shadow Cubes`／`Shadow Cubes Culled`で確認できる。`Shadow Cubes Culled`は3 cascadeそれぞれの判定を合計した値である。
-- ライト方向は `Lighting.lightDir` のみ参照（複数ライト・ポイントライトのシャドウ未対応）
+- 平行光源の向きは Workspace の最初の `Sun`（`Sun::lightDirectionFromAngle(Angle)`）のみ参照し、`Lighting` は強さ・色と影の設定だけを持つ。Sun が無いときは平行光源なし（brightness uniform を0にし、シャドウパスはスキップ）。複数ライト・ポイントライトのシャドウ未対応
 - シャドウ距離は `Lighting.ShadowDistance`（既定160）で制限し、`ShadowFadeDistance`（既定20）でカメラからの3D距離に応じてフェードする。
 - `PostEffectKind::Custom` は指定GLSLフラグメントシェーダーをチェーンへ適用し、失敗時は直前の成功プログラムまたはパススルーへフォールバックする。
 

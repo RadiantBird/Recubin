@@ -158,6 +158,40 @@ Root:
         PhysicsEnabled: true
       Children:
         - ClassName: Cube
+          Name: Blue
+          Properties:
+            Position: [-2, 0, -8]
+            Size: [1, 4, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Rope
+          Name: Rope
+          Properties:
+            Enabled: true
+            Cube0: Branch
+            Cube1: Saw
+            MaxDistance: 3
+            Stiffness: 100
+            Damping: 10
+            Color: [0.3, 0.9, 1, 1]
+            LineWidth: 0.2
+        - ClassName: Cube
           Name: Branch
           Properties:
             Position: [2.4310784, -4, 11.834326]
@@ -193,95 +227,6 @@ Root:
             UseTriplanar: false
             TextureScale: 1
             Anchored: true
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Cube
-          Name: Blue
-          Properties:
-            Position: [-2, 0, -8]
-            Size: [1, 4, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Rope
-          Name: Rope
-          Properties:
-            Enabled: true
-            Cube0: Branch
-            Cube1: Saw
-            MaxDistance: 3
-            Stiffness: 100
-            Damping: 10
-            Color: [0.3, 0.9, 1, 1]
-            LineWidth: 0.2
-        - ClassName: Cube
-          Name: Baseplate
-          Properties:
-            Position: [0, -10, 0]
-            Size: [128, 1, 128]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0.5, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: true
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-          Children:
-            - ClassName: Texture
-              Name: Texture_Top
-              Properties:
-                Texture: assets/image/Grass_Texture.png
-                Face: 2
-                Color: [1, 1, 1, 1]
-                StudsPerTileU: 1
-                StudsPerTileV: 1
-        - ClassName: Cube
-          Name: Green
-          Properties:
-            Position: [-2, 0, -4]
-            Size: [2, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
             CanCollide: true
             CanTouch: true
             MassDensity: 1
@@ -343,12 +288,12 @@ Root:
                     TextColor: [0, 0, 0, 1]
                     FontSize: 0
         - ClassName: Cube
-          Name: Cube12
+          Name: Green
           Properties:
-            Position: [8.118143, -8.859938, 35.223503]
-            Size: [1, 1, 1]
+            Position: [-2, 0, -4]
+            Size: [2, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
+            Color: [0, 1, 0, 1]
             CastShadow: true
             ShadowMode: Normal
             Unlit: false
@@ -366,18 +311,18 @@ Root:
             Locked: false
             LockFlags: []
         - ClassName: Cube
-          Name: Cube1
+          Name: Baseplate
           Properties:
-            Position: [8.118143, -6.9850116, 35.223503]
-            Size: [1, 1, 1]
+            Position: [0, -10, 0]
+            Size: [128, 1, 128]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 1, 1]
+            Color: [0, 1, 0.5, 1]
             CastShadow: true
             ShadowMode: Normal
             Unlit: false
             UseTriplanar: false
             TextureScale: 1
-            Anchored: false
+            Anchored: true
             CanCollide: true
             CanTouch: true
             MassDensity: 1
@@ -388,15 +333,19 @@ Root:
             Restitution: 0.1
             Locked: false
             LockFlags: []
-        - ClassName: Script
-          Name: HiGeorge
-          Properties:
-            Enabled: false
-            ContentPath: ""
+          Children:
+            - ClassName: Texture
+              Name: Texture_Top
+              Properties:
+                Texture: assets/image/Grass_Texture.png
+                Face: 2
+                Color: [1, 1, 1, 1]
+                StudsPerTileU: 1
+                StudsPerTileV: 1
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [-11.743302, -8.781409, 19.544336]
+            Position: [4.188631, -8.791774, -12.15622]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -426,10 +375,38 @@ Root:
                 UVCenter: [0.5, 0.5]
                 UVRadius: 0.15
                 Mode: 0
-        - ClassName: TriangularPrism
-          Name: TriangularPrism
+        - ClassName: Script
+          Name: HiGeorge
           Properties:
-            Position: [1.03006, -9, 0.87993336]
+            Enabled: false
+            ContentPath: ""
+        - ClassName: Cube
+          Name: Cube1
+          Properties:
+            Position: [8.118143, -6.9850116, 35.223503]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: Cube12
+          Properties:
+            Position: [8.118143, -8.859938, 35.223503]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -454,10 +431,33 @@ Root:
           Properties:
             Enabled: false
             ContentPath: scripts/2006.luau
+        - ClassName: TriangularPrism
+          Name: TriangularPrism
+          Properties:
+            Position: [1.03006, -9, 0.87993336]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
         - ClassName: Cube
           Name: Floppa1
           Properties:
-            Position: [1.0775726, -8.5, -8.327957]
+            Position: [1.0775726, -6.4693694, -8.327957]
             Size: [2, 2, 2]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -479,10 +479,10 @@ Root:
             LockFlags: []
           Children:
             - ClassName: Decal
-              Name: Decal_Left
+              Name: Decal_Front
               Properties:
-                Texture: assets/image/Limabis_logo.png
-                Face: 5
+                Texture: assets/image/floppa2048.jpg
+                Face: 0
                 Color: [1, 1, 1, 1]
                 UVCenter: [0.5, 0.5]
                 UVRadius: 0.15
@@ -497,19 +497,10 @@ Root:
                 UVRadius: 0.15
                 Mode: 0
             - ClassName: Decal
-              Name: Decal_Front
+              Name: Decal_Left
               Properties:
-                Texture: assets/image/floppa2048.jpg
-                Face: 0
-                Color: [1, 1, 1, 1]
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
-            - ClassName: Decal
-              Name: Decal_Bottom
-              Properties:
-                Texture: assets/image/smile.png
-                Face: 3
+                Texture: assets/image/Limabis_logo.png
+                Face: 5
                 Color: [1, 1, 1, 1]
                 UVCenter: [0.5, 0.5]
                 UVRadius: 0.15
@@ -519,6 +510,15 @@ Root:
               Properties:
                 Texture: assets/image/the-cat.png
                 Face: 1
+                Color: [1, 1, 1, 1]
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
+                Mode: 0
+            - ClassName: Decal
+              Name: Decal_Bottom
+              Properties:
+                Texture: assets/image/smile.png
+                Face: 3
                 Color: [1, 1, 1, 1]
                 UVCenter: [0.5, 0.5]
                 UVRadius: 0.15
@@ -639,29 +639,6 @@ Root:
             Locked: false
             LockFlags: []
         - ClassName: Cube
-          Name: Cube2
-          Properties:
-            Position: [-20.448927, -9, 16.048754]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Cube
           Name: Cube11
           Properties:
             Position: [0.43107843, -7, 11.834326]
@@ -674,6 +651,29 @@ Root:
             UseTriplanar: false
             TextureScale: 1
             Anchored: true
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: Cube2
+          Properties:
+            Position: [-20.448927, -9, 16.048754]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
             CanCollide: true
             CanTouch: true
             MassDensity: 1
@@ -764,7 +764,6 @@ Root:
         - ClassName: Lighting
           Name: Lighting
           Properties:
-            Direction: [1, -1, -1]
             Brightness: 1
             Color: [1, 1, 1, 1]
             ShadowDistance: 160
@@ -773,15 +772,6 @@ Root:
           Name: _Effects
           Children:
             - ClassName: PostEffect
-              Name: CRT
-              Properties:
-                Enabled: false
-                Type: 1
-                ZIndex: 1
-                Intensity: 1
-                Param1: 16
-                Param2: 0.15
-            - ClassName: PostEffect
               Name: Poster
               Properties:
                 Enabled: false
@@ -789,6 +779,15 @@ Root:
                 ZIndex: 0
                 Intensity: 1
                 Param1: 4
+                Param2: 0.15
+            - ClassName: PostEffect
+              Name: CRT
+              Properties:
+                Enabled: false
+                Type: 1
+                ZIndex: 1
+                Intensity: 1
+                Param1: 16
                 Param2: 0.15
             - ClassName: PostEffect
               Name: Pixel
@@ -857,6 +856,21 @@ Root:
             Material: MaterialService\MetalV2
             Locked: false
             LockFlags: []
+        - ClassName: Sun
+          Name: Sun
+          Properties:
+            Angle: [135, 60]
+            Color: [1, 0.9812915, 0.873817, 1]
+            Distance: 1000
+            GlowIntensity: 0.4
+            GlowRadius: 6
+            VeilIntensity: 0.1
+            VeilFalloff: 6
+            SpikeIntensity: 0.5
+            SpikeCount: 12
+            SpikeLength: 3
+            SpikeRotation: 0
+            HorizonFade: true
     - ClassName: StarterCharacter
       Name: Model
       Properties:
@@ -864,6 +878,29 @@ Root:
         Size: [1, 1, 1]
         Rotation: [0, 0, 0, 1]
       Children:
+        - ClassName: Cube
+          Name: LeftArm
+          Properties:
+            Position: [1.3967199, -1.000001, 4.240821]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
         - ClassName: Humanoid
           Name: Humanoid
           Properties:
@@ -880,9 +917,9 @@ Root:
             Health: 100
             WalkAnimation: R6Walk
         - ClassName: Cube
-          Name: LeftArm
+          Name: RightArm
           Properties:
-            Position: [1.3967199, -1.000001, 4.240821]
+            Position: [4.39672, -1.000001, 4.240821]
             Size: [1, 2, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -934,29 +971,6 @@ Root:
                 MaintainVelocity: true
                 Value: [0, 0, 0]
                 AxisMask: [0, 1, 0]
-        - ClassName: Cube
-          Name: RightArm
-          Properties:
-            Position: [4.39672, -1.000001, 4.240821]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: false
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
         - ClassName: Sphere
           Name: Head
           Properties:
@@ -991,29 +1005,6 @@ Root:
                 UVRadius: 0.15
                 Mode: 0
         - ClassName: Cube
-          Name: Torso
-          Properties:
-            Position: [2.89672, -1.000001, 4.240821]
-            Size: [2, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.39215687, 0.047058824, 0.1254902, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: false
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Cube
           Name: LeftLeg
           Properties:
             Position: [2.39672, -3.000001, 4.240821]
@@ -1037,12 +1028,12 @@ Root:
             Locked: false
             LockFlags: []
         - ClassName: Cube
-          Name: RightLeg
+          Name: Torso
           Properties:
-            Position: [3.39672, -3.000001, 4.240821]
-            Size: [1, 2, 1]
+            Position: [2.89672, -1.000001, 4.240821]
+            Size: [2, 2, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 0.14117648, 0.31764707, 1]
+            Color: [0.39215687, 0.047058824, 0.1254902, 1]
             CastShadow: true
             ShadowMode: Normal
             Unlit: false
@@ -1076,6 +1067,29 @@ Root:
               Rotation: [0, 0, 0, 1]
             Frequency: 10
             DampingRatio: 1
+        - ClassName: Cube
+          Name: RightLeg
+          Properties:
+            Position: [3.39672, -3.000001, 4.240821]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.14117648, 0.31764707, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
         - ClassName: Animation
           Name: R6Walk
           Properties:

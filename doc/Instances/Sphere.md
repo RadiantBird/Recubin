@@ -2,7 +2,7 @@
 
 `include/Instances/Sphere.hpp`
 
-球形状の描画可能プリミティブ。`BaseCube` を継承し、立方体の6面を球面上に投影・正規化した頂点（16分割/面）を静的に共有する。物理形状は `PhysicsShape::Sphere`。`Sun`/`Moon` の基底としても使われる。
+球形状の描画可能プリミティブ。`BaseCube` を継承し、立方体の6面を球面上に投影・正規化した頂点（16分割/面）を静的に共有する。物理形状は `PhysicsShape::Sphere`。`Sun`/`Moon` の円盤描画にもこのジオメトリが共有される。
 
 ## 継承
 
@@ -46,5 +46,4 @@ draw()
 
 ## 継承クラス
 
-- `Sun`（太陽表現）
-- `Moon`（月表現）
+なし（`Sun` / `Moon` は以前は継承していたが、BaseCube ではない軽量 Instance（[CelestialBody](CelestialBody.md)）になった。ただし円盤の描画には `Sphere` の共有ジオメトリ `s_VAO` / `s_IndexCount` を使い、Sphere インスタンスが無いシーンでも `Renderer` が `initGeometry()`（public）で生成する）

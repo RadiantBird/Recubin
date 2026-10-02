@@ -97,8 +97,6 @@ SetSoundBoolCommand::SetSoundBoolCommand(std::shared_ptr<Sound> t,std::string p,
 void SetSoundBoolCommand::execute(){apply(m_after);} void SetSoundBoolCommand::undo(){apply(m_before);} void SetSoundBoolCommand::apply(bool v){if(!m_target)return;if(m_prop=="AutoPlay")m_target->autoPlay=v;else if(m_prop=="Looped")m_target->setLooping(v);else if(m_prop=="PreservePitch")m_target->setPreservePitch(v);}
 SetSoundFloatCommand::SetSoundFloatCommand(std::shared_ptr<Sound> t,std::string p,float b,float a):m_target(std::move(t)),m_prop(std::move(p)),m_before(b),m_after(a){}
 void SetSoundFloatCommand::execute(){apply(m_after);} void SetSoundFloatCommand::undo(){apply(m_before);} void SetSoundFloatCommand::apply(float v){if(!m_target)return;if(m_prop=="Volume")m_target->setVolume(v);else if(m_prop=="Speed")m_target->setSpeed(v);}
-SetLightDirCommand::SetLightDirCommand(std::shared_ptr<Lighting> t,Vector3 b,Vector3 a):m_target(std::move(t)),m_before(b),m_after(a){}
-void SetLightDirCommand::execute(){if(m_target)m_target->lightDir=m_after;} void SetLightDirCommand::undo(){if(m_target)m_target->lightDir=m_before;}
 SetLightBrightnessCommand::SetLightBrightnessCommand(std::shared_ptr<Lighting> t,float b,float a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetLightBrightnessCommand::execute(){if(m_target)m_target->brightness=m_after;} void SetLightBrightnessCommand::undo(){if(m_target)m_target->brightness=m_before;}
 SetPostEffectBoolCommand::SetPostEffectBoolCommand(std::shared_ptr<PostEffect> t,std::string p,bool b,bool a):m_target(std::move(t)),m_prop(std::move(p)),m_before(b),m_after(a){}

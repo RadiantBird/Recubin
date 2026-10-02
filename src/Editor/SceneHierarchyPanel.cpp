@@ -1027,16 +1027,6 @@ bool SceneHierarchyPanel::executeClassPickerSelection(const std::string& selecte
         if (selected == "SurfaceMark" && insertParent->IsA("BaseCube") && workspace)
             insertParent = workspace->shared_from_this();
         if (selected == "Sound" && !AudioService::instance) obj.reset();
-        if (selected == "Sun" && m_user && obj) {
-            auto* sun = static_cast<Sun*>(obj.get());
-            float rad = sun->Angle * (3.14159265f / 180.0f);
-            sun->setPosition(m_user->cpos + Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f);
-        }
-        if (selected == "Moon" && m_user && obj) {
-            auto* moon = static_cast<Moon*>(obj.get());
-            float rad = 45.0f * (3.14159265f / 180.0f);
-            moon->setPosition(m_user->cpos - Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f);
-        }
         if (!obj) return false;
         obj->Name = uniqueName(insertParent, selected);
         m_history->execute(std::make_unique<AddInstanceCommand>(insertParent, obj));
@@ -1275,34 +1265,10 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<PointLight>(m_history, "PointLight", parentSp);
         tryInsertInstance<SpotLight>(m_history, "SpotLight", parentSp);
 
-        // Sun / Moon は追加した瞬間にカメラ基準の空座標を計算する
-        // （Renderer のフォーカス時追従に頼ると、追加直後は原点に出てバグに見えるため）
-        if (ImGui::MenuItem("Sun") && m_history) {
-            auto obj = std::make_shared<Sun>();
-            obj->Name = uniqueName(parentSp, "Sun");
-            if (m_user) {
-                float rad = obj->Angle * (3.14159265f / 180.0f);
-                Vector3 dir(0.0f, std::sin(rad), std::cos(rad));
-                obj->setPosition(m_user->cpos + dir * 1000.0f);
-            }
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        if (ImGui::MenuItem("Moon") && m_history) {
-            auto obj = std::make_shared<Moon>();
-            obj->Name = uniqueName(parentSp, "Moon");
-            if (m_user) {
-                // 既存の Sun があればその反対側、無ければ既定角の反対側に置く
-                float angle = 45.0f;
-                for (auto const& [n, c] : parentSp->children) {
-                    if (c->IsA("Sun")) { angle = static_cast<Sun*>(c.get())->Angle; break; }
-                }
-                float rad = angle * (3.14159265f / 180.0f);
-                Vector3 dir(0.0f, std::sin(rad), std::cos(rad));
-                obj->setPosition(m_user->cpos - dir * 1000.0f);
-            }
-            m_history->execute(std::make_unique<AddInstanceCommand>(parentSp, obj));
-        }
-        
+        // Sun / Moon は空の円盤を描くだけの軽量Instance（位置はRendererがカメラ基準で決める）
+        tryInsertInstance<Sun>(m_history, "Sun", parentSp);
+        tryInsertInstance<Moon>(m_history, "Moon", parentSp);
+
         ImGui::EndMenu();
     }
 
@@ -1582,26 +1548,8 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
             makeGroup("Lighting", [&] { return std::make_shared<Lighting>(); });
             makeGroup("PointLight", [&] { return std::make_shared<PointLight>(); });
             makeGroup("SpotLight", [&] { return std::make_shared<SpotLight>(); });
-            makeGroup("Sun", [&] {
-                auto sun = std::make_shared<Sun>();
-                if (m_user) {
-                    float rad = sun->Angle * (3.14159265f / 180.0f);
-                    sun->setPosition(m_user->cpos + Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f);
-                }
-                return sun;
-            });
-            makeGroup("Moon", [&] {
-                auto moon = std::make_shared<Moon>();
-                float angle = 45.0f;
-                auto parent = targets.empty() ? std::shared_ptr<Instance>() : targets.front()->Parent.lock();
-                if (parent) for (auto const& [name, child] : parent->children)
-                    if (child && child->IsA("Sun")) { angle = static_cast<Sun*>(child.get())->Angle; break; }
-                if (m_user) {
-                    float rad = angle * (3.14159265f / 180.0f);
-                    moon->setPosition(m_user->cpos - Vector3(0.0f, std::sin(rad), std::cos(rad)) * 1000.0f);
-                }
-                return moon;
-            });
+            makeGroup("Sun", [&] { return std::make_shared<Sun>(); });
+            makeGroup("Moon", [&] { return std::make_shared<Moon>(); });
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryGui))) {

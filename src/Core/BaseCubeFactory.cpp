@@ -10,8 +10,6 @@
 #include <Instances/LiquidCube.hpp>
 #include <Instances/SpawnLocation.hpp>
 #include <Instances/Skybox.hpp>
-#include <Instances/Sun.hpp>
-#include <Instances/Moon.hpp>
 
 std::shared_ptr<Instance> createBaseCubeInstance(std::string_view className) {
     if (className == "Cube")
@@ -32,7 +30,5 @@ std::shared_ptr<Instance> createBaseCubeInstance(std::string_view className) {
         return std::make_shared<LiquidCube>(Vector3(0, 0, 0), Vector3(4, 2, 4));
     if (className == "SpawnLocation") return std::make_shared<SpawnLocation>();
     if (className == "Skybox") return std::make_shared<Skybox>();
-    if (className == "Sun") return std::make_shared<Sun>();
-    if (className == "Moon") return std::make_shared<Moon>();
     return nullptr;
 }

@@ -50,19 +50,19 @@ function update(deltaTime)
     currentTime = (currentTime + deltaTime) % cycleSeconds
 
     local progress = currentTime / cycleSeconds
-    local angle = progress * 360
-    Sun.Angle = angle
+    local rad = progress * math.pi * 2
 
-    local sunHeight = (math.sin(progress * math.pi * 2) + 1) / 2
-    local rad = math.rad(angle)
-    local dirX = 0.0
-    local dirY = math.sin(rad)  -- 高さ（昼に+1.0、夜に-1.0）
-    local dirZ = math.cos(rad)
+    -- 東(方角90°)の地平線から天頂を通って西(方角270°)の地平線へ昇り、地平線の下を戻る。
+    -- 太陽の向きがそのまま光の向きになる（Sun.Angle = Vector2(方角, 高度)）。
+    local elevation = math.deg(math.asin(math.sin(rad)))
+    local azimuth = if math.cos(rad) >= 0 then 90 else 270
+    Sun.Angle = Vector2.new(azimuth, elevation)
+
+    local sunHeight = (math.sin(rad) + 1) / 2
 
     Lighting.Brightness = lerp(minBrightness, maxBrightness, sunHeight)
     local finalColor = lerpColor(nightColor, dayColor, sunHeight)
     -- print(finalColor)
-    Lighting.Direction = Vector3.new(dirX, -dirY, -dirZ)
     Skybox.Color = finalColor
 end
 

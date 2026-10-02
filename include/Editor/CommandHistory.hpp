@@ -485,15 +485,6 @@ private:
     void apply(float v);
 };
 
-// --- Light Direction 変更 ---
-struct SetLightDirCommand : Command {
-    std::shared_ptr<Lighting> m_target;
-    Vector3 m_before, m_after;
-
-    SetLightDirCommand(std::shared_ptr<Lighting> target, Vector3 before, Vector3 after);
-    void execute() override; void undo() override;
-};
-
 // --- Brightness 変更 ---
 struct SetLightBrightnessCommand : Command {
     std::shared_ptr<Lighting> m_target;

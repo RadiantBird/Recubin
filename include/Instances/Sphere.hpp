@@ -28,6 +28,7 @@ public:
     unsigned int getHighlightIndexCount() const override { return (unsigned int)s_IndexCount; }
     const std::vector<float>& getHighlightEdgeVerts() const override { return s_HighlightEdgeVerts; }
 
-private:
+    // 共有ジオメトリ(s_VAO)を未生成なら作る。Sphereインスタンスが無くても太陽と月の
+    // 円盤を描けるよう、Rendererからも呼べる。要GLコンテキスト。
     static void initGeometry();
 };

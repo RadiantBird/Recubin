@@ -6,6 +6,7 @@
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/Sun.hpp>
 #include <Instances/AppImage.hpp>
 #include <Instances/PathfindingService.hpp>
 #include <Instances/Folder.hpp>
@@ -20,6 +21,7 @@
 #include <Util/IPlatform.hpp>
 #include <Util/Logger.hpp>
 #include <Util/Platform.hpp>
+#include <functional>
 
 namespace SceneRuntime {
 
@@ -65,6 +67,16 @@ void copyUserScalars(const User& source, User& destination) {
         destination.setCursorHotspotY(i, slot.hotspotY);
         destination.setCursorSize(i, slot.size);
     }
+}
+
+// root配下から条件を満たす最初のInstanceを深さ優先で探す。無ければnullptr。
+Instance* findDescendantIf(Instance& root, const std::function<bool(Instance&)>& predicate) {
+    for (const auto& [name, child] : root.children) {
+        (void)name;
+        if (predicate(*child)) return child.get();
+        if (Instance* found = findDescendantIf(*child, predicate)) return found;
+    }
+    return nullptr;
 }
 
 void disconnectSceneSignals(const std::shared_ptr<System>& system,
@@ -142,6 +154,25 @@ std::vector<std::shared_ptr<Workspace>> collectWorkspaces(const std::shared_ptr<
             result.push_back(std::static_pointer_cast<Workspace>(child));
     }
     return result;
+}
+
+std::shared_ptr<Instance> migrateLegacyLightingDirection(Workspace& workspace) {
+    const auto isSun = [](Instance& instance) { return instance.IsA("Sun"); };
+    if (findDescendantIf(workspace, isSun)) return nullptr;
+
+    const auto hasLegacyDirection = [](Instance& instance) {
+        return instance.IsA("Lighting") &&
+               static_cast<Lighting&>(instance).legacyDirection.has_value();
+    };
+    auto* source = static_cast<Lighting*>(findDescendantIf(workspace, hasLegacyDirection));
+    if (!source) return nullptr;
+
+    // 旧Directionは光の進行方向。太陽の位置はその逆方向になる。
+    auto sun = std::make_shared<Sun>();
+    sun->setAngle(Sun::angleFromDirection(-*source->legacyDirection));
+    source->legacyDirection.reset();
+    workspace.addChild(sun);
+    return sun;
 }
 
 std::vector<Terrain*> collectTerrains(Instance* root) {
@@ -336,10 +367,14 @@ Bound commitAndBind(StagedSceneLoad&& staged,
         auto ws = std::make_shared<Workspace>();
         auto li = std::make_shared<Lighting>();
         li->Name = "Lighting";
+        // 光の向きはSunが決めるので、新規Workspaceには既定でSunも挿入する。
+        auto sun = std::make_shared<Sun>();
         system->addChild(ws);
         ws->addChild(li);
+        ws->addChild(sun);
         workspaces = collectWorkspaces(system);
     }
+    for (const auto& ws : workspaces) migrateLegacyLightingDirection(*ws);
     auto workspace = workspaces.front();
 
     // PathfindingService も Workspace 同様、System直下に無ければ自動生成する

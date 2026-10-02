@@ -83,8 +83,8 @@
 |---|---|---|---|
 | Cube / Cylinder / Sphere / TriangularPrism | 固有プロパティ無し | ✅ | BaseCube 継承分のみ。追加不要 |
 | **Skybox** | skyboxPaths[6] / setSkyboxPath | ❌ | 6面テクスチャパス未公開 |
-| Sun | Angle | ✅ | applyToDispatch 済 |
-| Moon | （無し） | ✅ | |
+| Sun | Angle (Vector2), Distance, Color | ✅ | applyToDispatch 済。Angle は旧スカラーから Vector2 に変更 |
+| Moon | Distance, Color | ✅ | applyToDispatch 済 |
 | **LiquidCube** | Density | ✅ | applyToDispatch 済 |
 | **MeshCube** | MeshFile | ✅ | PropertyRegistry経由。setter は loadFromGLB と物理actor再生成を呼ぶ |
 

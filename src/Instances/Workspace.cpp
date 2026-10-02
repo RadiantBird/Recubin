@@ -9,6 +9,7 @@
 #include <Instances/PostEffect.hpp>
 #include <Instances/Highlight.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/CelestialBody.hpp>
 #include <Instances/Weather.hpp>
 #include <Core/Terrain.hpp>
 #include <Core/Physics.hpp>
@@ -80,6 +81,7 @@ void Workspace::registerRenderSubtree(Instance* root) {
     if (root->IsA("PostEffect")) m_renderPostEffects.push_back(static_cast<PostEffect*>(root));
     if (root->IsA("Highlight")) m_renderHighlights.push_back(static_cast<Highlight*>(root));
     if (root->IsA("Lighting")) m_renderLightings.push_back(static_cast<Lighting*>(root));
+    if (root->IsA("CelestialBody")) m_renderCelestialBodies.push_back(static_cast<CelestialBody*>(root));
     if (root->IsA("Weather")) m_renderWeathers.push_back(static_cast<Weather*>(root));
     if (root->IsA("Terrain")) m_renderTerrains.push_back(static_cast<Terrain*>(root));
 
@@ -106,6 +108,7 @@ void Workspace::unregisterRenderSubtree(Instance* root) {
     if (root->IsA("PostEffect")) remove(m_renderPostEffects);
     if (root->IsA("Highlight")) remove(m_renderHighlights);
     if (root->IsA("Lighting")) remove(m_renderLightings);
+    if (root->IsA("CelestialBody")) remove(m_renderCelestialBodies);
     if (root->IsA("Weather")) remove(m_renderWeathers);
     if (root->IsA("Terrain")) remove(m_renderTerrains);
 
@@ -132,6 +135,7 @@ Workspace::~Workspace() {
     m_renderPostEffects.clear();
     m_renderHighlights.clear();
     m_renderLightings.clear();
+    m_renderCelestialBodies.clear();
     m_renderWeathers.clear();
     m_renderTerrains.clear();
     for (auto& [name, child] : children) {

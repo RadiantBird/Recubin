@@ -43,6 +43,26 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   `EnableIPCAPI`では`Connect`/`Send`/`Receive`/`Close`のstubを公開するが未実装エラーを返す。拡張同意receiptは
   構成versionとIO/IPC/External権限集合を保存・比較し、Editorと`--editor-test`では警告とreceiptをバイパスする。
 
+## Sun / Moon / Lighting
+  `Sun`は平行光源の向きの**唯一の正**で、`Moon`と共に`CelestialBody`（BaseCubeでもSpatialでもない軽量
+  Instance）を継承する。新規Workspaceには既定で`Sun`を1つ挿入する。
+  - `Sun.Angle`は`Vector2(方角, 高度)`（度）。方角は北0°・東90°の時計回り（「方角」節: +Xが北、+Zが東）、
+    高度は水平0°・天頂90°・負で地平線の下。光の進行方向は太陽方向の逆。非有限値は拒否する。
+  - Workspaceの最初の`Sun`だけが光の向きと`Moon`の位置を決める。`Moon`は最初のSunの反対側に見える。
+    **Sunが存在しないときは平行光源なし**（環境光とPoint/Spotのみ、影なし）。
+  - `Lighting`は太陽光の`Brightness`/`Color`と影の設定だけを持ち、`Direction`は廃止された。
+  - `Sun`/`Moon`の見かけの大きさは`Distance`（見かけの距離、既定1000）で決める。円盤は常にカメラから一定距離に
+    描き、直径を`基準直径(Sun 200 / Moon 150) × 1000 / Distance`にする。`Size`は廃止された。
+  - `CelestialBody`は逆光（グロー`GlowIntensity`/`GlowRadius`、ベール`VeilIntensity`/`VeilFalloff`）と光条
+    （回折スパイク`SpikeIntensity`/`SpikeCount`/`SpikeLength`/`SpikeRotation`）を持つ。強さが0の効果は描かず、
+    既定はすべて無効。効果は`sky_flare`シェーダーで不透明物の描画後に加算する。グロー・ベールは深度テストなしで
+    手前の物体の上にも被さる（縁のにじみも出る）が、光条は深度テストを行い手前の物体に遮られる。`HorizonFade`
+    （既定true）が真なら天体が地平線の下に沈むにつれて効果を消す。
+  - 旧形式（BaseCube派生のSun/Moon、`Lighting.Direction`）はロード時に自動移行する。旧BaseCube系プロパティは
+    無視、スカラー`Angle`はVector2へ、旧`Size`は見かけの大きさを保つ`Distance`へ換算する。`Sun`を持たず
+    `Lighting.Direction`を持つ旧シーンには、その向きを引き継ぐ`Sun`を自動生成する。`Sun`の無い新形式の
+    シーンでは生成しない（意図的な平行光源なし）。
+
 ## Material / MaterialService
   `MaterialService`はSystem直下に自動生成されるサービスで、配下に`Material`を置く。`BaseCube`は
   `Material`プロパティ（`MaterialService\<名前>`形式のパス文字列）でMaterialを参照する。

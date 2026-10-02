@@ -2,33 +2,32 @@
 
 `include/Instances/Moon.hpp`
 
-月を表す `Sphere`（150stud）。独自の `Angle` は持たず、`Renderer` が `Sun` の角度から自動的に太陽の正反対側へ配置する。
+月。空に見える円盤だけを担い、光源にはならない。`BaseCube` ではなく軽量な `Instance`（`CelestialBody` 派生）。独自の `Angle` は持たず、`Renderer` が**最初の Sun の反対側**へ描く（Sun が無ければ既定の Sun 角の反対側）。
 
 ## 継承
 
-`Instance` → `Spatial` → `BaseCube` → `Sphere` → `Moon`
+`Instance` → [`CelestialBody`](CelestialBody.md) → `Moon`
 
-## メンバ変数
+## プロパティ
 
-なし（`Sphere`/`BaseCube` のプロパティのみ使用）
+| プロパティ | 型 | 説明 |
+|---|---|---|
+| `Color` | `Color4` | 円盤の色（既定 `(0.9, 0.9, 1, 1)`） |
+| `Distance` | `float` | 見かけの距離（[CelestialBody](CelestialBody.md)）。基準直径は 150stud |
+| 逆光・光条 | — | Sun と同じ（[CelestialBody](CelestialBody.md)）。既定はすべて無効。効果の向きは月の描画方向（最初の Sun の反対側） |
 
-## メソッド
+## 描画
 
-| メソッド | 説明 |
-|---|---|
-| `Moon()` | サイズ150stud, `Anchored=true`, `CanCollide=false`, `CastShadow=false`, `Unlit=true`, 青白色 `Color4(0.9,0.9,1.0,1)` で初期化 |
-| `getClassName()` | `"Moon"` を返す |
-| `IsA(className)` | `"Moon"`, `"Sphere"`, `"BaseCube"`, `"Spatial"`, `"Instance"` に対して true |
-| `clone()` | 主要プロパティをコピーし子を再帰複製 |
+`Renderer::renderCelestialBodies`（`Renderer_Sky.cpp`）が、カメラ位置から最初の Sun の方向の逆へ 1000stud の位置に、直径 `150 × 1000 / Distance` の unlit な球として描く。
 
-## フロー
+## 旧形式の互換
 
-`Sun.md` のフロー節を参照。`Renderer::renderScene()` が毎フレーム `sunDir` の逆ベクトルへ `teleportTo` する。
+[Sun](Sun.md) の「旧形式（BaseCube 派生）の互換」を参照。旧 `Size` は `Distance` へ換算される。
 
 ## 依存関係
 
-- `Sphere`, `PropertyRegistry`（プロパティ未登録・登録のみ空フィールドで `PropertyRegistry::registerClass("Moon", "Sphere", {})`）
-- `Renderer`（位置更新・描画の消費側、`Sun` の角度に依存）
+- `CelestialBody`, `Named`, `PropertyRegistry`
+- `Renderer`（位置決め・描画の消費側、最初の `Sun` の `Angle` に依存）
 
 ## 継承クラス
 
