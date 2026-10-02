@@ -31,6 +31,8 @@ private:
         PhysicsConstraintHandle handle;
         b3JointId jointId = b3_nullJointId;
         b3BodyId auxiliaryBodyId = b3_nullBodyId;
+        // ServoのMotor。固定ステップごとに目標角度へ向けたモーター速度を更新する
+        bool servo = false;
     };
 
     struct NoCollisionEntry {
@@ -171,6 +173,7 @@ private:
     bool hasEnabledForce(bool maintainVelocityOnly) const;
     void applyForces();
     void applyMaintainedVelocities();
+    void applyServoMotors();
     void applyGyroForces();
     void reportGyroErrorOnce(
         const std::string& key,

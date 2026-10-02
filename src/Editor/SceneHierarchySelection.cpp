@@ -161,12 +161,26 @@ std::vector<Instance*> collectDirectChildren(Instance& parent) {
 const std::vector<Instance*>& DirectChildrenCache::get(Instance& parent) {
     Entry& entry = m_entries[&parent];
     const std::uint64_t revision = parent.getChildrenRevision();
-    if (!entry.initialized || entry.revision != revision) {
+    const std::weak_ptr<Instance> owner = parent.weak_from_this();
+    // 共有所有されていない(weak_from_thisが空)親は同一性を確認できないので毎回作り直す
+    const bool sameOwner = !owner.expired() &&
+        !entry.owner.owner_before(owner) && !owner.owner_before(entry.owner);
+    if (!entry.initialized || !sameOwner || entry.revision != revision) {
         entry.children = collectDirectChildren(parent);
         entry.revision = revision;
+        entry.owner = owner;
         entry.initialized = true;
     }
     return entry.children;
+}
+
+void DirectChildrenCache::purgeExpired() {
+    for (auto it = m_entries.begin(); it != m_entries.end();) {
+        if (it->second.initialized && it->second.owner.expired())
+            it = m_entries.erase(it);
+        else
+            ++it;
+    }
 }
 
 void DirectChildrenCache::clear() {

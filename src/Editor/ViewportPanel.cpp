@@ -502,8 +502,11 @@ void ViewportPanel::handleViewportClick(
 
         // ---- ピッカーモード: Pick ボタン押下中はクリックをキューブ/Attachment指定に横取り ----
         if (m_picker && m_picker->active) {
-            if (!m_picker->pickClassName.empty()) return;
-            const bool pickAtt = m_picker->pickAttachment;
+            // BaseCube/Attachment以外(FontFile等)はビューポートから選べない。
+            // 型指定ピック(Cube0/Attachment0/PrimaryCube等)はクラスに応じて対象を決める。
+            const std::string& pickClass = m_picker->pickClassName;
+            if (!pickClass.empty() && pickClass != "BaseCube" && pickClass != "Attachment") return;
+            const bool pickAtt = pickClass.empty() ? m_picker->pickAttachment : pickClass == "Attachment";
             const ViewportSceneQueries::PickerRayHit pickerHit =
                 ViewportSceneQueries::findPickerTarget(
                     *workspace,

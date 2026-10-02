@@ -412,6 +412,85 @@ int runToolSignalIsolationRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runMotorServoRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[MotorServo] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "MotorServoWorkspace";
+    auto anchor = std::make_shared<Cube>(Vector3(0, 100, 0), Vector3(2, 2, 2), 0);
+    anchor->Name = "ServoAnchor";
+    anchor->Anchored = true;
+    auto rotor = std::make_shared<Cube>(Vector3(4, 100, 0), Vector3(4, 1, 1), 0);
+    rotor->Name = "ServoRotor";
+    workspace->addChild(anchor);
+    workspace->addChild(rotor);
+    auto motor = std::make_shared<Motor>(anchor, rotor);
+    motor->Name = "ServoMotor";
+    motor->Axis = Vector3(0, 0, 1);
+    motor->DriveVelocity = 3.0f;
+    motor->MaxForce = 100000.0f;
+    motor->Servo = true;
+    motor->TargetAngle = 45.0f;
+    workspace->addChild(motor);
+    workspace->initPhysics();
+    auto* physics = workspace->getPhysicsEngine();
+    if (!physics || !physics->isAvailable()) {
+        expect(false, "physics backend is available");
+        return 1;
+    }
+    physics->setGravityEnabled(*rotor, false);
+
+    // 回転軸(Z)周りの角度[度]。+Zの右ねじ方向が正
+    auto rotorAngle = [&]() {
+        const Vector3 x = rotor->getWorldCFrame().Rotation.rotate(Vector3(1, 0, 0));
+        return std::atan2(x.y, x.x) * 180.0f / 3.14159265f;
+    };
+    auto run = [&](int steps) {
+        for (int i = 0; i < steps; ++i) physics->update(*workspace, 1.0f / 60.0f);
+    };
+
+    run(180);
+    expect(std::abs(rotorAngle() - 45.0f) < 2.0f,
+           "Servo drives the hinge to a positive TargetAngle");
+
+    motor->setTargetAngle(-90.0f);
+    run(240);
+    expect(std::abs(rotorAngle() + 90.0f) < 2.0f,
+           "Changing TargetAngle moves the Servo to the new angle (negative direction)");
+
+    // 重力に逆らって角度を維持する
+    physics->setGravityEnabled(*rotor, true);
+    motor->setTargetAngle(0.0f);
+    run(300);
+    expect(std::abs(rotorAngle()) < 3.0f,
+           "Servo holds TargetAngle against gravity");
+
+    // MaxForce=0ではトルクが出ず、重力で目標から外れる
+    motor->setMaxForce(0.0f);
+    run(120);
+    expect(std::abs(rotorAngle()) > 10.0f,
+           "Servo with MaxForce 0 cannot hold the angle");
+    motor->setMaxForce(100000.0f);
+    run(300);
+    expect(std::abs(rotorAngle()) < 3.0f,
+           "Servo recovers the angle once MaxForce is restored");
+
+    // Servo無効時は従来のDriveVelocity連続回転に戻る
+    physics->setGravityEnabled(*rotor, false);
+    motor->setServo(false);
+    motor->setDriveVelocity(2.0f);
+    const float before = rotorAngle();
+    run(30);
+    const float after = rotorAngle();
+    expect(after - before > 20.0f,
+           "Disabling Servo restores continuous DriveVelocity rotation");
+    return failures == 0 ? 0 : 1;
+}
+
 int runWorkspaceRaycastExcludeRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -9791,6 +9870,25 @@ static int runSceneHierarchyGroupingRegression() {
                cachedAfterRename.back() == renameOrderingCube.get(),
            "Explorer direct-child cache remains valid after a child rename");
 
+    {
+        // 破棄された親のエントリは捨てられ、新しい親へ古い子リストが引き継がれない
+        auto doomed = std::make_shared<Folder>();
+        doomed->Name = "Doomed";
+        auto doomedChild = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+        doomed->addChild(doomedChild);
+        directChildrenCache.get(*doomed);
+        doomedChild->setParent(nullptr);
+        doomed.reset();
+        doomedChild.reset();
+        directChildrenCache.purgeExpired();
+        auto fresh = std::make_shared<Folder>();
+        auto freshChild = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), Cube::defaultTextureID);
+        fresh->addChild(freshChild);
+        const auto& freshChildren = directChildrenCache.get(*fresh);
+        expect(freshChildren.size() == 1 && freshChildren.front() == freshChild.get(),
+               "Explorer direct-child cache drops entries of destroyed parents");
+    }
+
     auto workspace = std::make_shared<Workspace>();
     auto cube = std::make_shared<Cube>(Vector3(4, 2, -3), Vector3(1, 1, 1), Cube::defaultTextureID);
     auto folder = std::make_shared<Folder>();
@@ -11653,6 +11751,49 @@ static int runSpatialCoordinateAssertions() {
                primaryClone->getPrimaryCube() != primaryA.get() &&
                primaryClone->getPrimaryCube()->Name == "PrimaryA",
            "Cloned Model points PrimaryCube at its own cloned descendant");
+
+    // Attachment: 回転した親のModel子Cubeへ追加しても親の原点に置かれ、localは単位になる
+    auto attachModel = std::make_shared<Model>(Vector3(30, 5, -8));
+    attachModel->Name = "AttachModel";
+    auto attachCube = std::make_shared<Cube>(Vector3(2, 1, 3), Vector3(2, 2, 2), 0);
+    attachCube->Name = "AttachCube";
+    attachCube->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 40));
+    attachCube->Anchored = true;
+    auto attachOther = std::make_shared<Cube>(Vector3(8, 1, 3), Vector3(2, 2, 2), 0);
+    attachOther->Name = "AttachOther";
+    attachOther->Anchored = true;
+    attachModel->addChild(attachCube);
+    attachModel->addChild(attachOther);
+    luauWorkspace->addChild(attachModel);
+    auto newAttachment = Attachment::createAtParent(*attachCube);
+    newAttachment->Name = "NewAttachment";
+    attachCube->addChild(newAttachment);
+    expect(sameCFrame(newAttachment->getWorldCFrame(), attachCube->getWorldCFrame()) &&
+               positionDistance(newAttachment->getPosition(), Vector3(0, 0, 0)) < 0.001f,
+           "New Attachment is placed at its parent origin with an identity local CFrame");
+
+    // ピッカーが代入するWorkspace相対パスでも、制約のAttachment参照が解決される
+    auto otherAttachment = std::make_shared<Attachment>(Vector3(0, 1, 0));
+    otherAttachment->Name = "OtherAttachment";
+    attachOther->addChild(otherAttachment);
+    auto attachMotor = std::make_shared<Motor>(attachCube, attachOther);
+    attachMotor->Name = "AttachMotor";
+    luauWorkspace->addChild(attachMotor);
+    YAML::Node attachPath0;
+    attachPath0 = newAttachment->getWorkspaceRelativePath();
+    YAML::Node attachPath1;
+    attachPath1 = otherAttachment->getWorkspaceRelativePath();
+    attachMotor->setProperty("Attachment0", attachPath0);
+    attachMotor->setProperty("Attachment1", attachPath1);
+    std::vector<Instance::InstanceReference> attachRefs;
+    attachMotor->collectInstanceReferences(attachRefs);
+    bool attachResolved0 = false, attachResolved1 = false;
+    for (const auto& ref : attachRefs) {
+        if (ref.ownerLabel == "Motor.Attachment0") attachResolved0 = ref.target == newAttachment;
+        if (ref.ownerLabel == "Motor.Attachment1") attachResolved1 = ref.target == otherAttachment;
+    }
+    expect(attachResolved0 && attachResolved1,
+           "Motor resolves Attachment references given as Workspace-relative paths");
 
     auto invalidPivotScript = std::make_shared<Script>();
     invalidPivotScript->Source =
@@ -13883,6 +14024,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--gui-visibility-regression", runGuiVisibilityRegression),
         REG("--frame-profiler-regression", runFrameProfilerRegression),
         REG("--physics-migration-regression", runPhysicsMigrationRegression),
+        REG("--motor-servo-regression", runMotorServoRegression),
         REG("--physics-lifecycle-regression", runPhysicsLifecycleRegression),
         REG("--constraint-rebind-regression", runConstraintRebindRegression),
         REG("--terrain-instance-regression", runTerrainInstanceRegression),

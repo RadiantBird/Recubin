@@ -299,17 +299,19 @@ Root:
                     Axis: [0, 1, 0]
                     DriveVelocity: 100
                     MaxForce: 1000
+                    Servo: true
+                    TargetAngle: 0
                 - ClassName: Weld
                   Name: Weld
                   Properties:
                     Enabled: true
                     Cube0: Turret\Head
-                    Cube1: Turret\Barrel
+                    Cube1: Turret\Elevation
             - ClassName: Cube
-              Name: Barrel
+              Name: Elevation
               Properties:
-                Position: [2.75, 2.8992803, 0]
-                Size: [2.5, 0.5, 1]
+                Position: [1.875, 2.8992803, -0.375]
+                Size: [0.75, 0.5, 0.25]
                 Rotation: [0, 0, 0, 1]
                 Color: [1, 1, 1, 1]
                 CastShadow: true
@@ -328,6 +330,62 @@ Root:
                 Restitution: 0.1
                 Locked: false
                 LockFlags: []
+              Children:
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [0, 0, 0.125]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+                - ClassName: Motor
+                  Name: Motor
+                  Properties:
+                    Enabled: true
+                    Cube0: Turret\Elevation
+                    Cube1: Turret\Barrel
+                    Attachment0: Attachment
+                    Attachment1: Attachment
+                    Axis: [0, 0, 1]
+                    DriveVelocity: 1
+                    MaxForce: 1000
+                    Servo: true
+                    TargetAngle: 0
+            - ClassName: Cube
+              Name: Barrel
+              Properties:
+                Position: [3.375, 2.9, 0]
+                Size: [3.75, 0.5, 0.5]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+              Children:
+                - ClassName: Attachment
+                  Name: Attachment
+                  Properties:
+                    Position: [-1.5094995, 0, -0.25]
+                    Size: [0, 0, 0]
+                    Rotation: [0, 0, 0, 1]
+                - ClassName: NoCollision
+                  Name: NoCollision
+                  Properties:
+                    Enabled: true
+                    Cube0: Turret\Barrel
+                    Cube1: Turret\Head
     - ClassName: PathfindingService
       Name: PathfindingService
       Properties:

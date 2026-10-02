@@ -30,6 +30,12 @@ public:
     Vector3 Axis          = {1.0f, 0.0f, 0.0f}; // 回転軸（Cube0基準のローカル方向）
     float DriveVelocity   = 1.0f;  // rad/s
     float MaxForce        = 1000.0f;
+    // true: DriveVelocity による連続回転ではなく、TargetAngleを維持するサーボとして動く。
+    // このときDriveVelocityは最大回転速度(|rad/s|)、MaxForceは出せる最大トルクとして働く。
+    bool  Servo           = false;
+    // Servo有効時の目標角度(度)。Axis周りの右ねじ方向が正で、ジョイント生成時の姿勢が0度。
+    // 物理側の角度は[-180,180]で扱うため、目標との差は最短経路で解く。
+    float TargetAngle     = 0.0f;
 
     std::string m_attachment0Name; // Cube0配下の子孫パス（空=未使用）
     std::string m_attachment1Name; // Cube1配下の子孫パス（空=未使用）
@@ -44,8 +50,12 @@ public:
     void setDriveVelocity(float v);
     void setMaxForce(float v);
     void setAxis(Vector3 axis);
+    void setServo(bool enabled);
+    void setTargetAngle(float degrees);
     float getDriveVelocity() const { return DriveVelocity; }
     float getMaxForce() const { return MaxForce; }
+    bool getServo() const { return Servo; }
+    float getTargetAngle() const { return TargetAngle; }
     PhysicsConstraintHandle getConstraintHandle() const;
 
     virtual std::string getClassName() override;

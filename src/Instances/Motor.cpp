@@ -22,6 +22,8 @@ static const bool s_motorRegistered = [] {
             }),
         method_prop<&Motor::getDriveVelocity, &Motor::setDriveVelocity>("DriveVelocity", -1.0e4f, 1.0e4f, 0.1f),
         method_prop<&Motor::getMaxForce, &Motor::setMaxForce>("MaxForce", 0.0f, 1.0e7f, 10.0f),
+        method_prop<&Motor::getServo, &Motor::setServo>("Servo"),
+        method_prop<&Motor::getTargetAngle, &Motor::setTargetAngle>("TargetAngle", -360.0f, 360.0f, 1.0f),
     });
     return true;
 }();
@@ -51,10 +53,10 @@ void Motor::refreshRefNames() {
 void Motor::resolveAdditionalReferences() {
     if (!m_attachment0.lock() && !m_attachment0Name.empty())
         if (auto c0 = m_cube0.lock())
-            m_attachment0 = Attachment::findUnder(c0.get(), m_attachment0Name);
+            m_attachment0 = Attachment::resolveReference(c0.get(), m_attachment0Name);
     if (!m_attachment1.lock() && !m_attachment1Name.empty())
         if (auto c1 = m_cube1.lock())
-            m_attachment1 = Attachment::findUnder(c1.get(), m_attachment1Name);
+            m_attachment1 = Attachment::resolveReference(c1.get(), m_attachment1Name);
 }
 
 void Motor::recreateConstraint() {
@@ -80,6 +82,22 @@ void Motor::setMaxForce(float v) {
     if (MaxForce == v) return;
     MaxForce = v;
     if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
+        m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
+}
+
+void Motor::setServo(bool enabled) {
+    if (Servo == enabled) return;
+    Servo = enabled;
+    if (m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
+        m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
+}
+
+void Motor::setTargetAngle(float degrees) {
+    if (!std::isfinite(degrees)) return;
+    if (TargetAngle == degrees) return;
+    TargetAngle = degrees;
+    // 目標の変更でスリープ中のボディを起こす
+    if (Servo && m_constraintHandle && m_lastWorkspace && m_lastWorkspace->getPhysicsEngine())
         m_lastWorkspace->getPhysicsEngine()->updateConstraint(shared_from_this());
 }
 
@@ -150,6 +168,10 @@ void Motor::setProperty(const std::string& name, const YAML::Node& value) {
         setDriveVelocity(value.as<float>());
     } else if (name == "MaxForce") {
         setMaxForce(value.as<float>());
+    } else if (name == "Servo") {
+        setServo(value.as<bool>());
+    } else if (name == "TargetAngle") {
+        setTargetAngle(value.as<float>());
     } else {
         PhysicsConstraint::setProperty(name, value);
     }

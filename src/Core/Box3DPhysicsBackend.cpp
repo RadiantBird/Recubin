@@ -40,6 +40,9 @@ constexpr float CLIP_EPSILON = 1.0e-5f;
 constexpr int MAX_HULL_VERTICES = 44;
 constexpr float MOTOR_CONSTRAINT_HERTZ = 240.0f;
 constexpr float MOTOR_CONSTRAINT_DAMPING_RATIO = 2.0f;
+// Servo: 角度誤差(rad)に掛けて目標回転速度(rad/s)にする比例ゲイン(1/s)。
+// 速度モーターで駆動するので、目標付近では速度が0へ収束して振動しにくい。
+constexpr float SERVO_GAIN = 10.0f;
 constexpr std::uint64_t TOUCH_SENSOR_CATEGORY_BITS = 1ull << 1;
 
 uint32_t recommendedPhysicsWorkerCount() {
@@ -90,6 +93,22 @@ float motorTorqueToMks(float maxForce) {
     // independently at Motor creation; reducing this value would silently
     // remove the authored vehicle drive force.
     return std::max(0.0f, maxForce) * TORQUE_TO_MKS / FIXED_STEP;
+}
+
+float wrapToPi(float radians) {
+    constexpr float pi = std::numbers::pi_v<float>;
+    radians = std::fmod(radians + pi, 2.0f * pi);
+    if (radians < 0.0f) radians += 2.0f * pi;
+    return radians - pi;
+}
+
+// Servoの目標回転速度。DriveVelocityを最大速度、誤差は最短経路で解く。
+float servoMotorSpeed(const Motor& motor, float angleRadians) {
+    constexpr float degreesToRadians = std::numbers::pi_v<float> / 180.0f;
+    const float error =
+        wrapToPi(motor.TargetAngle * degreesToRadians - angleRadians);
+    const float limit = std::abs(motor.DriveVelocity);
+    return std::clamp(error * SERVO_GAIN, -limit, limit);
 }
 
 struct FacePolyhedron {
@@ -1706,6 +1725,17 @@ void Box3DPhysicsBackend::applyMaintainedVelocities() {
     }
 }
 
+void Box3DPhysicsBackend::applyServoMotors() {
+    for (const ConstraintEntry& entry : m_constraints) {
+        if (!entry.servo || B3_IS_NULL(entry.jointId) ||
+            !b3Joint_IsValid(entry.jointId)) continue;
+        const auto motor = std::static_pointer_cast<Motor>(entry.constraint.lock());
+        if (!motor || !motor->Servo) continue;
+        b3RevoluteJoint_SetMotorSpeed(entry.jointId, servoMotorSpeed(
+            *motor, b3RevoluteJoint_GetAngle(entry.jointId)));
+    }
+}
+
 void Box3DPhysicsBackend::applyGyroForces() {
     constexpr float RESPONSE_RATE = 20.0f;
     constexpr float DEGREES_TO_RADIANS =
@@ -2331,6 +2361,7 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
             FrameProfiler::Scope scope("physics.gyro");
             applyGyroForces();
         }
+        applyServoMotors();
 
             {
                 FrameProfiler::Scope scope("physics.box3dStep");
@@ -3078,13 +3109,16 @@ void Box3DPhysicsBackend::createMotor(const std::shared_ptr<Motor>& motor) {
     definition.base.constraintHertz = MOTOR_CONSTRAINT_HERTZ;
     definition.base.constraintDampingRatio = MOTOR_CONSTRAINT_DAMPING_RATIO;
     definition.enableMotor = true;
-    definition.motorSpeed = motor->DriveVelocity;
+    // Servoの角度は作成時の姿勢(=0度)が基準なので、作成直後の誤差は目標角度そのもの
+    definition.motorSpeed = motor->Servo
+        ? servoMotorSpeed(*motor, 0.0f) : motor->DriveVelocity;
     definition.maxMotorTorque = motorTorqueToMks(motor->MaxForce);
     const b3JointId joint = b3CreateRevoluteJoint(m_worldId, &definition);
     if (B3_IS_NULL(joint)) return;
     const PhysicsConstraintHandle handle{b3StoreJointId(joint)};
     motor->m_constraintHandle = handle;
     m_constraints.push_back({motor, handle, joint});
+    m_constraints.back().servo = motor->Servo;
     b3Joint_WakeBodies(joint);
 }
 
@@ -3411,7 +3445,10 @@ void Box3DPhysicsBackend::updateConstraint(
         auto motor = std::static_pointer_cast<Motor>(constraint);
         if (B3_IS_NULL(entry->jointId) || !b3Joint_IsValid(entry->jointId))
             return;
-        b3RevoluteJoint_SetMotorSpeed(entry->jointId, motor->DriveVelocity);
+        entry->servo = motor->Servo;
+        b3RevoluteJoint_SetMotorSpeed(entry->jointId, motor->Servo
+            ? servoMotorSpeed(*motor, b3RevoluteJoint_GetAngle(entry->jointId))
+            : motor->DriveVelocity);
         b3RevoluteJoint_SetMaxMotorTorque(
             entry->jointId, motorTorqueToMks(motor->MaxForce));
         b3Joint_WakeBodies(entry->jointId);

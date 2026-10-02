@@ -155,6 +155,7 @@ void SceneHierarchyPanel::onRender() {
         m_childrenCache.clear();
         m_childrenCacheRoot = root;
     }
+    m_childrenCache.purgeExpired();
     selectedInstances.erase(std::remove_if(selectedInstances.begin(), selectedInstances.end(),
         [root](Instance* inst) { return !hierarchyContainsInstance(root, inst); }),
         selectedInstances.end());
@@ -338,14 +339,19 @@ void SceneHierarchyPanel::drawNode(
     if (!renaming && ImGui::IsItemClicked()) {
         // ---- ピッカーモード: Pick 中はクリックを Cube/Attachment 参照指定に横取り（選択は変更しない） ----
         if (m_picker && m_picker->active) {
-            const bool matches = !m_picker->pickClassName.empty()
-                                ? inst->IsA(m_picker->pickClassName)
-                                : m_picker->pickAnyInstance ? true
-                                : m_picker->pickAttachment  ? inst->IsA("Attachment")
-                                                             : inst->IsA("BaseCube");
-            if (matches && inst != m_picker->constraint && m_picker->onPick)
-                m_picker->onPick(inst->shared_from_this());
-            m_picker->active = false;
+            // 展開矢印のクリックはピックではない。Model/Folder配下の対象を選べるよう、
+            // 矢印や対象外の行をクリックしてもPickを解除しない(解除はCancelボタン)。
+            if (!ImGui::IsItemToggledOpen()) {
+                const bool matches = !m_picker->pickClassName.empty()
+                                    ? inst->IsA(m_picker->pickClassName)
+                                    : m_picker->pickAnyInstance ? true
+                                    : m_picker->pickAttachment  ? inst->IsA("Attachment")
+                                                                 : inst->IsA("BaseCube");
+                if (matches && inst != m_picker->constraint) {
+                    if (m_picker->onPick) m_picker->onPick(inst->shared_from_this());
+                    m_picker->active = false;
+                }
+            }
         } else
         if (ImGui::GetIO().KeyShift) {
             m_pendingRangeTarget = inst;
@@ -471,6 +477,13 @@ void SceneHierarchyPanel::drawNode(
         ImGui::TreePop();
     } else if (!isLeaf && open) {
         const auto& children = m_childrenCache.get(*inst);
+        // 子の描画中(右クリックメニューやPickの確定など)にこの親の子が増減すると、
+        // 以降のchildren[]は破棄済みInstanceを指しうる。変化を検知したら残りの行は
+        // 次フレームに回す。
+        const std::uint64_t childrenRevision = inst->getChildrenRevision();
+        const auto childrenChanged = [&] {
+            return inst->getChildrenRevision() != childrenRevision;
+        };
         constexpr std::size_t CLIPPED_ROW_THRESHOLD = 64;
         auto isRevealAncestor = [&](Instance* candidate) {
             if (!candidate || !m_revealRequest) return false;
@@ -503,6 +516,7 @@ void SceneHierarchyPanel::drawNode(
             const std::size_t count = end - begin;
             if (count < CLIPPED_ROW_THRESHOLD) {
                 for (std::size_t index = begin; index < end; ++index) {
+                    if (childrenChanged()) return;
                     drawNode(children[index], false, false);
                 }
                 return;
@@ -523,6 +537,7 @@ void SceneHierarchyPanel::drawNode(
                 for (int index = clipper.DisplayStart;
                      index < clipper.DisplayEnd;
                      ++index) {
+                    if (childrenChanged()) continue;
                     drawNode(
                         children[begin + static_cast<std::size_t>(index)],
                         false,
@@ -533,12 +548,14 @@ void SceneHierarchyPanel::drawNode(
 
         std::size_t collapsedBegin = 0;
         for (std::size_t index = 0; index < children.size(); ++index) {
+            if (childrenChanged()) break;
             if (!isExpanded(children[index])) continue;
             drawCollapsedRange(collapsedBegin, index);
+            if (childrenChanged()) break;
             drawNode(children[index]);
             collapsedBegin = index + 1;
         }
-        drawCollapsedRange(collapsedBegin, children.size());
+        if (!childrenChanged()) drawCollapsedRange(collapsedBegin, children.size());
         ImGui::TreePop();
     }
 }
@@ -1021,8 +1038,13 @@ bool SceneHierarchyPanel::executeClassPickerSelection(const std::string& selecte
         }
         if (!m_history) return false;
         auto obj = InstanceCatalog::create(selected);
-        if (obj && obj->IsA("Spatial"))
+        if (obj && selected == "Attachment") {
+            // 親へ追加するとワールド姿勢が保たれるため、カメラ前のspawn位置ではなく
+            // 親の位置・向きに作って local を単位にする
+            obj = Attachment::createAtParent(*m_classPickerParent);
+        } else if (obj && obj->IsA("Spatial")) {
             static_cast<Spatial*>(obj.get())->setPosition(computeSpawnPos(m_user, workspace));
+        }
         auto insertParent = m_classPickerParent;
         if (selected == "SurfaceMark" && insertParent->IsA("BaseCube") && workspace)
             insertParent = workspace->shared_from_this();

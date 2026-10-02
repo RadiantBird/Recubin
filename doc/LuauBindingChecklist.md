@@ -128,7 +128,7 @@
 | Rod | LineWidth / Color / Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
 | BallSocket | Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
 | NoCollision | Cube0 / Cube1 / Enabled | — |
-| Motor | Axis / DriveVelocity / MaxForce / Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
+| Motor | Axis / DriveVelocity / MaxForce / Servo / TargetAngle / Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
 
 ---
 

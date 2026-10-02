@@ -18,6 +18,10 @@
 | `Axis` | `Vector3` | 回転軸（ワールド方向、既定`{1,0,0}`） |
 | `DriveVelocity` | `float` | 目標角速度(rad/s) |
 | `MaxForce` | `float` | 駆動力の上限 |
+| `Servo` | `bool` | true: 連続回転ではなく`TargetAngle`を維持するサーボとして動く。このとき`DriveVelocity`は最大回転速度(\|rad/s\|)、`MaxForce`は最大トルク |
+| `TargetAngle` | `float` | Servo有効時の目標角度(度)。`Axis`周りの右ねじ方向が正、ジョイント生成時の姿勢が0度。物理側の角度は[-180,180]のため差は最短経路で解く（270°は-90°と同じ）。`Axis`変更などでジョイントを作り直すと、その時点の姿勢が0度になる |
+
+Servoの実装はBox3Dバックエンドのみ（`applyServoMotors()`が固定ステップごとに誤差×ゲインで速度モーターの目標速度を更新）。PhysXバックエンドは`Servo`を無視する。
 
 ## メソッド
 

@@ -1758,7 +1758,13 @@ void EditorManager::renderToolbarPhysics() {
     ImGui::SameLine();
     tryAddObjectButton<Rope>(ICON_ROPE, "Rope", "Rope", parent, btnSz);
     ImGui::SameLine();
-    tryAddObjectButton<Attachment>(ICON_ATTACHMENT, "Attachment", "Attachment", parent, btnSz, Vector3(0, 0, 0));
+    // 親へ追加するとワールド姿勢が保たれるため、親の位置・向きに作って local を単位にする
+    if (drawIconButton(ICON_ATTACHMENT, "Attachment", btnSz) && parent) {
+        auto attachment = Attachment::createAtParent(*parent);
+        attachment->Name = SceneHierarchyPanel::uniqueName(parent, "Attachment");
+        m_history.execute(std::make_unique<AddInstanceCommand>(parent, attachment));
+        markDirty();
+    }
     ImGui::SameLine();
     tryAddObjectButton<Force>(ICON_FORCE, "Force", "Force", parent, btnSz);
     ImGui::SameLine();

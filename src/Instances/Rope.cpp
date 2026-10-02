@@ -47,10 +47,10 @@ void Rope::refreshRefNames() {
 void Rope::resolveAdditionalReferences() {
     if (!m_attachment0.lock() && !m_attachment0Name.empty())
         if (auto c0 = m_cube0.lock())
-            m_attachment0 = Attachment::findUnder(c0.get(), m_attachment0Name);
+            m_attachment0 = Attachment::resolveReference(c0.get(), m_attachment0Name);
     if (!m_attachment1.lock() && !m_attachment1Name.empty())
         if (auto c1 = m_cube1.lock())
-            m_attachment1 = Attachment::findUnder(c1.get(), m_attachment1Name);
+            m_attachment1 = Attachment::resolveReference(c1.get(), m_attachment1Name);
 }
 
 void Rope::setMaxDistance(float v) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -32,11 +33,17 @@ class DirectChildrenCache {
 public:
     const std::vector<Instance*>& get(Instance& parent);
     void clear();
+    // 破棄済みの親のエントリを捨てる。get()が返した参照を呼び出し側が保持している間に
+    // 呼ぶと無効になるため、フレームの先頭など走査していないときだけ呼ぶ。
+    void purgeExpired();
 
 private:
     struct Entry {
         std::uint64_t revision = 0;
         bool initialized = false;
+        // キーは生ポインタなので、破棄された親と同じアドレスに別のInstanceが
+        // 作られた場合に古い子リスト(ぶら下がりポインタ)を返さないよう所有者を確認する
+        std::weak_ptr<Instance> owner;
         std::vector<Instance*> children;
     };
 
