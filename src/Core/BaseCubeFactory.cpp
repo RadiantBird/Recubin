@@ -3,6 +3,7 @@
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
+#include <Instances/Wedge.hpp>
 #include <Instances/Truss.hpp>
 #include <Instances/Seat.hpp>
 #include <Instances/Sphere.hpp>
@@ -13,11 +14,13 @@
 
 std::shared_ptr<Instance> createBaseCubeInstance(std::string_view className) {
     if (className == "Cube")
-        return std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0);
+        return std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(4, 1, 2), 0); // Classical Scale
     if (className == "Cylinder")
         return std::make_shared<Cylinder>(Vector3(0, 0, 0), Vector3(1, 1, 1));
     if (className == "TriangularPrism")
         return std::make_shared<TriangularPrism>(Vector3(0, 0, 0), Vector3(1, 1, 1));
+    if (className == "Wedge")
+        return std::make_shared<Wedge>(Vector3(0, 0, 0), Vector3(1, 1, 1));
     if (className == "Truss")
         return std::make_shared<Truss>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0);
     if (className == "Seat")

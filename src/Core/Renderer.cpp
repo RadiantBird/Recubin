@@ -11,6 +11,7 @@
 #include <Editor/IEditorManager.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
+#include <Instances/Wedge.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/Sun.hpp>
@@ -861,6 +862,7 @@ void Renderer::init(GLFWwindow* window) {
     Cube::s_EBO                       = EBO;
     Cylinder::defaultTextureID        = whiteTexture;
     TriangularPrism::defaultTextureID = whiteTexture;
+    Wedge::defaultTextureID           = whiteTexture;
     Sphere::defaultTextureID          = whiteTexture;
     stbi_set_flip_vertically_on_load(true);
 
@@ -2752,6 +2754,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     } else if (inst->IsA("TriangularPrism")) {
                         glBindVertexArray(TriangularPrism::s_VAO);
                         glDrawElements(GL_TRIANGLES, TriangularPrism::s_IndexCount, GL_UNSIGNED_INT, nullptr);
+                    } else if (inst->IsA("Wedge")) {
+                        glBindVertexArray(Wedge::s_VAO);
+                        glDrawElements(GL_TRIANGLES, Wedge::s_IndexCount, GL_UNSIGNED_INT, nullptr);
                     } else if (inst->IsA("Sphere")) {
                         glBindVertexArray(Sphere::s_VAO);
                         glDrawElements(GL_TRIANGLES, Sphere::s_IndexCount, GL_UNSIGNED_INT, nullptr);
@@ -2988,6 +2993,20 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     } else {
                         FrameProfiler::get().addCount("cubesCulled", 1);
                     }
+                }
+            }
+        } else if (inst->IsA("Wedge")) {
+            Wedge* wg = static_cast<Wedge*>(inst);
+            if (wg->Color.a > 0.001f) {
+                CFrame wcf = wg->getWorldCFrame();
+                if (sphereInFrustum(camFrustum, wcf.Position, wg->Size.length() * 0.5f)) {
+                    Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(wg->Size.x, wg->Size.y, wg->Size.z);
+                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                    setBlendForAlpha(wg->Color.a);
+                    wg->draw(modelLoc, shaderProgram);
+                    FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
+                } else {
+                    FrameProfiler::get().addCount("cubesCulled", 1);
                 }
             }
         } else if (inst->IsA("Sphere")) {

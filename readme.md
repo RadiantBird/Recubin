@@ -160,7 +160,7 @@ v2.0では、さらに面白い要素、いろいろなインスタンス、
 - YAML(yaml-cpp)
 - miniaudio
 - Signalsmith Stretch & Signalsmith Linear
-- PhysX
+- PhysX(deprecated)
 - Box3D
 - Windows bat
 - Python

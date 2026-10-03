@@ -92,3 +92,5 @@
 #define ICON_CFRAMEVALUE         "\xef\x86\xb3"  // f1b3 fa-cubes
 #define ICON_QUATERNIONVALUE     "\xef\x8b\xb9"  // f2f9 fa-redo-alt
 #define ICON_OBJECTVALUE         "\xef\x83\xa8"  // f0e8 fa-sitemap
+
+#define ICON_WEDGE               "\xef\x95\x86"  // f546 fa-ruler-combined

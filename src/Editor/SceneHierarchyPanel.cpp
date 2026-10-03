@@ -16,6 +16,7 @@
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
+#include <Instances/Wedge.hpp>
 #include <Instances/Truss.hpp>
 #include <Instances/Seat.hpp>
 #include <Instances/Sphere.hpp>
@@ -252,6 +253,7 @@ const ClassIconEntry kClassIcons[] = {
     {ICON_SPHERE,           {"Sphere"}},
     {ICON_CYLINDER,         {"Cylinder"}},
     {ICON_TRIANGULARPRISM,  {"TriangularPrism"}},
+    {ICON_WEDGE,            {"Wedge"}},
     {ICON_TRUSS,            {"Truss"}},
     {ICON_SEAT,             {"Seat"}},
     {ICON_MESHCUBE,         {"MeshCube"}},
@@ -1295,6 +1297,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<Cube>(m_history, "Cube", parentSp, spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
         tryInsertInstance<Cylinder>(m_history, "Cylinder", parentSp, spawnPos, Vector3(1, 1, 1));
         tryInsertInstance<TriangularPrism>(m_history, "TriangularPrism", parentSp, spawnPos, Vector3(1, 1, 1));
+        tryInsertInstance<Wedge>(m_history, "Wedge", parentSp, spawnPos, Vector3(1, 1, 1));
         tryInsertInstance<Truss>(m_history, "Truss", parentSp, spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
         tryInsertInstance<Seat>(m_history, "Seat", parentSp, spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
         tryInsertInstance<Sphere>(m_history, "Sphere", parentSp, spawnPos, Vector3(1, 1, 1));
@@ -1603,6 +1606,7 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
             makeGroup("Cube", [&] { return std::make_shared<Cube>(Vector3(), Vector3(1,1,1), Cube::defaultTextureID); });
             makeGroup("Cylinder", [&] { return std::make_shared<Cylinder>(Vector3(), Vector3(1,1,1)); });
             makeGroup("TriangularPrism", [&] { return std::make_shared<TriangularPrism>(Vector3(), Vector3(1,1,1)); });
+            makeGroup("Wedge", [&] { return std::make_shared<Wedge>(Vector3(), Vector3(1,1,1)); });
             makeGroup("Truss", [&] { return std::make_shared<Truss>(Vector3(), Vector3(1,1,1), Cube::defaultTextureID); });
             makeGroup("Seat", [&] { return std::make_shared<Seat>(Vector3(), Vector3(1,1,1), Cube::defaultTextureID); });
             makeGroup("Sphere", [&] { return std::make_shared<Sphere>(Vector3(), Vector3(1,1,1)); });

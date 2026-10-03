@@ -130,7 +130,7 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-            Locked: false
+            Locked: true
             LockFlags: []
         - ClassName: Cube
           Name: Rotate
@@ -202,7 +202,7 @@ Root:
                 Enabled: true
                 Torque: false
                 MaintainVelocity: true
-                Value: [0, 0, 1]
+                Value: [0, 0, 5]
                 AxisMask: [0, 0, 1]
             - ClassName: Force
               Name: Force1
@@ -212,6 +212,33 @@ Root:
                 MaintainVelocity: false
                 Value: [0, 0, -1000]
                 AxisMask: [0, 0, 1]
+            - ClassName: Gyro
+              Name: Gyro
+              Properties:
+                Enabled: true
+                Part: Move
+                XEnabled: true
+                XTargetAngle: 0
+                XMaxTorque: 10000
+                XMaxAngularSpeed: 180
+                YEnabled: true
+                YTargetAngle: 0
+                YMaxTorque: 10000
+                YMaxAngularSpeed: 180
+                ZEnabled: true
+                ZTargetAngle: 0
+                ZMaxTorque: 10000
+                ZMaxAngularSpeed: 180
+        - ClassName: Script
+          Name: SignalEventComms
+          Properties:
+            Enabled: true
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\SignalEventComms.luau
+          Children:
+            - ClassName: IntValue
+              Name: Mode
+              Properties:
+                Value: 0
         - ClassName: Cube
           Name: Cube2
           Properties:
@@ -386,6 +413,2632 @@ Root:
                     Enabled: true
                     Cube0: Turret\Barrel
                     Cube1: Turret\Head
+        - ClassName: SignalEvent
+          Name: SignalEvent
+          Properties:
+            {}
+        - ClassName: Script
+          Name: SignalEventComms2
+          Properties:
+            Enabled: true
+            ContentPath: C:\Users\Ryarta\Documents\Recubin\scripts\SignalEventComms.luau
+          Children:
+            - ClassName: IntValue
+              Name: Mode
+              Properties:
+                Value: 1
+        - ClassName: Wedge
+          Name: Wedge
+          Properties:
+            Position: [-4.581767, 4.593829, 20.133543]
+            Size: [4, 4, 4]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: SurfaceMark
+          Name: SurfaceMark
+          Properties:
+            Position: [-4.5239277, 4.5966153, 26.057764]
+            Size: [4, 4, 4]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            FilterMode: Include
+            Texture: C:/Users/Ryarta/Pictures/3d objects.png
+            FilterInstances: [Wedge]
+        - ClassName: Folder
+          Name: Folder
+          Children:
+            - ClassName: Cube
+              Name: Brick53
+              Properties:
+                Position: [-27.647884, 4, 27.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick4
+              Properties:
+                Position: [-30.64642, 2, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick
+              Properties:
+                Position: [-30.64642, 2, 22.930017]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick56
+              Properties:
+                Position: [-27.647884, 6, 27.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick1
+              Properties:
+                Position: [-27.645931, 2, 31.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick55
+              Properties:
+                Position: [-41.64642, 4, 35.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick19
+              Properties:
+                Position: [-38.64642, 2, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick2
+              Properties:
+                Position: [-28.64642, 1, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick54
+              Properties:
+                Position: [-27.64642, 4, 23.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick18
+              Properties:
+                Position: [-41.64642, 2, 31.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick3
+              Properties:
+                Position: [-32.64642, 1, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick52
+              Properties:
+                Position: [-27.643982, 4, 35.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick5
+              Properties:
+                Position: [-41.64642, 1, 25.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick51
+              Properties:
+                Position: [-27.644955, 3, 33.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick6
+              Properties:
+                Position: [-36.64642, 1, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick50
+              Properties:
+                Position: [-27.646908, 3, 29.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick7
+              Properties:
+                Position: [-36.64642, 1, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick13
+              Properties:
+                Position: [-38.64642, 2, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick8
+              Properties:
+                Position: [-41.64642, 2, 23.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick12
+              Properties:
+                Position: [-40.64642, 1, 22.930014]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick9
+              Properties:
+                Position: [-28.64642, 1, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick10
+              Properties:
+                Position: [-41.64642, 1, 29.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick11
+              Properties:
+                Position: [-32.64642, 1, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick14
+              Properties:
+                Position: [-41.64642, 2, 27.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick58
+              Properties:
+                Position: [-27.64642, 6, 23.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick15
+              Properties:
+                Position: [-40.64642, 1, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick59
+              Properties:
+                Position: [-27.643982, 6, 35.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick16
+              Properties:
+                Position: [-34.64642, 2, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick17
+              Properties:
+                Position: [-41.64642, 1, 33.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick20
+              Properties:
+                Position: [-34.64642, 2, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick21
+              Properties:
+                Position: [-27.648857, 1, 25.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick22
+              Properties:
+                Position: [-27.646908, 1, 29.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick23
+              Properties:
+                Position: [-27.644955, 1, 33.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick24
+              Properties:
+                Position: [-27.643982, 2, 35.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick25
+              Properties:
+                Position: [-27.647884, 2, 27.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick26
+              Properties:
+                Position: [-27.64642, 2, 23.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick27
+              Properties:
+                Position: [-41.64642, 2, 35.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick28
+              Properties:
+                Position: [-30.64642, 4, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick29
+              Properties:
+                Position: [-30.64642, 4, 22.930017]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick41
+              Properties:
+                Position: [-28.64642, 3, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick30
+              Properties:
+                Position: [-27.645931, 4, 31.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick40
+              Properties:
+                Position: [-40.64642, 3, 22.930014]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick31
+              Properties:
+                Position: [-38.64642, 4, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick43
+              Properties:
+                Position: [-32.64642, 3, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick32
+              Properties:
+                Position: [-28.64642, 3, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick42
+              Properties:
+                Position: [-41.64642, 3, 29.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick33
+              Properties:
+                Position: [-41.64642, 4, 31.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick45
+              Properties:
+                Position: [-40.64642, 3, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick34
+              Properties:
+                Position: [-32.64642, 3, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick44
+              Properties:
+                Position: [-41.64642, 4, 27.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick35
+              Properties:
+                Position: [-41.64642, 3, 25.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick47
+              Properties:
+                Position: [-41.64642, 3, 33.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick36
+              Properties:
+                Position: [-36.64642, 3, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick46
+              Properties:
+                Position: [-34.64642, 4, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick37
+              Properties:
+                Position: [-36.64642, 3, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick49
+              Properties:
+                Position: [-27.648857, 3, 25.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick38
+              Properties:
+                Position: [-38.64642, 4, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick48
+              Properties:
+                Position: [-34.64642, 4, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick39
+              Properties:
+                Position: [-41.64642, 4, 23.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick57
+              Properties:
+                Position: [-41.64642, 6, 35.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick60
+              Properties:
+                Position: [-27.644955, 5, 33.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick61
+              Properties:
+                Position: [-27.646908, 5, 29.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick62
+              Properties:
+                Position: [-30.64642, 6, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick63
+              Properties:
+                Position: [-30.64642, 6, 22.930017]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick64
+              Properties:
+                Position: [-27.645931, 6, 31.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick65
+              Properties:
+                Position: [-28.64642, 5, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick66
+              Properties:
+                Position: [-38.64642, 6, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick67
+              Properties:
+                Position: [-40.64642, 5, 22.930014]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick68
+              Properties:
+                Position: [-28.64642, 5, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick69
+              Properties:
+                Position: [-32.64642, 5, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick70
+              Properties:
+                Position: [-41.64642, 6, 31.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick71
+              Properties:
+                Position: [-41.64642, 5, 29.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick72
+              Properties:
+                Position: [-32.64642, 5, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick73
+              Properties:
+                Position: [-40.64642, 5, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick74
+              Properties:
+                Position: [-41.64642, 5, 25.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick75
+              Properties:
+                Position: [-41.64642, 6, 27.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick76
+              Properties:
+                Position: [-36.64642, 5, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick77
+              Properties:
+                Position: [-41.64642, 5, 33.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick78
+              Properties:
+                Position: [-36.64642, 5, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick79
+              Properties:
+                Position: [-34.64642, 6, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick80
+              Properties:
+                Position: [-38.64642, 6, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick81
+              Properties:
+                Position: [-27.648857, 5, 25.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick82
+              Properties:
+                Position: [-41.64642, 6, 23.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick83
+              Properties:
+                Position: [-34.64642, 6, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick84
+              Properties:
+                Position: [-27.647884, 8, 27.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick85
+              Properties:
+                Position: [-41.64642, 8, 35.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick86
+              Properties:
+                Position: [-27.64642, 8, 23.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick87
+              Properties:
+                Position: [-27.643982, 8, 35.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick88
+              Properties:
+                Position: [-27.644955, 7, 33.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick89
+              Properties:
+                Position: [-27.646908, 7, 29.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick90
+              Properties:
+                Position: [-30.64642, 8, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick91
+              Properties:
+                Position: [-30.64642, 8, 22.930017]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick92
+              Properties:
+                Position: [-27.645931, 8, 31.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick93
+              Properties:
+                Position: [-28.64642, 7, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick94
+              Properties:
+                Position: [-38.64642, 8, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick95
+              Properties:
+                Position: [-40.64642, 7, 22.930014]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick96
+              Properties:
+                Position: [-28.64642, 7, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick97
+              Properties:
+                Position: [-32.64642, 7, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick98
+              Properties:
+                Position: [-41.64642, 8, 31.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick99
+              Properties:
+                Position: [-41.64642, 7, 29.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick100
+              Properties:
+                Position: [-32.64642, 7, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick101
+              Properties:
+                Position: [-40.64642, 7, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick102
+              Properties:
+                Position: [-41.64642, 7, 25.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick103
+              Properties:
+                Position: [-41.64642, 8, 27.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick104
+              Properties:
+                Position: [-36.64642, 7, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick105
+              Properties:
+                Position: [-41.64642, 7, 33.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick106
+              Properties:
+                Position: [-36.64642, 7, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick107
+              Properties:
+                Position: [-34.64642, 8, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick108
+              Properties:
+                Position: [-38.64642, 8, 36.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0, 0, 1]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick109
+              Properties:
+                Position: [-27.648857, 7, 25.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 0.70710665, 0, 0.7071069]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick110
+              Properties:
+                Position: [-41.64642, 8, 23.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, -0.7071068, 0, 0.7071068]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
+            - ClassName: Cube
+              Name: Brick111
+              Properties:
+                Position: [-34.64642, 8, 22.930016]
+                Size: [4, 1, 2]
+                Rotation: [0, 1, 0, 1.19209275e-07]
+                Color: [1, 1, 1, 1]
+                CastShadow: true
+                ShadowMode: Normal
+                Unlit: false
+                UseTriplanar: false
+                TextureScale: 1
+                Anchored: false
+                CanCollide: true
+                CanTouch: true
+                MassDensity: 1
+                CCDMode: Default
+                MaterialType: 0
+                StaticFriction: 0.5
+                DynamicFriction: 0.5
+                Restitution: 0.1
+                Locked: false
+                LockFlags: []
     - ClassName: PathfindingService
       Name: PathfindingService
       Properties:

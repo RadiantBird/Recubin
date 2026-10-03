@@ -5,7 +5,7 @@
 namespace {
 using C = InstanceCategory;
 const std::vector<InstanceCatalogEntry> kEntries = {
-    {"Cube", C::Cubes}, {"Cylinder", C::Cubes}, {"TriangularPrism", C::Cubes},
+    {"Cube", C::Cubes}, {"Cylinder", C::Cubes}, {"TriangularPrism", C::Cubes}, {"Wedge", C::Cubes},
     {"Truss", C::Cubes}, {"Seat", C::Cubes}, {"Sphere", C::Cubes},
     {"MeshCube", C::Cubes}, {"LiquidCube", C::Cubes}, {"SpawnLocation", C::Cubes},
     {"Sound", C::Effects}, {"Decal", C::Effects}, {"Texture", C::Effects},

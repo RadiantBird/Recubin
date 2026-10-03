@@ -1422,8 +1422,8 @@ int runSpawnLocationRegression() {
                spawnDefaults->IsA("Instance"),
            "Named supplies the complete SpawnLocation IsA inheritance chain");
 
-    constexpr std::array<const char*, 10> baseCubeClasses = {
-        "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere",
+    constexpr std::array<const char*, 11> baseCubeClasses = {
+        "Cube", "Cylinder", "TriangularPrism", "Wedge", "Truss", "Seat", "Sphere",
         "MeshCube", "LiquidCube", "SpawnLocation", "Skybox"
     };
     bool factoryComplete = true;

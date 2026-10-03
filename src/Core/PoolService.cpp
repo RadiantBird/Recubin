@@ -6,7 +6,7 @@
 namespace {
 const std::unordered_map<std::string, bool>& poolWhitelist() {
     static const std::unordered_map<std::string, bool> whitelist = {
-        {"Cube", true}, {"Cylinder", true}, {"TriangularPrism", true},
+        {"Cube", true}, {"Cylinder", true}, {"TriangularPrism", true}, {"Wedge", true},
         {"Truss", true}, {"Seat", true}, {"Sphere", true},
         {"MeshCube", true}, {"LiquidCube", true},
     };

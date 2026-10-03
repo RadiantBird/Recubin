@@ -503,7 +503,7 @@ static int runGenTestScene(const std::string& outputPath) {
     // PathfindingService/Script は特殊なため除外。Script は末尾で検証用に個別追加する）。
     // createInstance() に新しいクラスを追加した場合はここにも追加すること。
     static const char* kClassNames[] = {
-        "Cube", "Cylinder", "TriangularPrism", "Truss", "Seat", "Sphere", "MeshCube", "LiquidCube", "SpawnLocation",
+        "Cube", "Cylinder", "TriangularPrism", "Wedge", "Truss", "Seat", "Sphere", "MeshCube", "LiquidCube", "SpawnLocation",
         "Skybox", "Sun", "Moon", "Model", "Sound", "SurfaceMark",
         "Lighting", "Material", "PointLight", "SpotLight", "PostEffect",
         "AppImage", "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance",

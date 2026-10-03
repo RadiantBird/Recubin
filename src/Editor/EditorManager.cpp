@@ -14,6 +14,7 @@
 #include <Instances/System.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
+#include <Instances/Wedge.hpp>
 #include <Instances/Truss.hpp>
 #include <Instances/Seat.hpp>
 #include <Instances/Sphere.hpp>
@@ -1622,7 +1623,7 @@ void EditorManager::renderToolbarBasic() {
         auto ws = m_workspace->shared_from_this();
         const LazySpawnPos spawnPos{m_user, m_workspace};
         tryAddObjectButton<Cube>(ICON_CUBE, "New Cube", "Cube", ws, iconBtnSz,
-            spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
+            spawnPos, Vector3(4, 1, 2), Cube::defaultTextureID);
     }
     ImGui::SameLine();
     if (drawIconButton(ICON_SCRIPT, Loc::t(Loc::LocKey::NewScriptButton), iconBtnSz) && m_workspace && hierarchyPanel) {
@@ -1659,6 +1660,9 @@ void EditorManager::renderToolbarCubes() {
     tryAddObjectButton<TriangularPrism>(ICON_TRIANGULARPRISM, "TriangularPrism", "TriangularPrism", ws, btnSz,
         spawnPos, Vector3(1, 1, 1));
     ImGui::SameLine();
+    tryAddObjectButton<Wedge>(ICON_WEDGE, "Wedge", "Wedge", ws, btnSz,
+        spawnPos, Vector3(1, 1, 1));
+    ImGui::SameLine();
     tryAddObjectButton<Truss>(ICON_TRUSS, "Truss", "Truss", ws, btnSz,
         spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
     ImGui::SameLine();
@@ -1674,7 +1678,7 @@ void EditorManager::renderToolbarCubes() {
     tryAddObjectButton<LiquidCube>(ICON_LIQUIDCUBE, "LiquidCube", "LiquidCube", ws, btnSz,
         spawnPos, Vector3(4, 2, 4));
     ImGui::SameLine();
-    tryAddObjectButton<SpawnLocation>(ICON_CUBE, "SpawnLocation", "SpawnLocation", ws, btnSz,
+    tryAddObjectButton<SpawnLocation>(ICON_SPAWNLOCATION, "SpawnLocation", "SpawnLocation", ws, btnSz,
         spawnPos);
 }
 
