@@ -86,6 +86,16 @@ void configureCubeFilter(
         : (canTouch ? TOUCH_SENSOR_CATEGORY_BITS : 0);
 }
 
+// Box3D は filter が同一だと b3Shape_SetFilter を無視する。キャラクター衝突グループの変更は
+// customFilter の結果だけを変えて filter 自体は変わらないため、別の値を経由して戻し、
+// 既存の接触の破棄とペアの再判定を確実に起こす。
+void forceShapeRefilter(b3ShapeId shape, const b3Filter& filter) {
+    b3Filter transient = filter;
+    transient.groupIndex = filter.groupIndex == 1 ? 2 : 1;
+    b3Shape_SetFilter(shape, transient, true);
+    b3Shape_SetFilter(shape, filter, true);
+}
+
 float motorTorqueToMks(float maxForce) {
     // Motor::MaxForce is the legacy maximum angular drive impulse per fixed
     // tick in kg*stud^2/s. Box3D expects N*m, so convert both the length unit
@@ -808,7 +818,7 @@ void Box3DPhysicsBackend::refreshCollisionFilter(BaseCube& cube) {
         // Its filter mask only accepts the dedicated sensor category when
         // CanCollide is false, so this does not create physical contacts.
         b3Shape_EnableSensorEvents(shape, cube.CanTouch);
-        b3Shape_SetFilter(shape, filter, true);
+        forceShapeRefilter(shape, filter);
         changed = true;
     }
 
@@ -2209,10 +2219,10 @@ void Box3DPhysicsBackend::processContactEvents() {
             continue;
         }
 
-        auto* first = static_cast<const BaseCube*>(
-            b3Shape_GetUserData(event.shapeIdA));
-        auto* second = static_cast<const BaseCube*>(
-            b3Shape_GetUserData(event.shapeIdB));
+        auto* first = dynamic_cast<const BaseCube*>(
+            static_cast<const Instance*>(b3Shape_GetUserData(event.shapeIdA)));
+        auto* second = dynamic_cast<const BaseCube*>(
+            static_cast<const Instance*>(b3Shape_GetUserData(event.shapeIdB)));
         if (!first && !second) continue;
 
         const float approachImpact = std::max(0.0f, event.approachSpeed) *
@@ -2498,10 +2508,11 @@ bool Box3DPhysicsBackend::customFilter(
     b3ShapeId shapeIdA, b3ShapeId shapeIdB, void* context) {
     auto* backend = static_cast<Box3DPhysicsBackend*>(context);
     if (!backend) return true;
-    const auto* first = static_cast<const BaseCube*>(
-        b3Shape_GetUserData(shapeIdA));
-    const auto* second = static_cast<const BaseCube*>(
-        b3Shape_GetUserData(shapeIdB));
+    // 地形など BaseCube 以外の Instance も userData に載るため、型を確認してから読む。
+    const auto* first = dynamic_cast<const BaseCube*>(
+        static_cast<const Instance*>(b3Shape_GetUserData(shapeIdA)));
+    const auto* second = dynamic_cast<const BaseCube*>(
+        static_cast<const Instance*>(b3Shape_GetUserData(shapeIdB)));
     if (!first || !second) return true;
     const bool sensorA = b3Shape_IsSensor(shapeIdA);
     const bool sensorB = b3Shape_IsSensor(shapeIdB);

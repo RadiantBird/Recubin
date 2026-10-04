@@ -58,6 +58,12 @@ Box3D worldは内蔵スケジューラを使用する。worker数は論理プロ
 Gyroは単一Partのworld角度をX/Y/Z軸ごとに独立制御する。各軸の目標角、最大トルク、最大角速度は
 Gyro Instanceが保持し、Box3D backendは有効な軸だけへPD制御トルクを加える。
 
+## キャラクター衝突グループ（Box3D）
+
+`Humanoid`を直接の子に持つ`Model`は衝突グループを持ち、同じグループのBaseCube同士は`customFilter`で衝突を抑止する（BallSocketで接続されたペアなどは例外）。`customFilter`はシェイプの`userData`を`dynamic_cast`でBaseCubeか確認してから読む。地形シェイプの`userData`はBaseCubeではない`Instance`のため、型を確認せずに読むと地形との衝突が確率的に無効になる。
+
+グループが変わる（子のreparent、Humanoidの追加・削除など）と`refreshCollisionFilter`が呼ばれる。Box3Dの`b3Shape_SetFilter`は`filter`が同一だと何もしないが、グループは`customFilter`側にあり`filter`自体は変わらないため、`forceShapeRefilter`が別の値を経由して戻し、既存の接触の破棄とペアの再判定を起こす。
+
 ## 依存関係
 
 - Box3D

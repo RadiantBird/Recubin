@@ -1,0 +1,449 @@
+recubin:
+  type: scene
+  version: 0
+Root:
+  Properties:
+    BaseResolution: [1920, 1080]
+    UseNetwork: false
+    EnableIOAPI: false
+    EnableIPCAPI: false
+    EnableExternalFileAccess: false
+    AutoSpawnPlayerCharacter: true
+    MaxClonesPerFrame: 1000
+    MaxRestartsPerFrame: 100
+    MaxTasksPerFrame: 1000
+    ScriptLoopTimeoutSeconds: 2
+    DefaultCameraMode: Character
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Properties:
+        Gravity: [0, -196.20001, 0]
+        Wind: [0, 0, 0]
+        PhysicsEnabled: true
+      Children:
+        - ClassName: Cube
+          Name: Baseplate
+          Properties:
+            Position: [0, -0.5, 0]
+            Size: [600, 1, 600]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.3, 0.3, 0.3, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Motor
+          Name: CarMotor3
+          Properties:
+            Enabled: true
+            Cube0: CarChassis
+            Cube1: CarWheel3
+            Attachment0: CarChassisAttachment3
+            Attachment1: CarWheelAttachment3
+            Axis: [0, 0, 1]
+            DriveVelocity: 6
+            MaxForce: 5000
+            Servo: false
+            TargetAngle: 0
+        - ClassName: SpawnLocation
+          Name: SpawnLocation
+          Properties:
+            Position: [40, 0.5, 0]
+            Size: [8, 1, 8]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+            Enabled: true
+        - ClassName: Cylinder
+          Name: CarWheel1
+          Properties:
+            Position: [-3, 2.05, 2.5]
+            Size: [4, 1, 4]
+            Rotation: [0.7071068, 0, 0, 0.7071068]
+            Color: [0.1, 0.1, 0.1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+          Children:
+            - ClassName: Attachment
+              Name: CarWheelAttachment1
+              Properties:
+                Position: [0, 0, 0]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+        - ClassName: Cube
+          Name: CarChassis
+          Properties:
+            Position: [0, 3.25, 0]
+            Size: [8, 1, 4]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.9, 0.2, 0.2, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: [AngularX, AngularY, AngularZ]
+          Children:
+            - ClassName: Attachment
+              Name: CarChassisAttachment0
+              Properties:
+                Position: [-3, -1.2, -2.5]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+            - ClassName: Attachment
+              Name: CarChassisAttachment1
+              Properties:
+                Position: [-3, -1.2, 2.5]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+            - ClassName: Attachment
+              Name: CarChassisAttachment2
+              Properties:
+                Position: [3, -1.2, -2.5]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+            - ClassName: Attachment
+              Name: CarChassisAttachment3
+              Properties:
+                Position: [3, -1.2, 2.5]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+        - ClassName: Cylinder
+          Name: CarWheel0
+          Properties:
+            Position: [-3, 2.05, -2.5]
+            Size: [4, 1, 4]
+            Rotation: [0.7071068, 0, 0, 0.7071068]
+            Color: [0.1, 0.1, 0.1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+          Children:
+            - ClassName: Attachment
+              Name: CarWheelAttachment0
+              Properties:
+                Position: [0, 0, 0]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+        - ClassName: Motor
+          Name: CarMotor0
+          Properties:
+            Enabled: true
+            Cube0: CarChassis
+            Cube1: CarWheel0
+            Attachment0: CarChassisAttachment0
+            Attachment1: CarWheelAttachment0
+            Axis: [0, 0, 1]
+            DriveVelocity: 6
+            MaxForce: 5000
+            Servo: false
+            TargetAngle: 0
+        - ClassName: Motor
+          Name: CarMotor1
+          Properties:
+            Enabled: true
+            Cube0: CarChassis
+            Cube1: CarWheel1
+            Attachment0: CarChassisAttachment1
+            Attachment1: CarWheelAttachment1
+            Axis: [0, 0, 1]
+            DriveVelocity: 6
+            MaxForce: 5000
+            Servo: false
+            TargetAngle: 0
+        - ClassName: Cylinder
+          Name: CarWheel2
+          Properties:
+            Position: [3, 2.05, -2.5]
+            Size: [4, 1, 4]
+            Rotation: [0.7071068, 0, 0, 0.7071068]
+            Color: [0.1, 0.1, 0.1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+          Children:
+            - ClassName: Attachment
+              Name: CarWheelAttachment2
+              Properties:
+                Position: [0, 0, 0]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+        - ClassName: Motor
+          Name: CarMotor2
+          Properties:
+            Enabled: true
+            Cube0: CarChassis
+            Cube1: CarWheel2
+            Attachment0: CarChassisAttachment2
+            Attachment1: CarWheelAttachment2
+            Axis: [0, 0, 1]
+            DriveVelocity: 6
+            MaxForce: 5000
+            Servo: false
+            TargetAngle: 0
+        - ClassName: Lighting
+          Name: Lighting
+          Properties:
+            Brightness: 1
+            Color: [1, 1, 1, 1]
+            ShadowDistance: 160
+            ShadowFadeDistance: 20
+        - ClassName: Cylinder
+          Name: CarWheel3
+          Properties:
+            Position: [3, 2.05, 2.5]
+            Size: [4, 1, 4]
+            Rotation: [0.7071068, 0, 0, 0.7071068]
+            Color: [0.1, 0.1, 0.1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+          Children:
+            - ClassName: Attachment
+              Name: CarWheelAttachment3
+              Properties:
+                Position: [0, 0, 0]
+                Size: [0, 0, 0]
+                Rotation: [0, 0, 0, 1]
+        - ClassName: Cube
+          Name: HingeBase
+          Properties:
+            Position: [0, 6, -30]
+            Size: [2, 2, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.5, 0.5, 0.5, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: HingeRotor
+          Properties:
+            Position: [3, 6, -30]
+            Size: [4, 0.5, 0.5]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.8, 0, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Motor
+          Name: HingeMotor
+          Properties:
+            Enabled: true
+            Cube0: HingeBase
+            Cube1: HingeRotor
+            Axis: [0, 1, 0]
+            DriveVelocity: 3
+            MaxForce: 5000
+            Servo: false
+            TargetAngle: 0
+        - ClassName: Script
+          Name: MotorReproDiagnostics
+          Properties:
+            Enabled: true
+            ContentPath: scripts/motor_repro.luau
+        - ClassName: Sun
+          Name: Sun
+          Properties:
+            Angle: [135, 90]
+            Color: [1, 0.95, 0.8, 1]
+            Distance: 1000
+            GlowIntensity: 0
+            GlowRadius: 6
+            VeilIntensity: 0
+            VeilFalloff: 6
+            SpikeIntensity: 0
+            SpikeCount: 4
+            SpikeLength: 12
+            SpikeRotation: 0
+            HorizonFade: true
+    - ClassName: MaterialService
+      Name: MaterialService
+    - ClassName: Users
+      Name: Users
+      Children:
+        - ClassName: User
+          Name: User
+          Properties:
+            ControlMode: Free
+            Speed: 0.25
+            RotationSpeed: 1
+            MouseRotationSpeed: 0.15
+            CharacterSmoothing: 0.15
+            CameraDistance: 10
+            ZoomSpeed: 0.1
+            MouseZoomSpeed: 1
+            MovementInputEnabled: true
+            CameraInputEnabled: true
+            HotkeyInputEnabled: true
+            ToolInputEnabled: true
+            CursorType: Default
+            CursorImages:
+              - Type: Type1
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type2
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type3
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type4
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type5
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type6
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type7
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type8
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type9
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+              - Type: Type10
+                ContentPath: ""
+                Hotspot: [0, 0]
+                Size: 32
+          Children:
+            - ClassName: Folder
+              Name: Inventory
+    - ClassName: PathfindingService
+      Name: PathfindingService
+      Properties:
+        AgentRadius: 1
+        AgentHeight: 5
+        AgentMaxClimb: 0.6
+        AgentMaxSlope: 50
+        MaxJumpDistance: 6
+        MaxJumpHeight: 4

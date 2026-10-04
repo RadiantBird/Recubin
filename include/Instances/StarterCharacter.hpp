@@ -14,6 +14,7 @@ class StarterCharacter : public Model {
 public:
     StarterCharacter()
         : Model(Vector3{0, 0, 0}, Vector3{1, 1, 1}) {
+        Name = "StarterCharacter";
     }
 
     std::string getClassName() override { return "StarterCharacter"; }

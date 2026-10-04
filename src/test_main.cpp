@@ -662,8 +662,8 @@ int runToolWeldRegression() {
             std::chrono::steady_clock::now().time_since_epoch().count()) + ".yaml");
     {
         std::ofstream legacy(legacyToolPath, std::ios::trunc);
-        legacy << "ClassName: Tool\nName: LegacyTool\nProperties:\n"
-               << "  Position: [2, 3, 4]\n  Rotation: [0, 0, 0, 1]\n";
+        legacy << "Root:\n  ClassName: Tool\n  Name: LegacyTool\n  Properties:\n"
+               << "    Position: [2, 3, 4]\n    Rotation: [0, 0, 0, 1]\n";
     }
     auto legacyTool = std::dynamic_pointer_cast<Tool>(
         SceneLoader::loadScene(legacyToolPath.string()));
@@ -678,12 +678,12 @@ int runToolWeldRegression() {
             std::chrono::steady_clock::now().time_since_epoch().count()) + ".yaml");
     {
         std::ofstream modern(modernToolPath, std::ios::trunc);
-        modern << "ClassName: Tool\nName: ModernTool\nProperties:\n"
-               << "  Position: [9, 8, 7]\n  Rotation: [0, 0, 0, 1]\n"
-               << "  GripC0:\n    Position: [0, 0, -2]\n"
-               << "    Rotation: [0, 0, 0, 1]\n"
-               << "  GripC1:\n    Position: [0, 0, 1]\n"
-               << "    Rotation: [0, 0, 0, 1]\n";
+        modern << "Root:\n  ClassName: Tool\n  Name: ModernTool\n  Properties:\n"
+               << "    Position: [9, 8, 7]\n    Rotation: [0, 0, 0, 1]\n"
+               << "    GripC0:\n      Position: [0, 0, -2]\n"
+               << "      Rotation: [0, 0, 0, 1]\n"
+               << "    GripC1:\n      Position: [0, 0, 1]\n"
+               << "      Rotation: [0, 0, 0, 1]\n";
     }
     auto modernTool = std::dynamic_pointer_cast<Tool>(
         SceneLoader::loadScene(modernToolPath.string()));
@@ -1140,6 +1140,14 @@ int runStarterAccessoryWeldRegression() {
     if (physics && physics->isAvailable()) {
         physics->setGravity(Vector3(0, 0, 0));
         physics->update(*workspace, 1.0f / 60.0f);
+        // Rootだけを動かしても残りの部位はMotor6Dの物理ジョイントで遅れて追従するため、
+        // リグ全体(溶接アセンブリごと)をRootの目標姿勢へ動かす。
+        auto moveRig = [](const std::shared_ptr<Model>& model,
+                          const std::shared_ptr<BaseCube>& root,
+                          const CFrame& rootTarget) {
+            const CFrame delta = rootTarget * root->getWorldCFrame().inverse();
+            model->pivotTo(delta * model->getPivotCFrame());
+        };
         expect(physics->sharesBody(*a.head, *a.hair) &&
                    physics->sharesBody(*a.head, *a.glasses) &&
                    physics->sharesBody(*b.head, *b.hair) &&
@@ -1150,10 +1158,9 @@ int runStarterAccessoryWeldRegression() {
         const CFrame secondHeadBefore = b.head->getWorldCFrame();
         const CFrame secondHairBefore = b.hair->getWorldCFrame();
         const CFrame secondGlassesBefore = b.glasses->getWorldCFrame();
-        physics->setMemberWorldCFrame(*a.root, CFrame(
+        moveRig(first, a.root, CFrame(
             Vector3(12.0f, 5.0f, -3.0f),
             Quaternion::fromAxisAngle(Vector3(0, 1, 0), 35.0f)));
-        physics->syncCube(*a.root);
         a.humanoid->applyBodyAnimation(false, false);
         expect(finiteCFrame(a.head->getWorldCFrame()) &&
                    finiteCFrame(a.hair->getWorldCFrame()) &&
@@ -1164,10 +1171,9 @@ int runStarterAccessoryWeldRegression() {
                    cframeNear(secondGlassesBefore, b.glasses->getWorldCFrame()),
                "explicit rig update keeps every accessory finite and preserves the other rig");
 
-        physics->setMemberWorldCFrame(*b.root, CFrame(
+        moveRig(second, b.root, CFrame(
             Vector3(-14.0f, 8.0f, 6.0f),
             Quaternion::fromAxisAngle(Vector3(0, 1, 0), -50.0f)));
-        physics->syncCube(*b.root);
         b.humanoid->applyBodyAnimation(false, false);
         expect(cframeNear(hairRelativeA,
                    a.head->getWorldCFrame().inverse() * a.hair->getWorldCFrame()) &&
@@ -1202,10 +1208,8 @@ int runStarterAccessoryWeldRegression() {
                         6.0f + std::sin(phase * 0.04f) * 0.9f),
                 Quaternion::fromAxisAngle(Vector3(0, 1, 0), -phase * 1.1f));
 
-            physics->setMemberWorldCFrame(*a.root, rootTargetA);
-            physics->setMemberWorldCFrame(*b.root, rootTargetB);
-            physics->syncCube(*a.root);
-            physics->syncCube(*b.root);
+            moveRig(first, a.root, rootTargetA);
+            moveRig(second, b.root, rootTargetB);
             a.humanoid->applyBodyAnimation(false, false);
             b.humanoid->applyBodyAnimation(false, false);
 
@@ -1751,10 +1755,18 @@ int runRemoteAvatarSpawnTransformRegression() {
     if (!rootTwo || !headTwo || !torsoTwo || !hairTwo || !rootThree ||
         !headThree || !hairThree) return 1;
 
+    // User::placeCharacterAtSpawnはRootをスポーン面からHipHeightの高さに置く。
+    auto hipHeightOf = [](const std::shared_ptr<Model>& model) {
+        auto it = model->children.find("Humanoid");
+        auto humanoid = it == model->children.end()
+            ? std::shared_ptr<Humanoid>()
+            : std::dynamic_pointer_cast<Humanoid>(it->second);
+        return humanoid ? humanoid->getHipHeight() : 0.0f;
+    };
     const CFrame expectedSpawnTwo = spawnB->getWorldCFrame() *
-        CFrame(0, (spawnB->Size.y + rootTwo->Size.y) * 0.5f, 0);
+        CFrame(0, spawnB->Size.y * 0.5f + hipHeightOf(modelTwo), 0);
     const CFrame expectedSpawnThree = spawnA->getWorldCFrame() *
-        CFrame(0, (spawnA->Size.y + rootThree->Size.y) * 0.5f, 0);
+        CFrame(0, spawnA->Size.y * 0.5f + hipHeightOf(modelThree), 0);
     expect(cframeNear(rootTwo->getWorldCFrame(), expectedSpawnTwo) &&
                cframeNear(rootThree->getWorldCFrame(), expectedSpawnThree),
            "PeerId mapping applies each nonidentity SpawnLocation full CFrame");
@@ -1879,7 +1891,8 @@ int runRemoteAvatarSpawnTransformRegression() {
         ReplicationTestAccess::applyAvatarPoses(
             legacyReplication, 1.0f / 60.0f);
         expect(legacySpawned && legacyModel && legacyRoot &&
-                   cframeNear(legacyModel->getWorldCFrame(), CFrame()) &&
+                   // Model原点はPlay中に重心へ追従するので、位置ではなく回転だけがidentityのままかを見る。
+                   cframeNear(CFrame(Vector3(0, 0, 0), legacyModel->getWorldCFrame().Rotation), CFrame()) &&
                    cframeNear(legacyRoot->getWorldCFrame(), legacyPose),
                "legacy no-SpawnLocation identity Model follows the same world-pose path");
     }
@@ -2520,8 +2533,12 @@ CharacterCollisionFilterProbeResult runCharacterCollisionFilterProbe() {
     };
     auto resetPair = [&](BaseCube& dynamicCube, BaseCube& anchoredCube,
                          const Vector3& position) {
-        dynamicCube.teleportTo(position);
-        anchoredCube.teleportTo(position);
+        // teleportToはローカル座標を取る。Model原点は重心へ追従して動くので、ワールド位置で指定する。
+        auto teleportWorld = [](BaseCube& cube, const Vector3& world) {
+            cube.teleportTo(cube.getPosition() + (world - cube.getWorldPosition()));
+        };
+        teleportWorld(dynamicCube, position);
+        teleportWorld(anchoredCube, position);
         physics->setLinearVelocity(dynamicCube, {});
         physics->setAngularVelocity(dynamicCube, {});
         if (!anchoredCube.Anchored) {
@@ -3273,10 +3290,13 @@ int runPhysicsMigrationRegression() {
     auto axisMotorAttachment0 = std::make_shared<Attachment>();
     axisMotorAttachment0->Name = "AxisMotorAttachment0";
     axisMotorAnchor->addChild(axisMotorAttachment0);
+    // Attachmentのctor位置はワールド座標でsetParentはワールド姿勢を保つため、親へ追加した後にローカルを設定する。
+    axisMotorAttachment0->setCFrame(CFrame());
     auto axisMotorAttachment1 =
         std::make_shared<Attachment>(Vector3(0, 2, 0));
     axisMotorAttachment1->Name = "AxisMotorAttachment1";
     axisMotorCylinder->addChild(axisMotorAttachment1);
+    axisMotorAttachment1->setCFrame(CFrame(Vector3(0, 2, 0)));
     const CFrame nestedAttachmentLocal(
         Vector3(0.25f, 0.5f, -0.75f),
         Quaternion::fromEuler(Vector3(13.0f, -27.0f, 41.0f)));
@@ -3286,6 +3306,7 @@ int runPhysicsMigrationRegression() {
     nestedAxisMotorAttachment->Name = "NestedAxisMotorAttachment";
     nestedAxisMotorAttachment->setRotation(nestedAttachmentLocal.Rotation);
     axisMotorAttachment1->addChild(nestedAxisMotorAttachment);
+    nestedAxisMotorAttachment->setCFrame(nestedAttachmentLocal);
     auto axisMotor = std::make_shared<Motor>(
         axisMotorAnchor, axisMotorCylinder);
     axisMotor->Name = "AxisMotorDiagnostic";
@@ -3512,6 +3533,9 @@ int runPhysicsMigrationRegression() {
     nestedAttachment->Name = "MotorCompoundNestedAttachment";
     nestedParent->addChild(nestedAttachment);
     compoundMember->addChild(nestedParent);
+    // Attachmentのctor位置はワールド座標でsetParentはワールド姿勢を保つため、親へ追加した後にローカルを設定する。
+    nestedParent->setCFrame(CFrame(Vector3(2, 0, 0)));
+    nestedAttachment->setCFrame(CFrame(Vector3(0, 1, 0)));
     const CFrame compoundNestedParentLocal = nestedParent->getCFrame();
     const CFrame compoundNestedAttachmentLocal = nestedAttachment->getCFrame();
 
@@ -3520,6 +3544,8 @@ int runPhysicsMigrationRegression() {
     auto compoundRotorAttachment = std::make_shared<Attachment>();
     compoundRotorAttachment->Name = "MotorCompoundRotorAttachment";
     compoundRotor->addChild(compoundRotorAttachment);
+    // ネイティブ移動後のネストしたAttachment(x=16)と一致する位置に置く。
+    compoundRotorAttachment->setCFrame(CFrame(Vector3(-1, 0, 0)));
     physics->update(*workspace, 0.0f);
     physics->setGravityEnabled(*compoundRotor, false);
 
@@ -3606,6 +3632,7 @@ int runPhysicsMigrationRegression() {
             std::make_shared<Attachment>(carWheelOffsets[index]);
         chassisAttachment->Name = "MotorWakeCarChassisAttachment" + suffix;
         carChassis->addChild(chassisAttachment);
+        chassisAttachment->setCFrame(CFrame(carWheelOffsets[index]));
 
         auto wheel = std::make_shared<Cylinder>(
             carStart + carWheelOffsets[index], Vector3(4, 1, 4));
@@ -3616,6 +3643,7 @@ int runPhysicsMigrationRegression() {
         auto wheelAttachment = std::make_shared<Attachment>();
         wheelAttachment->Name = "MotorWakeCarWheelAttachment";
         wheel->addChild(wheelAttachment);
+        wheelAttachment->setCFrame(CFrame());
 
         auto wheelMotor = std::make_shared<Motor>(carChassis, wheel);
         wheelMotor->Name = "MotorWakeCarMotor" + suffix;
@@ -3744,6 +3772,7 @@ int runPhysicsMigrationRegression() {
             chassisAttachment->Name =
                 "MotorScaleChassisAttachment" + caseName + suffix;
             chassis->addChild(chassisAttachment);
+            chassisAttachment->setCFrame(CFrame(chassisOffsets[index]));
             auto wheel = std::make_shared<Cylinder>(
                 wheelCenter, Vector3(4, 1, 4));
             wheel->Name = "MotorScaleWheel" + caseName + suffix;
@@ -3754,6 +3783,7 @@ int runPhysicsMigrationRegression() {
                 Vector3(0, side < 0.0f ? 0.5f : -0.5f, 0));
             wheelAttachment->Name = "MotorScaleWheelAttachment";
             wheel->addChild(wheelAttachment);
+            wheelAttachment->setCFrame(CFrame(Vector3(0, side < 0.0f ? 0.5f : -0.5f, 0)));
             auto wheelMotor = std::make_shared<Motor>(chassis, wheel);
             wheelMotor->Name =
                 "MotorScaleDiagnostic" + caseName + suffix;
@@ -7760,7 +7790,7 @@ int runAssetPathRegression() {
     }
 
     std::filesystem::create_directories(tempRoot / "assets/fonts", ec);
-    for (const char* fontName : { "DotGothic16-Regular.ttf", "fa-solid-900.ttf" }) {
+    for (const char* fontName : { "DotGothic16-Regular.ttf", "MPLUS1p-Regular.ttf", "fa-solid-900.ttf" }) {
         std::filesystem::copy_file(
             originalCwd / "assets/fonts" / fontName,
             tempRoot / "assets/fonts" / fontName,
@@ -11642,7 +11672,8 @@ static int runSpatialCoordinateAssertions() {
     worldPositionEngine.setGlobalInstance("PivotModel", pivotModel);
     expect(worldPositionEngine.execute(*pivotScript),
            "Luau Model.PivotTo accepts a world CFrame");
-    expect(sameCFrame(pivotModel->getWorldCFrame(),
+    // PivotToは原点ではなくPivot(未設定なら子孫BaseCubeの重心)を指定姿勢へ動かす。
+    expect(sameCFrame(pivotModel->getPivotCFrame(),
                       CFrame(Vector3(30, 8, -11))) &&
                sameCFrame(pivotModel->getWorldCFrame().inverse() *
                               pivotChild->getWorldCFrame(), pivotRelative),
@@ -11658,13 +11689,16 @@ static int runSpatialCoordinateAssertions() {
     weldedPivotModel->addChild(weldedB);
     weldedPivotModel->addChild(weldedAssembly);
     luauWorkspace->addChild(weldedPivotModel);
+    const CFrame weldedPivotBefore = weldedPivotModel->getPivotCFrame();
     const CFrame beforeWeldA = weldedA->getWorldCFrame();
     const CFrame beforeWeldB = weldedB->getWorldCFrame();
     const CFrame weldedTarget = CFrame(Vector3(18, 7, -9),
         Quaternion::fromAxisAngle(Vector3(0, 1, 0), 42));
     weldedPivotModel->pivotTo(weldedTarget);
-    const CFrame expectedB = weldedTarget * beforeWeldA.inverse() * beforeWeldB;
-    expect(sameCFrame(weldedA->getWorldCFrame(), weldedTarget) &&
+    const CFrame weldedDelta = weldedTarget * weldedPivotBefore.inverse();
+    const CFrame expectedA = weldedDelta * beforeWeldA;
+    const CFrame expectedB = weldedDelta * beforeWeldB;
+    expect(sameCFrame(weldedA->getWorldCFrame(), expectedA) &&
                sameCFrame(weldedB->getWorldCFrame(), expectedB),
            "Model.PivotTo moves each welded assembly only once");
 
@@ -12271,7 +12305,8 @@ int runMotor6DGyroRegression() {
         Vector3(2.0f, 2.0f, 2.0f),
         Quaternion()
     );
-    configureSingleAxis(disturbed, GyroAxis::X, 0.0f);
+    // 既定の高トルクでは外乱が1ステップで打ち消され偏差が観測できないため、有限のトルクにする。
+    configureSingleAxis(disturbed, GyroAxis::X, 0.0f, 80.0f, 720.0f);
     disturbed.physics->setAngularVelocity(
         *disturbed.part,
         Vector3(5.0f, 0.0f, 0.0f)
@@ -12372,7 +12407,8 @@ int runMotor6DGyroRegression() {
     );
     expect(root && rigGyro && rigGyro->getPart() == root &&
                rigGyro->getAxisSettings(GyroAxis::X).Enabled &&
-               rigGyro->getAxisSettings(GyroAxis::Y).Enabled &&
+               // 向き(Y)はリグのYawForceが受け持つため、GyroのYは無効のまま。
+               !rigGyro->getAxisSettings(GyroAxis::Y).Enabled &&
                rigGyro->getAxisSettings(GyroAxis::Z).Enabled &&
                near(rigGyro->getAxisSettings(GyroAxis::X).TargetAngle, 0.0f) &&
                near(rigGyro->getAxisSettings(GyroAxis::Z).TargetAngle, 0.0f),
@@ -12464,6 +12500,8 @@ int runMotor6DGyroRegression() {
     dynamicRigWorkspace->Name = "DynamicRigGyroWorkspace";
     dynamicRigWorkspace->Gravity = {};
     dynamicRigWorkspace->addChild(rig);
+    // 既定リグのGyroは無効で生成され、Humanoidが実行時に有効化する。ここでは直接有効にする。
+    if (rigGyro) rigGyro->setEnabled(true);
     dynamicRigWorkspace->initPhysics();
     Physics* dynamicRigPhysics = dynamicRigWorkspace->getPhysicsEngine();
     if (dynamicRigPhysics) {
@@ -12479,6 +12517,10 @@ int runMotor6DGyroRegression() {
         Vector3(0.0f, 0.0f, 1.0f),
         Vector3(-1.0f, 0.0f, 0.0f),
     }};
+    // GyroのYは無効なので、方位を指定してもGyroはRootの向きを動かさない。
+    // 4方向を指定してもYの結果が同じ(ばらつきが小さい)ことで確認する。
+    float rigMinY = 1.0e9f;
+    float rigMaxY = -1.0e9f;
     bool rigHeadingsConverged = dynamicRigReady;
     if (dynamicRigReady) {
         for (const Vector3& heading : rigHeadings) {
@@ -12489,21 +12531,20 @@ int runMotor6DGyroRegression() {
                     1.0f / 60.0f
                 );
             }
-            const float target = Gyro::headingAngleFromDirection(heading);
             const float actual = Gyro::angleFromRotation(
                 GyroAxis::Y,
                 root->getWorldCFrame().Rotation
             );
-            std::cout << "[Motor6DGyroRegression] rig heading target="
-                      << target << " actual=" << actual
-                      << " error=" << angularError(actual, target) << '\n';
-            rigHeadingsConverged =
-                rigHeadingsConverged && angularError(actual, target) < 7.0f;
+            std::cout << "[Motor6DGyroRegression] rig heading actualY="
+                      << actual << '\n';
+            rigMinY = std::min(rigMinY, actual);
+            rigMaxY = std::max(rigMaxY, actual);
         }
     }
+    rigHeadingsConverged = rigHeadingsConverged && rigMaxY - rigMinY < 2.0f;
     expect(
         rigHeadingsConverged,
-        "default R6 follows forward/back/left/right Gyro headings"
+        "default R6 Gyro leaves heading (Y) to YawForce for every requested heading"
     );
     if (dynamicRigReady) {
         dynamicRigPhysics->setAngularVelocity(
@@ -13870,6 +13911,43 @@ static int runSkyBodyRegression() {
         expect(!effectMoon->hasFlareEffect(), "Moon has no flare effect by default either");
         effectMoon->VeilIntensity = 0.1f;
         expect(effectMoon->hasFlareEffect(), "any single flare effect counts as active");
+
+        // ---- 月の満ち欠け（Moon専用）----
+        expect(hasProperty(moon.get(), "Phase") && hasProperty(moon.get(), "PhaseRotation") &&
+                   hasProperty(moon.get(), "Earthshine") && !hasProperty(sun.get(), "Phase"),
+               "Phase, PhaseRotation and Earthshine belong to Moon only");
+        auto phasedMoon = std::make_shared<Moon>();
+        expect(near(phasedMoon->Phase, 0.5f) && !phasedMoon->hasPhase() && near(phasedMoon->Earthshine, 0.08f),
+               "a new Moon is a full moon, so it keeps the plain disc look");
+        phasedMoon->Phase = 0.25f;
+        expect(phasedMoon->hasPhase() && near(phasedMoon->wrappedPhase(), 0.25f),
+               "a first-quarter Moon is drawn with the phase disc");
+        phasedMoon->Phase = 1.5f;
+        expect(near(phasedMoon->wrappedPhase(), 0.5f) && !phasedMoon->hasPhase(),
+               "Phase wraps as a cycle (1.5 is a full moon again)");
+        phasedMoon->Phase = 1.0f;
+        expect(near(phasedMoon->wrappedPhase(), 0.0f) && phasedMoon->hasPhase(),
+               "Phase 1 wraps to a new moon");
+        phasedMoon->Phase = -0.25f;
+        expect(near(phasedMoon->wrappedPhase(), 0.75f), "a negative Phase wraps into the cycle");
+        phasedMoon->Phase = std::nanf("");
+        expect(!phasedMoon->hasPhase(), "a non-finite Phase is treated as a full moon");
+
+        auto savedMoon = std::make_shared<Moon>();
+        savedMoon->setProperty("Phase", YAML::Node(0.75f));
+        savedMoon->setProperty("PhaseRotation", YAML::Node(20.0f));
+        savedMoon->setProperty("Earthshine", YAML::Node(0.2f));
+        YAML::Emitter moonOutput;
+        moonOutput << YAML::BeginMap;
+        PropertyRegistry::saveApplicableProperties(moonOutput, savedMoon.get());
+        moonOutput << YAML::EndMap;
+        const YAML::Node moonSaved = YAML::Load(moonOutput.c_str());
+        auto moonClone = std::dynamic_pointer_cast<Moon>(savedMoon->clone());
+        expect(moonSaved["Phase"] && near(moonSaved["Phase"].as<float>(), 0.75f) &&
+                   moonSaved["Earthshine"] && near(moonSaved["Earthshine"].as<float>(), 0.2f) &&
+                   moonClone && near(moonClone->Phase, 0.75f) && near(moonClone->PhaseRotation, 20.0f) &&
+                   near(moonClone->Earthshine, 0.2f),
+               "Moon phase properties are serialized and survive clone");
     }
 
     // ---- Workspaceへの登録 ----
