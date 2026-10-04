@@ -25,6 +25,17 @@ public:
     float Roughness   = 0.5f;
     float Reflectance = 0.5f;
 
+    // 画像マップ(FileRef参照)。値は FileRef のパス文字列で、Material自身の子孫パス、
+    // 無ければ最上位の祖先(System)からのパスで解決する。空なら未使用。
+    // BaseColor は拡散色に乗算、Roughness/Metallic は上の値に乗算、Normal はタンジェント空間
+    // (OpenGL規約、+Yが上)。貼り方はワールド基準のtriplanarで、TextureScale stud ごとに1タイル。
+    std::string BaseColorMap;
+    std::string RoughnessMap;
+    std::string MetallicMap;
+    std::string NormalMap;
+    float TextureScale   = 4.0f;  // 1タイルあたりのstud数
+    float NormalStrength = 1.0f;  // 法線マップの強さ(0で平坦)
+
     // 物理特性。StaticFrictionはBox3Dでは使われないため、エディタ/Luaからは
     // 非表示（将来の実装に備えて保持・YAML保存する）。
     float StaticFriction  = 0.5f;
@@ -42,6 +53,16 @@ public:
     virtual bool IsA(std::string className) override;
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
     virtual std::shared_ptr<Instance> clone() const override;
+
+    enum class MapSlot { BaseColor = 0, Roughness, Metallic, Normal };
+    static constexpr int MAP_SLOT_COUNT = 4;
+
+    // マップの参照文字列(未設定なら空)。
+    const std::string& mapReference(MapSlot slot) const;
+    // 参照を解決したFileRefのPath。未設定・未解決・FileRefでない・Pathが空なら空文字列。
+    std::string resolveMapPath(MapSlot slot);
+    // いずれかのマップが設定されているか(解決はしない。描画の分岐用で軽い)。
+    bool hasMaps() const;
 
     // baseの物理Materialのfriction/restitutionをこのMaterialの値で上書きして返す。
     Material applyPhysicsTo(const Material& base) const;

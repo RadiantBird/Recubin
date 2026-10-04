@@ -84,6 +84,14 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
   - PBR描画はMaterialを参照するBaseCubeだけで、Cook-Torrance GGX（metallic-roughness）に、Skyboxの6面から焼いた
     環境キューブマップの鏡面反射を加える。Skyboxが無い／テクスチャ未読込のときは手続き的な空を使う。
     パイプライン全体が非リニアのため、PBRも同じ表示空間で計算し、拡散アンビエントは従来の0.3固定とする。
+  - Materialは画像マップ（`BaseColorMap`/`RoughnessMap`/`MetallicMap`/`NormalMap`）を持てる。値は`FileRef`
+    インスタンスへの参照（Materialの子の名前、またはSystemからのパス）で、Packagerは`FileRef`の`ContentPath`として
+    追跡する。貼り方はワールド基準のtriplanarで、`TextureScale`（1タイルあたりのstud数）ごとに繰り返す。
+    BaseColorは拡散色に乗算、Roughness/Metallicは各プロパティ値に乗算、Normalはタンジェント空間（OpenGL規約）で
+    `NormalStrength`で強さを変える。マップを持つMaterialの参照元はインスタンス描画ではなく個別描画になる。
+  - ExplorerでMaterialServiceを右クリック →「マテリアルプリセットを追加」で、ざらついたプラスチック／木の板／
+    傷のある金属（画像と値を割り当て済みのMaterial）を追加できる。画像は`assets/materials/`にあり、
+    `tools/generate_material_textures.py`で再生成できる。
 
 ## システム拡張API
 - **System**: シングルトン。常に1つのみ存在。Insert Objectリストには登録しない。

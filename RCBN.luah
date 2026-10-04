@@ -123,6 +123,12 @@ export type Material = Instance & {
     Metallic: number, -- 0..1
     Roughness: number, -- 0..1
     Reflectance: number, -- 0..1（非金属のF0 = 0.16 * Reflectance^2）
+    BaseColorMap: string, -- 画像マップ。FileRefインスタンスへの参照パス(Materialの子の名前など)。拡散色に乗算
+    RoughnessMap: string, -- Roughnessに乗算
+    MetallicMap: string, -- Metallicに乗算
+    NormalMap: string, -- タンジェント空間の法線マップ(OpenGL規約)
+    TextureScale: number, -- マップ1タイルあたりのstud数(ワールド基準のtriplanar)
+    NormalStrength: number, -- 法線マップの強さ(0で平坦)
     DynamicFriction: number,
     Restitution: number,
     MassDensity: number,

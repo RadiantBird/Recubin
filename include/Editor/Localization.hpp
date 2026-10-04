@@ -79,6 +79,7 @@ enum class LocKey {
     SwitchToWorkspace, OpenInNewViewport, InsertObjectMenu,
     MenuDelete, MenuCopy, MenuPaste, MenuPasteAsChild, MenuSelectAllChildren,
     MenuGroup, MenuRecalculateCoordinates,
+    MenuMaterialPresets, PresetRoughPlastic, PresetWoodPlanks, PresetScratchedMetal,
     InstancePickerTitleInsert, InstancePickerTitleGroup, InstancePickerTitleReplace,
     InstancePickerSearch, InstancePickerNoResults, InstancePickerReferenceWarning,
     InstancePickerReplaceAndClear, InstancePickerCancel,

@@ -1,3 +1,4 @@
+#include <include/Instances/MaterialPresets.hpp>
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Lighting.hpp>
@@ -13604,6 +13605,142 @@ int runRagdollMotorRecoveryRegression() {
 
 // MaterialService/Material の生成・スキーマ・BaseCubeからの参照解決・物理実効値・
 // YAML往復・クローン・未解決パスの後解決を検証する。
+static int runMaterialMapRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[MaterialMap] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    const auto near = [](float a, float b) { return std::abs(a - b) < 1.0e-5f; };
+
+    auto probe = std::static_pointer_cast<MaterialInstance>(SceneLoader::createInstance("Material"));
+    const auto schema = PropertyRegistry::collectApplicableSchema(probe.get());
+    const auto findProperty = [&](std::string_view name) -> const PropertyDesc* {
+        for (const PropertyDesc* desc : schema)
+            if (desc && desc->name == name) return desc;
+        return nullptr;
+    };
+    bool mapsAreReferences = true;
+    for (const char* name : {"BaseColorMap", "RoughnessMap", "MetallicMap", "NormalMap"}) {
+        const PropertyDesc* desc = findProperty(name);
+        mapsAreReferences = mapsAreReferences && desc && desc->instanceRefClass == "FileRef" &&
+                            desc->editorWidget == EditorWidget::InstanceReference;
+    }
+    expect(mapsAreReferences, "map properties are FileRef instance references");
+    expect(findProperty("TextureScale") && findProperty("NormalStrength"),
+           "Material schema exposes TextureScale and NormalStrength");
+    expect(!probe->hasMaps() && near(probe->TextureScale, 4.0f) && near(probe->NormalStrength, 1.0f),
+           "a plain Material has no maps and default tiling");
+
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    auto materialService = std::make_shared<MaterialService>();
+    system->addChild(workspace);
+    system->addChild(materialService);
+
+    // プリセット: 値・子のFileRef・マップ参照の解決・画像ファイルの実在と内容。
+    struct Expected { MaterialPresets::Preset preset; const char* stem; int maps; float metallic; bool conductive; };
+    const Expected expectedPresets[] = {
+        {MaterialPresets::Preset::RoughPlastic,   "rough_plastic",   3, 0.0f, false},
+        {MaterialPresets::Preset::WoodPlanks,     "wood_planks",     3, 0.0f, false},
+        {MaterialPresets::Preset::ScratchedMetal, "scratched_metal", 4, 1.0f, true},
+    };
+    for (const Expected& expected : expectedPresets) {
+        auto material = MaterialPresets::create(expected.preset);
+        materialService->addChild(material);
+        const std::string label = material->Name;
+        expect(material->hasMaps() && near(material->Roughness, 1.0f) &&
+                   near(material->Metallic, expected.metallic) &&
+                   material->Conductive == expected.conductive,
+               label + ": preset values (maps multiply Roughness/Metallic, only metal is Conductive)");
+
+        int resolved = 0;
+        bool filesValid = true;
+        for (int slot = 0; slot < MaterialInstance::MAP_SLOT_COUNT; ++slot) {
+            const auto mapSlot = static_cast<MaterialInstance::MapSlot>(slot);
+            const std::string path = material->resolveMapPath(mapSlot);
+            if (material->mapReference(mapSlot).empty()) {
+                filesValid = filesValid && path.empty();
+                continue;
+            }
+            ++resolved;
+            int width = 0, height = 0, channels = 0;
+            unsigned char* pixels = stbi_load(path.c_str(), &width, &height, &channels, 3);
+            bool valid = pixels && width == 512 && height == 512;
+            if (valid && mapSlot == MaterialInstance::MapSlot::Normal) {
+                // 法線マップは大半が+Z向き(青が強い)で、平坦ではない(赤が一定でない)。
+                double blue = 0.0;
+                int minRed = 255, maxRed = 0;
+                for (int i = 0; i < width * height; ++i) {
+                    blue += pixels[i * 3 + 2];
+                    minRed = std::min<int>(minRed, pixels[i * 3]);
+                    maxRed = std::max<int>(maxRed, pixels[i * 3]);
+                }
+                valid = blue / (width * height) > 180.0 && maxRed - minRed > 20;
+            }
+            if (pixels) stbi_image_free(pixels);
+            // 大文字小文字を区別するFSでも読めるよう、ファイル名を完全一致で確認する。
+            static constexpr const char* SLOT_SUFFIX[MaterialInstance::MAP_SLOT_COUNT] =
+                {"basecolor", "roughness", "metallic", "normal"};
+            const std::string expectedFile = std::string("assets/materials/") + expected.stem + "_" +
+                                             SLOT_SUFFIX[slot] + ".png";
+            filesValid = filesValid && valid && path == expectedFile;
+        }
+        expect(resolved == expected.maps && filesValid,
+               label + ": each map resolves to an existing 512x512 PNG (normal maps look like normals)");
+    }
+
+    // 参照は最上位の祖先(System)基準のパスでも解決でき、解決できない/FileRefでないものは空になる。
+    auto wood = std::static_pointer_cast<MaterialInstance>(
+        materialService->getChild("WoodPlanks")->shared_from_this());
+    const std::string expectedWoodColor = wood->resolveMapPath(MaterialInstance::MapSlot::BaseColor);
+    wood->setProperty("BaseColorMap", YAML::Node(std::string("MaterialService\\WoodPlanks\\BaseColor")));
+    expect(!expectedWoodColor.empty() &&
+               wood->resolveMapPath(MaterialInstance::MapSlot::BaseColor) == expectedWoodColor,
+           "a System-relative reference resolves the same FileRef");
+    wood->setProperty("BaseColorMap", YAML::Node(std::string("Missing")));
+    expect(wood->resolveMapPath(MaterialInstance::MapSlot::BaseColor).empty() && wood->hasMaps(),
+           "an unresolved reference yields no path");
+    auto cube = std::static_pointer_cast<BaseCube>(SceneLoader::createInstance("Cube"));
+    cube->Name = "NotAFile";
+    workspace->addChild(cube);
+    wood->setProperty("BaseColorMap", YAML::Node(std::string("Workspace\\NotAFile")));
+    expect(wood->resolveMapPath(MaterialInstance::MapSlot::BaseColor).empty(),
+           "a reference to a non-FileRef instance yields no path");
+    wood->setProperty("BaseColorMap", YAML::Node(std::string("BaseColor")));
+
+    // クローンはマップ参照と子のFileRefを持ち、YAML往復でも保たれる。
+    auto copy = std::static_pointer_cast<MaterialInstance>(wood->clone());
+    copy->Name = "WoodCopy";
+    materialService->addChild(copy);
+    expect(copy->hasMaps() && near(copy->TextureScale, wood->TextureScale) &&
+               !copy->resolveMapPath(MaterialInstance::MapSlot::Normal).empty() &&
+               copy->resolveMapPath(MaterialInstance::MapSlot::Normal) ==
+                   wood->resolveMapPath(MaterialInstance::MapSlot::Normal),
+           "clone keeps map references, tiling and its FileRef children");
+
+    const auto yamlPath = std::filesystem::temp_directory_path() / "recubin_material_map_regression.yaml";
+    expect(SceneLoader::saveSceneResult(system.get(), yamlPath.string()), "scene with map Materials saves");
+    const auto loaded = SceneLoader::loadSceneResult(yamlPath.string());
+    std::error_code removeError;
+    std::filesystem::remove(yamlPath, removeError);
+    expect(static_cast<bool>(loaded) && loaded.root != nullptr, "scene with map Materials loads");
+    if (loaded.root) {
+        auto* metal = dynamic_cast<MaterialInstance*>(
+            loaded.root->getChildByPath("MaterialService\\ScratchedMetal"));
+        expect(metal && metal->hasMaps() && metal->Conductive &&
+                   metal->resolveMapPath(MaterialInstance::MapSlot::Metallic)
+                           .find("scratched_metal_metallic") != std::string::npos &&
+                   metal->resolveMapPath(MaterialInstance::MapSlot::Normal)
+                           .find("scratched_metal_normal") != std::string::npos,
+               "map references and FileRef paths survive the YAML round-trip");
+    }
+
+    std::cout << "[MaterialMap] failures=" << failures << " result="
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 static int runMaterialServiceRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const std::string& message) {
@@ -14137,6 +14274,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--property-text-input-regression", runPropertyTextInputRegression),
         REG("--property-schema-regression", runPropertySchemaRegression),
         REG("--material-service-regression", runMaterialServiceRegression),
+        REG("--material-map-regression", runMaterialMapRegression),
         REG("--sky-body-regression", runSkyBodyRegression),
         REG("--quaternion-invariant-regression", runQuaternionInvariantRegression),
         REG("--spatial-coordinate-regression", runSpatialCoordinateRegression),

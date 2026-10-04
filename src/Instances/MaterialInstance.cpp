@@ -2,6 +2,7 @@
 #include <include/Instances/BaseCube.hpp>
 #include <include/Core/PropertyRegistry.hpp>
 #include <include/Util/Logger.hpp>
+#include <include/Instances/FileRef.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -48,6 +49,12 @@ static const bool s_materialRegistered = []{
         field<&MaterialInstance::Metallic>   ("Metallic",    0.0f, 1.0f, 0.01f).clampLua().group("PBR"),
         field<&MaterialInstance::Roughness>  ("Roughness",   0.0f, 1.0f, 0.01f).clampLua(),
         field<&MaterialInstance::Reflectance>("Reflectance", 0.0f, 1.0f, 0.01f).clampLua(),
+        instanceRefField<&MaterialInstance::BaseColorMap>("BaseColorMap", "FileRef").group("Maps"),
+        instanceRefField<&MaterialInstance::RoughnessMap>("RoughnessMap", "FileRef"),
+        instanceRefField<&MaterialInstance::MetallicMap>("MetallicMap", "FileRef"),
+        instanceRefField<&MaterialInstance::NormalMap>("NormalMap", "FileRef"),
+        field<&MaterialInstance::TextureScale>("TextureScale", 0.1f, 256.0f, 0.1f).clampLua(),
+        field<&MaterialInstance::NormalStrength>("NormalStrength", 0.0f, 4.0f, 0.05f).clampLua(),
         staticFriction,
         physicsProperty("DynamicFriction", &MaterialInstance::DynamicFriction, 0.0f, 2.0f, 0.01f),
         physicsProperty("Restitution", &MaterialInstance::Restitution, 0.0f, 2.0f, 0.01f),
@@ -80,6 +87,36 @@ std::shared_ptr<Instance> MaterialInstance::clone() const {
         copy->addChild(child->clone());
     }
     return copy;
+}
+
+const std::string& MaterialInstance::mapReference(MapSlot slot) const {
+    switch (slot) {
+        case MapSlot::BaseColor: return BaseColorMap;
+        case MapSlot::Roughness: return RoughnessMap;
+        case MapSlot::Metallic:  return MetallicMap;
+        case MapSlot::Normal:    return NormalMap;
+    }
+    return BaseColorMap;
+}
+
+bool MaterialInstance::hasMaps() const {
+    return !BaseColorMap.empty() || !RoughnessMap.empty() ||
+           !MetallicMap.empty() || !NormalMap.empty();
+}
+
+std::string MaterialInstance::resolveMapPath(MapSlot slot) {
+    const std::string& reference = mapReference(slot);
+    if (reference.empty()) return {};
+
+    // Material自身の子孫として、無ければ最上位の祖先(System等)からのパスとして探す。
+    Instance* found = getChildByPath(reference);
+    if (!found) {
+        Instance* top = this;
+        for (auto parent = Parent.lock(); parent; parent = parent->Parent.lock()) top = parent.get();
+        if (top != this) found = top->getChildByPath(reference);
+    }
+    if (!found || found->getClassName() != "FileRef") return {};
+    return static_cast<PhysicalFileInstance*>(found)->Path;
 }
 
 Material MaterialInstance::applyPhysicsTo(const Material& base) const {

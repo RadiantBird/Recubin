@@ -194,9 +194,40 @@ vec3 pbrDirectLight(vec3 N, vec3 V, vec3 L, vec3 lightIrradiance,
     return (kD * albedo + specular * PBR_PI) * lightIrradiance * NdotL;
 }
 
-vec3 pbrShade(vec3 albedo, vec3 N, float shadow) {
-    float metallic    = clamp(PbrParams.x, 0.0, 1.0);
-    float roughness   = clamp(PbrParams.y, 0.045, 1.0);  // 0付近は鏡面ハイライトが点に潰れるため下限を設ける
+// Materialの画像マップ(個別描画のときだけ有効)。ワールド基準のtriplanarで貼る。
+uniform sampler2D uMatBaseColorMap;
+uniform sampler2D uMatRoughnessMap;
+uniform sampler2D uMatMetallicMap;
+uniform sampler2D uMatNormalMap;
+uniform vec4 uMatMapFlags;   // x=BaseColor y=Roughness z=Metallic w=Normal (1=有効)
+uniform vec2 uMatMapParams;  // x=1タイルあたりのstud数, y=法線マップの強さ
+
+vec3 matTriplanarWeights(vec3 n) {
+    vec3 w = pow(abs(n), vec3(4.0));
+    return w / max(w.x + w.y + w.z, 1e-4);
+}
+
+vec4 matSampleTriplanar(sampler2D tex, vec3 p, vec3 w) {
+    vec3 q = p / max(uMatMapParams.x, 1e-3);
+    return texture(tex, q.zy) * w.x + texture(tex, q.xz) * w.y + texture(tex, q.xy) * w.z;
+}
+
+// タンジェント空間の法線マップをtriplanarで貼る(whiteout blend)。
+vec3 matPerturbNormal(vec3 N, vec3 p, vec3 w) {
+    vec3 q = p / max(uMatMapParams.x, 1e-3);
+    vec3 tx = texture(uMatNormalMap, q.zy).xyz * 2.0 - 1.0;
+    vec3 ty = texture(uMatNormalMap, q.xz).xyz * 2.0 - 1.0;
+    vec3 tz = texture(uMatNormalMap, q.xy).xyz * 2.0 - 1.0;
+    tx.xy *= uMatMapParams.y;
+    ty.xy *= uMatMapParams.y;
+    tz.xy *= uMatMapParams.y;
+    tx = vec3(tx.xy + N.zy, abs(tx.z) * N.x);
+    ty = vec3(ty.xy + N.xz, abs(ty.z) * N.y);
+    tz = vec3(tz.xy + N.xy, abs(tz.z) * N.z);
+    return normalize(tx.zyx * w.x + ty.xzy * w.y + tz.xyz * w.z);
+}
+
+vec3 pbrShade(vec3 albedo, vec3 N, float shadow, float metallic, float roughness) {
     float reflectance = clamp(PbrParams.z, 0.0, 1.0);
     vec3  V  = normalize(viewPos - FragPos);
     vec3  F0 = mix(vec3(0.16 * reflectance * reflectance), albedo, metallic);
@@ -421,7 +452,21 @@ if (useTriplanar > 0.5) {
 
     // Materialを参照するBaseCubeはPBRで描画する。それ以外は従来のLambert。
     if (PbrParams.w > 0.5) {
-        FragColor = vec4(pbrShade(baseColor, norm, shadow), outAlpha);
+        float metallic  = clamp(PbrParams.x, 0.0, 1.0);
+        float roughness = PbrParams.y;
+        vec3  pbrAlbedo = baseColor;
+        vec3  pbrNormal = norm;
+        // 画像マップはインスタンス描画では使わない(マップを持つMaterialは個別描画へ回る)。
+        if (uInstanced < 0.5) {
+            vec3 mapWeights = matTriplanarWeights(norm);
+            if (uMatMapFlags.x > 0.5) pbrAlbedo *= matSampleTriplanar(uMatBaseColorMap, FragPos, mapWeights).rgb;
+            if (uMatMapFlags.y > 0.5) roughness *= matSampleTriplanar(uMatRoughnessMap, FragPos, mapWeights).r;
+            if (uMatMapFlags.z > 0.5) metallic  *= matSampleTriplanar(uMatMetallicMap, FragPos, mapWeights).r;
+            if (uMatMapFlags.w > 0.5) pbrNormal = matPerturbNormal(norm, FragPos, mapWeights);
+        }
+        metallic  = clamp(metallic, 0.0, 1.0);
+        roughness = clamp(roughness, 0.045, 1.0);  // 0付近は鏡面ハイライトが点に潰れるため下限を設ける
+        FragColor = vec4(pbrShade(pbrAlbedo, pbrNormal, shadow, metallic, roughness), outAlpha);
         return;
     }
 

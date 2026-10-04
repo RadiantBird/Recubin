@@ -1,0 +1,213 @@
+# Material プリセット(画像マップ付き)の見た目確認用デモ。
+Root:
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Children:
+        - ClassName: Cube
+          Name: Baseplate
+          Properties:
+            Position: [0, -0.5, 0]
+            Size: [80, 1, 40]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.35, 0.35, 0.38, 1]
+            Anchored: true
+            CanCollide: true
+
+        - ClassName: Cube
+          Name: RoughPlasticCube
+          Properties:
+            Position: [-20, 3, 0]
+            Size: [6, 6, 6]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.25, 0.45, 0.85, 1]
+            Anchored: true
+            CanCollide: true
+            Material: MaterialService\RoughPlastic
+
+        - ClassName: Sphere
+          Name: RoughPlasticSphere
+          Properties:
+            Position: [-20, 2.5, 10]
+            Size: [5, 5, 5]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.25, 0.45, 0.85, 1]
+            Anchored: true
+            CanCollide: true
+            Material: MaterialService\RoughPlastic
+
+        - ClassName: Cube
+          Name: RoughPlasticPlank
+          Properties:
+            Position: [-20, 0.75, -10]
+            Size: [14, 1.5, 4]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.25, 0.45, 0.85, 1]
+            Anchored: true
+            CanCollide: true
+            Material: MaterialService\RoughPlastic
+
+        - ClassName: Cube
+          Name: WoodPlanksCube
+          Properties:
+            Position: [0, 3, 0]
+            Size: [6, 6, 6]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            Material: MaterialService\WoodPlanks
+
+        - ClassName: Sphere
+          Name: WoodPlanksSphere
+          Properties:
+            Position: [0, 2.5, 10]
+            Size: [5, 5, 5]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            Material: MaterialService\WoodPlanks
+
+        - ClassName: Cube
+          Name: WoodPlanksPlank
+          Properties:
+            Position: [0, 0.75, -10]
+            Size: [14, 1.5, 4]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            Material: MaterialService\WoodPlanks
+
+        - ClassName: Cube
+          Name: ScratchedMetalCube
+          Properties:
+            Position: [20, 3, 0]
+            Size: [6, 6, 6]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            Material: MaterialService\ScratchedMetal
+
+        - ClassName: Sphere
+          Name: ScratchedMetalSphere
+          Properties:
+            Position: [20, 2.5, 10]
+            Size: [5, 5, 5]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            Material: MaterialService\ScratchedMetal
+
+        - ClassName: Cube
+          Name: ScratchedMetalPlank
+          Properties:
+            Position: [20, 0.75, -10]
+            Size: [14, 1.5, 4]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+            Material: MaterialService\ScratchedMetal
+
+        - ClassName: SpawnLocation
+          Name: SpawnLocation
+          Properties:
+            Position: [0, 0.5, 22]
+            Size: [6, 1, 6]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            Anchored: true
+            CanCollide: true
+
+    - ClassName: MaterialService
+      Name: MaterialService
+      Children:
+        - ClassName: Material
+          Name: RoughPlastic
+          Properties:
+            Metallic: 0.0
+            Roughness: 1.0
+            Reflectance: 0.5
+            TextureScale: 2.0
+            NormalStrength: 0.6
+            Conductive: false
+            BaseColorMap: BaseColor
+            RoughnessMap: Roughness
+            NormalMap: Normal
+          Children:
+            - ClassName: FileRef
+              Name: BaseColor
+              Properties:
+                ContentPath: assets/materials/rough_plastic_basecolor.png
+            - ClassName: FileRef
+              Name: Roughness
+              Properties:
+                ContentPath: assets/materials/rough_plastic_roughness.png
+            - ClassName: FileRef
+              Name: Normal
+              Properties:
+                ContentPath: assets/materials/rough_plastic_normal.png
+        - ClassName: Material
+          Name: WoodPlanks
+          Properties:
+            Metallic: 0.0
+            Roughness: 1.0
+            Reflectance: 0.3
+            TextureScale: 5.0
+            NormalStrength: 1.0
+            Conductive: false
+            BaseColorMap: BaseColor
+            RoughnessMap: Roughness
+            NormalMap: Normal
+          Children:
+            - ClassName: FileRef
+              Name: BaseColor
+              Properties:
+                ContentPath: assets/materials/wood_planks_basecolor.png
+            - ClassName: FileRef
+              Name: Roughness
+              Properties:
+                ContentPath: assets/materials/wood_planks_roughness.png
+            - ClassName: FileRef
+              Name: Normal
+              Properties:
+                ContentPath: assets/materials/wood_planks_normal.png
+        - ClassName: Material
+          Name: ScratchedMetal
+          Properties:
+            Metallic: 1.0
+            Roughness: 1.0
+            Reflectance: 0.5
+            TextureScale: 3.0
+            NormalStrength: 1.0
+            Conductive: true
+            BaseColorMap: BaseColor
+            RoughnessMap: Roughness
+            MetallicMap: Metallic
+            NormalMap: Normal
+          Children:
+            - ClassName: FileRef
+              Name: BaseColor
+              Properties:
+                ContentPath: assets/materials/scratched_metal_basecolor.png
+            - ClassName: FileRef
+              Name: Roughness
+              Properties:
+                ContentPath: assets/materials/scratched_metal_roughness.png
+            - ClassName: FileRef
+              Name: Metallic
+              Properties:
+                ContentPath: assets/materials/scratched_metal_metallic.png
+            - ClassName: FileRef
+              Name: Normal
+              Properties:
+                ContentPath: assets/materials/scratched_metal_normal.png
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction: [1, -1, -1]
+        Brightness: 1

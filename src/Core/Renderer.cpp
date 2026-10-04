@@ -253,6 +253,8 @@ static int instanceableShapeIndexForShape(BaseCube* bc, int shapeIdx) {
     if (bc->Unlit || bc->UseTriplanar) return -1;
     if (bc->TextureScale != 1.0f) return -1;
     if (bc->hasMaterialFaceVisuals()) return -1;  // Materialが面へ投影するDecal/Textureは面ごとに描く
+    if (const auto material = bc->getMaterialInstance(); material && material->hasMaps())
+        return -1;  // 画像マップはMaterialごとのテクスチャ束縛が要るため個別に描く
     for (auto const& [name, child] : bc->getChildren()) {
         if (child->IsA("Decal") || child->IsA("Texture") ||
             child->getClassName() == "Canvas") {
@@ -765,6 +767,15 @@ void Renderer::init(GLFWwindow* window) {
     // 環境キューブマップ専用のユニット。sampler2Dと同じユニットを指すとdraw時にGL_INVALID_OPERATION
     // になるため、既定値(0)のままにせず必ず専用ユニットを割り当てる。
     glUniform1i(glGetUniformLocation(shaderProgram, "uEnvSpecular"), ENV_SPECULAR_UNIT);
+    // Materialの画像マップ用ユニット(BaseColor/Roughness/Metallic/Normal)。
+    static constexpr const char* MATERIAL_MAP_SAMPLERS[4] = {
+        "uMatBaseColorMap", "uMatRoughnessMap", "uMatMetallicMap", "uMatNormalMap"};
+    for (int slot = 0; slot < 4; ++slot)
+        glUniform1i(glGetUniformLocation(shaderProgram, MATERIAL_MAP_SAMPLERS[slot]),
+                    MATERIAL_MAP_UNIT_BASE + slot);
+    m_uMatMapFlagsLoc  = glGetUniformLocation(shaderProgram, "uMatMapFlags");
+    m_uMatMapParamsLoc = glGetUniformLocation(shaderProgram, "uMatMapParams");
+    if (m_uMatMapFlagsLoc != -1) glUniform4f(m_uMatMapFlagsLoc, 0.0f, 0.0f, 0.0f, 0.0f);
     if (m_uPbrMaterialLoc != -1) glUniform4f(m_uPbrMaterialLoc, 0.0f, 0.0f, 0.0f, 0.0f);
     glUniform1f(surfaceMarkPassLoc, 0.0f);
     glUniform1f(hasShadowsLoc, 0.0f);
@@ -2939,6 +2950,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 getPbrParams(*bc, pbr);
                 glUniform4f(m_uPbrMaterialLoc, pbr[0], pbr[1], pbr[2], pbr[3]);
             }
+            bindMaterialMaps(*bc);
             if (unlitLoc     != -1) glUniform1f(unlitLoc,     bc->Unlit        ? 1.0f : 0.0f);
             if (triplanarLoc != -1) glUniform1f(triplanarLoc, bc->UseTriplanar ? 1.0f : 0.0f);
             if (texScaleLoc  != -1) glUniform1f(texScaleLoc,  bc->TextureScale);
@@ -3479,6 +3491,47 @@ void Renderer::renderImGui(User& user, GLFWwindow* window, Workspace& workspace)
 // ===================================================
 //  テクスチャ読み込み
 // ===================================================
+void Renderer::bindMaterialMaps(const BaseCube& cube) {
+    if (m_uMatMapFlagsLoc == -1) return;
+    const auto material = cube.getMaterialInstance();
+    if (!material || !material->hasMaps()) {
+        glUniform4f(m_uMatMapFlagsLoc, 0.0f, 0.0f, 0.0f, 0.0f);
+        return;
+    }
+
+    if (m_materialMapCache.size() > 256) m_materialMapCache.clear();  // 破棄済みMaterialのキーを溜めない
+    MaterialMapEntry& entry = m_materialMapCache[material.get()];
+    const double now = glfwGetTime();
+    if (now >= entry.nextCheck) {
+        entry.nextCheck = now + 0.5;
+        std::string paths[MaterialInstance::MAP_SLOT_COUNT];
+        std::string signature;
+        for (int slot = 0; slot < MaterialInstance::MAP_SLOT_COUNT; ++slot) {
+            paths[slot] = material->resolveMapPath(static_cast<MaterialInstance::MapSlot>(slot));
+            signature += paths[slot];
+            signature += '\n';
+        }
+        if (signature != entry.signature) {
+            entry.signature = std::move(signature);
+            for (int slot = 0; slot < MaterialInstance::MAP_SLOT_COUNT; ++slot) {
+                entry.textures[slot] = paths[slot].empty() ? 0u : loadTexture(paths[slot].c_str());
+            }
+        }
+    }
+
+    float flags[4];
+    for (int slot = 0; slot < 4; ++slot) {
+        flags[slot] = entry.textures[slot] != 0 ? 1.0f : 0.0f;
+        if (entry.textures[slot] == 0) continue;
+        glActiveTexture(GL_TEXTURE0 + MATERIAL_MAP_UNIT_BASE + slot);
+        glBindTexture(GL_TEXTURE_2D, entry.textures[slot]);
+    }
+    glActiveTexture(GL_TEXTURE0);
+    glUniform4f(m_uMatMapFlagsLoc, flags[0], flags[1], flags[2], flags[3]);
+    if (m_uMatMapParamsLoc != -1)
+        glUniform2f(m_uMatMapParamsLoc, material->TextureScale, material->NormalStrength);
+}
+
 unsigned int Renderer::loadTexture(const char* path) {
     std::string pathStr(path);
     const std::string normalizedPath = AssetPath::normalize(pathStr);

@@ -1,3 +1,5 @@
+#include <include/Instances/MaterialPresets.hpp>
+#include <include/Instances/MaterialInstance.hpp>
 #include <Editor/SceneHierarchyPanel.hpp>
 #include "include/Editor/IconsDef.hpp"
 #include <Editor/SpawnUtil.hpp>
@@ -1498,6 +1500,30 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
     GuiAutomation::registerLastItem("Explorer/Context/InsertObject");
     if (insertClicked)
         openClassPicker(ClassPickerMode::Insert, inst);
+
+    // MaterialServiceには、画像マップと値を割り当て済みのMaterialプリセットを追加できる。
+    if (inst->IsA("MaterialService") && m_history) {
+        if (ImGui::BeginMenu(Loc::t(Loc::LocKey::MenuMaterialPresets))) {
+            struct PresetEntry { MaterialPresets::Preset preset; Loc::LocKey label; const char* automationId; };
+            static const PresetEntry ENTRIES[MaterialPresets::PRESET_COUNT] = {
+                {MaterialPresets::Preset::RoughPlastic,   Loc::LocKey::PresetRoughPlastic,   "Explorer/Context/MaterialPreset/RoughPlastic"},
+                {MaterialPresets::Preset::WoodPlanks,     Loc::LocKey::PresetWoodPlanks,     "Explorer/Context/MaterialPreset/WoodPlanks"},
+                {MaterialPresets::Preset::ScratchedMetal, Loc::LocKey::PresetScratchedMetal, "Explorer/Context/MaterialPreset/ScratchedMetal"},
+            };
+            for (const PresetEntry& entry : ENTRIES) {
+                const bool clicked = ImGui::MenuItem(Loc::t(entry.label));
+                GuiAutomation::registerLastItem(entry.automationId);
+                if (!clicked) continue;
+                const auto parent = inst->shared_from_this();
+                auto material = MaterialPresets::create(entry.preset);
+                material->Name = uniqueName(parent, material->Name);
+                m_history->execute(std::make_unique<AddInstanceCommand>(parent, material));
+                selectedInstances = { material.get() };
+                selectedInstance = material.get();
+            }
+            ImGui::EndMenu();
+        }
+    }
 
     const bool canReplace = inst != systemRoot && inst != workspace && inst->Parent.lock();
     if (!canReplace) ImGui::BeginDisabled();

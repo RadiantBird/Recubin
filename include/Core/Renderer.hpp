@@ -19,9 +19,13 @@
 #include <sstream>
 #include <string>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <functional>
 #include <filesystem>
+
+class MaterialInstance;
+class BaseCube;
 
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
@@ -138,6 +142,21 @@ class Renderer {
 
         int          m_uPbrMaterialLoc   = -1;  // 個別描画用のPBR値(w=0でPBR無効)
         int          m_uEnvMaxLodLoc     = -1;
+
+        // ---- Materialの画像マップ（BaseColor/Roughness/Metallic/Normal） ----
+        // マップを持つMaterialの参照元は個別描画に回り、描画ごとにここでユニット
+        // MATERIAL_MAP_UNIT_BASE+0..3 へ束縛する。解決したテクスチャはMaterialごとに
+        // キャッシュし、参照文字列の解決とファイル確認は一定間隔でしか行わない。
+        static constexpr int MATERIAL_MAP_UNIT_BASE = 11;
+        struct MaterialMapEntry {
+            std::string  signature;                        // 解決済みパスの連結
+            unsigned int textures[4] = {0, 0, 0, 0};
+            double       nextCheck = 0.0;
+        };
+        int          m_uMatMapFlagsLoc  = -1;
+        int          m_uMatMapParamsLoc = -1;
+        std::unordered_map<const MaterialInstance*, MaterialMapEntry> m_materialMapCache;
+        void bindMaterialMaps(const BaseCube& cube);
 
         unsigned int m_instanceVBO = 0;  // 毎フレーム上書きするインスタンスバッファ（全形状共有）
 
