@@ -1117,7 +1117,7 @@ void EditorManager::renderCodeEditorSaveDialog() {
     ImGui::Text("%s", Loc::t(Loc::LocKey::UnsavedCodeLine1));
     ImGui::Text("%s", Loc::t(Loc::LocKey::UnsavedCodeLine2));
     ImGui::Separator();
-    const float quitCooldown = GuiAutomation::enabled() ? 0.0f : 3.0f;
+    const float quitCooldown = GuiAutomation::enabled() ? 0.0f : EditorUi::dangerCooldownSec;
     if (EditorUi::dangerButton(Loc::t(Loc::LocKey::SaveAndQuit),
                                m_codeEditorSaveDialogOpenedAt, quitCooldown)) {
         if (saveDirtyCodeEditors()) {
@@ -1152,7 +1152,7 @@ void EditorManager::renderSaveDialog() {
         ImGui::Text("%s", Loc::t(Loc::LocKey::UnsavedLine2));
         ImGui::Separator();
 
-        const float quitCooldown = GuiAutomation::enabled() ? 0.0f : 3.0f;
+        const float quitCooldown = GuiAutomation::enabled() ? 0.0f : EditorUi::dangerCooldownSec;
         if (EditorUi::dangerButton(Loc::t(Loc::LocKey::SaveAndQuit), m_saveDialogOpenedAt, quitCooldown)) {
             if (!saveCurrentScene()) {
                 ImGui::EndPopup();
@@ -1609,10 +1609,15 @@ void EditorManager::renderToolbarBasic() {
                          0.005f, 0.001f, 100.0f, "%.3f");
         if (!activeViewport->snapScale) ImGui::EndDisabled();
         addToolbarInlineGap(scale);
-        ImGui::TextDisabled("Fit:");
+        ImGui::TextDisabled("Advanced:");
         ImGui::SameLine();
+        // フィット系チェックボックスは縦に積む（横幅を増やさない）
+        ImGui::BeginGroup();
         std::string cfLabel = std::string(Loc::t(Loc::LocKey::CollisionFit)) + "##cf";
         ImGui::Checkbox(cfLabel.c_str(), &activeViewport->collisionFit);
+        std::string sdLabel = std::string(Loc::t(Loc::LocKey::SurfaceDrag)) + "##sd";
+        ImGui::Checkbox(sdLabel.c_str(), &activeViewport->surfaceDrag);
+        ImGui::EndGroup();
         ImGui::SameLine();
     }
 

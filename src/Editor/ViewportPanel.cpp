@@ -629,7 +629,7 @@ void ViewportPanel::handleViewportClick(
                             selectedInstances->push_back(nearest);
                         }
 
-                        if (isSelectMode() && !shiftHeld && nearest->IsA("Spatial")) {
+                        if (surfaceDrag && isSelectMode() && !shiftHeld && nearest->IsA("Spatial")) {
                             m_isFreeDragArmed = true;
                             m_freeDragStart = ImGui::GetMousePos();
                         }
@@ -643,7 +643,7 @@ void ViewportPanel::handleViewportClick(
                 }
 
                 clickFoundSomething = hitSomething;
-            } else if (isMoveMode() && hitSelected && !ctrlHeld && !shiftHeld) {
+            } else if (surfaceDrag && isMoveMode() && hitSelected && !ctrlHeld && !shiftHeld) {
                 // Moveモードも同じ5px閾値を経て表面ドラッグへ移る。
                 m_isFreeDragArmed = true;
                 m_freeDragStart = ImGui::GetMousePos();

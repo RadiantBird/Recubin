@@ -60,7 +60,7 @@ enum class LocKey {
     PlayModeLabel, PlayModeNormal, PlayModeHere, PlayModeLocalServer,
     NetworkClientCountLabel, NetworkClientCountFormat, NetworkClientStatus,
     SelectTool, MoveTool, ResizeTool, RotateTool, MultiResizeIndividual, MultiResizeGroupScale,
-    SnapTranslate, SnapRotate, SnapScale, CollisionFit,
+    SnapTranslate, SnapRotate, SnapScale, CollisionFit, SurfaceDrag,
     AddObjectDropdown, SaveButton, LoadButton,
 
     // ---- SceneHierarchyPanel ----

@@ -362,6 +362,7 @@ static void loadEditorPreferences(
     if (p["SnapScale"])        ed->viewportPanel->snapScale        = p["SnapScale"].as<bool>();
     if (p["SnapScaleVal"])     ed->viewportPanel->snapScaleVal     = p["SnapScaleVal"].as<float>();
     if (p["CollisionFit"])     ed->viewportPanel->collisionFit     = p["CollisionFit"].as<bool>();
+    if (p["SurfaceDrag"])      ed->viewportPanel->surfaceDrag      = p["SurfaceDrag"].as<bool>();
     if (p["GizmoSize"])        user->gizmoSize = std::clamp(p["GizmoSize"].as<float>(), 0.05f, 0.50f);
 
     if (p["GizmoOp"]) {
@@ -436,6 +437,7 @@ static void saveEditorPreferences(EditorManager* ed, User* user) {
     p["SnapScale"]        = ed->viewportPanel->snapScale;
     p["SnapScaleVal"]     = ed->viewportPanel->snapScaleVal;
     p["CollisionFit"]     = ed->viewportPanel->collisionFit;
+    p["SurfaceDrag"]      = ed->viewportPanel->surfaceDrag;
     p["GizmoSize"]        = std::clamp(user->gizmoSize, 0.05f, 0.50f);
 
     p["GizmoOp"]     = static_cast<int>(ed->viewportPanel->gizmoOp);

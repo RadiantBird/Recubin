@@ -33,6 +33,7 @@ namespace EditorUi {
     // toolbar callers can retain a visible tool selection.
     bool glassButton(const char* label, const ImVec2& size = ImVec2(0, 0), bool selected = false);
 
-    bool dangerButton(const char* label, double popupOpenedAt, float cooldownSec = 3.0f);
+    const float dangerCooldownSec = 1.0f;
+    bool dangerButton(const char* label, double popupOpenedAt, float cooldownSec = dangerCooldownSec);
     bool safeButton(const char* label);
 }

@@ -59,13 +59,14 @@ bool dangerButton(const char* label, double popupOpenedAt, float cooldownSec) {
     // カウントダウン終了後にボタン幅が縮んで誤クリックを誘発しないよう、
     // 常に「ラベル (残秒)」表示時の幅に固定する
     char wide[128];
-    std::snprintf(wide, sizeof(wide), "%s (%d)", label, static_cast<int>(std::ceil(cooldownSec)));
-    ImVec2 size(ImGui::CalcTextSize(wide).x + ImGui::GetStyle().FramePadding.x * 2.0f, 0.0f);
+    std::snprintf(wide, sizeof(wide), "%s (%.1f)", label, cooldownSec);
+    ImVec2 size(ImGui::CalcTextSize(wide).x + ImGui::GetStyle().FramePadding.x * 1.5f, 0.0f);
 
     if (elapsed < cooldownSec) {
-        int remaining = static_cast<int>(std::ceil(cooldownSec - elapsed));
+        // 0.1秒単位で切り上げ（0.0表示のまま無効が残らないようにする）
+        const float remaining = std::ceil(static_cast<float>(cooldownSec - elapsed) * 10.0f) / 10.0f;
         char buf[128];
-        std::snprintf(buf, sizeof(buf), "%s (%d)###%s", label, remaining, label);
+        std::snprintf(buf, sizeof(buf), "%s (%.1f)###%s", label, remaining, label);
         ImGui::BeginDisabled();
         ImGui::Button(buf, size);
         ImGui::EndDisabled();

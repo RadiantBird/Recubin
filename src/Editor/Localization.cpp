@@ -147,6 +147,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "回転スナップ",         "Rotate Snap" },
     { "リサイズスナップ",      "Resize Snap" },
     { "衝突フィット",         "Collision Fit" },
+    { "面ドラッグ",           "Surface Drag" },
     { "オブジェクト追加 v",   "Add Object v" },
     { "保存",               "Save" },
     { "読込",               "Load" },

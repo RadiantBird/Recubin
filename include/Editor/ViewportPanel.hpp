@@ -118,6 +118,7 @@ public:
     bool  snapScale        = false;
     float snapScaleVal     = 1.0f;
     bool  collisionFit     = true;
+    bool  surfaceDrag      = true;   // 選択パーツ本体のドラッグで他パーツの表面をなぞって移動する
     MultiResizeMode multiResizeMode = MultiResizeMode::Individual;
 
     // 独立カメラ（セカンダリビューポート用。プライマリは user カメラを使う）
