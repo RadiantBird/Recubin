@@ -55,9 +55,14 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
     描き、直径を`基準直径(Sun 200 / Moon 150) × 1000 / Distance`にする。`Size`は廃止された。
   - `CelestialBody`は逆光（グロー`GlowIntensity`/`GlowRadius`、ベール`VeilIntensity`/`VeilFalloff`）と光条
     （回折スパイク`SpikeIntensity`/`SpikeCount`/`SpikeLength`/`SpikeRotation`）を持つ。強さが0の効果は描かず、
-    既定はすべて無効。効果は`sky_flare`シェーダーで不透明物の描画後に加算する。グロー・ベールは深度テストなしで
-    手前の物体の上にも被さる（縁のにじみも出る）が、光条は深度テストを行い手前の物体に遮られる。`HorizonFade`
-    （既定true）が真なら天体が地平線の下に沈むにつれて効果を消す。
+    既定はすべて無効。効果は`sky_flare`シェーダーで不透明物の描画後に重ね、ビューポートの深度をコピーしたテクスチャ
+    で遮蔽を判定する。光条は手前の物体に遮られる。グローは物体の上へも少しにじむが（縁のにじみ）、その強さは
+    天体が見えている割合に比例し、天体が完全に隠れれば物体の上には出ない（物体を貫通しない）。ベールは天体が
+    隠れているほど弱い。`HorizonFade`（既定true）が真なら天体が地平線の下に沈むにつれて効果を消す。
+  - `Moon`は満ち欠け`Phase`（周期上の位置。0=新月、0.25=上弦、0.5=満月(既定)、0.75=下弦、1=新月。範囲外は周期として
+    折り返す）、`PhaseRotation`（明暗境界の向き）、`Earthshine`（影の部分の見え方）を持つ。満月以外は発光球の代わりに
+    明暗境界のある円盤（影は`Earthshine`だけ透けて空が見える）を`sky_flare`シェーダーで描く。月は常に太陽の反対側
+    なので、満ち欠けは位置から自動では決まらず`Phase`で指定する。
   - 旧形式（BaseCube派生のSun/Moon、`Lighting.Direction`）はロード時に自動移行する。旧BaseCube系プロパティは
     無視、スカラー`Angle`はVector2へ、旧`Size`は見かけの大きさを保つ`Distance`へ換算する。`Sun`を持たず
     `Lighting.Direction`を持つ旧シーンには、その向きを引き継ぐ`Sun`を自動生成する。`Sun`の無い新形式の

@@ -200,21 +200,35 @@ class Renderer {
         // メインシェーダー(使用中)へ環境キューブマップとmax lodを設定する。
         void bindEnvironmentMap();
 
-        // ---- 太陽・月の逆光(グロー+ベール)と光条(スパイク)（Renderer_Sky.cpp, sky_flare シェーダー） ----
-        // 不透明物の描画後に、深度テストなしの加算で重ねる（手前の物体の上にも被さる）。
+        // ---- 太陽・月のオーバーレイ: 逆光(グロー+ベール)・光条(スパイク)・月の満ち欠け
+        //      （Renderer_Sky.cpp, sky_flare シェーダー） ----
+        // 不透明物の描画後に重ねる。グロー・光条・月の円盤は、ビューポートの深度をコピーした
+        // テクスチャ(m_skyDepthTex)で手前の物体に遮られ、グローだけは天体が見えている分だけ
+        // 物体の上へもにじむ。ベールは天体が隠れているほど弱まる。
         unsigned int m_skyFlareShader = 0;
         struct SkyFlareUniforms {
-            int fullscreen = -1, view = -1, projection = -1;
+            int fullscreen = -1, phaseDisc = -1, view = -1, projection = -1;
             int center = -1, right = -1, up = -1, halfSize = -1;
             int forward = -1, tanHalfFov = -1, aspect = -1;
             int color = -1, strength = -1, extent = -1;
             int glowIntensity = -1, glowRadius = -1;
             int spikeIntensity = -1, spikeLength = -1, spikeRotation = -1, spikeCount = -1;
             int veilIntensity = -1, veilFalloff = -1, bodyDirection = -1;
+            int sceneDepth = -1, occlusionEnabled = -1, projA = -1, projB = -1;
+            int occluderDepth = -1, discRadius = -1, viewportSize = -1, bleed = -1;
+            int phase = -1, phaseRotation = -1, earthshine = -1;
         };
         SkyFlareUniforms m_skyFlareLoc;
+        // 遮蔽判定用: ビューポートの深度のコピー。ビューポートの大きさが変わったら作り直す。
+        unsigned int m_skyDepthTex = 0;
+        unsigned int m_skyDepthFbo = 0;
+        int m_skyDepthWidth = 0;
+        int m_skyDepthHeight = 0;
+        bool m_skyDepthBlitFailed = false;  // 深度のコピーが失敗した環境では遮蔽なしで描く
         void initSkyFlareRenderer();
         void destroySkyFlareRenderer();
+        // sourceFbo の深度を m_skyDepthTex へコピーする。成功したら真。失敗したら以後は遮蔽なしにする。
+        bool updateSkySceneDepth(unsigned int sourceFbo, int width, int height);
 
         unsigned int whiteTexture;
         void createWhiteTexture();
@@ -411,7 +425,7 @@ class Renderer {
         void renderCelestialBodies(Workspace& workspace, const Vector3& cameraPosition,
                                    const Sun* primarySun);
 
-        // 太陽・月の逆光と光条を、シーンの上に加算で重ねる。ポストエフェクトの前、シーン描画の最後に呼ぶ。
+        // 太陽・月の逆光・光条・月の満ち欠けを、シーンの上に重ねる。ポストエフェクトの前、シーン描画の最後に呼ぶ。
         void renderSkyFlares(Workspace& workspace, const ViewportRenderDesc& desc,
                              const Matrix4& view, const Matrix4& projection,
                              float fovYDegrees, const Sun* primarySun);

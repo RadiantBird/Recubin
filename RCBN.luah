@@ -604,7 +604,8 @@ export type Canvas = Instance & {
 
 -- 太陽。平行光源の向きの唯一の正（Workspaceの最初のSun。無ければ平行光源なし）。
 -- 太陽と月に共通のプロパティ。逆光・光条はすべて強さ0（既定）で無効。
--- 効果は不透明物の描画後に加算で重なる。グロー・ベールは手前の物体の上にも被さり、光条は手前の物体に遮られる。
+-- 効果は不透明物の描画後に重なる。光条は手前の物体に遮られ、グローは物体の上へ少しにじむが天体が隠れているほど弱く
+-- （完全に隠れれば消える）、ベールは天体が隠れているほど弱い。
 export type CelestialBody = Instance & {
     Color: Color4,
     Distance: number, -- 見かけの距離。大きいほど小さく見える（既定1000）
@@ -627,7 +628,13 @@ export type Sun = CelestialBody & {
     Angle: Vector2,
 }
 -- 月。最初のSunの反対側に見える。光源にはならない。
-export type Moon = CelestialBody & {}
+export type Moon = CelestialBody & {
+    -- 満ち欠けの周期上の位置。0=新月、0.25=上弦(右が明るい)、0.5=満月(既定)、0.75=下弦(左が明るい)、1=新月。
+    -- 範囲外の値は周期として折り返す。満月以外のときは明暗境界のある円盤で描く。
+    Phase: number,
+    PhaseRotation: number, -- 明暗境界の向き（度、画面基準）
+    Earthshine: number, -- 影の部分の見え方。0=透明で空が見える、1=不透明（既定0.08）
+}
 export type Truss = Cube & {}
 export type Seat = Cube & { Steer: number, Throttle: number }
 export type LiquidCube = BaseCube & { Density: number }
