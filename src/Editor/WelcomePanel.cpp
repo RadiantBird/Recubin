@@ -61,7 +61,12 @@ void WelcomePanel::onRender() {
     const int frame = ImGui::GetFrameCount();
     if (m_lastRenderFrame < 0 || frame - m_lastRenderFrame > 1) m_focusRequestFramesLeft = FOCUS_REQUEST_FRAMES;
     m_lastRenderFrame = frame;
-    if (m_focusRequestFramesLeft > 0) {
+    // ポップアップ(クラッシュ復旧のモーダルなど)が開いている間は要求しない。ImGuiは
+    // ウィンドウへフォーカスすると、その上のポップアップを閉じてしまう。要求は残し、
+    // ポップアップが閉じてから前面にする。
+    const bool popupOpen = ImGui::IsPopupOpen(
+        nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+    if (m_focusRequestFramesLeft > 0 && !popupOpen) {
         ImGui::SetNextWindowFocus();
         --m_focusRequestFramesLeft;
     }
