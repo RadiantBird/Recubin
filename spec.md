@@ -422,6 +422,9 @@ Replication、Luau の `workspace`、Primary Viewport、Explorer を追従させ
 `--ui-automation` を指定したEditorだけがstdin操作と意味IDによるUI target登録を有効化する。
 通常起動ではreader、入力注入、target登録、captureはno-op。captureはmain viewportの
 default back framebufferをphysical pixel sizeでRGBA PNGとして保存する。
+`state`コマンドはImGuiの状態（開いているポップアップ・フォーカス・見えているtarget）を1行のJSONで
+出力し、`wait`のタイムアウトと`target unavailable`にも同じ状態が付く。`--ui-automation-hidden`を
+併用するとウィンドウを表示せずに起動する（OSの入力やデスクトップのスクリーンショットは使わない）。
 
 ## Editor パネル表示とテーマ
 

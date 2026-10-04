@@ -9536,11 +9536,13 @@ static int runGuiAutomationRegression() {
                validateGuiAutomationCommand("right_click Picker") &&
                validateGuiAutomationCommand("capture output.png") &&
                validateGuiAutomationCommand("key ctrl+shift+a") &&
+               validateGuiAutomationCommand("state") &&
                validateGuiAutomationCommand("quit"),
            "valid GUI automation commands are accepted");
     expect(!validateGuiAutomationCommand("click Picker extra") &&
                !validateGuiAutomationCommand("key Ctrl+") &&
                !validateGuiAutomationCommand("quit extra") &&
+               !validateGuiAutomationCommand("state extra") &&
                !validateGuiAutomationCommand("wait Picker nope") &&
                !validateGuiAutomationCommand("mouse nope 1") &&
                !validateGuiAutomationCommand("mouse_down 3"),

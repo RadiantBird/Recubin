@@ -204,7 +204,7 @@ def _run_gui_smoke_impl(editor_exe: Path, temp_dir: Path, candidate_dir: Path) -
     original_snapshot = (original_settings.read_bytes(), original_settings.stat().st_mtime_ns) if original_settings.exists() else None
     try:
         process = subprocess.Popen(
-            [str(editor_exe), "--ui-automation", "--ui-automation-scene",
+            [str(editor_exe), "--ui-automation", "--ui-automation-hidden", "--ui-automation-scene",
              windows_process_path(scene_path), "--ui-automation-settings",
              windows_process_path(settings_path)], cwd=ROOT_DIR,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,

@@ -12,4 +12,6 @@ void afterNewFrame();
 void registerLastItem(std::string_view id);
 void afterRender(GLFWwindow* window);
 bool enabled();
+// --ui-automation-hidden が指定されたとき真(ウィンドウを表示せずに起動する)。--ui-automation なしでは常に偽。
+bool hiddenWindow();
 }

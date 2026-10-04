@@ -114,6 +114,9 @@ GLFWwindow* setupWindow() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
+    // 自動化用の非表示モード。ウィンドウを出さないので他の作業や画面に影響しない。
+    if (GuiAutomation::hiddenWindow()) glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+
     std::cout << "creating window...\n";
     GLFWwindow* window = glfwCreateWindow(1600, 900, "Recubin Studio", nullptr, nullptr);
     if (!window) {

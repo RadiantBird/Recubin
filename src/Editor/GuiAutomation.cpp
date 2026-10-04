@@ -18,14 +18,71 @@
 
 namespace {
 struct Target { ImVec2 min{}, max{}; ImGuiID id=0; bool visible=false; std::uint64_t frame=0; };
-enum class Kind { Move, Click, RightClick, Type, Key, Mouse, Down, Up, Wheel, Wait, Focus, Capture, Quit };
+enum class Kind { Move, Click, RightClick, Type, Key, Mouse, Down, Up, Wheel, Wait, Focus, Capture, Quit, State };
 struct Action { Kind kind{}; std::string target,text,path; ImVec2 point{}; int button=0; ImGuiKey key=ImGuiKey_None; std::vector<ImGuiKey> modifiers; float x=0,y=0; std::uint64_t timeout=600,deadline=0; };
-std::atomic_bool enabledFlag{false},quitFlag{false},started{false}; std::mutex mutex; std::deque<Action> queue; std::unordered_map<std::string,Target> current,published; Action active{}; bool activeValid=false,tapRelease=false,rightClickPressPending=false; std::uint64_t frame=0;
+std::atomic_bool enabledFlag{false},hiddenFlag{false},quitFlag{false},started{false}; std::mutex mutex; std::deque<Action> queue; std::unordered_map<std::string,Target> current,published; Action active{}; bool activeValid=false,tapRelease=false,rightClickPressPending=false; std::uint64_t frame=0;
 void report(bool ok,const std::string& s){(ok?std::cout:std::cerr)<<"[UIAUTO] "<<(ok?"OK ":"ERROR ")<<s<<'\n'<<std::flush;}
 bool uintValue(std::string_view s,std::uint64_t& v){auto r=std::from_chars(s.data(),s.data()+s.size(),v);return r.ec==std::errc{}&&r.ptr==s.data()+s.size();}
 bool floatValue(std::string_view s,float& v){auto r=std::from_chars(s.data(),s.data()+s.size(),v);return r.ec==std::errc{}&&r.ptr==s.data()+s.size();}
 bool parseKey(std::string s,ImGuiKey& k){std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return(char)std::toupper(c);});if(s.size()==1&&s[0]>='A'&&s[0]<='Z'){k=(ImGuiKey)(ImGuiKey_A+s[0]-'A');return true;}if(s.size()==1&&s[0]>='0'&&s[0]<='9'){k=(ImGuiKey)(ImGuiKey_0+s[0]-'0');return true;}if(s=="ENTER")k=ImGuiKey_Enter;else if(s=="ESCAPE"||s=="ESC")k=ImGuiKey_Escape;else if(s=="TAB")k=ImGuiKey_Tab;else if(s=="BACKSPACE")k=ImGuiKey_Backspace;else if(s=="DELETE")k=ImGuiKey_Delete;else if(s=="LEFT")k=ImGuiKey_LeftArrow;else if(s=="RIGHT")k=ImGuiKey_RightArrow;else if(s=="UP")k=ImGuiKey_UpArrow;else if(s=="DOWN")k=ImGuiKey_DownArrow;else if(s.size()>1&&s[0]=='F'){std::uint64_t n;if(!uintValue(s.substr(1),n)||n<1||n>12)return false;k=(ImGuiKey)(ImGuiKey_F1+n-1);}else return false;return true;}
 ImGuiKey modifier(std::string s){std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return(char)std::toupper(c);});if(s=="CTRL"||s=="CONTROL")return ImGuiKey_LeftCtrl;if(s=="SHIFT")return ImGuiKey_LeftShift;if(s=="ALT")return ImGuiKey_LeftAlt;if(s=="SUPER"||s=="CMD")return ImGuiKey_LeftSuper;return ImGuiKey_None;}
+
+std::string jsonEscape(std::string_view text) {
+    std::string out;
+    for (const char c : text) {
+        if (c == '"' || c == '\\') { out += '\\'; out += c; }
+        else if (static_cast<unsigned char>(c) < 0x20) out += ' ';
+        else out += c;
+    }
+    return out;
+}
+std::string jsonString(std::string_view text) { return "\"" + jsonEscape(text) + "\""; }
+std::string windowLabel(const ImGuiWindow* window) {
+    if (!window) return "null";
+    // 表示名は翻訳されるため、"###"以降の安定したIDがあればそれを使う。
+    const std::string_view name = window->Name;
+    const size_t idStart = name.find("###");
+    return jsonString(idStart == std::string_view::npos ? name : name.substr(idStart));
+}
+// 直前のフレームが終わった時点のImGui状態を1行のJSONにする。ウィンドウや画像を見なくても、
+// 「どのポップアップが開いているか」「フォーカスはどこか」「どのtargetが見えているか」を取得できる。
+// 呼び出し側がmutexを保持していること(publishedを読むため)。
+std::string stateJson() {
+    ImGuiContext* context = ImGui::GetCurrentContext();
+    if (!context) return "{}";
+    const ImGuiContext& g = *context;
+    constexpr size_t MAX_LISTED = 60;
+
+    std::string popups;
+    for (int i = 0; i < g.OpenPopupStack.Size; ++i) {
+        if (i > 0) popups += ',';
+        popups += windowLabel(g.OpenPopupStack[i].Window);
+    }
+    std::string windows;
+    size_t windowCount = 0;
+    for (const ImGuiWindow* window : g.Windows) {
+        if (!window || !window->Active || window->Hidden) continue;
+        if (window->Flags & (ImGuiWindowFlags_ChildWindow | ImGuiWindowFlags_Tooltip)) continue;
+        if (windowCount++ < MAX_LISTED) windows += (windows.empty() ? "" : ",") + windowLabel(window);
+    }
+    std::vector<std::string> names;
+    for (const auto& [name, target] : published) if (target.visible) names.push_back(name);
+    std::sort(names.begin(), names.end());
+    std::string targets;
+    for (size_t i = 0; i < names.size() && i < MAX_LISTED; ++i)
+        targets += (targets.empty() ? "" : ",") + jsonString(names[i]);
+
+    std::string json = "{\"frame\":" + std::to_string(frame);
+    json += std::string(",\"hiddenWindow\":") + (hiddenFlag.load() ? "true" : "false");
+    json += ",\"popups\":[" + popups + "]";
+    json += ",\"modal\":" + windowLabel(ImGui::GetTopMostPopupModal());
+    json += ",\"focus\":" + windowLabel(g.NavWindow);
+    json += ",\"hovered\":" + windowLabel(g.HoveredWindow);
+    json += ",\"windows\":[" + windows + "]";
+    json += ",\"targetCount\":" + std::to_string(names.size());
+    json += ",\"targets\":[" + targets + "]}";
+    return json;
+}
 bool pointFor(const std::string& n,ImVec2& p){auto i=published.find(n);if(i==published.end()||!i->second.visible)return false;p={(i->second.min.x+i->second.max.x)/2,(i->second.min.y+i->second.max.y)/2};return true;}
 bool parseCommand(std::string_view line, Action& parsedAction,
                   std::string& immediateCommand) {
@@ -42,6 +99,7 @@ bool parseCommand(std::string_view line, Action& parsedAction,
     }
     Action action{}; bool ok = true;
     if (t[0] == "quit" && t.size() == 1) action.kind = Kind::Quit;
+    else if (t[0] == "state" && t.size() == 1) action.kind = Kind::State;
     else if (t[0] == "wait" && (t.size() == 2 || t.size() == 3)) {
         action.kind = Kind::Wait; action.target = t[1];
         if (t.size() == 3) ok = uintValue(t[2], action.timeout);
@@ -83,7 +141,7 @@ bool enqueueCommand(std::string_view line) {
         return false;
     }
     if (immediateCommand == "help") {
-        report(true, "help targets wait move click right_click type key mouse mouse_down mouse_up wheel focus_window capture quit");
+        report(true, "help targets state wait move click right_click type key mouse mouse_down mouse_up wheel focus_window capture quit");
         return true;
     }
     if (immediateCommand == "targets") {
@@ -98,7 +156,8 @@ bool enqueueCommand(std::string_view line) {
 }
 }
 namespace GuiAutomation {
-void configureFromArgs(int argc,char** argv){for(int i=1;i<argc;++i)if(std::string_view(argv[i])=="--ui-automation")enabledFlag=true;}
+void configureFromArgs(int argc,char** argv){for(int i=1;i<argc;++i){const std::string_view argument(argv[i]);if(argument=="--ui-automation")enabledFlag=true;else if(argument=="--ui-automation-hidden")hiddenFlag=true;}if(!enabledFlag)hiddenFlag=false;}
+bool hiddenWindow(){return hiddenFlag.load();}
 void start(){ if (enabledFlag) started = true; }
 void beforeNewFrame() {
     if (!enabledFlag) return;
@@ -143,7 +202,7 @@ void beforeNewFrame() {
         }
         if (frame > action.deadline) {
             queue.pop_front();
-            report(false, "wait target timeout: " + action.target);
+            report(false, "wait target timeout: " + action.target + " state=" + stateJson());
         } else if (!pointFor(action.target, action.point)) {
             return;
         } else {
@@ -155,13 +214,13 @@ void beforeNewFrame() {
     }
     if (action.kind == Kind::Move || action.kind == Kind::Click || action.kind == Kind::RightClick) {
         if (!pointFor(action.target, action.point)) {
-            report(false, "target unavailable: " + action.target);
+            report(false, "target unavailable: " + action.target + " state=" + stateJson());
             return;
         }
         if (action.kind == Kind::Click) {
             const auto target = published.find(action.target);
             if (target == published.end() || target->second.id == 0) {
-                report(false, "target unavailable: " + action.target);
+                report(false, "target unavailable: " + action.target + " state=" + stateJson());
                 return;
             }
             ImGui::ActivateItemByID(target->second.id);
@@ -206,6 +265,8 @@ void beforeNewFrame() {
     } else if (action.kind == Kind::Focus || action.kind == Kind::Capture) {
         active = action;
         activeValid = true;
+    } else if (action.kind == Kind::State) {
+        report(true, "state " + stateJson());
     } else if (action.kind == Kind::Quit) {
         quitFlag.exchange(true);
         report(true, "quit");

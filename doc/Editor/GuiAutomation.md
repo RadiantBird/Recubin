@@ -8,7 +8,7 @@ Editorだけが標準入力を行単位で読み取り、結果を `[UIAUTO] OK 
 
 | コマンド | 引数 |
 |---|---|
-| `help` / `targets` / `quit` | なし |
+| `help` / `targets` / `state` / `quit` | なし |
 | `wait` | `<target> [timeoutFrames]` |
 | `move` / `click` / `right_click` | `<target>` |
 | `type` | `<UTF-8 remainder>` |
@@ -18,6 +18,33 @@ Editorだけが標準入力を行単位で読み取り、結果を `[UIAUTO] OK 
 | `wheel` | `<x> <y>` |
 | `focus_window` | `<ImGui window name>` |
 | `capture` | `<output path>` |
+
+## 状態の取得（`state`）
+
+`state`は、直前のフレームが終わった時点のImGuiの状態を、1行のJSONで`[UIAUTO] OK state {...}`として
+標準出力へ出す。画像を見なくても、ダイアログが開いているか、どこにフォーカスがあるかを確認できる。
+コマンドはキューに並ぶので、`wait`の後に置けばその時点の状態になる。
+
+| フィールド | 内容 |
+|---|---|
+| `frame` | 自動化のフレーム番号 |
+| `hiddenWindow` | `--ui-automation-hidden`で起動しているか |
+| `popups` | 開いているポップアップ（外側から順） |
+| `modal` | 最前面のモーダル（なければ`null`） |
+| `focus` / `hovered` | フォーカス中・マウス下のウィンドウ（なければ`null`） |
+| `windows` | 表示中の最上位ウィンドウ（最大60件） |
+| `targetCount` / `targets` | 見えているtargetの数と名前（名前は先頭60件、昇順） |
+
+ウィンドウ名は翻訳されるため、`###`を含む場合は`###`以降の安定したIDだけを出す。
+
+`wait`のタイムアウトと`target unavailable`のエラー行には、同じJSONが`state=`として自動で付く
+（ハーネスは`[UIAUTO] ERROR`をそのまま出力するので、失敗時の原因がログだけで分かる）。
+
+## 非表示モード（`--ui-automation-hidden`）
+
+`--ui-automation`と併用すると、ウィンドウを表示せずに起動する（`GLFW_VISIBLE`を偽にする）。
+他の作業や画面に影響せず、フォーカスの奪い合いも起きない。`capture`は非表示でも
+フレームバッファの内容を読み取れる。`--ui-automation`なしでは無視される。
 
 Explorerの代表的なtarget IDは次の通りです。
 
