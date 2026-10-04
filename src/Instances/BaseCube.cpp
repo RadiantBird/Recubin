@@ -227,6 +227,7 @@ void BaseCube::init() {
     LockFlags = PhysicsLockFlags::None;
     if (auto previous = m_materialRef.lock()) previous->unregisterUser(this);
     m_materialRef.reset();
+    m_materialRaw = nullptr;
     m_materialPath.clear();
 }
 
@@ -254,6 +255,10 @@ bool BaseCube::shouldCastShadow(bool hasVisibleFallbackGeometry) const {
 }
 
 void BaseCube::onAncestorChanged() {
+    // Luaなどでツリーに入れる前にMaterialパスだけ代入された場合は、ここで後解決する
+    // (パスが空、または解決済みなら何もしない)。
+    if (!m_materialPath.empty() && !m_materialRef.lock()) resolveMaterialRef();
+
     std::uint32_t newCharacterCollisionGroup = 0;
     for (auto ancestor = Parent.lock(); ancestor; ancestor = ancestor->Parent.lock()) {
         if (!ancestor->IsA("Model")) continue;
@@ -286,7 +291,15 @@ void BaseCube::onAncestorChanged() {
         }
 
         lastWorkspace = newWorkspace;
-        if (newWorkspace) newWorkspace->registerCube(self);
+        if (newWorkspace) {
+            // 登録時(完全に構築済み)に形状を決め、毎フレームのクラス名比較を避ける。
+            const std::string className = getClassName();
+            m_renderShapeIndex = className == "Cube" ? 0
+                : className == "Cylinder" ? 1
+                : className == "Sphere" ? 2
+                : className == "TriangularPrism" ? 3 : -1;
+            newWorkspace->registerCube(self);
+        }
     }
 
     // 2. 子階層への通知も継続（BaseCube の中に何か入っている場合のため）
@@ -408,11 +421,19 @@ std::shared_ptr<MaterialInstance> BaseCube::findMaterialByPath(
     }
     Instance* top = this;
     for (auto p = Parent.lock(); p; p = p->Parent.lock()) top = p.get();
+    // getFullPath()形式("System\MaterialService\Name")のように最上位の名前が先頭に付いたパスも受け付ける。
+    const auto findFrom = [&](Instance* root) -> std::shared_ptr<MaterialInstance> {
+        if (auto found = asMaterial(root->getChildByPath(path))) return found;
+        const std::string prefix = root->Name + "\\";
+        if (path.size() > prefix.size() && path.compare(0, prefix.size(), prefix) == 0)
+            return asMaterial(root->getChildByPath(path.substr(prefix.size())));
+        return nullptr;
+    };
     if (top != this) {
-        if (auto found = asMaterial(top->getChildByPath(path))) return found;
+        if (auto found = findFrom(top)) return found;
     }
     if (fallbackRoot && fallbackRoot != top) {
-        if (auto found = asMaterial(fallbackRoot->getChildByPath(path))) return found;
+        if (auto found = findFrom(fallbackRoot)) return found;
     }
     return nullptr;
 }
@@ -438,6 +459,7 @@ void BaseCube::setMaterialPath(const std::string& path) {
     if (auto previous = m_materialRef.lock()) {
         previous->unregisterUser(this);
         m_materialRef.reset();
+        m_materialRaw = nullptr;
         refreshPhysicsFromMaterial();
     }
     m_materialPath = path;
@@ -451,6 +473,7 @@ void BaseCube::setMaterialInstance(const std::shared_ptr<MaterialInstance>& mate
     }
     if (previous) previous->unregisterUser(this);
     m_materialRef = materialInstance;
+    m_materialRaw = materialInstance.get();
     if (materialInstance) {
         if (auto self = std::static_pointer_cast<BaseCube>(weak_from_this().lock()))
             materialInstance->registerUser(self);
@@ -564,12 +587,7 @@ unsigned int BaseCube::getDecalTexture(Face face, unsigned int fallback) const {
 }
 
 bool BaseCube::hasMaterialFaceVisuals() const {
-    auto materialInstance = m_materialRef.lock();
-    if (!materialInstance) return false;
-    for (auto const& [name, child] : materialInstance->children) {
-        if (child->IsA("Decal") || child->IsA("Texture")) return true;
-    }
-    return false;
+    return m_materialRaw && m_materialRaw->hasFaceVisuals();
 }
 
 void BaseCube::setProperty(const std::string& name, const YAML::Node& value) {

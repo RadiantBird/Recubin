@@ -17,6 +17,101 @@ Root:
   Children:
     - ClassName: MaterialService
       Name: MaterialService
+      Children:
+        - ClassName: Material
+          Name: RoughPlastic
+          Properties:
+            Metallic: 0
+            Roughness: 1
+            Reflectance: 0.5
+            BaseColorMap: BaseColor
+            RoughnessMap: Roughness
+            MetallicMap: ""
+            NormalMap: Normal
+            TextureScale: 2
+            NormalStrength: 0.6
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            MassDensity: 1
+            Conductive: false
+          Children:
+            - ClassName: FileRef
+              Name: BaseColor
+              Properties:
+                ContentPath: assets/materials/rough_plastic_basecolor.png
+            - ClassName: FileRef
+              Name: Roughness
+              Properties:
+                ContentPath: assets/materials/rough_plastic_roughness.png
+            - ClassName: FileRef
+              Name: Normal
+              Properties:
+                ContentPath: assets/materials/rough_plastic_normal.png
+        - ClassName: Material
+          Name: WoodPlanks
+          Properties:
+            Metallic: 0
+            Roughness: 1
+            Reflectance: 0.3
+            BaseColorMap: BaseColor
+            RoughnessMap: Roughness
+            MetallicMap: ""
+            NormalMap: Normal
+            TextureScale: 5
+            NormalStrength: 1
+            StaticFriction: 0.5
+            DynamicFriction: 0.6
+            Restitution: 0.05
+            MassDensity: 0.7
+            Conductive: false
+          Children:
+            - ClassName: FileRef
+              Name: BaseColor
+              Properties:
+                ContentPath: assets/materials/wood_planks_basecolor.png
+            - ClassName: FileRef
+              Name: Roughness
+              Properties:
+                ContentPath: assets/materials/wood_planks_roughness.png
+            - ClassName: FileRef
+              Name: Normal
+              Properties:
+                ContentPath: assets/materials/wood_planks_normal.png
+        - ClassName: Material
+          Name: ScratchedMetal
+          Properties:
+            Metallic: 1
+            Roughness: 1
+            Reflectance: 0.5
+            BaseColorMap: BaseColor
+            RoughnessMap: Roughness
+            MetallicMap: Metallic
+            NormalMap: Normal
+            TextureScale: 3
+            NormalStrength: 1
+            StaticFriction: 0.5
+            DynamicFriction: 0.4
+            Restitution: 0.2
+            MassDensity: 3
+            Conductive: true
+          Children:
+            - ClassName: FileRef
+              Name: BaseColor
+              Properties:
+                ContentPath: assets/materials/scratched_metal_basecolor.png
+            - ClassName: FileRef
+              Name: Roughness
+              Properties:
+                ContentPath: assets/materials/scratched_metal_roughness.png
+            - ClassName: FileRef
+              Name: Metallic
+              Properties:
+                ContentPath: assets/materials/scratched_metal_metallic.png
+            - ClassName: FileRef
+              Name: Normal
+              Properties:
+                ContentPath: assets/materials/scratched_metal_normal.png
     - ClassName: Users
       Name: Users
       Children:
@@ -97,7 +192,7 @@ Root:
         - ClassName: Sun
           Name: Sun
           Properties:
-            Angle: [135, 35.26439]
+            Angle: [135, 45]
             Color: [1, 0.95, 0.8, 1]
             Distance: 1000
             GlowIntensity: 1
@@ -107,6 +202,23 @@ Root:
             SpikeIntensity: 0.1
             SpikeCount: 6
             SpikeLength: 3
+            SpikeRotation: 0
+            HorizonFade: true
+        - ClassName: Moon
+          Name: Moon
+          Properties:
+            Phase: 0.5
+            PhaseRotation: 0
+            Earthshine: 0.08
+            Color: [0.5646688, 0.5646689, 1, 1]
+            Distance: 1000
+            GlowIntensity: 0.5
+            GlowRadius: 4
+            VeilIntensity: 0.2
+            VeilFalloff: 100
+            SpikeIntensity: 0.1
+            SpikeCount: 6
+            SpikeLength: 6
             SpikeRotation: 0
             HorizonFade: true
         - ClassName: Cube
@@ -229,6 +341,30 @@ Root:
                 ZTargetAngle: 0
                 ZMaxTorque: 10000
                 ZMaxAngularSpeed: 180
+        - ClassName: Cube
+          Name: Cube4
+          Properties:
+            Position: [0.20270777, 1, -12.94825]
+            Size: [4, 1, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Material: MaterialService\WoodPlanks
+            Locked: false
+            LockFlags: []
         - ClassName: Script
           Name: SignalEventComms
           Properties:
@@ -3039,6 +3175,88 @@ Root:
                 Restitution: 0.1
                 Locked: false
                 LockFlags: []
+        - ClassName: Cube
+          Name: Cube1
+          Properties:
+            Position: [0.20270777, 1, -21.94825]
+            Size: [4, 1, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Material: MaterialService\RoughPlastic
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: Cube3
+          Properties:
+            Position: [0.20270777, 1, -17.44825]
+            Size: [4, 1, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Material: MaterialService\ScratchedMetal
+            Locked: false
+            LockFlags: []
+        - ClassName: Material
+          Name: ScratchedMetal
+          Properties:
+            Metallic: 1
+            Roughness: 1
+            Reflectance: 0.5
+            BaseColorMap: BaseColor
+            RoughnessMap: Roughness
+            MetallicMap: Metallic
+            NormalMap: Normal
+            TextureScale: 3
+            NormalStrength: 1
+            StaticFriction: 0.5
+            DynamicFriction: 0.4
+            Restitution: 0.2
+            MassDensity: 3
+            Conductive: true
+          Children:
+            - ClassName: FileRef
+              Name: BaseColor
+              Properties:
+                ContentPath: assets/materials/scratched_metal_basecolor.png
+            - ClassName: FileRef
+              Name: Roughness
+              Properties:
+                ContentPath: assets/materials/scratched_metal_roughness.png
+            - ClassName: FileRef
+              Name: Metallic
+              Properties:
+                ContentPath: assets/materials/scratched_metal_metallic.png
+            - ClassName: FileRef
+              Name: Normal
+              Properties:
+                ContentPath: assets/materials/scratched_metal_normal.png
     - ClassName: PathfindingService
       Name: PathfindingService
       Properties:

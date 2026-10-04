@@ -66,6 +66,25 @@ static const bool s_materialRegistered = []{
 
 MaterialInstance::MaterialInstance() : Instance("Material") {}
 
+MaterialInstance::~MaterialInstance() {
+    // 参照元が描画ホットパスで使う生ポインタを、破棄前に無効化する。
+    for (const auto& weak : m_users) {
+        if (auto cube = weak.lock()) cube->clearMaterialRaw(this);
+    }
+}
+
+void MaterialInstance::onChildrenChanged() {
+    Instance::onChildrenChanged();
+    m_hasFaceVisuals = false;
+    for (const auto& [name, child] : children) {
+        (void)name;
+        if (child && (child->IsA("Decal") || child->IsA("Texture"))) {
+            m_hasFaceVisuals = true;
+            break;
+        }
+    }
+}
+
 std::string MaterialInstance::getClassName() { return "Material"; }
 
 bool MaterialInstance::IsA(std::string className) {

@@ -13719,6 +13719,29 @@ static int runMaterialMapRegression() {
                    wood->resolveMapPath(MaterialInstance::MapSlot::Normal),
            "clone keeps map references, tiling and its FileRef children");
 
+    // ツリーに入れる前にMaterialパスだけ代入した場合(Luaで Instance.new 後に代入するパターン)は、
+    // ツリーに入った時点で解決される。getFullPath()形式("System\...")のパスも受け付ける。
+    auto earlyCube = std::static_pointer_cast<BaseCube>(SceneLoader::createInstance("Cube"));
+    earlyCube->Name = "EarlyCube";
+    earlyCube->setProperty("Material", YAML::Node(std::string("MaterialService\\WoodPlanks")));
+    expect(!earlyCube->getMaterialInstance(), "Material assigned to a detached cube is pending");
+    workspace->addChild(earlyCube);
+    expect(earlyCube->getMaterialInstance() == wood, "pending Material resolves when the cube enters the tree");
+    auto fullPathCube = std::static_pointer_cast<BaseCube>(SceneLoader::createInstance("Cube"));
+    fullPathCube->Name = "FullPathCube";
+    fullPathCube->setProperty("Material", YAML::Node(std::string("System\\MaterialService\\ScratchedMetal")));
+    workspace->addChild(fullPathCube);
+    auto metalMaterial = materialService->getChild("ScratchedMetal");
+    expect(metalMaterial && fullPathCube->getMaterialInstance().get() == metalMaterial,
+           "a Material path prefixed with the top-level name resolves");
+    auto attachedCube = std::static_pointer_cast<BaseCube>(SceneLoader::createInstance("Cube"));
+    attachedCube->Name = "AttachedCube";
+    workspace->addChild(attachedCube);
+    attachedCube->setProperty("Material", YAML::Node(std::string("System\\MaterialService\\RoughPlastic")));
+    auto plasticMaterial = materialService->getChild("RoughPlastic");
+    expect(plasticMaterial && attachedCube->getMaterialInstance().get() == plasticMaterial,
+           "a prefixed path assigned after attaching resolves immediately");
+
     const auto yamlPath = std::filesystem::temp_directory_path() / "recubin_material_map_regression.yaml";
     expect(SceneLoader::saveSceneResult(system.get(), yamlPath.string()), "scene with map Materials saves");
     const auto loaded = SceneLoader::loadSceneResult(yamlPath.string());

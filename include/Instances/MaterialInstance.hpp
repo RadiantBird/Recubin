@@ -47,7 +47,7 @@ public:
     bool Conductive = false;
 
     MaterialInstance();
-    virtual ~MaterialInstance() = default;
+    virtual ~MaterialInstance();
 
     virtual std::string getClassName() override;
     virtual bool IsA(std::string className) override;
@@ -63,6 +63,10 @@ public:
     std::string resolveMapPath(MapSlot slot);
     // いずれかのマップが設定されているか(解決はしない。描画の分岐用で軽い)。
     bool hasMaps() const;
+    // 面へ投影するDecal/Textureを子に持つか。子の増減時に更新するので、描画の収集(複数
+    // スレッドから読む)で文字列比較をせずに使える。
+    bool hasFaceVisuals() const { return m_hasFaceVisuals; }
+    virtual void onChildrenChanged() override;
 
     // baseの物理Materialのfriction/restitutionをこのMaterialの値で上書きして返す。
     Material applyPhysicsTo(const Material& base) const;
@@ -78,4 +82,5 @@ public:
 
 private:
     std::vector<std::weak_ptr<BaseCube>> m_users;
+    bool m_hasFaceVisuals = false;
 };

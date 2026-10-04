@@ -24,7 +24,13 @@ private:
         bool sharesBody = false;
         CFrame synchronizedWorldCFrame;
         bool hasSynchronizedWorldCFrame = false;
+        // 前回の同期時に起きていたか。眠りに入ったステップの最終姿勢も同期するため、
+        // 眠っていても「前回起きていた」なら1回は同期する。
+        bool awakeAtLastSync = true;
     };
+
+    // syncAllCubesの作業用(フレーム間で容量を使い回す)。1=そのボディは同期が必要。
+    std::vector<std::uint8_t> m_syncNeeded;
 
     struct ConstraintEntry {
         std::weak_ptr<Instance> constraint;

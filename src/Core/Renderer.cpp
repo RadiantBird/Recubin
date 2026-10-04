@@ -234,13 +234,7 @@ static bool sphereInFrustum(const FrustumPlanes& f, const Vector3& center, float
 // 0=Cube, 1=Cylinder, 2=Sphere, 3=TriangularPrism（Renderer::m_instBatchesの並びと一致）
 // クラス名完全一致のみ（Seat/Truss等の派生は独自描画の可能性があるため除外）。
 static int primitiveShapeIndex(BaseCube* bc) {
-    if (!bc) return -1;
-    const std::string className = bc->getClassName();
-    if (className == "Cube") return 0;
-    if (className == "Cylinder") return 1;
-    if (className == "Sphere") return 2;
-    if (className == "TriangularPrism") return 3;
-    return -1;
+    return bc ? bc->renderShapeIndex() : -1;  // Workspaceへの登録時にクラス名から決めてある
 }
 
 // メインパスでインスタンス描画できる「素のプリミティブ」の形状インデックスを返す。
@@ -253,8 +247,6 @@ static int instanceableShapeIndexForShape(BaseCube* bc, int shapeIdx) {
     if (bc->Unlit || bc->UseTriplanar) return -1;
     if (bc->TextureScale != 1.0f) return -1;
     if (bc->hasMaterialFaceVisuals()) return -1;  // Materialが面へ投影するDecal/Textureは面ごとに描く
-    if (const auto material = bc->getMaterialInstance(); material && material->hasMaps())
-        return -1;  // 画像マップはMaterialごとのテクスチャ束縛が要るため個別に描く
     for (auto const& [name, child] : bc->getChildren()) {
         if (child->IsA("Decal") || child->IsA("Texture") ||
             child->getClassName() == "Canvas") {
@@ -274,14 +266,18 @@ static int instanceableShapeIndex(BaseCube* bc) {
 
 // BaseCubeのMaterial参照からPBR値(metallic, roughness, reflectance, enabled)を取り出す。
 // 参照が無ければ全て0（PBR無効 = 従来のLambert描画）。
-static void getPbrParams(const BaseCube& bc, float out[4]) {
+static void getPbrParams(const MaterialInstance* material, float out[4]) {
     out[0] = out[1] = out[2] = out[3] = 0.0f;
-    if (auto material = bc.getMaterialInstance()) {
+    if (material) {
         out[0] = material->Metallic;
         out[1] = material->Roughness;
         out[2] = material->Reflectance;
         out[3] = 1.0f;
     }
+}
+
+static void getPbrParams(const BaseCube& bc, float out[4]) {
+    getPbrParams(bc.getMaterialInstance().get(), out);
 }
 
 // Shadow depth passではTexture/Decal/Triplanar等の見た目状態を読まないため、
@@ -300,23 +296,25 @@ static bool shouldCastShadow(BaseCube* bc) {
 
 // 形状の共有VAOにインスタンス属性(5-9, divisor=1)を後付けする。
 // 非インスタンス描画時は uInstanced=0 でシェーダーが属性5-9を読まないため影響しない。
+void Renderer::setInstanceAttribPointers(std::size_t byteOffset) {
+    for (int instAttrIdx = 0; instAttrIdx < 4; ++instAttrIdx) {
+        glVertexAttribPointer(5 + instAttrIdx, 4, GL_FLOAT, GL_FALSE, sizeof(CubeInstanceData),
+                              (void*)(byteOffset + sizeof(float) * 4 * instAttrIdx));
+    }
+    glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(CubeInstanceData),
+                          (void*)(byteOffset + offsetof(CubeInstanceData, color)));
+    glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(CubeInstanceData),
+                          (void*)(byteOffset + offsetof(CubeInstanceData, pbr)));
+}
+
 void Renderer::attachInstanceAttribs(unsigned int vao) {
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
-    for (int instAttrIdx = 0; instAttrIdx < 4; ++instAttrIdx) {
-        glVertexAttribPointer(5 + instAttrIdx, 4, GL_FLOAT, GL_FALSE, sizeof(CubeInstanceData),
-                              (void*)(sizeof(float) * 4 * instAttrIdx));
-        glEnableVertexAttribArray(5 + instAttrIdx);
-        glVertexAttribDivisor(5 + instAttrIdx, 1);
+    setInstanceAttribPointers(0);
+    for (int attrib = 5; attrib <= 10; ++attrib) {
+        glEnableVertexAttribArray(attrib);
+        glVertexAttribDivisor(attrib, 1);
     }
-    glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(CubeInstanceData),
-                          (void*)offsetof(CubeInstanceData, color));
-    glEnableVertexAttribArray(9);
-    glVertexAttribDivisor(9, 1);
-    glVertexAttribPointer(10, 4, GL_FLOAT, GL_FALSE, sizeof(CubeInstanceData),
-                          (void*)offsetof(CubeInstanceData, pbr));
-    glEnableVertexAttribArray(10);
-    glVertexAttribDivisor(10, 1);
     glBindVertexArray(0);
 }
 
@@ -2389,6 +2387,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
         m_instBatches[shapeIdx].main.clear();
         m_instBatches[shapeIdx].shadow.clear();
+        m_instBatches[shapeIdx].mapRuns.clear();
+        m_instBatches[shapeIdx].mapStart = 0;
     }
     std::vector<BaseCube*> individuallyRenderedMainCubes;
     std::vector<BaseCube*> individuallyRenderedShadowCubes;
@@ -2405,6 +2405,26 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         std::size_t mainOffset[INST_SHAPE_COUNT] = {};
         std::size_t shadowOffset[INST_SHAPE_COUNT] = {};
 
+        // 画像マップを持つMaterialの参照元は、Materialごとのバケツへ集める
+        // (描画時にMaterialごとに1回だけマップを束縛するため)。
+        struct MapBucket {
+            const MaterialInstance* material = nullptr;
+            std::vector<CubeInstanceData> data[INST_SHAPE_COUNT];
+            std::size_t offset[INST_SHAPE_COUNT] = {};
+        };
+        std::vector<MapBucket> mapBuckets;  // 使い回すので、有効なのは先頭のmapBucketCount個
+        std::size_t mapBucketCount = 0;
+
+        MapBucket& bucketFor(const MaterialInstance* material) {
+            for (std::size_t i = 0; i < mapBucketCount; ++i)
+                if (mapBuckets[i].material == material) return mapBuckets[i];
+            if (mapBucketCount == mapBuckets.size()) mapBuckets.emplace_back();
+            MapBucket& bucket = mapBuckets[mapBucketCount++];
+            bucket.material = material;
+            for (int s = 0; s < INST_SHAPE_COUNT; ++s) bucket.data[s].clear();
+            return bucket;
+        }
+
         void reset() {
             for (int s = 0; s < INST_SHAPE_COUNT; ++s) {
                 main[s].clear();
@@ -2412,6 +2432,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             }
             individualMain.clear();
             individualShadow.clear();
+            mapBucketCount = 0;
             culled = 0;
         }
     };
@@ -2437,7 +2458,10 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             std::memcpy(d.model, mtx.m, sizeof(d.model));
             d.color[0] = inst->Color.r; d.color[1] = inst->Color.g;
             d.color[2] = inst->Color.b; d.color[3] = inst->Color.a;
-            getPbrParams(*inst, d.pbr);
+            const MaterialInstance* material = inst->getMaterialRaw();  // ロックなし(競合を避ける)
+            getPbrParams(material, d.pbr);
+            const MaterialInstance* mapMaterial =
+                (material && material->hasMaps()) ? material : nullptr;
             const float boundRadius = inst->Size.length() * 0.5f;
             // shadowShapeIdx>=0 は素のCube/Cylinder/Sphere/TriangularPrismのみで、
             // MeshCubeのフォールバック描画は無いため hasFallback は常に false。
@@ -2448,7 +2472,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             }
             if (mainShapeIdx >= 0 &&
                 sphereInFrustum(camFrustum, wcf.Position, boundRadius)) {
-                chunk.main[mainShapeIdx].push_back(d);
+                if (mapMaterial) chunk.bucketFor(mapMaterial).data[mainShapeIdx].push_back(d);
+                else chunk.main[mainShapeIdx].push_back(d);
             } else {
                 if (mainShapeIdx >= 0) chunk.culled++;
             }
@@ -2498,9 +2523,53 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 individuallyRenderedShadowCubes.end(),
                 chunk.individualShadow.begin(), chunk.individualShadow.end());
         }
+        // Materialごとの区間(形状ごと)。並びは [マップ無し][Material0][Material1]...。
+        std::vector<const MaterialInstance*> mapMaterials;
+        std::vector<std::size_t> mapCounts[INST_SHAPE_COUNT];
+        for (std::size_t c = 0; c < chunkCount; ++c) {
+            CollectChunk& chunk = s_collectChunks[c];
+            for (std::size_t b = 0; b < chunk.mapBucketCount; ++b) {
+                const auto& bucket = chunk.mapBuckets[b];
+                std::size_t globalIndex = 0;
+                while (globalIndex < mapMaterials.size() &&
+                       mapMaterials[globalIndex] != bucket.material) ++globalIndex;
+                if (globalIndex == mapMaterials.size()) {
+                    mapMaterials.push_back(bucket.material);
+                    for (int s = 0; s < INST_SHAPE_COUNT; ++s) mapCounts[s].push_back(0);
+                }
+                for (int s = 0; s < INST_SHAPE_COUNT; ++s) {
+                    // 区間内でのこのバケツの先頭は、それまでに集計した個数。
+                    chunk.mapBuckets[b].offset[s] = mapCounts[s][globalIndex];
+                    mapCounts[s][globalIndex] += bucket.data[s].size();
+                }
+            }
+        }
         for (int s = 0; s < INST_SHAPE_COUNT; ++s) {
-            m_instBatches[s].main.resize(mainTotal[s]);
-            m_instBatches[s].shadow.resize(shadowTotal[s]);
+            InstanceBatch& batch = m_instBatches[s];
+            batch.mapStart = mainTotal[s];
+            std::size_t total = mainTotal[s];
+            for (std::size_t m = 0; m < mapMaterials.size(); ++m) {
+                if (mapCounts[s][m] == 0) continue;
+                batch.mapRuns.push_back({mapMaterials[m], total, mapCounts[s][m]});
+                total += mapCounts[s][m];
+            }
+            batch.main.resize(total);
+            batch.shadow.resize(shadowTotal[s]);
+        }
+        // バケツのoffsetを「区間内」から「mainの先頭からの位置」へ直す。
+        for (std::size_t c = 0; c < chunkCount; ++c) {
+            CollectChunk& chunk = s_collectChunks[c];
+            for (std::size_t b = 0; b < chunk.mapBucketCount; ++b) {
+                auto& bucket = chunk.mapBuckets[b];
+                for (int s = 0; s < INST_SHAPE_COUNT; ++s) {
+                    for (const auto& run : m_instBatches[s].mapRuns) {
+                        if (run.material == bucket.material) {
+                            bucket.offset[s] += run.first;
+                            break;
+                        }
+                    }
+                }
+            }
         }
         ThreadPool::get().parallelFor(chunkCount, [&](std::size_t chunkIndex) {
             const CollectChunk& chunk = s_collectChunks[chunkIndex];
@@ -2509,6 +2578,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                           m_instBatches[s].main.begin() + chunk.mainOffset[s]);
                 std::copy(chunk.shadow[s].begin(), chunk.shadow[s].end(),
                           m_instBatches[s].shadow.begin() + chunk.shadowOffset[s]);
+                for (std::size_t b = 0; b < chunk.mapBucketCount; ++b) {
+                    const auto& bucket = chunk.mapBuckets[b];
+                    std::copy(bucket.data[s].begin(), bucket.data[s].end(),
+                              m_instBatches[s].main.begin() + bucket.offset[s]);
+                }
             }
         });
 
@@ -2696,10 +2770,13 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                             if (sphereInFrustum(
                                     shadowFrustum, shadowInstance.center, shadowInstance.radius)) {
                                 visibleShadowInstances.push_back(shadowInstance.draw);
-                            } else {
-                                FrameProfiler::get().addCount("shadowCubesCulled", 1);
                             }
                         }
+                        // addCountは名前の線形探索を伴うので、個数はまとめて1回で加算する。
+                        const long long culledCount =
+                            static_cast<long long>(batch.size() - visibleShadowInstances.size());
+                        if (culledCount > 0)
+                            FrameProfiler::get().addCount("shadowCubesCulled", culledCount);
                     }
                     if (visibleShadowInstances.empty()) continue;
                     if (!anyShadowInst) {
@@ -3104,15 +3181,34 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                                  batch.data(), GL_STREAM_DRAW);
                 }
                 glBindVertexArray(instShapes[shapeIdx].vao);
+                const InstanceBatch& shapeBatch = m_instBatches[shapeIdx];
+                long long drawCalls = 0;
                 {
                     FrameProfiler::Scope mainDraw("render.mainInstanceDraw");
-                    glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
-                                            GL_UNSIGNED_INT, 0, (GLsizei)batch.size());
+                    // 画像マップ無し(先頭からmapStart個)。マップは無効にしておく。
+                    bindMaterialMapsFor(nullptr);
+                    if (shapeBatch.mapStart > 0) {
+                        glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
+                                                GL_UNSIGNED_INT, 0, (GLsizei)shapeBatch.mapStart);
+                        ++drawCalls;
+                    }
+                    // 画像マップ付きMaterialごとの区間。属性の読み出し位置をずらして描く。
+                    for (const auto& run : shapeBatch.mapRuns) {
+                        bindMaterialMapsFor(run.material);
+                        setInstanceAttribPointers(run.first * sizeof(CubeInstanceData));
+                        glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
+                                                GL_UNSIGNED_INT, 0, (GLsizei)run.count);
+                        ++drawCalls;
+                    }
+                    if (!shapeBatch.mapRuns.empty()) {
+                        setInstanceAttribPointers(0);
+                        bindMaterialMapsFor(nullptr);
+                    }
                 }
                 FrameProfiler::get().addCount("cubesDrawn", (long long)batch.size());
                 FrameProfiler::get().addCount("instanced",  (long long)batch.size());
-                FrameProfiler::get().addCount("drawCallsMain", 1);
-                FrameProfiler::get().addCount("drawCallsInstanced", 1);
+                FrameProfiler::get().addCount("drawCallsMain", drawCalls);
+                FrameProfiler::get().addCount("drawCallsInstanced", drawCalls);
                 FrameProfiler::get().addCount(
                     "instanceUploadBytes",
                     (long long)(batch.size() * sizeof(CubeInstanceData)));
@@ -3492,22 +3588,27 @@ void Renderer::renderImGui(User& user, GLFWwindow* window, Workspace& workspace)
 //  テクスチャ読み込み
 // ===================================================
 void Renderer::bindMaterialMaps(const BaseCube& cube) {
+    bindMaterialMapsFor(cube.getMaterialInstance().get());
+}
+
+void Renderer::bindMaterialMapsFor(const MaterialInstance* materialPtr) {
     if (m_uMatMapFlagsLoc == -1) return;
-    const auto material = cube.getMaterialInstance();
+    const MaterialInstance* material = materialPtr;
     if (!material || !material->hasMaps()) {
         glUniform4f(m_uMatMapFlagsLoc, 0.0f, 0.0f, 0.0f, 0.0f);
         return;
     }
 
     if (m_materialMapCache.size() > 256) m_materialMapCache.clear();  // 破棄済みMaterialのキーを溜めない
-    MaterialMapEntry& entry = m_materialMapCache[material.get()];
+    MaterialMapEntry& entry = m_materialMapCache[material];
     const double now = glfwGetTime();
     if (now >= entry.nextCheck) {
         entry.nextCheck = now + 0.5;
         std::string paths[MaterialInstance::MAP_SLOT_COUNT];
         std::string signature;
         for (int slot = 0; slot < MaterialInstance::MAP_SLOT_COUNT; ++slot) {
-            paths[slot] = material->resolveMapPath(static_cast<MaterialInstance::MapSlot>(slot));
+            paths[slot] = const_cast<MaterialInstance*>(material)->resolveMapPath(
+                static_cast<MaterialInstance::MapSlot>(slot));
             signature += paths[slot];
             signature += '\n';
         }

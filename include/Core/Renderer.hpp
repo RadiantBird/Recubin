@@ -157,12 +157,27 @@ class Renderer {
         int          m_uMatMapParamsLoc = -1;
         std::unordered_map<const MaterialInstance*, MaterialMapEntry> m_materialMapCache;
         void bindMaterialMaps(const BaseCube& cube);
+        // materialがnullまたはマップ無しなら、マップを無効にする(フラグを0にする)。
+        void bindMaterialMapsFor(const MaterialInstance* material);
+        // 共有VAOのインスタンス属性(5-10)のポインタを、インスタンスバッファの先頭から
+        // byteOffsetバイトずらして設定する(GL4.1にはbase instanceが無いため)。
+        // 対象のVAOと m_instanceVBO がバインド済みであること。
+        void setInstanceAttribPointers(std::size_t byteOffset);
 
         unsigned int m_instanceVBO = 0;  // 毎フレーム上書きするインスタンスバッファ（全形状共有）
 
         // 素のプリミティブ形状のGPUインスタンシング用バッチ（Cube/Cylinder/Sphere/TriangularPrismの4種）
         static constexpr int INST_SHAPE_COUNT = 4;
         struct InstanceBatch {
+            // メインパス用の並びは [画像マップ無しmapStart個][Materialごとの連続区間...]。
+            // 区間ごとにマップを1回束縛して描くので、マップ付きMaterialでもインスタンス描画のまま。
+            struct MapRun {
+                const MaterialInstance* material = nullptr;
+                std::size_t first = 0;   // main内の先頭インデックス
+                std::size_t count = 0;
+            };
+            std::size_t mapStart = 0;
+            std::vector<MapRun> mapRuns;
             std::vector<CubeInstanceData> main;    // メインパス用（フラスタム内）
             std::vector<ShadowInstanceData> shadow; // シャドウパス用（CastShadow）
             bool attribsAttached = false;          // 形状のs_VAOへ属性5-9を付与済みか

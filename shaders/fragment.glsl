@@ -456,8 +456,9 @@ if (useTriplanar > 0.5) {
         float roughness = PbrParams.y;
         vec3  pbrAlbedo = baseColor;
         vec3  pbrNormal = norm;
-        // 画像マップはインスタンス描画では使わない(マップを持つMaterialは個別描画へ回る)。
-        if (uInstanced < 0.5) {
+        // 画像マップは uMatMapFlags が有効なときだけ使う(Materialごとの描画で束縛される。
+        // インスタンス描画でもMaterialごとの区間で束縛し、それ以外では0にしてある)。
+        if (uMatMapFlags.x + uMatMapFlags.y + uMatMapFlags.z + uMatMapFlags.w > 0.5) {
             vec3 mapWeights = matTriplanarWeights(norm);
             if (uMatMapFlags.x > 0.5) pbrAlbedo *= matSampleTriplanar(uMatBaseColorMap, FragPos, mapWeights).rgb;
             if (uMatMapFlags.y > 0.5) roughness *= matSampleTriplanar(uMatRoughnessMap, FragPos, mapWeights).r;

@@ -39,6 +39,13 @@ private:
     // 未解決(ロード中など)の間はパスだけを保持し、SceneLoaderが後から解決する。
     std::string m_materialPath;
     std::weak_ptr<MaterialInstance> m_materialRef;
+    // 描画の収集(毎フレーム全Cube・複数スレッド)用の生ポインタ。weak_ptr::lockは全Cubeが
+    // 同じMaterialを指すとアトミック操作が競合するため使わない。setMaterialInstance/解除と
+    // MaterialInstanceの破棄で更新する。
+    const MaterialInstance* m_materialRaw = nullptr;
+    // 素のプリミティブ形状のインデックス(Cube=0/Cylinder=1/Sphere=2/TriangularPrism=3、
+    // それ以外は-1)。クラス名比較を毎フレーム行わないよう、Workspaceへの登録時に決める。
+    int m_renderShapeIndex = -1;
 
     std::shared_ptr<MaterialInstance> findMaterialByPath(
         const std::string& path, Instance* fallbackRoot);
@@ -114,6 +121,12 @@ public:
     // Material参照。参照があるときは物理値(摩擦/反発/密度)とConductiveが
     // 参照先Materialの値になり、未指定のときは従来のmaterial/MassDensityを使う。
     std::shared_ptr<MaterialInstance> getMaterialInstance() const { return m_materialRef.lock(); }
+    // ロックなしで読める参照先(描画の収集用)。参照が無い/破棄済みならnullptr。
+    const MaterialInstance* getMaterialRaw() const { return m_materialRaw; }
+    void clearMaterialRaw(const MaterialInstance* expected) {
+        if (m_materialRaw == expected) m_materialRaw = nullptr;
+    }
+    int renderShapeIndex() const { return m_renderShapeIndex; }
     std::string getMaterialPath();
     void setMaterialPath(const std::string& path);
     void setMaterialInstance(const std::shared_ptr<MaterialInstance>& materialInstance);

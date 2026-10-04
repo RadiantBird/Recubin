@@ -1,3 +1,4 @@
+#include <Util/ThreadPool.hpp>
 #include <include/Core/Box3DPhysicsBackend.hpp>
 #include <Core/CharacterRig.hpp>
 #include <include/Core/Physics.hpp>
@@ -1397,13 +1398,44 @@ void Box3DPhysicsBackend::syncCubeWithBodyState(
 }
 
 void Box3DPhysicsBackend::syncAllCubes() {
-    for (BodyEntry& entry : m_bodies) {
-        auto cube = entry.cube.lock();
-        if (!cube || B3_IS_NULL(entry.bodyId) ||
-            !b3Body_IsValid(entry.bodyId)) {
-            continue;
+    // 1. 同期が要るボディの判定(読み取りのみなので並列)。大半が静止しているシーンで、
+    //    全ボディに対してロックや姿勢計算を行わないようにする。
+    constexpr std::size_t CHUNK_SIZE = 4096;
+    const std::size_t bodyCount = m_bodies.size();
+    const std::size_t chunkCount = (bodyCount + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    m_syncNeeded.assign(bodyCount, 0);
+    ThreadPool::get().parallelFor(chunkCount, [&](std::size_t chunk) {
+        const std::size_t end = std::min(bodyCount, (chunk + 1) * CHUNK_SIZE);
+        for (std::size_t i = chunk * CHUNK_SIZE; i < end; ++i) {
+            const BodyEntry& entry = m_bodies[i];
+            const BaseCube* cube = entry.cubeRaw;
+            if (!cube || entry.cube.expired() || B3_IS_NULL(entry.bodyId) ||
+                !b3Body_IsValid(entry.bodyId)) {
+                continue;
+            }
+            bool needed = true;
+            if (!entry.hasSynchronizedWorldCFrame || entry.sharesBody) {
+                needed = true;
+            } else if (cube->Anchored) {
+                // 物理側へは、グラフ側の姿勢が前回同期から変わったときだけ反映する。
+                needed = !sameCFrame(cube->getWorldCFrame(), entry.synchronizedWorldCFrame);
+            } else {
+                // 動的ボディは、眠っていれば動かない(姿勢は前回の同期のまま)。ただし
+                // 眠りに入ったステップの最終姿勢は未同期なので、前回起きていたなら同期する。
+                needed = entry.awakeAtLastSync || b3Body_IsAwake(entry.bodyId);
+            }
+            m_syncNeeded[i] = needed ? 1 : 0;
         }
+    });
+
+    // 2. 必要なものだけを直列で同期する(Box3D APIとグラフ書き込みを伴う)。
+    for (std::size_t i = 0; i < bodyCount; ++i) {
+        if (!m_syncNeeded[i]) continue;
+        BodyEntry& entry = m_bodies[i];
+        auto cube = entry.cube.lock();
+        if (!cube || B3_IS_NULL(entry.bodyId) || !b3Body_IsValid(entry.bodyId)) continue;
         syncCubeWithBodyState(*cube, entry);
+        entry.awakeAtLastSync = b3Body_IsAwake(entry.bodyId);
     }
 }
 

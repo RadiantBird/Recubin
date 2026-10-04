@@ -8,17 +8,113 @@ Root:
   Properties:
     BaseResolution: [1920, 1080]
     UseNetwork: false
-    ApplicationId: b5f0f703-910c-4f77-8445-06abdad8b174
     EnableIOAPI: false
     EnableIPCAPI: false
     EnableExternalFileAccess: false
     AutoSpawnPlayerCharacter: false
-    MaxClonesPerFrame: 10000
+    MaxClonesPerFrame: 99999999
     MaxRestartsPerFrame: 100
     MaxTasksPerFrame: 1000
     ScriptLoopTimeoutSeconds: 30
     DefaultCameraMode: Character
   Children:
+    - ClassName: MaterialService
+      Name: MaterialService
+      Children:
+        - ClassName: Material
+          Name: RoughPlastic
+          Properties:
+            Metallic: 0
+            Roughness: 1
+            Reflectance: 0.5
+            BaseColorMap: BaseColor
+            RoughnessMap: Roughness
+            MetallicMap: ""
+            NormalMap: Normal
+            TextureScale: 2
+            NormalStrength: 0.6
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            MassDensity: 1
+            Conductive: false
+          Children:
+            - ClassName: FileRef
+              Name: BaseColor
+              Properties:
+                ContentPath: assets/materials/rough_plastic_basecolor.png
+            - ClassName: FileRef
+              Name: Roughness
+              Properties:
+                ContentPath: assets/materials/rough_plastic_roughness.png
+            - ClassName: FileRef
+              Name: Normal
+              Properties:
+                ContentPath: assets/materials/rough_plastic_normal.png
+        - ClassName: Material
+          Name: WoodPlanks
+          Properties:
+            Metallic: 0
+            Roughness: 1
+            Reflectance: 0.3
+            BaseColorMap: BaseColor
+            RoughnessMap: Roughness
+            MetallicMap: ""
+            NormalMap: Normal
+            TextureScale: 5
+            NormalStrength: 1
+            StaticFriction: 0.5
+            DynamicFriction: 0.6
+            Restitution: 0.05
+            MassDensity: 0.7
+            Conductive: false
+          Children:
+            - ClassName: FileRef
+              Name: BaseColor
+              Properties:
+                ContentPath: assets/materials/wood_planks_basecolor.png
+            - ClassName: FileRef
+              Name: Roughness
+              Properties:
+                ContentPath: assets/materials/wood_planks_roughness.png
+            - ClassName: FileRef
+              Name: Normal
+              Properties:
+                ContentPath: assets/materials/wood_planks_normal.png
+        - ClassName: Material
+          Name: ScratchedMetal
+          Properties:
+            Metallic: 1
+            Roughness: 1
+            Reflectance: 0.5
+            BaseColorMap: BaseColor
+            RoughnessMap: Roughness
+            MetallicMap: Metallic
+            NormalMap: Normal
+            TextureScale: 3
+            NormalStrength: 1
+            StaticFriction: 0.5
+            DynamicFriction: 0.4
+            Restitution: 0.2
+            MassDensity: 3
+            Conductive: true
+          Children:
+            - ClassName: FileRef
+              Name: BaseColor
+              Properties:
+                ContentPath: assets/materials/scratched_metal_basecolor.png
+            - ClassName: FileRef
+              Name: Roughness
+              Properties:
+                ContentPath: assets/materials/scratched_metal_roughness.png
+            - ClassName: FileRef
+              Name: Metallic
+              Properties:
+                ContentPath: assets/materials/scratched_metal_metallic.png
+            - ClassName: FileRef
+              Name: Normal
+              Properties:
+                ContentPath: assets/materials/scratched_metal_normal.png
     - ClassName: StarterCharacter
       Name: StarterCharacter
       Properties:
@@ -26,29 +122,6 @@ Root:
         Size: [1, 1, 1]
         Rotation: [0, 0, 0, 1]
       Children:
-        - ClassName: Cube
-          Name: LeftArm
-          Properties:
-            Position: [35.687874, -3, 50.217777]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 0, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: false
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
         - ClassName: Humanoid
           Name: Humanoid
           Properties:
@@ -65,9 +138,9 @@ Root:
             Health: 100
             WalkAnimation: R6Walk
         - ClassName: Cube
-          Name: RightArm
+          Name: LeftArm
           Properties:
-            Position: [38.687874, -3, 50.217777]
+            Position: [35.687874, -3, 50.217777]
             Size: [1, 2, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 0, 1]
@@ -101,6 +174,29 @@ Root:
             TextureScale: 1
             Anchored: false
             CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: RightArm
+          Properties:
+            Position: [38.687874, -3, 50.217777]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 0, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: false
             CanTouch: true
             MassDensity: 1
             CCDMode: Default
@@ -144,6 +240,29 @@ Root:
                 UVRadius: 0.15
                 Mode: 0
         - ClassName: Cube
+          Name: Torso
+          Properties:
+            Position: [37.187874, -3, 50.217777]
+            Size: [2, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
           Name: LeftLeg
           Properties:
             Position: [36.687874, -5, 50.217777]
@@ -167,12 +286,12 @@ Root:
             Locked: false
             LockFlags: []
         - ClassName: Cube
-          Name: Torso
+          Name: RightLeg
           Properties:
-            Position: [37.187874, -3, 50.217777]
-            Size: [2, 2, 1]
+            Position: [37.687874, -5, 50.217777]
+            Size: [1, 2, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 1, 1]
+            Color: [0, 0.5019608, 0.5019608, 1]
             CastShadow: true
             ShadowMode: Normal
             Unlit: false
@@ -206,29 +325,6 @@ Root:
               Rotation: [0, 0, 0, 1]
             Frequency: 10
             DampingRatio: 1
-        - ClassName: Cube
-          Name: RightLeg
-          Properties:
-            Position: [37.687874, -5, 50.217777]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0.5019608, 0.5019608, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: false
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
         - ClassName: BallSocket
           Name: RootJointRagdoll
           Properties:
@@ -498,10 +594,24 @@ Root:
         Wind: [0, 0, 0]
         PhysicsEnabled: true
       Children:
+        - ClassName: Sun
+          Name: Sun
+          Properties:
+            Angle: [135, 35.26439]
+            Color: [1, 0.95, 0.8, 1]
+            Distance: 1000
+            GlowIntensity: 0
+            GlowRadius: 6
+            VeilIntensity: 0
+            VeilFalloff: 6
+            SpikeIntensity: 0
+            SpikeCount: 4
+            SpikeLength: 12
+            SpikeRotation: 0
+            HorizonFade: true
         - ClassName: Lighting
           Name: Lighting
           Properties:
-            Direction: [1, -1, -1]
             Brightness: 1
             Color: [1, 1, 1, 1]
             ShadowDistance: 160
@@ -527,7 +637,7 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-            Locked: false
+            Locked: true
             LockFlags: []
           Children:
             - ClassName: Texture
@@ -558,6 +668,33 @@ Root:
             Text: "FPS: 60"
             TextColor: [0, 0, 0, 1]
             FontSize: 40
+        - ClassName: Folder
+          Name: TestSetting
+          Children:
+            - ClassName: IntValue
+              Name: range
+              Properties:
+                Value: 500
+            - ClassName: IntValue
+              Name: amount
+              Properties:
+                Value: 100000
+            - ClassName: BoolValue
+              Name: useMaterial
+              Properties:
+                Value: true
+            - ClassName: BoolValue
+              Name: anchored
+              Properties:
+                Value: true
+            - ClassName: BoolValue
+              Name: castShadow
+              Properties:
+                Value: true
+            - ClassName: BoolValue
+              Name: randomRotation
+              Properties:
+                Value: true
     - ClassName: PathfindingService
       Name: PathfindingService
       Properties:
