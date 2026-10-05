@@ -13796,6 +13796,30 @@ static int runMaterialMapRegression() {
     expect(pendingWorkspace->pendingInstances.size() == 1,
            "the queue works again after the backend clears it");
 
+    // 名前の衝突解決: base1, base2, ... の連番で、解除・改名で空いた番号は再利用される
+    // (大量追加で二乗にならないよう次の候補を覚えているが、空きができたら破棄する)。
+    auto nameParent = std::make_shared<Folder>();
+    std::vector<std::shared_ptr<Folder>> namedChildren;
+    for (int i = 0; i < 4; ++i) {
+        auto child = std::make_shared<Folder>();
+        child->Name = "Dup";
+        nameParent->addChild(child);
+        namedChildren.push_back(child);
+    }
+    expect(namedChildren[0]->Name == "Dup" && namedChildren[1]->Name == "Dup1" &&
+               namedChildren[2]->Name == "Dup2" && namedChildren[3]->Name == "Dup3",
+           "colliding names get consecutive suffixes");
+    namedChildren[1]->setParent(nullptr);  // Dup1が空く
+    auto refill = std::make_shared<Folder>();
+    refill->Name = "Dup";
+    nameParent->addChild(refill);
+    expect(refill->Name == "Dup1", "a freed suffix is reused after a child leaves");
+    namedChildren[2]->renameTo("Elsewhere");  // Dup2が空く
+    auto refill2 = std::make_shared<Folder>();
+    refill2->Name = "Dup";
+    nameParent->addChild(refill2);
+    expect(refill2->Name == "Dup2", "a freed suffix is reused after a rename");
+
     const auto yamlPath = std::filesystem::temp_directory_path() / "recubin_material_map_regression.yaml";
     expect(SceneLoader::saveSceneResult(system.get(), yamlPath.string()), "scene with map Materials saves");
     const auto loaded = SceneLoader::loadSceneResult(yamlPath.string());

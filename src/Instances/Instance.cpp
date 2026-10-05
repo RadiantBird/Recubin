@@ -46,12 +46,15 @@ void restoreSpatialTree(const std::vector<SpatialPose>& poses) {
 
 // base と衝突しない名前を parent->children の中から探す（base, base1, base2, ...）。
 // System::addChild() の Workspace 用ロジックと同じ命名規則。
-static std::string uniqueChildName(const Instance& parent, const std::string& base) {
-    std::string candidate = base;
-    int suffix = 1;
+// baseは衝突済み(呼び出し側が確認済み)である前提で、base1から探す。
+std::string Instance::uniqueChildName(const Instance& parent, const std::string& base) {
+    int& hint = parent.m_nameSuffixHints[base];
+    int suffix = hint < 1 ? 1 : hint;
+    std::string candidate = base + std::to_string(suffix);
     while (parent.children.count(candidate) > 0) {
-        candidate = base + std::to_string(suffix++);
+        candidate = base + std::to_string(++suffix);
     }
+    hint = suffix + 1;
     return candidate;
 }
 
@@ -120,6 +123,7 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
         if (oldWorkspace) oldWorkspace->unregisterRenderSubtree(this);
         if (currentParent) {
             currentParent->children.erase(this->Name);
+            currentParent->m_nameSuffixHints.clear();
         }
     }
 
@@ -325,6 +329,7 @@ void Instance::renameTo(const std::string& newName) {
     // erase() で this が唯一の shared_ptr だった場合、デストラクタから保護する
     auto self = shared_from_this();
     parent->children.erase(this->Name);
+    parent->m_nameSuffixHints.clear();
     this->Name = finalName;
     parent->children[finalName] = self;
     parent->onChildrenChanged();
@@ -345,6 +350,7 @@ bool Instance::renameToAuthoritative(const std::string& newName) {
     }
     auto self = shared_from_this();
     parent->children.erase(Name);
+    parent->m_nameSuffixHints.clear();
     Name = newName;
     parent->children.emplace(Name, std::move(self));
     parent->onChildrenChanged();

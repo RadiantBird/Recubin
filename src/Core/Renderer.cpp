@@ -2387,6 +2387,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
         m_instBatches[shapeIdx].main.clear();
         m_instBatches[shapeIdx].shadow.clear();
+        m_instBatches[shapeIdx].shadowBounds.clear();
         m_instBatches[shapeIdx].mapRuns.clear();
         m_instBatches[shapeIdx].mapStart = 0;
     }
@@ -2493,6 +2494,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             std::max<std::size_t>(1, (cubeCount + chunkSize - 1) / chunkSize);
         if (s_collectChunks.size() < chunkCount) s_collectChunks.resize(chunkCount);
 
+        FrameProfiler::get().beginSection("render.collect.walk");
         ThreadPool::get().parallelFor(chunkCount, [&](std::size_t chunkIndex) {
             CollectChunk& chunk = s_collectChunks[chunkIndex];
             chunk.reset();
@@ -2503,6 +2505,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             }
         });
 
+        FrameProfiler::get().endSection("render.collect.walk");
+        FrameProfiler::get().beginSection("render.collect.merge");
         // 結合: チャンクの出力先オフセットを求め、バッチを確保してから並列にコピーする。
         long long instCulled = 0;
         std::size_t mainTotal[INST_SHAPE_COUNT] = {};
@@ -2555,6 +2559,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             }
             batch.main.resize(total);
             batch.shadow.resize(shadowTotal[s]);
+            batch.shadowBounds.resize(shadowTotal[s] * 4);
         }
         // バケツのoffsetを「区間内」から「mainの先頭からの位置」へ直す。
         for (std::size_t c = 0; c < chunkCount; ++c) {
@@ -2571,6 +2576,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 }
             }
         }
+        FrameProfiler::get().endSection("render.collect.merge");
+        FrameProfiler::get().beginSection("render.collect.copy");
         ThreadPool::get().parallelFor(chunkCount, [&](std::size_t chunkIndex) {
             const CollectChunk& chunk = s_collectChunks[chunkIndex];
             for (int s = 0; s < INST_SHAPE_COUNT; ++s) {
@@ -2578,6 +2585,13 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                           m_instBatches[s].main.begin() + chunk.mainOffset[s]);
                 std::copy(chunk.shadow[s].begin(), chunk.shadow[s].end(),
                           m_instBatches[s].shadow.begin() + chunk.shadowOffset[s]);
+                float* bounds = m_instBatches[s].shadowBounds.data() + chunk.shadowOffset[s] * 4;
+                for (const ShadowInstanceData& shadowInstance : chunk.shadow[s]) {
+                    *bounds++ = shadowInstance.center.x;
+                    *bounds++ = shadowInstance.center.y;
+                    *bounds++ = shadowInstance.center.z;
+                    *bounds++ = shadowInstance.radius;
+                }
                 for (std::size_t b = 0; b < chunk.mapBucketCount; ++b) {
                     const auto& bucket = chunk.mapBuckets[b];
                     std::copy(bucket.data[s].begin(), bucket.data[s].end(),
@@ -2585,6 +2599,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 }
             }
         });
+
+        FrameProfiler::get().endSection("render.collect.copy");
 
         // FrameProfiler::addCountは名前の線形探索を伴うため、個数はまとめて加算する。
         FrameProfiler::get().addCount("treeInstancesNodes", static_cast<long long>(cubeCount));
@@ -2766,12 +2782,35 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     visibleShadowInstances.reserve(batch.size());
                     {
                         FrameProfiler::Scope shadowCull("render.shadowCull");
-                        for (const ShadowInstanceData& shadowInstance : batch) {
-                            if (sphereInFrustum(
-                                    shadowFrustum, shadowInstance.center, shadowInstance.radius)) {
-                                visibleShadowInstances.push_back(shadowInstance.draw);
+                        // 1. 境界球だけを読む並列判定(チャンクごとに可視インデックスを集める)。
+                        constexpr std::size_t CULL_CHUNK = 8192;
+                        const float* bounds = m_instBatches[shapeIdx].shadowBounds.data();
+                        const std::size_t boundsCount = batch.size();
+                        const std::size_t cullChunks = (boundsCount + CULL_CHUNK - 1) / CULL_CHUNK;
+                        static std::vector<std::vector<std::uint32_t>> s_cullVisible;
+                        if (s_cullVisible.size() < cullChunks) s_cullVisible.resize(cullChunks);
+                        ThreadPool::get().parallelFor(cullChunks, [&](std::size_t chunkIndex) {
+                            auto& visible = s_cullVisible[chunkIndex];
+                            visible.clear();
+                            const std::size_t first = chunkIndex * CULL_CHUNK;
+                            const std::size_t last = std::min(boundsCount, first + CULL_CHUNK);
+                            for (std::size_t i = first; i < last; ++i) {
+                                const float* sphere = bounds + i * 4;
+                                bool inside = true;
+                                for (int plane = 0; plane < 6; ++plane) {
+                                    const float* f = shadowFrustum.p[plane];
+                                    if (f[0] * sphere[0] + f[1] * sphere[1] + f[2] * sphere[2] + f[3] < -sphere[3]) {
+                                        inside = false;
+                                        break;
+                                    }
+                                }
+                                if (inside) visible.push_back(static_cast<std::uint32_t>(i));
                             }
-                        }
+                        });
+                        // 2. 可視のものだけ、元の順序のまま描画データを集める。
+                        for (std::size_t c = 0; c < cullChunks; ++c)
+                            for (const std::uint32_t index : s_cullVisible[c])
+                                visibleShadowInstances.push_back(batch[index].draw);
                         // addCountは名前の線形探索を伴うので、個数はまとめて1回で加算する。
                         const long long culledCount =
                             static_cast<long long>(batch.size() - visibleShadowInstances.size());

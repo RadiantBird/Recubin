@@ -99,6 +99,11 @@ class Instance : public std::enable_shared_from_this<Instance> {
         virtual ~Instance();
 
     private:
+        // 名前の衝突を解決する(base, base1, base2, ...)。無名のまま大量に追加すると毎回
+        // 先頭から探して二乗になるため、baseごとに次の候補を覚える。子が減る(解除・改名)と
+        // 空きができるので、そのときは破棄する。
+        static std::string uniqueChildName(const Instance& parent, const std::string& base);
+        mutable std::unordered_map<std::string, int> m_nameSuffixHints;
         bool m_runtimeNameLocked = false;
         std::uint64_t m_childrenRevision = 0;
 };

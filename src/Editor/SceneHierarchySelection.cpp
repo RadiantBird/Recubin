@@ -5,6 +5,7 @@
 #include <cctype>
 #include <functional>
 #include <iterator>
+#include <string>
 #include <string_view>
 #include <unordered_set>
 
@@ -85,30 +86,40 @@ int explorerPriority(Instance& instance) {
     return 11;
 }
 
-bool explorerLess(Instance* lhs, Instance* rhs) {
-    if (lhs == rhs) return false;
-    if (!lhs) return false;
-    if (!rhs) return true;
-
-    const int lhsPriority = explorerPriority(*lhs);
-    const int rhsPriority = explorerPriority(*rhs);
-    if (lhsPriority != rhsPriority) return lhsPriority < rhsPriority;
-
-    const std::string lhsClass = lhs->getClassName();
-    const std::string rhsClass = rhs->getClassName();
-    const int classComparison = compareAsciiNatural(lhsClass, rhsClass);
-    if (classComparison != 0) return classComparison < 0;
-
-    const int nameComparison = compareAsciiNatural(lhs->Name, rhs->Name);
-    if (nameComparison != 0) return nameComparison < 0;
-
-    return std::less<Instance*>{}(lhs, rhs);
-}
-
 } // namespace
 
 void sortForExplorer(std::vector<Instance*>& instances) {
-    std::sort(instances.begin(), instances.end(), explorerLess);
+    // 比較のたびに優先度とクラス名を計算すると、10万個で約170万回の文字列コピーと
+    // IsA比較になる。キーを1回ずつ事前計算して、比較ではコピーも判定もしない。
+    // 並びはexplorerLessと同じ: 優先度 → クラス名 → 名前 → ポインタ。nullは末尾。
+    struct Key {
+        Instance* instance;
+        int priority;
+        std::string className;
+    };
+    std::vector<Key> keys;
+    keys.reserve(instances.size());
+    for (Instance* instance : instances) {
+        if (!instance) {
+            keys.push_back({nullptr, 0, std::string()});
+            continue;
+        }
+        keys.push_back({instance, explorerPriority(*instance), instance->getClassName()});
+    }
+    std::sort(keys.begin(), keys.end(), [](const Key& lhs, const Key& rhs) {
+        if (lhs.instance == rhs.instance) return false;
+        if (!lhs.instance) return false;
+        if (!rhs.instance) return true;
+        if (lhs.priority != rhs.priority) return lhs.priority < rhs.priority;
+        if (lhs.className != rhs.className) {
+            const int classComparison = compareAsciiNatural(lhs.className, rhs.className);
+            if (classComparison != 0) return classComparison < 0;
+        }
+        const int nameComparison = compareAsciiNatural(lhs.instance->Name, rhs.instance->Name);
+        if (nameComparison != 0) return nameComparison < 0;
+        return std::less<Instance*>{}(lhs.instance, rhs.instance);
+    });
+    for (std::size_t i = 0; i < keys.size(); ++i) instances[i] = keys[i].instance;
 }
 
 std::vector<Instance*> selectVisibleRange(

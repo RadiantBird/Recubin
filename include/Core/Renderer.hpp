@@ -180,6 +180,9 @@ class Renderer {
             std::vector<MapRun> mapRuns;
             std::vector<CubeInstanceData> main;    // メインパス用（フラスタム内）
             std::vector<ShadowInstanceData> shadow; // シャドウパス用（CastShadow）
+            // shadowと同じ並びの境界球(x, y, z, 半径)。カスケードごとのカリングは、描画データを
+            // 含む大きな構造体(約112B)ではなくこのコンパクトな配列(16B)だけを読む(メモリ帯域が律速)。
+            std::vector<float> shadowBounds;
             bool attribsAttached = false;          // 形状のs_VAOへ属性5-9を付与済みか
         };
         InstanceBatch m_instBatches[INST_SHAPE_COUNT];
