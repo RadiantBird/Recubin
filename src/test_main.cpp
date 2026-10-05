@@ -9538,12 +9538,21 @@ static int runGuiAutomationRegression() {
                validateGuiAutomationCommand("capture output.png") &&
                validateGuiAutomationCommand("key ctrl+shift+a") &&
                validateGuiAutomationCommand("state") &&
+               validateGuiAutomationCommand("profile") &&
+               validateGuiAutomationCommand("script_profile on") &&
+               validateGuiAutomationCommand("script_profile dump") &&
+               validateGuiAutomationCommand("wait_frames 30") &&
                validateGuiAutomationCommand("quit"),
            "valid GUI automation commands are accepted");
     expect(!validateGuiAutomationCommand("click Picker extra") &&
                !validateGuiAutomationCommand("key Ctrl+") &&
                !validateGuiAutomationCommand("quit extra") &&
                !validateGuiAutomationCommand("state extra") &&
+               !validateGuiAutomationCommand("profile extra") &&
+               !validateGuiAutomationCommand("script_profile maybe") &&
+               !validateGuiAutomationCommand("script_profile") &&
+               !validateGuiAutomationCommand("wait_frames") &&
+               !validateGuiAutomationCommand("wait_frames soon") &&
                !validateGuiAutomationCommand("wait Picker nope") &&
                !validateGuiAutomationCommand("mouse nope 1") &&
                !validateGuiAutomationCommand("mouse_down 3"),
@@ -13741,6 +13750,51 @@ static int runMaterialMapRegression() {
     auto plasticMaterial = materialService->getChild("RoughPlastic");
     expect(plasticMaterial && attachedCube->getMaterialInstance().get() == plasticMaterial,
            "a prefixed path assigned after attaching resolves immediately");
+
+    // 参照元の登録(ハッシュ表)。重複登録は1件、解除・破棄で減り、アドレスが再利用されても取りこぼさない。
+    auto usersProbe = std::static_pointer_cast<MaterialInstance>(SceneLoader::createInstance("Material"));
+    usersProbe->Name = "UsersProbe";
+    materialService->addChild(usersProbe);
+    const auto countUsers = [&] {
+        int users = 0;
+        usersProbe->forEachUser([&](BaseCube&) { ++users; });
+        return users;
+    };
+    std::vector<std::shared_ptr<BaseCube>> probeCubes;
+    for (int i = 0; i < 3; ++i) {
+        auto probeCube = std::static_pointer_cast<BaseCube>(SceneLoader::createInstance("Cube"));
+        probeCube->Name = "UsersProbeCube" + std::to_string(i);
+        workspace->addChild(probeCube);
+        probeCube->setProperty("Material", YAML::Node(std::string("MaterialService\\UsersProbe")));
+        probeCube->setProperty("Material", YAML::Node(std::string("MaterialService\\UsersProbe")));  // 重複代入
+        probeCubes.push_back(probeCube);
+    }
+    expect(countUsers() == 3, "Material user registration ignores duplicates");
+    probeCubes[0]->setProperty("Material", YAML::Node(std::string()));
+    expect(countUsers() == 2, "clearing a Material reference unregisters the user");
+    workspace->removeChild("UsersProbeCube1");
+    probeCubes[1].reset();
+    expect(countUsers() == 1, "a destroyed cube unregisters itself from its Material");
+    auto reusedCube = std::static_pointer_cast<BaseCube>(SceneLoader::createInstance("Cube"));
+    reusedCube->Name = "UsersProbeReused";
+    workspace->addChild(reusedCube);
+    reusedCube->setProperty("Material", YAML::Node(std::string("MaterialService\\UsersProbe")));
+    expect(countUsers() == 2, "a new cube is registered even if it reuses a destroyed cube's address");
+
+    // pendingInstances(物理登録待ち)。付け替えで重複せず、外されると取り除かれ、
+    // 物理バックエンドが取り込み後にclearしても、次の登録が正しく積まれる。
+    auto pendingWorkspace = std::make_shared<Workspace>();
+    auto pendingCube = std::static_pointer_cast<BaseCube>(SceneLoader::createInstance("Cube"));
+    pendingWorkspace->addChild(pendingCube);
+    expect(pendingWorkspace->pendingInstances.size() == 1, "a cube entering a Workspace is queued once");
+    pendingCube->setParent(nullptr);
+    expect(pendingWorkspace->pendingInstances.empty(), "a cube leaving the Workspace is removed from the queue");
+    pendingWorkspace->addChild(pendingCube);
+    pendingWorkspace->pendingInstances.clear();  // 物理バックエンドが取り込み後に行う操作
+    pendingCube->setParent(nullptr);
+    pendingWorkspace->addChild(pendingCube);
+    expect(pendingWorkspace->pendingInstances.size() == 1,
+           "the queue works again after the backend clears it");
 
     const auto yamlPath = std::filesystem::temp_directory_path() / "recubin_material_map_regression.yaml";
     expect(SceneLoader::saveSceneResult(system.get(), yamlPath.string()), "scene with map Materials saves");

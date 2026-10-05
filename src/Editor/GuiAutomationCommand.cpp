@@ -77,8 +77,14 @@ std::optional<GuiAutomationCommand> parseGuiAutomationCommand(std::string_view c
     const auto tokens = tokenize(command);
     if (tokens.empty()) return std::nullopt;
     const auto& name = tokens.front();
-    if (name == "help" || name == "targets" || name == "state" || name == "quit") {
+    if (name == "help" || name == "targets" || name == "state" || name == "profile" || name == "quit") {
         if (tokens.size() != 1) return std::nullopt;
+    } else if (name == "script_profile") {
+        if (tokens.size() != 2 ||
+            (tokens[1] != "on" && tokens[1] != "off" && tokens[1] != "reset" && tokens[1] != "dump"))
+            return std::nullopt;
+    } else if (name == "wait_frames") {
+        if (tokens.size() != 2 || !unsignedValue(tokens[1])) return std::nullopt;
     }
     else if (name == "move" || name == "click" || name == "right_click" || name == "focus_window" || name == "capture") {
         if (tokens.size() != 2) return std::nullopt;

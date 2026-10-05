@@ -8,7 +8,9 @@ Editorだけが標準入力を行単位で読み取り、結果を `[UIAUTO] OK 
 
 | コマンド | 引数 |
 |---|---|
-| `help` / `targets` / `state` / `quit` | なし |
+| `help` / `targets` / `state` / `profile` / `quit` | なし |
+| `script_profile` | `<on\|off\|reset\|dump>` |
+| `wait_frames` | `<フレーム数>` |
 | `wait` | `<target> [timeoutFrames]` |
 | `move` / `click` / `right_click` | `<target>` |
 | `type` | `<UTF-8 remainder>` |
@@ -39,6 +41,36 @@ Editorだけが標準入力を行単位で読み取り、結果を `[UIAUTO] OK 
 
 `wait`のタイムアウトと`target unavailable`のエラー行には、同じJSONが`state=`として自動で付く
 （ハーネスは`[UIAUTO] ERROR`をそのまま出力するので、失敗時の原因がログだけで分かる）。
+
+## プロファイラー（`profile` / `script_profile`）
+
+画面を見なくても、プロファイラーの値とスクリプトAPIのホットパスをテキストで取得できる。
+
+- **`profile`**: FrameProfilerの全区間・GPU時間・カウンター（直近240フレームの平均と最大）、FPS、
+  フレーム時間を1行のJSONで`[UIAUTO] OK profile {...}`として出す。
+  `{"fps":{..},"frameMs":{..},"sectionsMs":{"<名前>":{"avg":..,"max":..}},"gpuMs":{..},"counters":{"<名前>":{"avg":..,"max":..}}}`
+- **`script_profile on|off|reset|dump`**: スクリプトAPI(Luauバインディングと`Instance.setParent`)の
+  名前付き区間の累積プロファイラー(`ApiProfiler`)を操作する。`dump`は呼び出し回数・合計時間(`totalMs`、子の区間を含む)・
+  自分だけの時間(`selfMs`)・1回あたりの平均(`avgUs`)・最大(`maxMs`)を、`selfMs`の大きい順に上位40件、
+  1行のJSONで出す。無効時のコストは分岐1つで、通常起動には影響しない。
+  区間名は `get:<プロパティ名>` / `set:<プロパティ名>` / `Instance.new:<クラス名>` / `Vector3.new` /
+  `Instance.setParent` とその内訳(`setParent/...`、`BaseCube.onAncestorChanged/...`、`Workspace.registerCube`)など。
+  新しい計測点は `ApiProfiler::Scope scope("名前")`（詳細名つきは `Scope("get", key)`）を置くだけでよい。
+- **`wait_frames <n>`**: n フレーム待つ(スクリプトの実行や物理の安定を待つため)。
+- Playの操作は `click "Editor/Toolbar/Play"` / `click "Editor/Toolbar/Stop"` で行える。
+
+例（非表示モードでシーンをPlayしてスクリプトのホットパスを測る）:
+
+```text
+script_profile reset
+script_profile on
+click "Editor/Toolbar/Play"
+wait_frames 60
+profile
+script_profile dump
+click "Editor/Toolbar/Stop"
+quit
+```
 
 ## 非表示モード（`--ui-automation-hidden`）
 

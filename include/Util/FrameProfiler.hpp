@@ -2,6 +2,7 @@
 #include <array>
 #include <chrono>
 #include <cstddef>
+#include <string>
 #include <vector>
 
 // フレーム時間の区間計測ユーティリティ。
@@ -58,6 +59,9 @@ public:
     bool getCounterSnapshot(
         const char* name, CounterSnapshot& snapshot) const;
     bool getFrameSnapshot(FrameSnapshot& snapshot) const;
+    // 登録済みの区間・カウンター名(登録順)。GUI自動化の `profile` が一覧を出すために使う。
+    std::vector<std::string> sectionNames() const;
+    std::vector<std::string> counterNames() const;
     bool recordGpuSample(const char* name, float milliseconds);
     bool getGpuSnapshot(const char* name, GpuSnapshot& snapshot) const;
     void setGpuTimingAvailable(bool available) {

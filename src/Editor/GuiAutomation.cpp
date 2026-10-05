@@ -3,6 +3,8 @@
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
 #include <Util/PngWriter.hpp>
+#include <Util/ApiProfiler.hpp>
+#include <Util/FrameProfiler.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_internal.h>
 #include <include/GL/glew.h>
@@ -18,7 +20,7 @@
 
 namespace {
 struct Target { ImVec2 min{}, max{}; ImGuiID id=0; bool visible=false; std::uint64_t frame=0; };
-enum class Kind { Move, Click, RightClick, Type, Key, Mouse, Down, Up, Wheel, Wait, Focus, Capture, Quit, State };
+enum class Kind { Move, Click, RightClick, Type, Key, Mouse, Down, Up, Wheel, Wait, Focus, Capture, Quit, State, Profile, ScriptProfile, WaitFrames };
 struct Action { Kind kind{}; std::string target,text,path; ImVec2 point{}; int button=0; ImGuiKey key=ImGuiKey_None; std::vector<ImGuiKey> modifiers; float x=0,y=0; std::uint64_t timeout=600,deadline=0; };
 std::atomic_bool enabledFlag{false},hiddenFlag{false},quitFlag{false},started{false}; std::mutex mutex; std::deque<Action> queue; std::unordered_map<std::string,Target> current,published; Action active{}; bool activeValid=false,tapRelease=false,rightClickPressPending=false; std::uint64_t frame=0;
 void report(bool ok,const std::string& s){(ok?std::cout:std::cerr)<<"[UIAUTO] "<<(ok?"OK ":"ERROR ")<<s<<'\n'<<std::flush;}
@@ -83,6 +85,51 @@ std::string stateJson() {
     json += ",\"targets\":[" + targets + "]}";
     return json;
 }
+
+// FrameProfilerの全区間・カウンター・GPU時間を1行のJSONにする(直近240フレームの平均/最大)。
+std::string profileJson() {
+    FrameProfiler& profiler = FrameProfiler::get();
+    char buffer[160];
+    std::string json = "{";
+
+    FrameProfiler::FrameSnapshot frame;
+    if (profiler.getFrameSnapshot(frame)) {
+        std::snprintf(buffer, sizeof(buffer),
+                      "\"fps\":{\"current\":%.1f,\"average\":%.1f},\"frameMs\":{\"current\":%.2f,\"average\":%.2f},\"frames\":%zu",
+                      frame.latestFps, frame.averageFps, frame.latestFrameMs, frame.averageFrameMs, frame.count);
+        json += buffer;
+    }
+
+    json += ",\"sectionsMs\":{";
+    bool first = true;
+    for (const std::string& name : profiler.sectionNames()) {
+        FrameProfiler::SectionSnapshot snapshot;
+        if (!profiler.getSectionSnapshot(name.c_str(), snapshot)) continue;
+        std::snprintf(buffer, sizeof(buffer), "{\"avg\":%.3f,\"max\":%.3f}", snapshot.averageMs, snapshot.peakMs);
+        json += std::string(first ? "" : ",") + jsonString(name) + ":" + buffer;
+        first = false;
+    }
+    json += "},\"gpuMs\":{";
+    first = true;
+    for (const char* name : {"gpuTotal", "gpuShadow", "gpuMain", "gpuSurfaceMarks", "gpuExtras"}) {
+        FrameProfiler::GpuSnapshot snapshot;
+        if (!profiler.getGpuSnapshot(name, snapshot) || snapshot.count == 0) continue;
+        std::snprintf(buffer, sizeof(buffer), "{\"avg\":%.3f,\"max\":%.3f}", snapshot.averageMs, snapshot.peakMs);
+        json += std::string(first ? "" : ",") + jsonString(name) + ":" + buffer;
+        first = false;
+    }
+    json += "},\"counters\":{";
+    first = true;
+    for (const std::string& name : profiler.counterNames()) {
+        FrameProfiler::CounterSnapshot snapshot;
+        if (!profiler.getCounterSnapshot(name.c_str(), snapshot)) continue;
+        std::snprintf(buffer, sizeof(buffer), "{\"avg\":%.1f,\"max\":%lld}", snapshot.average, snapshot.peak);
+        json += std::string(first ? "" : ",") + jsonString(name) + ":" + buffer;
+        first = false;
+    }
+    json += "}}";
+    return json;
+}
 bool pointFor(const std::string& n,ImVec2& p){auto i=published.find(n);if(i==published.end()||!i->second.visible)return false;p={(i->second.min.x+i->second.max.x)/2,(i->second.min.y+i->second.max.y)/2};return true;}
 bool parseCommand(std::string_view line, Action& parsedAction,
                   std::string& immediateCommand) {
@@ -100,6 +147,12 @@ bool parseCommand(std::string_view line, Action& parsedAction,
     Action action{}; bool ok = true;
     if (t[0] == "quit" && t.size() == 1) action.kind = Kind::Quit;
     else if (t[0] == "state" && t.size() == 1) action.kind = Kind::State;
+    else if (t[0] == "profile" && t.size() == 1) action.kind = Kind::Profile;
+    else if (t[0] == "script_profile" && t.size() == 2) { action.kind = Kind::ScriptProfile; action.text = t[1]; }
+    else if (t[0] == "wait_frames" && t.size() == 2) {
+        action.kind = Kind::WaitFrames;
+        ok = uintValue(t[1], action.timeout);  // timeoutフィールドを待つフレーム数に流用
+    }
     else if (t[0] == "wait" && (t.size() == 2 || t.size() == 3)) {
         action.kind = Kind::Wait; action.target = t[1];
         if (t.size() == 3) ok = uintValue(t[2], action.timeout);
@@ -141,7 +194,7 @@ bool enqueueCommand(std::string_view line) {
         return false;
     }
     if (immediateCommand == "help") {
-        report(true, "help targets state wait move click right_click type key mouse mouse_down mouse_up wheel focus_window capture quit");
+        report(true, "help targets state profile script_profile wait_frames wait move click right_click type key mouse mouse_down mouse_up wheel focus_window capture quit");
         return true;
     }
     if (immediateCommand == "targets") {
@@ -195,6 +248,16 @@ void beforeNewFrame() {
     }
     if (activeValid || queue.empty()) return;
     Action action = queue.front();
+    if (action.kind == Kind::WaitFrames) {
+        if (action.deadline == 0) {
+            queue.front().deadline = frame + std::max<std::uint64_t>(action.timeout, 1);
+            return;
+        }
+        if (frame < action.deadline) return;
+        queue.pop_front();
+        report(true, "wait_frames " + std::to_string(action.timeout));
+        return;
+    }
     if (action.kind == Kind::Wait) {
         if (action.deadline == 0) {
             queue.front().deadline = frame + queue.front().timeout;
@@ -267,6 +330,13 @@ void beforeNewFrame() {
         activeValid = true;
     } else if (action.kind == Kind::State) {
         report(true, "state " + stateJson());
+    } else if (action.kind == Kind::Profile) {
+        report(true, "profile " + profileJson());
+    } else if (action.kind == Kind::ScriptProfile) {
+        if (action.text == "on") { ApiProfiler::setEnabled(true); report(true, "script_profile on"); }
+        else if (action.text == "off") { ApiProfiler::setEnabled(false); report(true, "script_profile off"); }
+        else if (action.text == "reset") { ApiProfiler::reset(); report(true, "script_profile reset"); }
+        else report(true, "script_profile " + ApiProfiler::toJson());
     } else if (action.kind == Kind::Quit) {
         quitFlag.exchange(true);
         report(true, "quit");

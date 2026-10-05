@@ -1,3 +1,4 @@
+#include <Util/ApiProfiler.hpp>
 #include "include/Core/LuauEngine.hpp"
 
 // Luau には luaL_testudata が無いため、メタテーブル比較で型を判定する
@@ -14,6 +15,7 @@ static void* rcbn_testudata(lua_State* L, int idx, const char* tname) {
 
 // ==================== Vector3 Methods ====================
 int LuauEngine::vec3_constructor(lua_State* L) {
+    ApiProfiler::Scope apiProfile("Vector3.new");
     float x = (float)luaL_checknumber(L, 1);
     float y = (float)luaL_checknumber(L, 2);
     float z = (float)luaL_checknumber(L, 3);
@@ -154,6 +156,7 @@ int LuauEngine::vec3_eq(lua_State* L) {
 
 // ==================== Color4 Methods ====================
 int LuauEngine::color4_constructor(lua_State* L) {
+    ApiProfiler::Scope apiProfile("Color4.new");
     float r = (float)luaL_checknumber(L, 1);
     float g = (float)luaL_checknumber(L, 2);
     float b = (float)luaL_checknumber(L, 3);
@@ -501,6 +504,7 @@ int LuauEngine::quat_eq(lua_State* L) {
 // ==================== CFrame Methods ====================
 // CFrame.new() / (x,y,z) / (Vector3 pos) / (Vector3 pos, Quaternion rot)。第2引数がQuaternion以外はエラー
 int LuauEngine::cframe_constructor(lua_State* L) {
+    ApiProfiler::Scope apiProfile("CFrame.new");
     CFrame cf;
     if (lua_isnumber(L, 1)) {
         float x = (float)luaL_checknumber(L, 1);

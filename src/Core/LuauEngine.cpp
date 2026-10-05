@@ -1,3 +1,4 @@
+#include <Util/ApiProfiler.hpp>
 #include "include/Core/LuauEngine.hpp"
 #include "include/Core/PropertyRegistry.hpp"
 #include "include/Core/LuarCompiler.hpp"
@@ -769,6 +770,7 @@ int LuauEngine::instance_index(lua_State* L) {
     }
     Instance* obj = obj_shared.get();
     std::string_view key = luaL_checkstring(L, 2);
+    ApiProfiler::Scope apiProfile("get", key);
 
     // M-1: 最派生クラス名をキーに、継承チェーン上の全プロパティをマージした表をキャッシュ。
     // 初回のみ IsA ループを実行し、以降は O(1) ルックアップ（毎回の全クラス走査を排除）。
@@ -886,6 +888,7 @@ int LuauEngine::instance_newindex(lua_State* L) {
     if (!obj_shared) return 0;
     Instance* obj = obj_shared.get();
     std::string_view key = luaL_checkstring(L, 2);
+    ApiProfiler::Scope apiProfile("set", key);
 
     // M-1: setter も同様にクラス名キーでキャッシュ（instance_index と対）。
     // 値は関数をコピーで保持（SetterTable 再構築で無効化されないように）。
@@ -920,6 +923,7 @@ int LuauEngine::instance_tostring(lua_State* L) {
 }
 
 int LuauEngine::instance_find_child_closure(lua_State* L) {
+    ApiProfiler::Scope apiProfile("FindChild");
     // upvalue[1]はクロージャに渡されたself
     auto* userdata = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
     auto obj_shared = userdata->lock();
@@ -3087,6 +3091,7 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
 
 int LuauEngine::instance_new_closure(lua_State* L) {
     const char* className = luaL_checkstring(L, 1);
+    ApiProfiler::Scope apiProfile("Instance.new", className);
 
     // TextFile instances represent persisted scene resources and must be
     // created by the scene/editor/packager pipeline.  Allowing Luau to create
@@ -3105,16 +3110,24 @@ int LuauEngine::instance_new_closure(lua_State* L) {
         return 0;
     }
 
-    std::shared_ptr<Instance> inst = createBaseCubeInstance(className);
-    if (!inst) inst = PhysicalFileInstanceRegistry::create(className);
-    if (!inst) {
-        auto it = instanceFactories().find(className);
-        if (it != instanceFactories().end()) inst = it->second();
+    std::shared_ptr<Instance> inst;
+    {
+        ApiProfiler::Scope createProfile("Instance.new/create");
+        inst = createBaseCubeInstance(className);
+        if (!inst) inst = PhysicalFileInstanceRegistry::create(className);
+        if (!inst) {
+            auto it = instanceFactories().find(className);
+            if (it != instanceFactories().end()) inst = it->second();
+        }
     }
 
     if (!inst) { lua_pushnil(L); return 1; }
 
-    s_ownedInstances.push_back(inst);
+    {
+        ApiProfiler::Scope ownedProfile("Instance.new/ownedInstances");
+        s_ownedInstances.push_back(inst);
+    }
+    ApiProfiler::Scope userdataProfile("Instance.new/userdata");
     auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
     new (ud) std::weak_ptr<Instance>(inst);
     luaL_getmetatable(L, RCBN_INST_METATABLE);

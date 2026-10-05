@@ -28,6 +28,20 @@ FrameProfiler::Counter* FrameProfiler::findCounter(const char* name) {
     return &m_counters.back();
 }
 
+std::vector<std::string> FrameProfiler::sectionNames() const {
+    std::vector<std::string> names;
+    names.reserve(m_sections.size());
+    for (const auto& section : m_sections) names.emplace_back(section.name);
+    return names;
+}
+
+std::vector<std::string> FrameProfiler::counterNames() const {
+    std::vector<std::string> names;
+    names.reserve(m_counters.size());
+    for (const auto& counter : m_counters) names.emplace_back(counter.name);
+    return names;
+}
+
 void FrameProfiler::beginSection(const char* name) {
     Section* s = findSection(name);
     s->begin = std::chrono::steady_clock::now();

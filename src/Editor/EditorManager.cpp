@@ -1432,6 +1432,7 @@ void EditorManager::renderToolbarBasic() {
             }
             mode = EditorMode::Play;
         }
+        GuiAutomation::registerLastItem("Editor/Toolbar/Play");
         ImGui::EndDisabled();
         ImGui::PopStyleColor();
     } else {
@@ -1447,7 +1448,9 @@ void EditorManager::renderToolbarBasic() {
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.18f, 0.18f, 1.0f));
-        if (drawIconButton(ICON_STOP, Loc::t(Loc::LocKey::StopButton), iconBtnSz)) {
+        const bool stopClicked = drawIconButton(ICON_STOP, Loc::t(Loc::LocKey::StopButton), iconBtnSz);
+        GuiAutomation::registerLastItem("Editor/Toolbar/Stop");
+        if (stopClicked) {
             mode = EditorMode::Edit;
             if (m_user) {
             m_user->setControlMode(User::ControlMode::Free);

@@ -433,6 +433,8 @@ default back framebufferをphysical pixel sizeでRGBA PNGとして保存する�
 `state`コマンドはImGuiの状態（開いているポップアップ・フォーカス・見えているtarget）を1行のJSONで
 出力し、`wait`のタイムアウトと`target unavailable`にも同じ状態が付く。`--ui-automation-hidden`を
 併用するとウィンドウを表示せずに起動する（OSの入力やデスクトップのスクリーンショットは使わない）。
+`profile`はFrameProfilerの全区間・GPU時間・カウンターを1行のJSONで、`script_profile on|off|reset|dump`は
+スクリプトAPI呼び出し(`ApiProfiler`)の回数・時間(self/total)を出し、`wait_frames <n>`でnフレーム待てる。
 
 ## Editor パネル表示とテーマ
 

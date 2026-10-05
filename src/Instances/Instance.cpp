@@ -1,3 +1,4 @@
+#include <Util/ApiProfiler.hpp>
 #include "include/Instances/Instance.hpp"
 #include "include/Instances/Spatial.hpp"
 #include "include/Instances/Workspace.hpp"
@@ -75,6 +76,7 @@ void refreshHierarchyCacheRecursive(Instance& node) {
 }
 
 void Instance::setParent(std::shared_ptr<Instance> newParent) {
+    ApiProfiler::Scope apiProfile("Instance.setParent");
     auto currentParent = this->Parent.lock();
     if (currentParent == newParent) return;
 
@@ -89,7 +91,10 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
     Workspace* newWorkspace = findWorkspace(newParent);
 
     std::vector<SpatialPose> savedSpatialPoses;
-    snapshotSpatialTree(*this, savedSpatialPoses);
+    {
+        ApiProfiler::Scope profile("setParent/snapshotSpatial");
+        snapshotSpatialTree(*this, savedSpatialPoses);
+    }
 
     // 循環参照の防止（親が自分自身や自分の子孫にならないか）
     std::shared_ptr<Instance> check = newParent;
@@ -110,15 +115,22 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
     }
 
     // 古い親のリストから自分を削除
-    if (oldWorkspace) oldWorkspace->unregisterRenderSubtree(this);
-    if (currentParent) {
-        currentParent->children.erase(this->Name);
+    {
+        ApiProfiler::Scope profile("setParent/unregisterOld");
+        if (oldWorkspace) oldWorkspace->unregisterRenderSubtree(this);
+        if (currentParent) {
+            currentParent->children.erase(this->Name);
+        }
     }
 
     this->Parent = newParent;
-    refreshHierarchyCacheRecursive(*this);
+    {
+        ApiProfiler::Scope profile("setParent/refreshHierarchyCache");
+        refreshHierarchyCacheRecursive(*this);
+    }
 
     // 新しい親のリストに自分を追加
+    ApiProfiler::Scope linkProfile("setParent/link");
     if (newParent) {
         auto existingIt = newParent->children.find(this->Name);
         if (existingIt != newParent->children.end() && existingIt->second.get() != this) {
@@ -129,13 +141,25 @@ void Instance::setParent(std::shared_ptr<Instance> newParent) {
         }
         newParent->children[this->Name] = shared_from_this();
     }
-    if (newWorkspace) newWorkspace->registerRenderSubtree(this);
+    if (newWorkspace) {
+        ApiProfiler::Scope profile("setParent/registerRenderSubtree");
+        newWorkspace->registerRenderSubtree(this);
+    }
 
-    if (currentParent) currentParent->onChildrenChanged();
-    if (newParent) newParent->onChildrenChanged();
-    this->onAncestorChanged();
+    {
+        ApiProfiler::Scope profile("setParent/onChildrenChanged");
+        if (currentParent) currentParent->onChildrenChanged();
+        if (newParent) newParent->onChildrenChanged();
+    }
+    {
+        ApiProfiler::Scope profile("setParent/onAncestorChanged");
+        this->onAncestorChanged();
+    }
 
-    restoreSpatialTree(savedSpatialPoses);
+    {
+        ApiProfiler::Scope profile("setParent/restoreSpatial");
+        restoreSpatialTree(savedSpatialPoses);
+    }
 }
 
 Instance* Instance::findFirstAncestorWorkspace() {
