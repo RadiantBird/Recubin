@@ -1,3 +1,4 @@
+#include <Util/ApiProfiler.hpp>
 #include "include/Instances/BaseCube.hpp"
 #include "include/Core/Physics.hpp"
 #include "include/Core/SystemState.hpp"
@@ -257,8 +258,12 @@ bool BaseCube::shouldCastShadow(bool hasVisibleFallbackGeometry) const {
 void BaseCube::onAncestorChanged() {
     // Luaなどでツリーに入れる前にMaterialパスだけ代入された場合は、ここで後解決する
     // (パスが空、または解決済みなら何もしない)。
-    if (!m_materialPath.empty() && !m_materialRef.lock()) resolveMaterialRef();
+    if (!m_materialPath.empty() && !m_materialRef.lock()) {
+        ApiProfiler::Scope profile("BaseCube.onAncestorChanged/resolveMaterial");
+        resolveMaterialRef();
+    }
 
+    ApiProfiler::Scope groupProfile("BaseCube.onAncestorChanged/collisionGroup");
     std::uint32_t newCharacterCollisionGroup = 0;
     for (auto ancestor = Parent.lock(); ancestor; ancestor = ancestor->Parent.lock()) {
         if (!ancestor->IsA("Model")) continue;
@@ -275,6 +280,7 @@ void BaseCube::onAncestorChanged() {
     // 1. 先祖を遡って Workspace を探す (O(h))
     Workspace* newWorkspace =
         static_cast<Workspace*>(findFirstAncestorWorkspace());
+    ApiProfiler::Scope registerProfile("BaseCube.onAncestorChanged/workspaceRegistration");
 
     // Folder/Model 間など、同じ Workspace 内の親変更で body を
     // 登録し直してはいけない。
@@ -298,6 +304,7 @@ void BaseCube::onAncestorChanged() {
                 : className == "Cylinder" ? 1
                 : className == "Sphere" ? 2
                 : className == "TriangularPrism" ? 3 : -1;
+            ApiProfiler::Scope registerCubeProfile("Workspace.registerCube");
             newWorkspace->registerCube(self);
         }
     }
@@ -559,6 +566,8 @@ void BaseCube::teleportTo(Vector3 localPos) {
 }
 
 BaseCube::~BaseCube() {
+    // 参照元の登録を外す(同じアドレスに新しいCubeが来ても取りこぼさず、期限切れを溜めない)。
+    if (auto referencedMaterial = m_materialRef.lock()) referencedMaterial->unregisterUser(this);
     // RCBN_LOG("BaseCube Destructor: " << this->Name);
     // backend body の所有権と逆引き情報は、登録元の Physics が一元的に破棄する。
     if (m_physicsOwner) m_physicsOwner->onCubeDestroyed(*this);

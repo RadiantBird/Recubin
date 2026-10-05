@@ -1,5 +1,6 @@
 #pragma once
 
+#include <unordered_set>
 #include <include/Math/Vector3.hpp>
 #include <include/Math/Units.hpp>
 
@@ -85,6 +86,10 @@ class Workspace : public Instance {
         bool PhysicsEnabled = true;
 
         std::vector<std::shared_ptr<Instance>> pendingInstances;
+        // pendingInstancesの重複チェック用(線形探索だと1フレームに大量生成したときに二乗で遅い)。
+        // 物理バックエンドがpendingInstancesを直接clearしても、registerCube/unregisterCubeが
+        // 要素数の不一致を検出して作り直す。
+        std::unordered_set<const Instance*> m_pendingInstanceSet;
         std::vector<std::shared_ptr<Instance>> pendingConstraints;
         std::vector<std::shared_ptr<Instance>> scripts;
 

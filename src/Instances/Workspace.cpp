@@ -42,12 +42,19 @@ void Workspace::unregisterScript(const std::shared_ptr<Instance>& s) {
 }
 
 void Workspace::registerCube(const std::shared_ptr<Instance>& c) {
-    if (std::find(pendingInstances.begin(), pendingInstances.end(), c) == pendingInstances.end()) {
-        pendingInstances.push_back(c);
+    if (m_pendingInstanceSet.size() != pendingInstances.size()) {
+        m_pendingInstanceSet.clear();  // 外部でvectorを操作された(backendのclearなど)
+        for (const auto& value : pendingInstances) m_pendingInstanceSet.insert(value.get());
     }
+    if (m_pendingInstanceSet.insert(c.get()).second) pendingInstances.push_back(c);
 }
 
 void Workspace::unregisterCube(const Instance* c) {
+    if (m_pendingInstanceSet.size() != pendingInstances.size()) {
+        m_pendingInstanceSet.clear();
+        for (const auto& value : pendingInstances) m_pendingInstanceSet.insert(value.get());
+    }
+    if (m_pendingInstanceSet.erase(c) == 0) return;  // 未登録なら走査しない
     pendingInstances.erase(
         std::remove_if(pendingInstances.begin(), pendingInstances.end(),
             [c](const std::shared_ptr<Instance>& value) {

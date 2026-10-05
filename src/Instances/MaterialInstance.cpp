@@ -68,7 +68,8 @@ MaterialInstance::MaterialInstance() : Instance("Material") {}
 
 MaterialInstance::~MaterialInstance() {
     // 参照元が描画ホットパスで使う生ポインタを、破棄前に無効化する。
-    for (const auto& weak : m_users) {
+    for (const auto& [raw, weak] : m_users) {
+        (void)raw;
         if (auto cube = weak.lock()) cube->clearMaterialRaw(this);
     }
 }
@@ -148,25 +149,23 @@ Material MaterialInstance::applyPhysicsTo(const Material& base) const {
 
 void MaterialInstance::registerUser(const std::shared_ptr<BaseCube>& cube) {
     if (!cube) return;
-    for (const auto& weak : m_users) {
-        if (weak.lock() == cube) return;
-    }
-    m_users.push_back(cube);
+    auto [it, inserted] = m_users.emplace(cube.get(), cube);
+    // 破棄済みのCubeと同じアドレスに新しいCubeが来た場合は、古い項目を置き換える。
+    if (!inserted && it->second.expired()) it->second = cube;
 }
 
 void MaterialInstance::unregisterUser(const BaseCube* cube) {
-    m_users.erase(
-        std::remove_if(m_users.begin(), m_users.end(),
-            [cube](const std::weak_ptr<BaseCube>& weak) {
-                auto locked = weak.lock();
-                return !locked || locked.get() == cube;
-            }),
-        m_users.end());
+    m_users.erase(cube);
 }
 
 void MaterialInstance::forEachUser(const std::function<void(BaseCube&)>& fn) {
     // コールバック内でm_usersが変更されても安全なようにコピーを走査する。
-    const auto snapshot = m_users;
+    std::vector<std::weak_ptr<BaseCube>> snapshot;
+    snapshot.reserve(m_users.size());
+    for (const auto& [raw, weak] : m_users) {
+        (void)raw;
+        snapshot.push_back(weak);
+    }
     for (const auto& weak : snapshot) {
         if (auto cube = weak.lock()) fn(*cube);
     }

@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class BaseCube;
@@ -81,6 +82,8 @@ public:
     void notifyPhysicsChanged();
 
 private:
-    std::vector<std::weak_ptr<BaseCube>> m_users;
+    // 参照元。重複チェックと解除がO(1)になるよう、生ポインタをキーにする
+    // (線形走査だとMaterialを参照するCubeが増えるほど登録が二乗で遅くなる)。
+    std::unordered_map<const BaseCube*, std::weak_ptr<BaseCube>> m_users;
     bool m_hasFaceVisuals = false;
 };
