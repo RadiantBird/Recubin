@@ -617,6 +617,7 @@ void LuauEngine::RegisterGlobalFunctions(lua_State* L) {
     lua_pushcfunction(L, cframe_constructor,     "new");          lua_setfield(L, -2, "new");
     lua_pushcfunction(L, cframe_from_axis_angle, "fromAxisAngle");lua_setfield(L, -2, "fromAxisAngle");
     lua_pushcfunction(L, cframe_look_at,         "lookAt");       lua_setfield(L, -2, "lookAt");
+    lua_pushcfunction(L, cframe_angles,          "Angles");       lua_setfield(L, -2, "Angles");
     lua_setglobal(L, "CFrame");
 
     lua_newtable(L);

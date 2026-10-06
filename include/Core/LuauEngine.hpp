@@ -346,6 +346,7 @@ private:
     static int cframe_constructor(lua_State* L);
     static int cframe_from_axis_angle(lua_State* L);
     static int cframe_look_at(lua_State* L);
+    static int cframe_angles(lua_State* L);
     static int cframe_index(lua_State* L);
     static int cframe_newindex(lua_State* L);
     static int cframe_tostring(lua_State* L);

@@ -20,6 +20,12 @@
 | `operator*` | 2 つの CFrame を合成（親子変換） |
 | `pointToWorld(localPoint)` | ローカル座標 → ワールド座標変換 |
 
+## Luau API（追加分）
+
+| API | 説明 |
+|---|---|
+| `CFrame.Angles(xDeg, yDeg, zDeg)` | 位置が原点で、X→Y→Z の順（Rx * Ry * Rz）に回転する CFrame。`cf * CFrame.Angles(...)` で回転を加えられる |
+
 ## 依存関係
 
 - `Vector3`

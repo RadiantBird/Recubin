@@ -533,6 +533,18 @@ int LuauEngine::cframe_from_axis_angle(lua_State* L) {
     return 1;
 }
 
+// CFrame.Angles(xDeg, yDeg, zDeg) — 位置は原点、回転は X→Y→Z の順に合成 (Rx * Ry * Rz)
+int LuauEngine::cframe_angles(lua_State* L) {
+    float x = (float)luaL_checknumber(L, 1);
+    float y = (float)luaL_checknumber(L, 2);
+    float z = (float)luaL_checknumber(L, 3);
+    Quaternion q = Quaternion::fromAxisAngle(Vector3(1, 0, 0), x)
+                 * Quaternion::fromAxisAngle(Vector3(0, 1, 0), y)
+                 * Quaternion::fromAxisAngle(Vector3(0, 0, 1), z);
+    pushCFrame(L, CFrame(Vector3(0, 0, 0), q));
+    return 1;
+}
+
 // CFrame.lookAt(Vector3 eye, Vector3 target [, Vector3 up = (0,1,0)])
 int LuauEngine::cframe_look_at(lua_State* L) {
     // Keep this diagnostic explicit: passing a CFrame here (for example from
