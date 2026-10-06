@@ -55,6 +55,7 @@ public:
     virtual std::string getClassName() override { return "Sound"; }
     virtual bool IsA(std::string name) override;
     virtual void onAncestorChanged() override;
+    std::shared_ptr<Instance> clone() const override;
 
     bool autoPlay = false;
 

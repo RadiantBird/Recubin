@@ -23,4 +23,7 @@ public:
         if (name == "StarterCharacter") return true;
         return Model::IsA(name);
     }
+
+    // Model::clone()はModelを返してしまうため、StarterCharacterとして複製する。
+    std::shared_ptr<Instance> clone() const override;
 };

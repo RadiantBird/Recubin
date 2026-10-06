@@ -11,4 +11,7 @@ public:
         if (name == "Folder") return true;
         return Instance::IsA(name);
     }
+
+    // 基底のclone()はInstanceを返してしまうため、Folderとして複製する。
+    std::shared_ptr<Instance> clone() const override;
 };

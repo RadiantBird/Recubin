@@ -625,9 +625,7 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     // プロパティ
     const bool hasSchemaProperties = !PropertyRegistry::collectApplicableSchema(inst).empty();
     const bool hasSpecialProperties = inst->getClassName() == "User" ||
-                                      inst->getClassName() == "Skybox" ||
-                                      inst->getClassName() == "NumberValue" ||
-                                      inst->getClassName() == "ObjectValue";
+                                      inst->getClassName() == "Skybox";
     const bool hasProps = hasSchemaProperties || hasSpecialProperties;
 
     if (hasProps) {
@@ -699,15 +697,6 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
             }
             out << YAML::EndSeq;
         }
-        if (inst->getClassName() == "NumberValue") {
-            NumberValue* nv = static_cast<NumberValue*>(inst);
-            out << YAML::Key << "Value" << YAML::Value << nv->Value;
-        }
-        if (inst->getClassName() == "ObjectValue") {
-            ObjectValue* ov = static_cast<ObjectValue*>(inst);
-            ov->refreshRefName();
-            out << YAML::Key << "Value" << YAML::Value << ov->m_targetPathName;
-        }
 
         out << YAML::EndMap;
     }
@@ -724,6 +713,18 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     }
 
     out << YAML::EndMap;
+}
+
+void SceneLoader::emitNode(YAML::Emitter& out, Instance* inst) {
+    saveNode(out, inst);
+}
+
+std::shared_ptr<Instance> SceneLoader::parseNode(const YAML::Node& node) {
+    return parseInstance(node, LoadContext{});
+}
+
+void SceneLoader::attachParsedChild(Instance& parent, const std::shared_ptr<Instance>& child) {
+    attachDeserializedChild(parent, child);
 }
 
 void SceneLoader::saveScene(Instance* root, const std::string& filePath) {

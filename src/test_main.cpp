@@ -90,6 +90,7 @@
 #include <Editor/ViewportGeometry.hpp>
 #include <Editor/ViewportSceneQueries.hpp>
 #include <Instances/ObjectValue.hpp>
+#include <Instances/NumberValue.hpp>
 #include <Network/ByteStream.hpp>
 #include <Network/NatProtocol.hpp>
 #include <Network/NetworkManager.hpp>
@@ -119,6 +120,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <thread>
 #include <iostream>
 #include <limits>
@@ -14311,6 +14313,182 @@ static int runSkyBodyRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+// 生成できる全クラスで clone() がクラスを保つことを確認する（基底のInstance::cloneへ化ける退行の検知）。
+static int runCloneClassRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[CloneClass] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    // TextFileのStorageIdはclone()ごとに新規採番する仕様なので、比較から除く。
+    const auto emit = [](Instance& instance) {
+        YAML::Emitter out;
+        SceneLoader::emitNode(out, &instance);
+        std::istringstream lines(out.c_str());
+        std::string result, line;
+        while (std::getline(lines, line)) {
+            if (line.find("StorageId") == std::string::npos) result += line + std::string(1, static_cast<char>(10));
+        }
+        return result;
+    };
+
+    const std::vector<std::string> classNames = {
+        "Cube", "Cylinder", "TriangularPrism", "Wedge", "Truss", "Seat", "Sphere", "MeshCube",
+        "LiquidCube", "SpawnLocation", "Skybox", "FileRef", "FontFile", "TextFile", "Program",
+        "Workspace", "MaterialService", "Material", "Script",
+        "Model", "Decal", "SurfaceMark", "Texture", "Canvas", "Highlight", "SignalEvent",
+        "Sound", "Lighting", "Sun", "Moon", "PointLight", "SpotLight", "PostEffect", "AppImage",
+        "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance", "Rope", "Rod",
+        "BallSocket", "NoCollision", "IntValue", "BoolValue", "NumberValue", "Vector3Value",
+        "Color4Value", "CFrameValue", "QuaternionValue", "ObjectValue", "Weld", "Motor", "Motor6D",
+        "Gyro", "Attachment", "Force", "TextLabel", "TextButton", "ImageLabel", "ImageButton",
+        "SurfaceGui", "BillboardGui", "ProximityPrompt", "Folder", "Users", "LocalScript",
+        "ModuleScript", "Tool", "ParticleEmitter", "Weather"};
+
+    // System/PathfindingService は単一のサービスで、cloneの対象にしない（PathfindingServiceは
+    // 構築時にアクティブなサービスとして自身を登録するため、複製するとナビ要求を奪う）。
+
+    for (const auto& className : classNames) {
+        auto original = SceneLoader::createInstance(className);
+        if (!original) {
+            std::cout << "[CloneClass] SKIP: " << className << " cannot be created headless\n";
+            continue;
+        }
+        auto copy = original->clone();
+        expect(copy && copy->getClassName() == original->getClassName(),
+               className + ".clone() keeps the class (" +
+                   (copy ? copy->getClassName() : std::string("null")) + ")");
+        if (!copy || copy->getClassName() != original->getClassName()) continue;
+        expect(emit(*copy) == emit(*original),
+               className + ".clone() copies the serialized properties");
+    }
+    // Soundは音声エンジンが要るため、ローカルのAudioServiceで個別に確認する（値も既定から変える）。
+    {
+        AudioService audio;
+        auto sound = std::make_shared<Sound>(audio);
+        sound->Name = "Boom";
+        sound->setVolume(2.5f);
+        sound->setLooping(true);
+        sound->setPosition(Vector3(1, 2, 3));
+        auto soundCopy = sound->clone();
+        expect(soundCopy && soundCopy->getClassName() == "Sound",
+               "Sound.clone() keeps the class");
+        if (soundCopy && soundCopy->getClassName() == "Sound") {
+            expect(emit(*soundCopy) == emit(*sound),
+                   "Sound.clone() copies Volume, Looped and Position");
+        }
+    }
+
+    // スキーマ駆動のcloneが、既定値から変えた値も落とさないことを確認する。
+    {
+        auto attachment = std::make_shared<Attachment>();
+        attachment->Name = "Hand";
+        attachment->setPosition(Vector3(1, 2, 3));
+        attachment->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 30.0f));
+        auto attachmentCopy = attachment->clone();
+        const auto* attachmentRaw = static_cast<Attachment*>(attachmentCopy.get());
+        expect(attachmentCopy && (attachmentRaw->getPosition() - attachment->getPosition()).length() < 1.0e-5f &&
+                   std::abs(attachmentRaw->getCFrame().Rotation.y - attachment->getCFrame().Rotation.y) < 1.0e-5f,
+               "Attachment.clone() copies position and rotation");
+
+        auto gyro = std::make_shared<Gyro>();
+        gyro->Name = "Balance";
+        gyro->setAxisEnabled(GyroAxis::Y, true);
+        gyro->setTargetAngle(GyroAxis::Y, 33.0f);
+        gyro->setMaxTorque(GyroAxis::Y, 1234.0f);
+        gyro->setMaxAngularSpeed(GyroAxis::Z, 45.0f);
+        auto gyroCopy = gyro->clone();
+        expect(gyroCopy && emit(*gyroCopy) == emit(*gyro) &&
+                   std::abs(static_cast<Gyro*>(gyroCopy.get())->getAxisSettings(GyroAxis::Y).TargetAngle - 33.0f) < 1.0e-5f &&
+                   static_cast<Gyro*>(gyroCopy.get())->getAxisSettings(GyroAxis::Y).Enabled,
+               "Gyro.clone() copies per-axis settings");
+
+        auto number = std::make_shared<NumberValue>();
+        number->Name = "Pi";
+        number->setValue(3.141592653589793238);
+        auto numberCopy = number->clone();
+        expect(numberCopy && static_cast<NumberValue*>(numberCopy.get())->Value == number->Value,
+               "NumberValue.clone() keeps the exact double");
+        YAML::Emitter numberOut;
+        SceneLoader::emitNode(numberOut, number.get());
+        auto numberRoundTrip = SceneLoader::parseNode(YAML::Load(numberOut.c_str()));
+        expect(numberRoundTrip && static_cast<NumberValue*>(numberRoundTrip.get())->Value == number->Value,
+               "NumberValue YAML round-trips the exact double through the schema");
+
+        auto holder = std::make_shared<Folder>();
+        auto target = std::make_shared<Folder>();
+        target->Name = "Target";
+        auto pointer = std::make_shared<ObjectValue>();
+        pointer->Name = "Pointer";
+        holder->addChild(target);
+        holder->addChild(pointer);
+        pointer->setTarget(target);
+        auto holderCopy = holder->cloneTree();
+        auto* pointerCopy = holderCopy ? static_cast<ObjectValue*>(holderCopy->getChild("Pointer")) : nullptr;
+        expect(pointerCopy && pointerCopy->getTarget() == holderCopy->getChild("Target")->shared_from_this() &&
+                   pointerCopy->m_targetPathName == "Target",
+               "ObjectValue.clone() is remapped to the cloned target");
+
+        auto model = std::make_shared<Model>();
+        model->Name = "Rig";
+        auto part = std::make_shared<Cube>(Vector3(3, 4, 5), Vector3(2, 2, 2), 0);
+        part->Name = "Part";
+        model->addChild(part);
+        model->setPrimaryCube(part);
+        model->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 45.0f));
+        auto modelCopy = std::static_pointer_cast<Model>(model->cloneTree());
+        auto* partCopy = modelCopy ? modelCopy->getChild("Part") : nullptr;
+        expect(modelCopy && partCopy && modelCopy->getPrimaryCube() == partCopy &&
+                   (modelCopy->getCFrame().Position - model->getCFrame().Position).length() < 1.0e-4f &&
+                   std::abs(modelCopy->getCFrame().Rotation.y - model->getCFrame().Rotation.y) < 1.0e-4f,
+               "Model clone keeps the pose and re-points PrimaryCube into the copy");
+        // 子を持つModelの単体clone()は、addChildのワールド保存でローカルが崩れる（cloneForestが
+        // 後で戻す設計）。単体の姿勢確認は子の無いModelで行う。
+        auto bare = std::make_shared<Model>();
+        bare->setCFrame(CFrame(Vector3(7, 8, 9), Quaternion::fromAxisAngle(Vector3(0, 1, 0), 20.0f)));
+        auto bareCopy = std::static_pointer_cast<Model>(bare->clone());
+        expect(bareCopy && (bareCopy->getCFrame().Position - bare->getCFrame().Position).length() < 1.0e-4f &&
+                   std::abs(bareCopy->getCFrame().Rotation.y - bare->getCFrame().Rotation.y) < 1.0e-4f,
+               "Model.clone() itself keeps the model's own pose");
+
+        auto starter = std::make_shared<StarterCharacter>();
+        starter->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 60.0f));
+        auto starterCopy = starter->clone();
+        expect(starterCopy && starterCopy->getClassName() == "StarterCharacter" &&
+                   std::abs(static_cast<Model*>(starterCopy.get())->getCFrame().Rotation.y -
+                            starter->getCFrame().Rotation.y) < 1.0e-4f,
+               "StarterCharacter.clone() keeps its pose");
+
+        auto textFile = SceneLoader::createInstance("TextFile");
+        if (textFile) {
+            textFile->Name = "Notes";
+            textFile->setProperty("ContentPath", YAML::Node(std::string("assets/notes.txt")));
+            auto textCopy = textFile->clone();
+            expect(textCopy && emit(*textCopy) == emit(*textFile) &&
+                       static_cast<TextFile*>(textCopy.get())->StorageId !=
+                           static_cast<TextFile*>(textFile.get())->StorageId,
+                   "TextFile.clone() copies the path and takes a new StorageId");
+        }
+    }
+
+    // 親が複製されても、子の特殊クラスが保たれる（Explorerのコピー＆ペースト相当）。
+    {
+        auto holder = std::make_shared<Folder>();
+        holder->Name = "Holder";
+        auto users = std::make_shared<Users>();
+        auto starter = std::make_shared<StarterCharacter>();
+        holder->addChild(users);
+        holder->addChild(starter);
+        auto holderCopy = holder->cloneTree();
+        expect(holderCopy && holderCopy->getChild("Users") &&
+                   holderCopy->getChild("Users")->getClassName() == "Users" &&
+                   holderCopy->getChild("StarterCharacter") &&
+                   holderCopy->getChild("StarterCharacter")->getClassName() == "StarterCharacter",
+               "nested Users/StarterCharacter keep their class through cloneTree");
+    }
+    return failures == 0 ? 0 : 1;
+}
+
 struct RegressionEntry {
     std::string_view name;
     int (*runner)(int, char**);
@@ -14375,6 +14553,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--property-text-input-regression", runPropertyTextInputRegression),
         REG("--property-schema-regression", runPropertySchemaRegression),
         REG("--material-service-regression", runMaterialServiceRegression),
+        REG("--clone-class-regression", runCloneClassRegression),
         REG("--material-map-regression", runMaterialMapRegression),
         REG("--sky-body-regression", runSkyBodyRegression),
         REG("--quaternion-invariant-regression", runQuaternionInvariantRegression),

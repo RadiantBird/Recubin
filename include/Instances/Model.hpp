@@ -50,4 +50,8 @@ public:
     void onChildrenChanged() override;
     void collectInstanceReferences(std::vector<InstanceReference>& out) override;
     std::shared_ptr<Instance> clone() const override;
+
+protected:
+    // clone()の本体。copy（Model派生でもよい）へ名前・姿勢・子孫・PrimaryCubeを複製する。
+    void cloneInto(Model& copy) const;
 };

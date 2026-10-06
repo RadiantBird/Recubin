@@ -178,6 +178,17 @@ bool Sound::IsA(std::string name) {
     return (name == "Sound") || Spatial::IsA(name);
 }
 
+std::shared_ptr<Instance> Sound::clone() const {
+    // 音声エンジンへの参照を引き継ぎ、ContentPath(再読み込み)・音量等はスキーマで複製する。
+    auto copy = std::make_shared<Sound>(*m_audioService);
+    copy->Name = Name;
+    copy->setCFrame(getCFrame());
+    PropertyRegistry::cloneFields(this, copy.get(), "Sound");  // 基底 Spatial 分も集約
+    for (auto const& [n, child] : children)
+        copy->addChild(child->clone());
+    return copy;
+}
+
 SoundSpatialMix Sound::calculateSpatialMix(const Vector3& worldPos,
                                            const Vector3& listenerPos,
                                            const Vector3& listenerRight,

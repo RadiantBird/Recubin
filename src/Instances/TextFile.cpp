@@ -24,8 +24,9 @@ void TextFile::setProperty(const std::string& name, const YAML::Node& value) {
 
 std::shared_ptr<Instance> TextFile::clone() const {
     auto copy = std::make_shared<TextFile>();
-    copy->Path = Path;
     copy->Name = Name;
+    clonePhysicalFileFieldsTo(*copy, "TextFile");
+    // StorageIdはユーザー領域のコピーを識別するため、複製ごとに新規採番する。
     copy->StorageId = RecubinUUID::generate();
     return copy;
 }

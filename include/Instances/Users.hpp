@@ -14,4 +14,7 @@ public:
         if (name == "Users") return true;
         return Instance::IsA(name);
     }
+
+    // 基底のclone()はInstanceを返してしまうため、Usersとして複製する。
+    std::shared_ptr<Instance> clone() const override;
 };

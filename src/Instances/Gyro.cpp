@@ -30,6 +30,12 @@ PropertyDesc partProperty() {
     property.omitEmpty();
     property.instanceRefClass = "BaseCube";
     property.editorWidget = EditorWidget::InstanceReference;
+    // クローンはパス解決できない切り離し状態で作られるため、解決済みの参照を引き継ぐ。
+    // 内部参照の張り替えは remapClonedInstances が行う。
+    property.copyStateWith([](const Instance* source, Instance* destination) {
+        if (auto part = static_cast<const Gyro*>(source)->getCube0())
+            static_cast<Gyro*>(destination)->setPart(std::move(part));
+    });
 
     return property;
 }
@@ -543,14 +549,7 @@ std::shared_ptr<Instance> Gyro::clone() const {
     auto copy = std::make_shared<Gyro>();
 
     copy->Name = Name;
-    copy->Enabled = Enabled;
-
-    copy->m_cube0Name = m_cube0Name;
-    copy->m_cube0 = m_cube0;
-
-    copy->m_xAxis = m_xAxis;
-    copy->m_yAxis = m_yAxis;
-    copy->m_zAxis = m_zAxis;
+    PropertyRegistry::cloneFields(this, copy.get(), "Gyro");  // 基底 PhysicsConstraint 分も集約
 
     for (const auto& [name, child] : children) {
         copy->addChild(

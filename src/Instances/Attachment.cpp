@@ -1,10 +1,11 @@
 #include <include/Instances/Attachment.hpp>
+#include <include/Core/PropertyRegistry.hpp>
 
 std::shared_ptr<Instance> Attachment::clone() const {
     auto c = std::make_shared<Attachment>();
-    c->Name   = Name;
-    c->setCFrame(getCFrame());
-    c->Size   = Size;
+    c->Name = Name;
+    // 固有のスキーマは持たないため、基底Spatialのスキーマ(Position/Size/Rotation)で複製する。
+    PropertyRegistry::copyCompatibleProperties(this, c.get());
     for (auto const& [n, ch] : children) c->addChild(ch->clone());
     return c;
 }

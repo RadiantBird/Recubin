@@ -18,6 +18,8 @@ public:
     std::shared_ptr<Instance> clone() const override;
     void remapClonedInstances(const CloneRemap& map) override;
 
+    // パス文字列を代入し、現在のツリーで解決できれば対象も解決する（YAML/エディター共通）。
+    void setTargetPathName(const std::string& path);
     std::shared_ptr<Instance> getTarget() const;
     void setTarget(std::shared_ptr<Instance> target);
     void resolveTarget(std::shared_ptr<Instance> target);

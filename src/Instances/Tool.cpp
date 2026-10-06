@@ -17,6 +17,14 @@ static const bool s_toolRegistered = [] {
     handle.omitEmpty();
     handle.instanceRefClass = "BaseCube";
     handle.editorWidget = EditorWidget::InstanceReference;
+    // クローンはパス解決できない切り離し状態で作られるため、解決済みの参照を引き継ぐ。
+    // 引き継がないと remapClonedInstances が何もできず、複製の保存パスが元の場所のまま残る。
+    handle.copyStateWith([](const Instance* source, Instance* destination) {
+        const auto* from = static_cast<const Tool*>(source);
+        auto* to = static_cast<Tool*>(destination);
+        to->Handle = from->Handle;
+        to->m_handleName = from->m_handleName;
+    });
 
     registerClass("Tool", "Model", {
         sig<&Tool::Activated>("Activated"),

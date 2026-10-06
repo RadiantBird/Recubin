@@ -74,6 +74,14 @@ public:
      */
     static std::shared_ptr<Instance> createInstance(const std::string& className);
 
+    // アセット(.rcaet)用の部分木単位API。シーン全体のロード/保存と同じノード形を使う。
+    /** @brief 1つのInstanceとその子孫をシーンと同じノード形でemitする */
+    static void emitNode(YAML::Emitter& out, Instance* inst);
+    /** @brief ノードからInstanceツリー（切り離し状態）を構築する。参照は解決しない */
+    static std::shared_ptr<Instance> parseNode(const YAML::Node& node);
+    /** @brief ローカルCFrameを保ったままchildをparentへ追加する */
+    static void attachParsedChild(Instance& parent, const std::shared_ptr<Instance>& child);
+
 private:
     /**
      * @brief YAMLノードを再帰的に解析してInstanceを生成する

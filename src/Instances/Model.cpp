@@ -298,21 +298,29 @@ void Model::onChildrenChanged() {
 }
 
 std::shared_ptr<Instance> Model::clone() const {
-    auto copy = std::make_shared<Model>(getPosition(), Size);
-    copy->Name = Name;
-    copy->setCFrame(getCFrame());
+    auto copy = std::make_shared<Model>();
+    cloneInto(*copy);
+    return copy;
+}
+
+void Model::cloneInto(Model& copy) const {
+    copy.Name = Name;
+    // 派生クラス(StarterCharacter等)は固有のスキーマを持たないため、IsAで適用される
+    // Model/Spatialのスキーマで複製する。
+    PropertyRegistry::copyCompatibleProperties(this, &copy);
+    // ModelのPosition/Rotation代入は子孫ごと剛体移動(pivotTo)する意味論で、子の無いcopyでは
+    // 原点がずれる。姿勢はローカルCFrameをそのまま代入して確定させる。
+    copy.setCFrame(getCFrame());
 
     for (auto const& [name, child] : children) {
-        copy->addChild(child->clone());
+        copy.addChild(child->clone());
     }
 
     // 複製先の子孫へ張り替える(元のCubeを指したままにしない)
     if (BaseCube* primary = getPrimaryCube()) {
         const std::string relative = primary->getPathUpTo(const_cast<Model*>(this));
-        Instance* target = copy->getChildByPath(relative);
+        Instance* target = copy.getChildByPath(relative);
         if (target && target->IsA("BaseCube"))
-            copy->setPrimaryCube(std::static_pointer_cast<BaseCube>(target->shared_from_this()));
+            copy.setPrimaryCube(std::static_pointer_cast<BaseCube>(target->shared_from_this()));
     }
-
-    return copy;
 }
