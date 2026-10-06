@@ -6,6 +6,7 @@
 #include <Editor/SceneHierarchyPanel.hpp>
 #include <Editor/PropertiesPanel.hpp>
 #include <Editor/ContentBrowserPanel.hpp>
+#include <Editor/AssetDialogs.hpp>
 #include <Editor/ViewportPanel.hpp>
 #include <Editor/AnimationEditorPanel.hpp>
 #include <Editor/WelcomePanel.hpp>
@@ -76,6 +77,9 @@ public:
     std::unique_ptr<AnimationEditorPanel> animationPanel;
     std::unique_ptr<WelcomePanel>        welcomePanel;
     std::unique_ptr<ProfilerPanel>       profilerPanel;
+
+    // アセット(.rcaet)の書き出しダイアログと取り込みフロー
+    AssetDialogs                         m_assetDialogs;
 
     // セカンダリビューポート（複数可）
     std::vector<std::unique_ptr<ViewportPanel>> secondaryViewports;

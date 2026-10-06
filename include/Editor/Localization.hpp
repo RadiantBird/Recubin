@@ -128,6 +128,15 @@ enum class LocKey {
     // ---- WelcomePanel ----
     PanelWelcome, WelcomeMessage, WelcomeBtnNew, WelcomeBtnContinue, WelcomeBtnOpen,
 
+    // ---- AssetDialogs (.rcaet) ----
+    AssetMenuExport, AssetMenuImport, AssetContentImport, AssetExportTitle, AssetNameLabel,
+    AssetModeStructure, AssetModeEmbed, AssetDependenciesHeader, AssetNoDependencies,
+    AssetStatusOk, AssetStatusMissing, AssetStatusAbsolute, AssetStatusExecutable,
+    AssetStatusAutosave, AssetSelectAll, AssetClearAll, AssetTotalSize, AssetMaterialsLabel,
+    AssetWarningsHeader, AssetExecutableHint, AssetExportButton, AssetNothingToExport,
+    AssetImportErrorTitle, AssetExecutableTitle, AssetExecutableMessage, AssetExecutableExclude,
+    AssetExecutableExtract, AssetImportDoneTitle,
+
     Count
 };
 

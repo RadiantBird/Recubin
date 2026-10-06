@@ -30,6 +30,37 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 差し替えたり削除した結果を尊重する。標準参照を再設定できるのは、ユーザーが明示的に
 `Restore Default Animations`を実行した場合だけとする。
 
+## アセット保存形式（.rcaet v1）
+
+選択したInstance部分木を再利用可能なアセットとして書き出す。ExplorerでInstanceを右クリックして
+「アセットを書き出し...」「アセットを読み込み...」、Content Browserで`.rcaet`を右クリックして
+「アセットとして読み込み」を実行する。読み込みは右クリックしたInstance（Content Browserでは選択中の
+Instance、無ければWorkspace）の子として追加し、1回のUndoで取り消せる。
+
+- 形式: 1行目`#rcaet 1 yaml=<N>`（YAMLコメント。Nは2行目以降のYAMLのバイト数）、続けてYAML、
+  埋め込みがあればその後ろに生バイトを連結する。構造のみの場合は末尾領域が無く、全体が通常のYAMLになる。
+- YAMLは`recubin: {type: asset, version: 1}`、`Asset: {Name, Roots, Materials}`、`Embedded`を持つ。
+  `Roots`/`Materials`のノード形（ClassName/Name/Properties/Children）はSceneと同じ。`type`が`asset`以外、
+  versionが1以外は拒否する（SceneとAssetを相互に読み込めない）。
+- `Embedded`の各要素は`Source`（YAML内の依存パス文字列と一致）、`File`（バンドル内の相対パス）、
+  `Size`、`Hash`（`sha256:<hex>`）、`Offset`（末尾領域先頭からのバイト位置）を持つ。ディレクトリ依存
+  （Terrain.DataPath）は`Dir: true`と`Files`の配列で、ディレクトリ内のファイルを個別に格納する
+  （`.autosave`は含めない）。サイズ・範囲・ハッシュのどれかが不正なら何も変更せず読み込みを拒否する。
+- 書き出しは対象を複製してからシリアライズし、元のツリーを変更しない。部分木の外を指す参照
+  （Constraint、Attachment、ObjectValue、Model.PrimaryCube、Humanoidのアニメ等）は空にして警告する。
+  例外として`BaseCube.Material`はMaterialServiceのMaterial（画像マップのFileRefを含む）を同梱する。
+  System/Workspace/各Service/Users/User/Lighting/UserInput/Eventとランタイムキャラクターは書き出せない。
+- 依存ファイルはYAMLのキー（`ContentPath`、`Texture`、`MeshFile`、`Image`、`SkyboxPaths`、`DataPath`等）から
+  検出する。書き出しダイアログで「構造のみ」か「依存ファイルを埋め込む」かと、ファイルごとの埋め込みを選ぶ。
+  実行形式（.exe/.dll/.bat等）は既定では埋め込まず、赤い警告付きで明示的に選んだ場合のみ埋め込む。
+- 読み込みは埋め込みファイルを`assets/imported/<アセット名>/<File>`へ展開し、依存パスを書き換える。
+  既存ファイルは上書きせず、同内容なら再利用、内容が違えば`_1`、`_2`の連番で別名にする。`..`・絶対パス・
+  ドライブ文字を含む`File`は拒否する。実行形式が含まれる場合は、展開前に確認ダイアログで警告し
+  「除外して読み込む」（既定、該当Programの`ContentPath`は空になる）か「展開して読み込む」を選ばせる。
+  展開しても自動実行はしない。Undoしても展開済みファイルは残る。
+- 同名のMaterialが取り込み先のMaterialServiceにあれば既存を使い、無ければ追加する。TextFileの
+  `StorageId`は取り込みごとに新規採番する。ルート名が衝突した場合は連番で改名する。
+
 ## 特殊なインスタンス
   `Weather`はWorkspace直下に置く天候システムで、`CloudColor`（`Color4`）と
   `CloudHeight`（ワールド空間の雲層Y座標）を保持する。雲の水平クアッドはカメラのX/Zへ

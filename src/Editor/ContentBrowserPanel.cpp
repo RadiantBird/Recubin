@@ -1,5 +1,6 @@
 #include <Editor/ContentBrowserPanel.hpp>
 #include <Editor/Localization.hpp>
+#include <Editor/AssetDialogs.hpp>
 #include <Editor/SceneHierarchyPanel.hpp>
 #include <Instances/FileRef.hpp>
 #include <include/imgui/imgui.h>
@@ -70,6 +71,7 @@ void ContentBrowserPanel::drawDirectory(const fs::path& path) {
               || ext == ".bmp")                                     icon = "[IMG]  ";
         else if (ext == ".lua"  || ext == ".luau")                  icon = "[LUA]  ";
         else if (ext == ".glsl")                                    icon = "[GLSL] ";
+        else if (ext == ".rcaet")                                   icon = "[AST]  ";
 
         std::string label = icon + f.path().filename().string();
         ImGui::Selectable(label.c_str(), false);
@@ -88,6 +90,14 @@ void ContentBrowserPanel::drawDirectory(const fs::path& path) {
                     fr->Name = SceneHierarchyPanel::uniqueName(parent, f.path().stem().string());
                     m_history->execute(std::make_unique<AddInstanceCommand>(parent, fr));
                 }
+            }
+            // アセット(.rcaet)を選択インスタンス（無ければWorkspace）の子として読み込む
+            if (f.path().extension() == ".rcaet" && m_assetDialogs &&
+                ImGui::MenuItem(Loc::t(Loc::LocKey::AssetContentImport))) {
+                std::shared_ptr<Instance> parent;
+                if (selectedInstance && *selectedInstance) parent = (*selectedInstance)->shared_from_this();
+                else if (workspace && *workspace)          parent = (*workspace)->shared_from_this();
+                if (parent) m_assetDialogs->requestImport(parent, f.path().generic_string());
             }
             // パスをコピー
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::CopyPath))) {

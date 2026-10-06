@@ -64,6 +64,11 @@
 #include <Core/LuauEngine.hpp>
 #include <Core/FileLoader.hpp>
 #include <Core/Packager.hpp>
+#include <Core/AssetContainer.hpp>
+#include <Core/AssetDependencies.hpp>
+#include <Core/AssetExporter.hpp>
+#include <Core/AssetImporter.hpp>
+#include <Util/Sha256.hpp>
 #include <Core/SceneLoader.hpp>
 #include <Core/AnimationClip.hpp>
 #include <Core/SceneRuntime.hpp>
@@ -82,6 +87,7 @@
 #include <Editor/CommandHistory.hpp>
 #include <Editor/GuiAutomationCommand.hpp>
 #include <Editor/AutosaveManager.hpp>
+#include <Editor/AssetDialogs.hpp>
 #include <Editor/SceneHierarchyGrouping.hpp>
 #include <Editor/SceneHierarchySelection.hpp>
 #include <Editor/InstanceCatalog.hpp>
@@ -14313,6 +14319,576 @@ static int runSkyBodyRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+// .rcaet（アセット）の書き出し・読み込み。コンテナ形式・依存検出・参照の付け替え・安全性を検証する。
+static int runAssetRegression() {
+    namespace fs = std::filesystem;
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[Asset] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    const auto containsText = [](const std::vector<std::string>& lines, std::string_view text) {
+        return std::any_of(lines.begin(), lines.end(), [&](const std::string& line) {
+            return line.find(text) != std::string::npos;
+        });
+    };
+    const auto readAll = [](const fs::path& path) {
+        std::ifstream in(path, std::ios::binary);
+        return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    };
+    const auto writeAll = [](const fs::path& path, const std::string& data) {
+        std::error_code ec;
+        fs::create_directories(path.parent_path(), ec);
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        out.write(data.data(), static_cast<std::streamsize>(data.size()));
+    };
+
+    const fs::path root = fs::temp_directory_path() / "recubin_asset_regression";
+    std::error_code removeError;
+    fs::remove_all(root, removeError);
+    fs::create_directories(root);
+
+    // --- SHA-256 ---
+    expect(Sha256::hex("", 0) ==
+               "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+           "SHA-256 of the empty input");
+    expect(Sha256::hex("abc", 3) ==
+               "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+           "SHA-256 of 'abc'");
+    {
+        const std::string longInput = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
+        expect(Sha256::hex(longInput.data(), longInput.size()) ==
+                   "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
+               "SHA-256 across a block boundary");
+    }
+
+    // --- 論理パス・安全なパス ---
+    expect(AssetDependencies::logicalPath("assets/image/x.png") == "image/x.png",
+           "logicalPath strips the assets/ prefix");
+    expect(AssetDependencies::logicalPath("scripts/a.luau") == "scripts/a.luau",
+           "logicalPath keeps other relative paths");
+    expect(AssetDependencies::logicalPath("C:/a/b/x.png") == "external/x.png" &&
+               AssetDependencies::logicalPath("../x.png") == "external/x.png",
+           "absolute and escaping paths become external/<name>");
+    expect(AssetContainer::isSafeRelativePath("image/x.png") &&
+               !AssetContainer::isSafeRelativePath("../x") &&
+               !AssetContainer::isSafeRelativePath("a/../x") &&
+               !AssetContainer::isSafeRelativePath("/x") &&
+               !AssetContainer::isSafeRelativePath("C:/x") &&
+               !AssetContainer::isSafeRelativePath("a//b") &&
+               !AssetContainer::isSafeRelativePath(""),
+           "isSafeRelativePath rejects absolute, drive and '..' paths");
+    expect(AssetDependencies::isExecutablePath("tool.EXE") &&
+               AssetDependencies::isExecutablePath("x/y.dll") &&
+               !AssetDependencies::isExecutablePath("a.luau"),
+           "executable extensions are detected case-insensitively");
+
+    // --- 依存キーとスキーマの乖離検知 ---
+    {
+        const auto& fileKeys = AssetDependencies::fileKeys();
+        bool allCovered = true;
+        std::string missing;
+        for (const char* className : {"Script", "LocalScript", "ModuleScript", "FileRef", "FontFile",
+                                      "TextFile", "Program", "Decal", "Texture", "SurfaceMark",
+                                      "ImageLabel", "ImageButton", "MeshCube", "Sound", "Weather",
+                                      "Animation", "PostEffect", "Skybox", "AppImage", "Material"}) {
+            auto instance = SceneLoader::createInstance(className);
+            if (!instance) continue;
+            for (const PropertyDesc* desc : PropertyRegistry::collectApplicableSchema(instance.get())) {
+                if (!desc || desc->editorWidget != EditorWidget::FilePath) continue;
+                const std::string_view key = desc->effYamlKey();
+                if (std::find(fileKeys.begin(), fileKeys.end(), key) == fileKeys.end()) {
+                    allCovered = false;
+                    missing += std::string(className) + "." + std::string(key) + " ";
+                }
+            }
+        }
+        expect(allCovered, "every FilePath schema property is covered by AssetDependencies keys " +
+                               missing);
+    }
+
+    // --- コンテナ round-trip / 構造のみ / 破損検出 ---
+    {
+        YAML::Node document = YAML::Load(
+            "recubin: {type: asset, version: 1}\nAsset:\n  Name: Box\n  Roots:\n"
+            "    - {ClassName: Folder, Name: F}\n");
+        std::vector<AssetContainer::EmbeddedFile> files(3);
+        files[0].source = "a/one.bin"; files[0].file = "one.bin";
+        files[0].data = {'1', '2', '3'};
+        files[1].source = "dir"; files[1].directory = true; files[1].file = "x.txt";
+        files[1].data = {'x'};
+        files[2].source = "dir"; files[2].directory = true; files[2].file = "sub/y.txt";
+        const std::string path = AssetPath::toStored(root / "container.rcaet");
+        expect(static_cast<bool>(AssetContainer::write(path, document, files)), "container writes");
+
+        AssetContainer::Document read;
+        const auto readResult = AssetContainer::read(path, read);
+        expect(static_cast<bool>(readResult) && read.files.size() == 3 &&
+                   read.files[0].data == std::vector<char>({'1', '2', '3'}) &&
+                   read.files[1].directory && read.files[1].source == "dir" &&
+                   read.files[2].file == "sub/y.txt" && read.files[2].data.empty() &&
+                   read.yaml["Asset"]["Name"].as<std::string>() == "Box" && !read.yaml["Embedded"],
+               "container round-trips files, directory members and empty files " + readResult.message);
+
+        const std::string bytes = readAll(path);
+        expect(bytes.rfind("#rcaet 1 yaml=", 0) == 0, "first line is the #rcaet header comment");
+
+        // 末尾領域は "123x"（y.txtは空）。最後の1バイト(x)を反転する。
+        AssetContainer::Document bad;
+        std::string flipped = bytes;
+        flipped.back() = static_cast<char>(flipped.back() ^ 0x01);
+        writeAll(root / "flipped.rcaet", flipped);
+        const auto flippedResult = AssetContainer::read(AssetPath::toStored(root / "flipped.rcaet"), bad);
+        expect(!flippedResult && flippedResult.message.find("hash mismatch") != std::string::npos,
+               "a flipped byte in the blob region is rejected " + flippedResult.message);
+
+        writeAll(root / "truncated.rcaet", bytes.substr(0, bytes.size() - 1));
+        expect(!AssetContainer::read(AssetPath::toStored(root / "truncated.rcaet"), bad),
+               "a truncated blob region is rejected");
+
+        std::string versionTwo = bytes;
+        versionTwo[std::string("#rcaet ").size()] = '2';
+        writeAll(root / "v2.rcaet", versionTwo);
+        expect(!AssetContainer::read(AssetPath::toStored(root / "v2.rcaet"), bad),
+               "an unsupported container version is rejected");
+
+        const std::string sceneYaml = "recubin: {type: scene, version: 0}\nRoot: {}\n";
+        writeAll(root / "notasset.rcaet",
+                 "#rcaet 1 yaml=" + std::to_string(sceneYaml.size()) + "\n" + sceneYaml);
+        expect(!AssetContainer::read(AssetPath::toStored(root / "notasset.rcaet"), bad),
+               "a scene document is not accepted as an asset");
+
+        const std::string unsafeYaml =
+            "recubin: {type: asset, version: 1}\nAsset: {Name: X, Roots: [{ClassName: Folder, Name: F}]}\n"
+            "Embedded:\n  - {Source: a, File: ../evil.txt, Size: 0, "
+            "Hash: 'sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', Offset: 0}\n";
+        writeAll(root / "unsafe.rcaet",
+                 "#rcaet 1 yaml=" + std::to_string(unsafeYaml.size()) + "\n" + unsafeYaml);
+        const auto unsafeResult = AssetContainer::read(AssetPath::toStored(root / "unsafe.rcaet"), bad);
+        expect(!unsafeResult && unsafeResult.message.find("unsafe") != std::string::npos,
+               "an embedded path escaping the bundle is rejected " + unsafeResult.message);
+
+        std::vector<AssetContainer::EmbeddedFile> escaping(1);
+        escaping[0].source = "a"; escaping[0].file = "../x"; escaping[0].data = {'x'};
+        expect(!AssetContainer::write(AssetPath::toStored(root / "escaping.rcaet"), document, escaping),
+               "write refuses unsafe logical paths");
+
+        std::vector<AssetContainer::EmbeddedFile> none;
+        const std::string plainPath = AssetPath::toStored(root / "plain.rcaet");
+        expect(static_cast<bool>(AssetContainer::write(plainPath, document, none)),
+               "structure-only container writes");
+        YAML::Node whole;
+        bool wholeLoads = true;
+        try { whole = YAML::LoadFile(plainPath); } catch (...) { wholeLoads = false; }
+        expect(wholeLoads && whole["Asset"]["Name"].as<std::string>("") == "Box",
+               "a structure-only file is plain YAML as a whole");
+    }
+
+    // --- 取り込み先をダイアログが生かし続けない（終了時に解放済みの音声エンジンへ触れるクラッシュの回帰） ---
+    {
+        auto parent = std::make_shared<Folder>();
+        std::weak_ptr<Instance> watcher = parent;
+        {
+            AssetDialogs dialogs;
+            dialogs.requestImport(parent, AssetPath::toStored(root / "does_not_exist.rcaet"));
+            parent.reset();
+            expect(watcher.expired(), "AssetDialogs does not keep the import parent alive");
+        }
+    }
+
+    // --- Tool.Handleは書き出しでアセット内のパスになり、別の場所へ取り込んでも解決する ---
+    {
+        auto toolScene = std::make_shared<System>();
+        auto toolWorkspace = std::make_shared<Workspace>();
+        toolScene->addChild(toolWorkspace);
+        auto deepFolder = std::make_shared<Folder>();
+        deepFolder->Name = "Deep";
+        toolWorkspace->addChild(deepFolder);
+        auto gun = std::make_shared<Tool>("Gun");
+        deepFolder->addChild(gun);
+        auto gunHandle = std::make_shared<Cube>(Vector3(1, 2, 3), Vector3(1, 1, 1), 0);
+        gunHandle->Name = "Handle";
+        gun->addChild(gunHandle);
+        gun->setHandleReference(gunHandle);
+        expect(gun->getHandlePath() == "Deep\\Gun\\Handle", "the source tool stores a Workspace-relative Handle path");
+
+        auto toolClone = std::static_pointer_cast<Tool>(gun->cloneTree());
+        expect(toolClone && toolClone->Handle && toolClone->Handle.get() == toolClone->getChild("Handle") &&
+                   toolClone->getHandlePath() == "Gun\\Handle",
+               "Tool.clone() re-points Handle into the copy and refreshes its path");
+
+        auto toolPlan = AssetExporter::prepare({gun.get()});
+        const std::string toolAsset = AssetPath::toStored(root / "tool.rcaet");
+        expect(static_cast<bool>(AssetExporter::write(toolPlan, {}, toolAsset)), "a Tool asset exports");
+        AssetImporter::Loaded toolLoaded;
+        AssetImporter::Imported toolImported;
+        expect(static_cast<bool>(AssetImporter::load(toolAsset, toolLoaded)) &&
+                   toolLoaded.document.yaml["Asset"]["Roots"][0]["Properties"]["Handle"].as<std::string>("") == "Gun\\Handle",
+               "the exported Handle path is relative to the asset root");
+        expect(static_cast<bool>(AssetImporter::instantiate(toolLoaded, {}, nullptr, toolImported)) &&
+                   toolImported.roots.size() == 1,
+               "the Tool asset imports");
+        if (toolImported.roots.size() == 1) {
+            auto importedTool = std::static_pointer_cast<Tool>(toolImported.roots.front());
+            expect(importedTool->Handle && importedTool->Handle.get() == importedTool->getChild("Handle"),
+                   "the imported Tool has its Handle resolved");
+            // 別の場所（Inventory相当）へ入れて名前が変わっても、Handleが追従する。
+            auto inventoryScene = std::make_shared<System>();
+            auto inventoryHolder = std::make_shared<Folder>();
+            inventoryHolder->Name = "Inventory";
+            auto existingTool = std::make_shared<Tool>("Gun");
+            inventoryHolder->addChild(existingTool);
+            inventoryScene->addChild(inventoryHolder);
+            importedTool->Name = "Gun1";
+            inventoryHolder->addChild(importedTool);
+            expect(importedTool->Handle && importedTool->Handle.get() == importedTool->getChild("Handle") &&
+                       importedTool->getHandlePath().find("Gun1") != std::string::npos,
+                   "the Handle path follows the Tool to a new location and name");
+        }
+    }
+
+    // --- Folderがクローンでも書き出しでもFolderのまま残る ---
+    {
+        auto tree = std::make_shared<Folder>();
+        tree->Name = "Outer";
+        auto inner = std::make_shared<Folder>();
+        inner->Name = "Inner";
+        tree->addChild(inner);
+        auto cloned = tree->cloneTree();
+        expect(cloned && cloned->getClassName() == "Folder" && cloned->getChild("Inner") &&
+                   cloned->getChild("Inner")->getClassName() == "Folder",
+               "cloning a Folder keeps the Folder class");
+        auto folderPlan = AssetExporter::prepare({tree.get()});
+        expect(static_cast<bool>(folderPlan) && !containsText(folderPlan.warnings, "Class changed"),
+               "exporting nested Folders reports no class change");
+        const std::string folderAsset = AssetPath::toStored(root / "folders.rcaet");
+        AssetImporter::Loaded folderLoaded;
+        AssetImporter::Imported folderImported;
+        expect(static_cast<bool>(AssetExporter::write(folderPlan, {}, folderAsset)) &&
+                   static_cast<bool>(AssetImporter::load(folderAsset, folderLoaded)) &&
+                   static_cast<bool>(AssetImporter::instantiate(folderLoaded, {}, nullptr, folderImported)) &&
+                   folderImported.roots.size() == 1,
+               "a Folder asset exports and imports");
+        if (folderImported.roots.size() == 1) {
+            Instance* importedInner = folderImported.roots.front()->getChild("Inner");
+            expect(folderImported.roots.front()->getClassName() == "Folder" && importedInner &&
+                       importedInner->getClassName() == "Folder",
+                   "imported Folders are Folders, not plain Instances");
+        }
+    }
+
+    // --- シーンからの書き出し ---
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    auto materialService = std::make_shared<MaterialService>();
+    system->addChild(workspace);
+    system->addChild(materialService);
+    auto brick = std::static_pointer_cast<MaterialInstance>(SceneLoader::createInstance("Material"));
+    brick->Name = "Brick";
+    brick->setProperty("Roughness", YAML::Node(0.25f));
+    materialService->addChild(brick);
+
+    const fs::path scriptPath = root / "src" / "brain.luau";
+    writeAll(scriptPath, "print('brain')\n");
+    const std::string scriptStored = AssetPath::toStored(scriptPath);
+
+    auto folder = std::make_shared<Folder>();
+    folder->Name = "Stuff";
+    workspace->addChild(folder);
+    auto robot = std::make_shared<Model>();
+    robot->Name = "Robot";
+    folder->addChild(robot);
+    auto body = std::make_shared<Cube>(Vector3(1, 5, 2), Vector3(2, 2, 2), 0);
+    body->Name = "Body";
+    auto arm = std::make_shared<Cube>(Vector3(4, 5, 2), Vector3(1, 1, 3), 0);
+    arm->Name = "Arm";
+    robot->addChild(body);
+    robot->addChild(arm);
+    body->setProperty("Material", YAML::Node(std::string("MaterialService\\Brick")));
+    auto joint = std::make_shared<Weld>(body, arm);
+    joint->Name = "Joint";
+    robot->addChild(joint);
+    robot->setPrimaryCube(body);
+    auto outside = std::make_shared<Cube>(Vector3(20, 5, 2), Vector3(1, 1, 1), 0);
+    outside->Name = "Outside";
+    workspace->addChild(outside);
+    auto external = std::make_shared<Weld>(body, outside);
+    external->Name = "ExternalJoint";
+    robot->addChild(external);
+    auto brain = std::make_shared<Script>(scriptStored);
+    brain->Name = "Brain";
+    robot->addChild(brain);
+    expect(body->getMaterialInstance() == brick && static_cast<bool>(joint->getCube0()),
+           "test scene is wired (material, weld)");
+
+    const Vector3 bodyLocal = body->getPosition();
+    auto plan = AssetExporter::prepare({robot.get()});
+    expect(static_cast<bool>(plan) && plan.defaultName == "Robot" && plan.rootCount == 1,
+           "prepare builds a plan for one root");
+    expect(plan.materialNames == std::vector<std::string>({"Brick"}),
+           "the referenced Material is bundled");
+    expect(containsText(plan.warnings, "External reference cleared"),
+           "references leaving the subtree are reported");
+    expect(external->getCube1() == outside && external->getCube0() == body,
+           "prepare leaves the live scene untouched");
+    const auto scriptDependency = std::find_if(
+        plan.dependencies.begin(), plan.dependencies.end(),
+        [&](const AssetDependencies::Dependency& d) { return d.source == scriptStored; });
+    expect(scriptDependency != plan.dependencies.end() && scriptDependency->exists &&
+               scriptDependency->absolute && !scriptDependency->executable &&
+               scriptDependency->size == 15,
+           "the script is listed as an existing absolute file dependency");
+    expect(AssetExporter::prepare({workspace.get(), system.get(), materialService.get()}).rootCount == 0,
+           "services cannot be exported");
+
+    AssetExporter::Options structureOnly;
+    const std::string structurePath = AssetPath::toStored(root / "robot_structure.rcaet");
+    expect(static_cast<bool>(AssetExporter::write(plan, structureOnly, structurePath)),
+           "structure-only export writes");
+    AssetExporter::Options embedAll;
+    embedAll.embedSources = {scriptStored};
+    const std::string embeddedPath = AssetPath::toStored(root / "robot_embedded.rcaet");
+    expect(static_cast<bool>(AssetExporter::write(plan, embedAll, embeddedPath)),
+           "export with an embedded script writes");
+    expect(readAll(root / "robot_embedded.rcaet").size() > readAll(root / "robot_structure.rcaet").size(),
+           "the embedded export carries the script bytes");
+
+    // --- 取り込み ---
+    auto system2 = std::make_shared<System>();
+    auto workspace2 = std::make_shared<Workspace>();
+    auto materialService2 = std::make_shared<MaterialService>();
+    system2->addChild(workspace2);
+    system2->addChild(materialService2);
+
+    AssetImporter::Options importOptions;
+    importOptions.extractRoot = AssetPath::toStored(root / "imported");
+
+    AssetImporter::Loaded loaded;
+    expect(static_cast<bool>(AssetImporter::load(embeddedPath, loaded)) && loaded.name == "Robot" &&
+               loaded.executables.empty(),
+           "load reads the embedded asset");
+    AssetImporter::Imported first;
+    const auto firstResult = AssetImporter::instantiate(loaded, importOptions, materialService2.get(), first);
+    expect(static_cast<bool>(firstResult) && first.roots.size() == 1 && first.materialsToAdd.size() == 1,
+           "instantiate builds the roots and one new Material " + firstResult.message);
+    if (first.roots.size() == 1) {
+        for (const auto& material : first.materialsToAdd) materialService2->addChild(material);
+        workspace2->addChild(first.roots.front());
+        auto* importedRobot = static_cast<Model*>(first.roots.front().get());
+        auto* importedBody = static_cast<BaseCube*>(importedRobot->getChild("Body"));
+        auto* importedArm = static_cast<BaseCube*>(importedRobot->getChild("Arm"));
+        auto* importedJoint = static_cast<Weld*>(importedRobot->getChild("Joint"));
+        auto* importedExternal = static_cast<Weld*>(importedRobot->getChild("ExternalJoint"));
+        auto* importedScript = static_cast<Script*>(importedRobot->getChild("Brain"));
+        expect(importedBody && importedArm && importedJoint && importedExternal && importedScript,
+               "the whole subtree is imported");
+        if (importedBody && importedArm && importedJoint && importedExternal && importedScript) {
+            expect(std::abs(importedBody->getPosition().x - bodyLocal.x) < 1.0e-4f &&
+                       std::abs(importedBody->getPosition().y - bodyLocal.y) < 1.0e-4f,
+                   "local CFrames are preserved");
+            expect(importedJoint->getCube0().get() == importedBody &&
+                       importedJoint->getCube1().get() == importedArm,
+                   "constraint references resolve inside the imported subtree");
+            expect(importedRobot->getPrimaryCube() == importedBody,
+                   "Model.PrimaryCube resolves to the imported cube");
+            expect(!importedExternal->getCube1() && importedExternal->getCube0().get() == importedBody,
+                   "the reference that left the subtree stays cleared");
+            const auto material = importedBody->getMaterialInstance();
+            expect(material && material->Name == "Brick" &&
+                       material->Parent.lock() == materialService2 &&
+                       std::abs(material->Roughness - 0.25f) < 1.0e-5f,
+                   "the bundled Material is added to MaterialService and referenced");
+            const fs::path extracted = AssetPath::fromStored(importedScript->Path);
+            expect(importedScript->Path.find("imported/Robot/") != std::string::npos &&
+                       readAll(extracted) == "print('brain')\n",
+                   "the embedded script is extracted and the path rewritten");
+            expect(importedScript->Source.find("brain") != std::string::npos,
+                   "the extracted script loads its source");
+        }
+    }
+
+    // 2回目: 名前が衝突しても内部参照が自分のサブツリーへ向き、Material・ファイルは再利用される。
+    AssetImporter::Imported second;
+    const auto secondResult = AssetImporter::instantiate(loaded, importOptions, materialService2.get(), second);
+    expect(static_cast<bool>(secondResult) && second.roots.size() == 1 && second.materialsToAdd.empty(),
+           "a second import reuses the existing Material");
+    if (second.roots.size() == 1) {
+        workspace2->addChild(second.roots.front());
+        auto* importedRobot = static_cast<Model*>(second.roots.front().get());
+        auto* importedBody = static_cast<BaseCube*>(importedRobot->getChild("Body"));
+        auto* importedJoint = static_cast<Weld*>(importedRobot->getChild("Joint"));
+        auto* importedScript = static_cast<Script*>(importedRobot->getChild("Brain"));
+        expect(importedRobot->Name != "Robot", "the colliding root is renamed on attach");
+        expect(importedBody && importedJoint && importedScript,
+               "the second import contains the subtree");
+        if (importedBody && importedJoint && importedScript) {
+            expect(importedJoint->getCube0().get() == importedBody &&
+                       importedRobot->getPrimaryCube() == importedBody,
+                   "references point into the renamed subtree");
+            const auto material = importedBody->getMaterialInstance();
+            expect(material && material->Parent.lock() == materialService2 &&
+                       material == materialService2->children["Brick"],
+                   "the cube references the pre-existing Material");
+            expect(importedScript->Path.find("_1") == std::string::npos,
+                   "identical files are reused instead of duplicated");
+        }
+    }
+
+    // 内容の違うファイルが既にあれば、上書きせず別名で展開する。
+    {
+        const fs::path occupied = root / "imported" / "Robot" / "external" / "brain.luau";
+        writeAll(occupied, "print('someone else')\n");
+        AssetImporter::Imported third;
+        const auto thirdResult = AssetImporter::instantiate(loaded, importOptions, materialService2.get(), third);
+        expect(static_cast<bool>(thirdResult) && third.roots.size() == 1, "third import succeeds");
+        if (third.roots.size() == 1) {
+            auto* importedScript = static_cast<Script*>(third.roots.front()->getChild("Brain"));
+            expect(readAll(occupied) == "print('someone else')\n",
+                   "an existing different file is never overwritten");
+            expect(importedScript && importedScript->Path.find("brain_1.luau") != std::string::npos &&
+                       readAll(AssetPath::fromStored(importedScript->Path)) == "print('brain')\n",
+                   "a conflicting file gets a numbered name");
+        }
+    }
+
+    // 構造のみのアセットは元のパスを保ったまま取り込める。
+    {
+        AssetImporter::Loaded structure;
+        AssetImporter::Imported imported;
+        expect(static_cast<bool>(AssetImporter::load(structurePath, structure)) &&
+                   static_cast<bool>(AssetImporter::instantiate(structure, importOptions,
+                                                                materialService2.get(), imported)) &&
+                   imported.roots.size() == 1,
+               "a structure-only asset imports");
+        if (imported.roots.size() == 1) {
+            auto* importedScript = static_cast<Script*>(imported.roots.front()->getChild("Brain"));
+            expect(importedScript && importedScript->Path == scriptStored,
+                   "a structure-only import keeps the original dependency path");
+        }
+    }
+
+    // --- Loadedを再利用・コピーしても、保持している別の読み込み結果が壊れない ---
+    // （YAML::Nodeの代入は共有実体の中身を書き換えるため、代入でLoadedを入れ替えると
+    //   コピー元のRootsまで消えて「Asset has no importable roots」になった回帰）
+    {
+        AssetImporter::Loaded reused;
+        expect(static_cast<bool>(AssetImporter::load(embeddedPath, reused)), "load into a fresh Loaded");
+        AssetImporter::Loaded kept = reused;  // ノードを共有するコピー
+        const std::string otherPath = AssetPath::toStored(root / "other.rcaet");
+        auto otherFolder = std::make_shared<Folder>();
+        otherFolder->Name = "Other";
+        const auto otherPlan = AssetExporter::prepare({otherFolder.get()});
+        expect(static_cast<bool>(AssetExporter::write(otherPlan, {}, otherPath)), "second asset writes");
+        expect(static_cast<bool>(AssetImporter::load(otherPath, reused)) && reused.name == "Other",
+               "load can reuse an existing Loaded");
+        AssetImporter::Imported fromKept;
+        const auto keptResult = AssetImporter::instantiate(kept, importOptions, materialService2.get(), fromKept);
+        expect(static_cast<bool>(keptResult) && fromKept.roots.size() == 1 &&
+                   fromKept.roots.front()->getClassName() == "Model",
+               "a copy made before reuse still imports its own roots " + keptResult.message);
+    }
+
+    // --- 実行形式: 既定では展開せず参照を空にし、許可すれば展開する ---
+    {
+        const fs::path exePath = root / "bin" / "helper.exe";
+        writeAll(exePath, "MZ-not-really-an-exe");
+        auto program = SceneLoader::createInstance("Program");
+        expect(program != nullptr, "Program can be created");
+        if (program) {
+            program->Name = "Helper";
+            program->setProperty("ContentPath", YAML::Node(AssetPath::toStored(exePath)));
+            auto programPlan = AssetExporter::prepare({program.get()});
+            expect(static_cast<bool>(programPlan) && programPlan.dependencies.size() == 1 &&
+                       programPlan.dependencies.front().executable,
+                   "Program is exportable and its exe is flagged as executable");
+            AssetExporter::Options embedExe;
+            embedExe.embedSources = {AssetPath::toStored(exePath)};
+            const std::string exeAsset = AssetPath::toStored(root / "program.rcaet");
+            expect(static_cast<bool>(AssetExporter::write(programPlan, embedExe, exeAsset)),
+                   "an executable can be embedded when explicitly chosen");
+            AssetImporter::Loaded exeLoaded;
+            expect(static_cast<bool>(AssetImporter::load(exeAsset, exeLoaded)) &&
+                       exeLoaded.executables.size() == 1 &&
+                       exeLoaded.executables.front().file.find("helper.exe") != std::string::npos,
+                   "load lists embedded executables for confirmation");
+
+            AssetImporter::Options excluded = importOptions;
+            excluded.extractRoot = AssetPath::toStored(root / "imported_excluded");
+            AssetImporter::Imported skipped;
+            expect(static_cast<bool>(AssetImporter::instantiate(exeLoaded, excluded, nullptr, skipped)) &&
+                       skipped.roots.size() == 1,
+                   "importing without allowing executables succeeds");
+            if (skipped.roots.size() == 1) {
+                auto* importedProgram = static_cast<Program*>(skipped.roots.front().get());
+                expect(importedProgram->Path.empty() &&
+                           !fs::exists(root / "imported_excluded" / "Helper"),
+                       "the executable is not extracted and the reference is emptied");
+            }
+            AssetImporter::Options allowed = importOptions;
+            allowed.extractRoot = AssetPath::toStored(root / "imported_allowed");
+            allowed.allowExecutables = true;
+            AssetImporter::Imported extracted;
+            expect(static_cast<bool>(AssetImporter::instantiate(exeLoaded, allowed, nullptr, extracted)) &&
+                       extracted.roots.size() == 1,
+                   "importing with executables allowed succeeds");
+            if (extracted.roots.size() == 1) {
+                auto* importedProgram = static_cast<Program*>(extracted.roots.front().get());
+                expect(!importedProgram->Path.empty() &&
+                           readAll(AssetPath::fromStored(importedProgram->Path)) == "MZ-not-really-an-exe" &&
+                           containsText(extracted.warnings, "Executable extracted"),
+                       "the executable is extracted with a warning");
+            }
+        }
+    }
+
+    // --- ディレクトリ依存（Terrain.DataPathと同じキー）の埋め込み ---
+    {
+        const fs::path dataDir = root / "terrain_data";
+        writeAll(dataDir / "r_0_0.yaml", "chunk: 0\n");
+        writeAll(dataDir / "sub" / "r_1_0.yaml", "chunk: 1\n");
+        writeAll(dataDir / ".autosave" / "recovery.yaml", "must not be bundled\n");
+        const std::string dataStored = AssetPath::toStored(dataDir);
+        AssetExporter::Plan plan2;
+        plan2.rootCount = 1;
+        plan2.defaultName = "DirAsset";
+        plan2.document = YAML::Load(
+            "recubin: {type: asset, version: 1}\nAsset:\n  Name: DirAsset\n  Roots:\n"
+            "    - ClassName: Folder\n      Name: F\n      Properties:\n        DataPath: \"" +
+            dataStored + "\"\n");
+        AssetDependencies::collect(plan2.document["Asset"], plan2.dependencies);
+        expect(plan2.dependencies.size() == 1 && plan2.dependencies.front().directory &&
+                   plan2.dependencies.front().exists && plan2.dependencies.front().size > 0,
+               "DataPath is collected as a directory dependency");
+        AssetExporter::Options options;
+        options.embedSources = {dataStored};
+        const std::string dirAsset = AssetPath::toStored(root / "dir.rcaet");
+        expect(static_cast<bool>(AssetExporter::write(plan2, options, dirAsset)),
+               "a directory dependency can be embedded");
+        AssetContainer::Document read;
+        expect(static_cast<bool>(AssetContainer::read(dirAsset, read)) && read.files.size() == 2 &&
+                   std::all_of(read.files.begin(), read.files.end(),
+                               [](const auto& f) {
+                                   return f.directory && f.file.find(".autosave") == std::string::npos;
+                               }),
+               "the directory is stored per file and skips .autosave");
+        AssetImporter::Loaded dirLoaded;
+        AssetImporter::Imported dirImported;
+        AssetImporter::Options dirOptions = importOptions;
+        dirOptions.extractRoot = AssetPath::toStored(root / "imported_dir");
+        expect(static_cast<bool>(AssetImporter::load(dirAsset, dirLoaded)) &&
+                   static_cast<bool>(AssetImporter::instantiate(dirLoaded, dirOptions, nullptr, dirImported)),
+               "the directory asset imports");
+        const fs::path extractedDir = root / "imported_dir" / "DirAsset" / "external" / "terrain_data";
+        expect(readAll(extractedDir / "r_0_0.yaml") == "chunk: 0\n" &&
+                   readAll(extractedDir / "sub" / "r_1_0.yaml") == "chunk: 1\n" &&
+                   !fs::exists(extractedDir / ".autosave"),
+               "directory members are extracted under the asset folder");
+    }
+
+    fs::remove_all(root, removeError);
+    return failures == 0 ? 0 : 1;
+}
+
 // 生成できる全クラスで clone() がクラスを保つことを確認する（基底のInstance::cloneへ化ける退行の検知）。
 static int runCloneClassRegression() {
     int failures = 0;
@@ -14553,6 +15129,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--property-text-input-regression", runPropertyTextInputRegression),
         REG("--property-schema-regression", runPropertySchemaRegression),
         REG("--material-service-regression", runMaterialServiceRegression),
+        REG("--asset-regression", runAssetRegression),
         REG("--clone-class-regression", runCloneClassRegression),
         REG("--material-map-regression", runMaterialMapRegression),
         REG("--sky-body-regression", runSkyBodyRegression),

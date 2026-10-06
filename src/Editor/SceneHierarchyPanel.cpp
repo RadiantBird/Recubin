@@ -8,6 +8,7 @@
 #include <Editor/SceneHierarchySelection.hpp>
 #include <Editor/PropertiesPanel.hpp>  // PickerState の定義
 #include <Editor/Localization.hpp>
+#include <Editor/AssetDialogs.hpp>
 #include <Editor/GuiAutomation.hpp>
 #include <Instances/BaseCube.hpp>
 #include <algorithm>
@@ -1818,6 +1819,26 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
     // --- Paste as Child ---
     if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuPasteAsChild), "Ctrl+Shift+V", false, canPaste) && m_history) {
         pasteAll(inst->shared_from_this());
+    }
+
+    // --- アセット(.rcaet)の書き出し・読み込み ---
+    if (m_assetDialogs) {
+        ImGui::Separator();
+        // Delete/Copyと同じ規則: 右クリック対象が複数選択に含まれていれば選択中すべて
+        const bool inSelection = std::find(selectedInstances.begin(), selectedInstances.end(), inst)
+                                 != selectedInstances.end();
+        const std::vector<Instance*> exportTargets =
+            (inSelection && selectedInstances.size() > 1) ? selectedInstances
+                                                          : std::vector<Instance*>{ inst };
+        const bool canExport = AssetDialogs::canExport(exportTargets);
+        if (ImGui::MenuItem(Loc::t(Loc::LocKey::AssetMenuExport), nullptr, false, canExport)) {
+            m_assetDialogs->requestExport(exportTargets);
+        }
+        GuiAutomation::registerLastItem("Explorer/Context/ExportAsset");
+        if (ImGui::MenuItem(Loc::t(Loc::LocKey::AssetMenuImport))) {
+            m_assetDialogs->requestImport(inst->shared_from_this());
+        }
+        GuiAutomation::registerLastItem("Explorer/Context/ImportAsset");
     }
 
     renderClassPicker();

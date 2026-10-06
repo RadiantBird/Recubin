@@ -16,6 +16,7 @@
 #include <vector>
 
 class CommandHistory;
+class AssetDialogs;
 struct PickerState;  // PropertiesPanel.hpp で定義
 
 // ===================================================
@@ -37,6 +38,7 @@ public:
     std::vector<std::shared_ptr<Instance>>* m_clipboard = nullptr;  // EditorManager::m_clipboard へのポインタ（複数対応）
     User*                        m_user      = nullptr;
     PickerState*                 m_picker    = nullptr;  // Cube 参照ピック中はクリックを横取りする
+    AssetDialogs*                m_assetDialogs = nullptr;  // アセット(.rcaet)の書き出し/読み込み
 
     // Workspace 操作コールバック（main.cpp が設定）
     std::function<void(Workspace*)> onSwitchWorkspace;

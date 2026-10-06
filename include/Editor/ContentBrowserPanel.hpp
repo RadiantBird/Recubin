@@ -7,6 +7,7 @@
 class Instance;
 class Workspace;
 class CommandHistory;
+class AssetDialogs;
 
 // ===================================================
 //  ContentBrowserPanel  — assets/ ディレクトリのファイル一覧
@@ -17,6 +18,7 @@ public:
     Instance**      selectedInstance = nullptr;
     Workspace**     workspace        = nullptr;
     CommandHistory* m_history        = nullptr;
+    AssetDialogs*   m_assetDialogs   = nullptr;
 
     ContentBrowserPanel();
     void onRender() override;

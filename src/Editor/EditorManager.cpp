@@ -273,6 +273,12 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
     viewportPanel->m_history    = &m_history;
     contentBrowserPanel->m_history = &m_history;
 
+    m_assetDialogs.history           = &m_history;
+    m_assetDialogs.selectedInstance  = &hierarchyPanel->selectedInstance;
+    m_assetDialogs.selectedInstances = &hierarchyPanel->selectedInstances;
+    hierarchyPanel->m_assetDialogs      = &m_assetDialogs;
+    contentBrowserPanel->m_assetDialogs = &m_assetDialogs;
+
     propertiesPanel->m_picker = &m_picker;
     viewportPanel->m_picker   = &m_picker;
     hierarchyPanel->m_picker  = &m_picker;
@@ -408,6 +414,7 @@ void EditorManager::render(GLFWwindow* window) {
     renderPlayStartErrorDialog();
     renderSceneLoadErrorDialog();
     renderRestoreR6Dialog();
+    m_assetDialogs.render();
 
     // ---- 全画面 DockSpace ----
     ImGuiViewport* vp = ImGui::GetMainViewport();
