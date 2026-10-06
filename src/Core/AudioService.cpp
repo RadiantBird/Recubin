@@ -46,6 +46,8 @@ bool AudioService::initialize() {
         return false;
     }
     m_groupSFXInitialized = true;
+    // 出力の計測用タップを差し込む（失敗しても再生には影響しない）。
+    AudioDiagnostics::get().installTap(engine, groupSFX, groupBGM);
     instance = this;
     return true;
 }
@@ -109,9 +111,19 @@ void AudioService::updateSounds(const Vector3& listenerPos, const Vector3& liste
             it = sounds.erase(it);
         }
     }
+    if (AudioDiagnostics::get().enabled()) AudioDiagnostics::get().pump(liveSounds());
+}
+
+std::vector<std::shared_ptr<Sound>> AudioService::liveSounds() const {
+    std::vector<std::shared_ptr<Sound>> alive;
+    for (const auto& weak : sounds) {
+        if (auto sound = weak.lock()) alive.push_back(std::move(sound));
+    }
+    return alive;
 }
 
 void AudioService::uninit() {
+    AudioDiagnostics::get().removeTap();
     if (m_groupBGMInitialized) {
         m_initializationOps.groupUninit(&groupBGM);
         m_groupBGMInitialized = false;

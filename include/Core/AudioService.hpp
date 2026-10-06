@@ -43,6 +43,8 @@ public:
     void addSound(const std::shared_ptr<Sound>& sound);
     void removeSound(const std::shared_ptr<Sound>& sound);
     std::size_t registeredSoundCount() const;
+    // 登録済みで生きているSound（診断パネルと計測用）
+    std::vector<std::shared_ptr<Sound>> liveSounds() const;
     void updateSounds(const Vector3& listenerPos, const Vector3& listenerRight);
     void playAutoPlaySounds();
     void stopAllSounds();

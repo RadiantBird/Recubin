@@ -11,6 +11,7 @@
 #include <Editor/AnimationEditorPanel.hpp>
 #include <Editor/WelcomePanel.hpp>
 #include <Editor/ProfilerPanel.hpp>
+#include <Editor/AudioDebugPanel.hpp>
 #include <Editor/CodeEditorPanel.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <Instances/Workspace.hpp>
@@ -77,6 +78,7 @@ public:
     std::unique_ptr<AnimationEditorPanel> animationPanel;
     std::unique_ptr<WelcomePanel>        welcomePanel;
     std::unique_ptr<ProfilerPanel>       profilerPanel;
+    std::unique_ptr<AudioDebugPanel>     audioDebugPanel;
 
     // アセット(.rcaet)の書き出しダイアログと取り込みフロー
     AssetDialogs                         m_assetDialogs;

@@ -325,6 +325,9 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "実行形式を除外して読み込む", "Import without executables" },
     { "実行形式も展開して読み込む", "Extract executables too" },
     { "アセットを読み込みました", "Asset imported" },
+
+    // ---- AudioDebugPanel ----
+    { "音声デバッグ", "Audio Debug" },
 } };
 
 Lang g_lang = Lang::JA;

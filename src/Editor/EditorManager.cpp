@@ -245,6 +245,8 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
     welcomePanel->isOpen = false; // 既定は非表示。起動時に main.cpp が true にする
     profilerPanel       = std::make_unique<ProfilerPanel>();
     profilerPanel->isOpen = false;
+    audioDebugPanel     = std::make_unique<AudioDebugPanel>();
+    audioDebugPanel->isOpen = false;
 
     hierarchyPanel->workspace   = workspace;
     hierarchyPanel->systemRoot  = system;
@@ -468,6 +470,7 @@ void EditorManager::render(GLFWwindow* window) {
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelAnimation),      nullptr, &animationPanel->isOpen);
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelWelcome),        nullptr, &welcomePanel->isOpen);
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelProfiler),       nullptr, &profilerPanel->isOpen);
+            ImGui::MenuItem(Loc::t(Loc::LocKey::PanelAudioDebug),     nullptr, &audioDebugPanel->isOpen);
             ImGui::Separator();
             ImGui::MenuItem(Loc::t(Loc::LocKey::MenuPhysicsDebug),    nullptr, &viewportPanel->showPhysicsDebug);
             ImGui::MenuItem(Loc::t(Loc::LocKey::MenuRenderingDebug), nullptr, &viewportPanel->showRenderingDebug);
@@ -505,6 +508,7 @@ void EditorManager::render(GLFWwindow* window) {
     ImGuiID dockId = ImGui::GetID("MainDockSpace");
     welcomePanel->dockspaceId = dockId;
     profilerPanel->dockspaceId = dockId;
+    audioDebugPanel->dockspaceId = dockId;
     ImGui::DockSpace(dockId, ImVec2(0, 0), ImGuiDockNodeFlags_None);
 
     ImGui::End(); // DockSpaceHost
@@ -527,6 +531,7 @@ void EditorManager::render(GLFWwindow* window) {
     animationPanel->title      = std::string(Loc::t(Loc::LocKey::AnimationEditorWindowTitle)) + "###Animation Editor";
     welcomePanel->title        = std::string(Loc::t(Loc::LocKey::PanelWelcome)) + "###Welcome";
     profilerPanel->title       = std::string(Loc::t(Loc::LocKey::PanelProfiler)) + "###Profiler";
+    audioDebugPanel->title     = std::string(Loc::t(Loc::LocKey::PanelAudioDebug)) + "###AudioDebug";
 
     // プロファイラーのEditor UI Breakdown用に、パネルごとのCPU時間を計測する。
     auto renderPanel = [](const char* sectionName, auto& panel) {
@@ -542,6 +547,9 @@ void EditorManager::render(GLFWwindow* window) {
     renderPanel("ui.animationEditor", animationPanel);
     renderPanel("ui.welcome", welcomePanel);
     renderPanel("ui.profiler", profilerPanel);
+    // 診断の計測は、パネルが開いている間だけ行う。
+    AudioDiagnostics::get().setEnabled(audioDebugPanel->isOpen);
+    renderPanel("ui.audioDebug", audioDebugPanel);
 
     // ようこそを閉じた直後、ImGuiのフォールバックは最後に描画されたウィンドウ
     // (プロファイラー等)へフォーカスし、そのドックの選択タブを奪ってしまう。

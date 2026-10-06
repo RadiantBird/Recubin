@@ -61,6 +61,19 @@ Instance、無ければWorkspace）の子として追加し、1回のUndoで取�
 - 同名のMaterialが取り込み先のMaterialServiceにあれば既存を使い、無ければ追加する。TextFileの
   `StorageId`は取り込みごとに新規採番する。ルート名が衝突した場合は連番で改名する。
 
+## 音声デバッグパネル
+Viewメニューの「音声デバッグ」で開く、音声の異常（ノイズ・途切れ・小音量）の調査用パネル。開いている間だけ計測する。
+- 出力タップ: `AudioService`がSFX/BGMグループとエンジン出力の間に置くパススルーノード。ブロックごとに
+  ピーク・RMS・隣り合うサンプルの最大差（クリック指標）・NaN・クリップ・コールバック間隔を測る。再生音は変えない。
+- Sound状態: 毎フレーム、再生位置・再生中・音量（`Volume`と距離減衰後）・リスナーまでの距離・パンを記録する。
+  Play/Stop/Reset/Seekの呼び出しは、前後の再生状態とカーソル位置つきでイベントとして記録する。
+- Waveform: 音声ファイルを解析し、連射の間隔で巻き戻したときの切断位置の波形の値（クリックの見込み）を示す。
+- Test: 連射（Reset→Play）の再現、距離減衰・パンのバイパス、テストトーン、レポート（Markdown）のコピーと
+  `logs/`へのMarkdown/CSV保存。
+- Soundの距離減衰は`音量 = Volume / (1 + 距離[m] × 0.1)`で、ワールドのstudをメートルへ換算する（20 stud = 1 m、`Sound::STUDS_PER_METER`）。
+- デバイス無しのエンジン（`ma_engine_config.noDevice`）を`ma_engine_read_pcm_frames`で駆動すれば、
+  実機の音声デバイス無しで同じ計測をテストできる（`--audio-diagnostics-regression`）。
+
 ## 特殊なインスタンス
   `Weather`はWorkspace直下に置く天候システムで、`CloudColor`（`Color4`）と
   `CloudHeight`（ワールド空間の雲層Y座標）を保持する。雲の水平クアッドはカメラのX/Zへ

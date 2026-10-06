@@ -1,5 +1,6 @@
 #pragma once
 #include "Core/AudioService.hpp"
+#include "Core/AudioDiagnostics.hpp"
 #include "Instances/Spatial.hpp"
 
 class TimeStretchNode;
@@ -21,6 +22,16 @@ private:
     bool m_preservePitch = false;
     std::string soundGroup = "SFX";
     std::string m_currentPath = "";
+    // 直近のupdate3Dの結果（診断表示用。再生には影響しない）
+    float m_lastMixVolume = 0.0f;
+    float m_lastDistance = 0.0f;
+    float m_lastPan = 0.0f;
+    // 空間ミックスを適用中か（update3Dが毎フレーム音量を決めている間はtrue）と、そのときのリスナー。
+    // Play/Volume変更が、距離減衰を無視した素のVolumeを一瞬だけ設定しないために使う。
+    bool m_spatialMixActive = false;
+    Vector3 m_listenerPos;
+    Vector3 m_listenerRight;
+    float effectiveVolume() const;
 
     ma_sound_group* getTargetGroup() const;
     void applyLoadedProperties();
@@ -29,6 +40,10 @@ private:
     void resetTimeStretchProcessing();
 
 public:
+    // 距離減衰はメートルで定義する。ワールドはstud（1 stud = 0.05 m、20 stud = 1 m）なので換算する。
+    static constexpr float STUDS_PER_METER = 20.0f;
+    static constexpr float ROLLOFF_PER_METER = 0.5f;   // 音量 = 基準 / (1 + 距離[m] * この値)
+
     Sound(AudioService& service, const std::string& path = "");
     // パスから音声を読み込む（FileRef.Source 経由でも使用）
     void loadFromFile(const std::string& path);
@@ -60,6 +75,8 @@ public:
     bool autoPlay = false;
 
     std::string getContentPath() const { return m_currentPath; }
+    // 診断パネル用の現在状態（読み取りのみ）
+    AudioDiag::SoundSnapshot debugSnapshot() const;
     bool isLooping()   const { return looping;    }
     bool isPlaying()   const;
     bool getAutoPlay() const { return autoPlay;   }

@@ -73,6 +73,7 @@
 #include <Core/AnimationClip.hpp>
 #include <Core/SceneRuntime.hpp>
 #include <Core/AudioService.hpp>
+#include <Core/AudioDiagnostics.hpp>
 #include <Core/CharacterRig.hpp>
 #include <Core/BaseCubeFactory.hpp>
 #include <Core/PhysicalFileInstanceRegistry.hpp>
@@ -4815,7 +4816,7 @@ int runSoundStretchRegression() {
     const SoundSpatialMix spatialMix = Sound::calculateSpatialMix(
         worldPosition, listenerPosition, listenerRight, 0.8f);
     const float distance = worldPosition.length();
-    const float expectedVolume = 0.8f / (1.0f + distance * 0.1f);
+    const float expectedVolume = 0.8f / (1.0f + distance / Sound::STUDS_PER_METER * Sound::ROLLOFF_PER_METER);
     const float expectedPan = Vector3::Dot(worldPosition.normalize(), listenerRight);
     expect(positionDistance(worldPosition, oldPosition) > 1e-4f &&
                std::abs(spatialMix.volume - expectedVolume) < 1e-5f &&
@@ -15065,6 +15066,179 @@ static int runCloneClassRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+// デバイス無しのエンジン（ma_engine_read_pcm_frames で手動駆動）で、音声の診断計測を検証する。
+static ma_result noDeviceEngineInit(const ma_engine_config*, ma_engine* engine) {
+    ma_engine_config config = ma_engine_config_init();
+    config.noDevice = MA_TRUE;
+    config.channels = 2;
+    config.sampleRate = 48000;
+    return ma_engine_init(&config, engine);
+}
+
+static void writeTestWav(const std::filesystem::path& path, double seconds, double amplitude) {
+    const std::uint32_t sampleRate = 48000;
+    const std::uint32_t frames = static_cast<std::uint32_t>(seconds * sampleRate);
+    std::vector<std::int16_t> samples(frames);
+    for (std::uint32_t i = 0; i < frames; ++i) {
+        const double t = static_cast<double>(i) / sampleRate;
+        samples[i] = static_cast<std::int16_t>(
+            32767.0 * amplitude * std::exp(-3.0 * t) * std::sin(2.0 * 3.14159265358979 * 440.0 * t));
+    }
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    const auto put32 = [&](std::uint32_t v) { out.write(reinterpret_cast<const char*>(&v), 4); };
+    const auto put16 = [&](std::uint16_t v) { out.write(reinterpret_cast<const char*>(&v), 2); };
+    out.write("RIFF", 4); put32(36 + frames * 2); out.write("WAVE", 4);
+    out.write("fmt ", 4); put32(16); put16(1); put16(1); put32(sampleRate); put32(sampleRate * 2); put16(2); put16(16);
+    out.write("data", 4); put32(frames * 2);
+    out.write(reinterpret_cast<const char*>(samples.data()), static_cast<std::streamsize>(samples.size() * 2));
+}
+
+static int runAudioDiagnosticsRegression() {
+    namespace fs = std::filesystem;
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[AudioDiag] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    const fs::path wav = fs::temp_directory_path() / "recubin_audio_diag_test.wav";
+    writeTestWav(wav, 0.5, 0.8);
+    const std::string wavPath = AssetPath::toStored(wav);
+
+    // 波形解析
+    const auto analysis = AudioDiagnostics::analyzeWaveform(wavPath);
+    expect(analysis.ok && std::abs(analysis.duration - 0.5) < 0.01 && std::abs(analysis.peak - 0.8f) < 0.02f,
+           "waveform analysis reads duration and peak");
+    const auto cuts = AudioDiagnostics::analyzeCuts(analysis, 0.2);
+    expect(cuts.size() == 2 && std::abs(cuts[0].time - 0.2) < 1.0e-9 && std::abs(cuts[1].time - 0.4) < 1.0e-9,
+           "cut analysis lists a cut every interval");
+
+    AudioService* const previousInstance = AudioService::instance;
+    AudioService::instance = nullptr;
+    {
+        AudioService audio({noDeviceEngineInit, ma_sound_group_init, ma_sound_group_uninit, ma_engine_uninit});
+        expect(audio.initialize(), "the no-device engine initializes");
+        auto& diag = AudioDiagnostics::get();
+        expect(diag.tapInstalled(), "the output tap is installed");
+        diag.clear();
+        diag.setEnabled(true);
+
+        auto workspace = std::make_shared<Workspace>();
+        // 100 stud = 5 m の位置（距離減衰は 1 / (1 + 5 * 0.1) = 1 / 1.5）
+        auto holder = std::make_shared<Cube>(Vector3(100, 0, 0), Vector3(1, 1, 1), 0);
+        workspace->addChild(holder);
+        auto sound = std::make_shared<Sound>(audio);
+        sound->Name = "Gun";
+        sound->setVolume(1.0f);
+        holder->addChild(sound);
+        sound->setPosition(Vector3(0, 0, 0));
+        sound->loadFromFile(wavPath);
+        expect(std::abs(sound->getLength() - 0.5f) < 0.01f, "the test sound loads");
+        expect(audio.liveSounds().size() == 1, "the sound is registered with the audio service");
+
+        // 連射（0.2秒ごとに Reset + Play）を、16.7msのフレームで駆動する。
+        const auto runShots = [&](int frames) {
+            std::vector<float> buffer(800 * 2);
+            double time = 0.0, nextShot = 0.0;
+            std::vector<float> output;
+            for (int frame = 0; frame < frames; ++frame) {
+                if (time >= nextShot - 1.0e-9) {
+                    sound->reset();
+                    sound->play();
+                    nextShot += 0.2;
+                }
+                audio.updateSounds(Vector3(0, 0, 0), Vector3(1, 0, 0));
+                ma_uint64 got = 0;
+                ma_engine_read_pcm_frames(&audio.engine, buffer.data(), 800, &got);
+                output.insert(output.end(), buffer.begin(), buffer.begin() + static_cast<std::ptrdiff_t>(got * 2));
+                time += 800.0 / 48000.0;
+            }
+            return output;
+        };
+        const auto peakOf = [](const std::vector<float>& samples) {
+            float peak = 0.0f;
+            for (const float sample : samples) peak = std::max(peak, std::fabs(sample));
+            return peak;
+        };
+
+        const auto spatialOutput = runShots(60);
+        // 距離5での減衰: 1 / (1 + 5 * 0.1) = 0.667。パンは右へ振り切る（左右の合計は一定ではないので上限だけ見る）。
+        const float spatialPeak = peakOf(spatialOutput);
+        expect(spatialPeak > 0.3f && spatialPeak < 0.8f * 0.667f * 1.05f + 0.01f,
+               "distance attenuation is applied to the rendered output");
+        expect(diag.stats().blocks > 0 && diag.stats().maxPeak > 0.3f && diag.stats().nonFiniteBlocks == 0,
+               "the tap measured the output blocks");
+        expect(diag.stats().maxDelta > 0.0f, "the tap measured sample-to-sample deltas");
+
+        const auto& events = diag.events();
+        const auto playEvents = std::count_if(events.begin(), events.end(),
+            [](const AudioDiag::SoundEvent& e) { return e.call == "Play"; });
+        const auto resetEvents = std::count_if(events.begin(), events.end(),
+            [](const AudioDiag::SoundEvent& e) { return e.call == "Reset"; });
+        expect(playEvents >= 4 && playEvents == resetEvents, "Play/Reset calls are logged as events");
+        const bool laterPlaysAreNoOps = std::any_of(events.begin(), events.end(),
+            [](const AudioDiag::SoundEvent& e) { return e.call == "Play" && e.playingBefore && e.playingAfter; });
+        expect(laterPlaysAreNoOps, "a Play while already playing is logged with playing before and after");
+        expect(!diag.soundSeries().empty() && diag.soundSeries().begin()->second.size() >= 50,
+               "per-frame sound state is sampled");
+        const auto snapshot = diag.latestSnapshots().begin()->second;
+        expect(std::abs(snapshot.distance - 100.0f) < 0.01f && std::abs(snapshot.mixVolume - 1.0f / 1.5f) < 0.01f,
+               "the snapshot reports the listener distance and the attenuated volume");
+
+        // Play/Volume変更が、距離減衰を無視した素のVolumeを設定しない（連射の「ぷっ」の回帰）。
+        {
+            sound->stop();
+            sound->reset();
+            sound->play();
+            const float expectedMix = 1.0f / 1.5f;
+            expect(std::abs(sound->debugSnapshot().appliedVolume - expectedMix) < 0.01f,
+                   "Play() starts at the attenuated volume, not the raw Volume");
+            sound->setVolume(0.9f);
+            expect(std::abs(sound->debugSnapshot().appliedVolume - 0.9f / 1.5f) < 0.01f,
+                   "changing Volume keeps the distance attenuation");
+            sound->setVolume(1.0f);
+            audio.updateSounds(Vector3(0, 0, 0), Vector3(1, 0, 0));
+        }
+
+        // クローンが Speed / PreservePitch / SoundGroup を落とさない。
+        {
+            sound->setSpeed(2.0f);
+            sound->setSoundGroup("BGM");
+            auto copy = std::static_pointer_cast<Sound>(sound->clone());
+            expect(copy && std::abs(copy->getSpeed() - 2.0f) < 1.0e-6f && copy->getSoundGroup() == "BGM",
+                   "Sound.clone() keeps Speed and SoundGroup");
+            sound->setSpeed(1.0f);
+            sound->setSoundGroup("SFX");
+        }
+
+        diag.settings().bypassSpatial = true;
+        diag.clear();
+        diag.setEnabled(true);
+        const auto bypassOutput = runShots(60);
+        diag.settings().bypassSpatial = false;
+        expect(peakOf(bypassOutput) > spatialPeak * 1.2f,
+               "bypassing the spatial mix gives the unattenuated (louder) output");
+
+        const std::string report = diag.buildReport();
+        const std::string csv = diag.buildCsv();
+        expect(report.find("Audio debug report") != std::string::npos &&
+                   report.find("Last events") != std::string::npos &&
+                   csv.find("time,frames,peakL") != std::string::npos,
+               "the report and CSV are produced");
+
+        diag.setEnabled(false);
+        diag.clear();
+        sound.reset();
+        holder.reset();
+        workspace.reset();
+    }
+    expect(!AudioDiagnostics::get().tapInstalled(), "the tap is removed when the audio service shuts down");
+    AudioService::instance = previousInstance;
+    std::error_code removeError;
+    fs::remove(wav, removeError);
+    return failures == 0 ? 0 : 1;
+}
+
 struct RegressionEntry {
     std::string_view name;
     int (*runner)(int, char**);
@@ -15130,6 +15304,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--property-schema-regression", runPropertySchemaRegression),
         REG("--material-service-regression", runMaterialServiceRegression),
         REG("--asset-regression", runAssetRegression),
+        REG("--audio-diagnostics-regression", runAudioDiagnosticsRegression),
         REG("--clone-class-regression", runCloneClassRegression),
         REG("--material-map-regression", runMaterialMapRegression),
         REG("--sky-body-regression", runSkyBodyRegression),

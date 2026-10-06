@@ -137,6 +137,9 @@ enum class LocKey {
     AssetImportErrorTitle, AssetExecutableTitle, AssetExecutableMessage, AssetExecutableExclude,
     AssetExecutableExtract, AssetImportDoneTitle,
 
+    // ---- AudioDebugPanel ----
+    PanelAudioDebug,
+
     Count
 };
 

@@ -282,6 +282,7 @@ static void loadPanelVisibility(EditorManager* ed) {
         ed->consolePanel->isOpen        = get("Console",        true);
         ed->animationPanel->isOpen      = get("Animation",      false);
         ed->profilerPanel->isOpen       = get("Profiler",       false);
+        ed->audioDebugPanel->isOpen     = get("AudioDebug",     false);
     } catch (const std::exception& error) {
         g_editorSettingsLoadFailed = true;
         RCBN_ERROR("Invalid panel visibility in editor settings: " << error.what());
@@ -300,6 +301,7 @@ static void savePanelVisibility(EditorManager* ed) {
     p["Console"]        = ed->consolePanel->isOpen;
     p["Animation"]      = ed->animationPanel->isOpen;
     p["Profiler"]       = ed->profilerPanel->isOpen;
+    p["AudioDebug"]     = ed->audioDebugPanel->isOpen;
     root["Panels"] = p;
     writeEditorSettings(root);
 }
