@@ -293,7 +293,8 @@ private:
     bool m_seated = false;
     std::weak_ptr<Seat> m_seat;
     std::shared_ptr<Weld> m_seatWeld;
-    // Root接触中のSeatへ着席し、Weldで固定する(move()内、未着席時のみ呼ばれる)
+    // Seatの既定着席位置へテレポートして着席し、Weldで固定する(Seat::sitから呼ばれる)
+    friend class Seat;
     void sitOn(std::shared_ptr<Seat> seat, Physics* physics);
 
     std::shared_ptr<Animation> m_currentAnim;

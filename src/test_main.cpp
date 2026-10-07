@@ -16,6 +16,9 @@
 #include <Instances/Sound.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Rope.hpp>
+#include <Instances/Spring.hpp>
+#include <Instances/PrismaticConstraint.hpp>
+#include <Util/SpringHelix.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/BallSocket.hpp>
 #include <Instances/Attachment.hpp>
@@ -498,6 +501,322 @@ int runMotorServoRegression() {
     const float after = rotorAngle();
     expect(after - before > 20.0f,
            "Disabling Servo restores continuous DriveVelocity rotation");
+    return failures == 0 ? 0 : 1;
+}
+
+int runSpringPrismaticRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[SpringPrismatic] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    // ---- スキーマ / clone / 生成 ----
+    {
+        auto spring = std::dynamic_pointer_cast<Spring>(SceneLoader::createInstance("Spring"));
+        auto prismatic = std::dynamic_pointer_cast<PrismaticConstraint>(
+            SceneLoader::createInstance("PrismaticConstraint"));
+        expect(spring && prismatic, "SceneLoader creates Spring and PrismaticConstraint");
+        if (!spring || !prismatic) return 1;
+        expect(spring->IsA("PhysicsConstraint") && prismatic->IsA("PhysicsConstraint") &&
+                   spring->getClassName() == "Spring" &&
+                   prismatic->getClassName() == "PrismaticConstraint",
+               "class names and IsA chain");
+        expect(spring->Visible && spring->Coils == 8 && spring->Radius == 0.5f &&
+                   spring->Thickness == 0.1f && spring->FreeLength == 0.0f,
+               "Spring defaults");
+        expect(prismatic->Axis == Vector3(0, 1, 0) && !prismatic->LimitsEnabled,
+               "PrismaticConstraint defaults");
+
+        spring->setProperty("Stiffness", YAML::Node(123.0f));
+        spring->setProperty("Visible", YAML::Node(false));
+        spring->setProperty("Coils", YAML::Node(5));
+        auto springCopy = std::dynamic_pointer_cast<Spring>(spring->clone());
+        expect(springCopy && springCopy->Stiffness == 123.0f && !springCopy->Visible &&
+                   springCopy->Coils == 5,
+               "Spring.clone() copies schema properties");
+
+        YAML::Node axisNode;
+        axisNode.push_back(1.0f); axisNode.push_back(0.0f); axisNode.push_back(0.0f);
+        prismatic->setProperty("Axis", axisNode);
+        prismatic->setProperty("LimitsEnabled", YAML::Node(true));
+        prismatic->setProperty("LowerLimit", YAML::Node(-2.0f));
+        prismatic->setProperty("UpperLimit", YAML::Node(3.0f));
+        auto prismaticCopy = std::dynamic_pointer_cast<PrismaticConstraint>(prismatic->clone());
+        expect(prismaticCopy && prismaticCopy->Axis == Vector3(1, 0, 0) &&
+                   prismaticCopy->LimitsEnabled && prismaticCopy->LowerLimit == -2.0f &&
+                   prismaticCopy->UpperLimit == 3.0f,
+               "PrismaticConstraint.clone() copies schema properties");
+
+        YAML::Emitter out;
+        SceneLoader::emitNode(out, spring.get());
+        const std::string emitted = out.c_str();
+        expect(emitted.find("Spring") != std::string::npos &&
+                   emitted.find("Stiffness") != std::string::npos &&
+                   emitted.find("Coils") != std::string::npos &&
+                   emitted.find("Visible") != std::string::npos,
+               "Spring YAML emits ClassName and schema properties");
+    }
+
+    // ---- コイル頂点生成 ----
+    {
+        std::vector<float> verts;
+        const Vector3 p0(1, 2, 3), p1(1, 12, 3);
+        SpringHelix::build(p0, p1, 0.5f, 8, 12, verts);
+        const size_t expected = static_cast<size_t>(8 * 12 + 3) * 3;
+        bool endpoints = verts.size() == expected &&
+            verts[0] == p0.x && verts[1] == p0.y && verts[2] == p0.z &&
+            verts[verts.size() - 3] == p1.x && verts[verts.size() - 2] == p1.y &&
+            verts[verts.size() - 1] == p1.z;
+        expect(endpoints, "helix vertex count and both endpoints match");
+        float maxRadial = 0.0f;
+        for (size_t i = 0; i + 2 < verts.size(); i += 3) {
+            const float dx = verts[i] - p0.x, dz = verts[i + 2] - p0.z;
+            maxRadial = std::max(maxRadial, std::sqrt(dx * dx + dz * dz));
+        }
+        expect(maxRadial <= 0.5f + 1.0e-3f && maxRadial > 0.45f,
+               "helix stays within Radius and reaches it");
+        SpringHelix::build(p0, p0, 0.5f, 8, 12, verts);
+        expect(verts.size() == 6, "zero-length spring falls back to a straight pair");
+    }
+
+    // ---- Luau Instance.new / プロパティ ----
+    {
+        auto system = std::make_shared<System>();
+        auto luaWorkspace = std::make_shared<Workspace>();
+        system->addChild(luaWorkspace);
+        auto script = std::make_shared<Script>();
+        script->Name = "SpringLua";
+        script->Source =
+            "local s = Instance.new(\"Spring\") "
+            "s.Stiffness = 42 s.Coils = 3 s.Visible = false "
+            "local p = Instance.new(\"PrismaticConstraint\") "
+            "p.LimitsEnabled = true p.LowerLimit = -1 "
+            "print(\"[SpringPrismaticLua] \" .. s.Stiffness .. \" \" .. s.Coils .. \" \" "
+            ".. tostring(s.Visible) .. \" \" .. tostring(p.LimitsEnabled) .. \" \" .. p.LowerLimit)";
+        luaWorkspace->addChild(script);
+        LuauEngine engine;
+        engine.setWorkspace(luaWorkspace);
+        engine.setSystem(system.get());
+        const auto oldLogHook = g_luauLogHook;
+        std::string captured;
+        g_luauLogHook = [&](const std::string& message) {
+            if (message.find("[SpringPrismaticLua]") != std::string::npos) captured = message;
+        };
+        const bool started = engine.execute(*script);
+        g_luauLogHook = oldLogHook;
+        expect(started && captured.find("42 3 false true -1") != std::string::npos,
+               "Luau Instance.new and property get/set for both classes");
+    }
+
+    // ---- 物理 ----
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "SpringPrismaticWorkspace";
+    auto makeCube = [&](const char* name, const Vector3& position, bool anchored) {
+        auto cube = std::make_shared<Cube>(position, Vector3(2, 2, 2), 0);
+        cube->Name = name;
+        cube->Anchored = anchored;
+        workspace->addChild(cube);
+        return cube;
+    };
+    auto anchorA = makeCube("SpringAnchorA", {0, 100, 0}, true);
+    auto bobA = makeCube("SpringBobA", {0, 95, 0}, false);
+    auto anchorB = makeCube("SpringAnchorB", {40, 100, 0}, true);
+    auto bobB = makeCube("SpringBobB", {40, 99, 0}, false);   // 中心間距離1（圧縮）
+    auto anchorC = makeCube("SpringAnchorC", {80, 100, 0}, true);
+    auto bobC = makeCube("SpringBobC", {80, 95, 0}, false);   // FreeLength=0（生成時距離を維持）
+    auto slideAnchor = makeCube("SlideAnchor", {120, 100, 0}, true);
+    auto slider = makeCube("Slider", {120, 96, 0}, false);
+
+    auto springA = std::make_shared<Spring>(anchorA, bobA);
+    springA->Name = "SpringA";
+    springA->FreeLength = 3.0f; springA->Stiffness = 300.0f; springA->Damping = 6.0f;
+    workspace->addChild(springA);
+    auto springB = std::make_shared<Spring>(anchorB, bobB);
+    springB->Name = "SpringB";
+    springB->FreeLength = 4.0f; springB->Stiffness = 300.0f; springB->Damping = 6.0f;
+    workspace->addChild(springB);
+    auto springC = std::make_shared<Spring>(anchorC, bobC);
+    springC->Name = "SpringC";
+    springC->Stiffness = 300.0f; springC->Damping = 6.0f;
+    workspace->addChild(springC);
+    auto prismatic = std::make_shared<PrismaticConstraint>(slideAnchor, slider);
+    prismatic->Axis = Vector3(0, 1, 0);
+    workspace->addChild(prismatic);
+
+    workspace->initPhysics();
+    auto* physics = workspace->getPhysicsEngine();
+    if (!physics || !physics->isAvailable()) {
+        expect(false, "physics backend is available");
+        return 1;
+    }
+    physics->update(*workspace, 0.0f);
+    for (const auto& cube : {bobA, bobB, bobC, slider}) physics->setGravityEnabled(*cube, false);
+    expect(springA->getConstraintHandle() && springB->getConstraintHandle() &&
+               springC->getConstraintHandle() && prismatic->getConstraintHandle(),
+           "Spring and PrismaticConstraint create native joints");
+
+    auto distance = [](const std::shared_ptr<Cube>& a, const std::shared_ptr<Cube>& b) {
+        return (b->getWorldPosition() - a->getWorldPosition()).length();
+    };
+    auto run = [&](int steps) {
+        for (int i = 0; i < steps; ++i) physics->update(*workspace, 1.0f / 60.0f);
+    };
+
+    // 引き: 自然長3より長い5から開始し、自然長を通過して振動する（双方向）
+    float minimumA = distance(anchorA, bobA), maximumAfterMinimum = 0.0f;
+    float maximumB = distance(anchorB, bobB);
+    for (int frame = 0; frame < 240; ++frame) {
+        run(1);
+        const float a = distance(anchorA, bobA);
+        if (a < minimumA) { minimumA = a; maximumAfterMinimum = 0.0f; }
+        maximumAfterMinimum = std::max(maximumAfterMinimum, a);
+        maximumB = std::max(maximumB, distance(anchorB, bobB));
+    }
+    expect(minimumA < 3.0f - 0.05f && maximumAfterMinimum > minimumA + 0.05f,
+           "Spring pulls past FreeLength and pushes back when compressed (bidirectional)");
+    expect(maximumB > 1.5f,
+           "compressed Spring pushes the bob away (distance 1 grows toward FreeLength 4)");
+    run(600);
+    expect(std::abs(distance(anchorA, bobA) - 3.0f) < 0.15f,
+           "damped Spring settles at FreeLength");
+    expect(std::abs(distance(anchorC, bobC) - 5.0f) < 0.1f,
+           "FreeLength 0 keeps the distance at creation");
+
+    // update経路: FreeLengthの変更が新しい自然長へ反映される
+    springA->setFreeLength(6.0f);
+    run(900);
+    expect(std::abs(distance(anchorA, bobA) - 6.0f) < 0.2f,
+           "changing FreeLength updates the native joint");
+    // FreeLength=0へ戻しても現在の自然長(6)を保持する
+    springA->setFreeLength(0.0f);
+    run(300);
+    expect(std::abs(distance(anchorA, bobA) - 6.0f) < 0.3f,
+           "FreeLength 0 on update keeps the existing rest length");
+
+    // Prismatic: 軸外(X)速度は拘束される
+    physics->setLinearVelocity(*slider, Vector3(10, 0, 0));
+    run(120);
+    expect(std::abs(slider->getWorldPosition().x - 120.0f) < 0.1f &&
+               std::abs(slider->getWorldPosition().z) < 0.1f,
+           "PrismaticConstraint blocks motion perpendicular to the axis");
+    // 軸方向(Y)の速度では移動できる
+    physics->setLinearVelocity(*slider, Vector3(0, 2, 0));
+    run(30);
+    expect(slider->getWorldPosition().y > 96.5f,
+           "PrismaticConstraint allows motion along the axis");
+
+    // 制限: A->B軸方向距離の範囲 [-6,-3]
+    physics->setLinearVelocity(*slider, Vector3(0, 0, 0));
+    prismatic->setLowerLimit(-6.0f);
+    prismatic->setUpperLimit(-3.0f);
+    prismatic->setLimitsEnabled(true);
+    physics->setLinearVelocity(*slider, Vector3(0, 8, 0));
+    run(240);
+    expect(slider->getWorldPosition().y <= 100.0f - 3.0f + 0.1f &&
+               slider->getWorldPosition().y > 100.0f - 3.0f - 0.3f,
+           "UpperLimit stops the slider");
+    physics->setLinearVelocity(*slider, Vector3(0, -8, 0));
+    run(240);
+    expect(slider->getWorldPosition().y >= 100.0f - 6.0f - 0.1f &&
+               slider->getWorldPosition().y < 100.0f - 6.0f + 0.3f,
+           "LowerLimit stops the slider");
+
+    // Gyro: Prismaticで繋がったCubeでも目標角度へ回る
+    struct GyroVariant { const char* name; bool onBase; bool gravity; bool baseAnchored; bool limits; };
+    const GyroVariant variants[] = {
+        {"part-free", false, false, false, false},
+        {"base-free", true, false, false, false},
+        {"part-gravity", false, true, false, false},
+        {"part-limits", false, false, false, true},
+    };
+    float variantX = 160.0f;
+    for (const GyroVariant& v : variants) {
+        variantX += 40.0f;
+        auto gyroBase = makeCube(("GyroPrismBase" + std::to_string(static_cast<int>(variantX))).c_str(), {variantX, 100, 0}, v.baseAnchored);
+        auto gyroPart = makeCube(("GyroPrismPart" + std::to_string(static_cast<int>(variantX))).c_str(), {variantX, 96, 0}, false);
+        auto gyroPrismatic = std::make_shared<PrismaticConstraint>(gyroBase, gyroPart);
+        gyroPrismatic->Axis = Vector3(0, 1, 0);
+        if (v.limits) {
+            gyroPrismatic->LimitsEnabled = true;
+            gyroPrismatic->LowerLimit = -6.0f;
+            gyroPrismatic->UpperLimit = -2.0f;
+        }
+        workspace->addChild(gyroPrismatic);
+        auto gyro = std::make_shared<Gyro>();
+        gyro->Name = "PrismGyro" + std::to_string(static_cast<int>(variantX));
+        workspace->addChild(gyro);
+        auto target = v.onBase ? gyroBase : gyroPart;
+        gyro->setPart(target);
+        gyro->setAxisEnabled(GyroAxis::Y, true);
+        gyro->setTargetAngle(GyroAxis::Y, 60.0f);
+        physics->update(*workspace, 0.0f);
+        if (!v.gravity)
+            for (const auto& cube : {gyroBase, gyroPart}) physics->setGravityEnabled(*cube, false);
+        run(240);
+        const float yaw = Gyro::angleFromRotation(
+            GyroAxis::Y, target->getWorldCFrame().Rotation);
+        std::cout << "[SpringPrismatic] gyro " << v.name << " yaw=" << yaw << '\n';
+        expect(std::abs(yaw - 60.0f) < 3.0f,
+               (std::string("Gyro rotates a Part connected by PrismaticConstraint: ") + v.name).c_str());
+    }
+    // Gyro: SeatをPrismatic+Springで載せた球体乗り物(baller)は、乗員がWeldされても直立を保つ
+    for (int withRider = 0; withRider < 2; ++withRider) {
+        auto ws = std::make_shared<Workspace>();
+        ws->Name = "BallerProbe" + std::to_string(withRider);
+        auto mk = [&](const char* n, Vector3 pos, Vector3 size, bool anchored) {
+            auto c = std::make_shared<Cube>(pos, size, 0);
+            c->Name = n; c->Anchored = anchored; ws->addChild(c); return c;
+        };
+        auto floorCube = mk("Floor", {0, -1, 0}, {200, 2, 200}, true);
+        auto sphere = mk("Sphere", {0, 4.1f, 0}, {8, 8, 8}, false);
+        auto body = mk("Body", {0, 4.1f, 0}, {4, 1, 4}, false);
+        auto seat = mk("Seat", {0, 11.1f, 0}, {4, 1, 2}, false);
+        auto bs = std::make_shared<BallSocket>(sphere, body);
+        ws->addChild(bs);
+        auto pr = std::make_shared<PrismaticConstraint>(body, seat);
+        pr->Axis = Vector3(0, 1, 0);
+        ws->addChild(pr);
+        auto sp = std::make_shared<Spring>(body, seat);
+        sp->FreeLength = 7.0f; sp->Stiffness = 5000.0f; sp->Damping = 100.0f;
+        ws->addChild(sp);
+        auto nc = std::make_shared<NoCollision>(body, sphere);
+        ws->addChild(nc);
+        auto g = std::make_shared<Gyro>();
+        ws->addChild(g);
+        g->setPart(body);
+        for (GyroAxis ax : {GyroAxis::X, GyroAxis::Y, GyroAxis::Z}) {
+            g->setAxisEnabled(ax, true);
+            g->setTargetAngle(ax, 0.0f);
+            g->setMaxTorque(ax, 100000.0f);
+            g->setMaxAngularSpeed(ax, 1080.0f);
+        }
+        std::shared_ptr<Cube> rider;
+        ws->initPhysics();
+        auto* ph = ws->getPhysicsEngine();
+        ph->update(*ws, 0.0f);
+        auto runW = [&](int n) { for (int i = 0; i < n; ++i) ph->update(*ws, 1.0f / 60.0f); };
+        runW(120);
+        auto tilt = [&]() {
+            const Vector3 up = body->getWorldCFrame().Rotation.rotate(Vector3(0, 1, 0));
+            return std::acos(std::clamp(up.y, -1.0f, 1.0f)) * 180.0f / 3.14159265f;
+        };
+        if (withRider) {
+            rider = mk("Rider", {0.5f, 14.1f, 0}, {2, 4, 1}, false);
+            auto w = std::make_shared<Weld>(rider, seat);
+            ws->addChild(w);
+        }
+        float maxTilt = 0.0f;
+        for (int i = 0; i < 360; ++i) {
+            runW(1);
+            maxTilt = std::max(maxTilt, tilt());
+        }
+        std::cout << "[SpringPrismatic] vehicle rider=" << withRider << " maxTilt=" << maxTilt << "\n";
+        expect(maxTilt < 5.0f,
+               withRider ? "Gyro keeps a vehicle upright with a rider welded to the Seat"
+                         : "Gyro keeps a vehicle upright without a rider");
+    }
+    std::cout << "[SpringPrismatic] failures=" << failures << '\n';
     return failures == 0 ? 0 : 1;
 }
 
@@ -2630,16 +2949,28 @@ int runSeatNetworkRegression() {
     character->addChild(root);
     auto humanoid = std::make_shared<Humanoid>();
     character->addChild(humanoid);
+    auto leg = std::make_shared<Cube>(Vector3(0, 0.2f, 0), Vector3(1, 2, 1), Cube::defaultTextureID);
+    leg->Name = "LeftLeg";
+    leg->CanCollide = false;
+    character->addChild(leg);
     humanoid->resolveParts(character.get());
     workspace->addChild(character);
     auto seat = std::make_shared<Seat>(Vector3(0, 0, 0), Vector3(2, 1, 2), Cube::defaultTextureID);
     seat->Name = "RegressionSeat";
     workspace->addChild(seat);
     auto* physics = workspace->getPhysicsEngine();
-    physics->update(*workspace, 1.0f / 60.0f);
-    humanoid->move(Vector3(0, 0, -1), Vector3(1, 0, 0), false, Vector3{}, false,
-                   physics, false, false, 0.0f, 0.0f, 0.15f, 1.0f / 60.0f);
-    expect(humanoid->isSeated() && seat->isOccupied(), "Humanoid seats and Seat occupant is set");
+    // 足のTouchセンサーイベントは数フレーム遅れて届く
+    for (int frame = 0; frame < 10 && !humanoid->isSeated(); ++frame)
+        physics->update(*workspace, 1.0f / 60.0f);
+    expect(humanoid->isSeated() && seat->isOccupied(), "Leg touching the Seat seats the Humanoid");
+
+    const float expectedRootY = seat->getWorldCFrame().Position.y + seat->Size.y * 0.5f + root->Size.y * 0.5f;
+    expect(std::abs(root->getWorldCFrame().Position.y - expectedRootY) < 0.1f, "Root bottom rests on the Seat surface");
+
+    seat->sit(nullptr);
+    expect(!humanoid->isSeated() && !seat->isOccupied(), "Seat:sit(nil) releases the occupant");
+    seat->sit(humanoid);
+    expect(humanoid->isSeated() && seat->isOccupied(), "Seat:sit(Humanoid) seats the Humanoid");
     humanoid->standUp(physics);
     const Vector3 velocity = physics->getLinearVelocity(*root);
     const bool seatWeldRemoved = std::none_of(workspace->getChildren().begin(), workspace->getChildren().end(),
@@ -14915,7 +15246,7 @@ static int runCloneClassRegression() {
         "Workspace", "MaterialService", "Material", "Script",
         "Model", "Decal", "SurfaceMark", "Texture", "Canvas", "Highlight", "SignalEvent",
         "Sound", "Lighting", "Sun", "Moon", "PointLight", "SpotLight", "PostEffect", "AppImage",
-        "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance", "Rope", "Rod",
+        "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance", "Rope", "Rod", "Spring", "PrismaticConstraint",
         "BallSocket", "NoCollision", "IntValue", "BoolValue", "NumberValue", "Vector3Value",
         "Color4Value", "CFrameValue", "QuaternionValue", "ObjectValue", "Weld", "Motor", "Motor6D",
         "Gyro", "Attachment", "Force", "TextLabel", "TextButton", "ImageLabel", "ImageButton",
@@ -15271,6 +15602,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--frame-profiler-regression", runFrameProfilerRegression),
         REG("--physics-migration-regression", runPhysicsMigrationRegression),
         REG("--motor-servo-regression", runMotorServoRegression),
+        REG("--spring-prismatic-regression", runSpringPrismaticRegression),
         REG("--physics-lifecycle-regression", runPhysicsLifecycleRegression),
         REG("--constraint-rebind-regression", runConstraintRebindRegression),
         REG("--terrain-instance-regression", runTerrainInstanceRegression),

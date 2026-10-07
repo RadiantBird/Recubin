@@ -85,15 +85,23 @@ private:
         float postStepAngularVelocityY = 0.0f;
     };
 
+    // RelativeToを解決済み(ワールド軸)の加算Force
+    struct ResolvedForce {
+        const Force* force = nullptr;
+        Vector3 worldValue;
+    };
+
     struct ForceBodyState {
         b3BodyId bodyId = b3_nullBodyId;
         bool gravityEnabled = true;
         bool maintainLinear = false;
         bool maintainAngular = false;
-        Vector3 linearTarget;
-        Vector3 angularTarget;
+        Vector3 linearTarget;  // ワールド軸
+        Vector3 angularTarget; // ワールド軸
         Vector3 angularAxisMask = {1.0f, 1.0f, 1.0f};
-        std::vector<const Force*> additiveForces;
+        // AxisMaskの軸系(World指定時は単位クォータニオン)
+        Quaternion angularMaskFrame;
+        std::vector<ResolvedForce> additiveForces;
         std::vector<std::size_t> yawForceDiagnosticIndices;
     };
 
@@ -237,6 +245,8 @@ public:
 
     void createRope(const std::shared_ptr<Rope>& rope) override;
     void createRod(const std::shared_ptr<Rod>& rod) override;
+    void createSpring(const std::shared_ptr<Spring>& spring) override;
+    void createPrismatic(const std::shared_ptr<PrismaticConstraint>& prismatic) override;
     void createWeld(
         const std::shared_ptr<Weld>& weld, Workspace& workspace) override;
     void createMotor(const std::shared_ptr<Motor>& motor) override;

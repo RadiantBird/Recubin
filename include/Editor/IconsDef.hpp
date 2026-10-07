@@ -57,6 +57,8 @@
 #define ICON_MOTOR               "\xef\x80\x93"  // f013 fa-cog
 #define ICON_ROD                 "\xef\x9e\xa4"  // f7a4 fa-grip-lines (代替)
 #define ICON_ROPE                "\xef\xa0\xbe"  // f83e fa-wave-square (代替)
+#define ICON_SPRING              "ï½"  // f07d fa-arrows-v (代替)
+#define ICON_PRISMATIC           "ï¾"  // f07e fa-arrows-h (代替)
 #define ICON_ATTACHMENT          "\xef\x82\x8d"  // f08d fa-thumbtack
 #define ICON_FORCE               "\xef\x83\xa7"  // f0e7 fa-bolt
 #define ICON_BALLSOCKET          "\xef\x85\x80"  // f140 fa-bullseye

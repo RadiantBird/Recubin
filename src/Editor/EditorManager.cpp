@@ -29,6 +29,8 @@
 #include <Instances/Gyro.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/Rope.hpp>
+#include <Instances/Spring.hpp>
+#include <Instances/PrismaticConstraint.hpp>
 #include <Instances/Attachment.hpp>
 #include <Instances/Force.hpp>
 #include <Instances/BallSocket.hpp>
@@ -1790,6 +1792,10 @@ void EditorManager::renderToolbarPhysics() {
     tryAddObjectButton<Rod>(ICON_ROD, "Rod", "Rod", parent, btnSz);
     ImGui::SameLine();
     tryAddObjectButton<Rope>(ICON_ROPE, "Rope", "Rope", parent, btnSz);
+    ImGui::SameLine();
+    tryAddObjectButton<Spring>(ICON_SPRING, "Spring", "Spring", parent, btnSz);
+    ImGui::SameLine();
+    tryAddObjectButton<PrismaticConstraint>(ICON_PRISMATIC, "PrismaticConstraint", "PrismaticConstraint", parent, btnSz);
     ImGui::SameLine();
     // 親へ追加するとワールド姿勢が保たれるため、親の位置・向きに作って local を単位にする
     if (drawIconButton(ICON_ATTACHMENT, "Attachment", btnSz) && parent) {

@@ -2,7 +2,7 @@
 
 `include/Instances/PhysicsConstraint.hpp`
 
-物理制約インスタンスに共通する基底クラス。`Instance` から派生し、`Rope`、`Rod`、`BallSocket`、`Weld`、`Motor`、`NoCollision` が継承する。
+物理制約インスタンスに共通する基底クラス。`Instance` から派生し、`Rope`、`Rod`、`Spring`、`PrismaticConstraint`、`BallSocket`、`Weld`、`Motor`、`NoCollision` が継承する。
 
 ## 共通プロパティ
 

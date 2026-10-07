@@ -1906,14 +1906,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
     //     << " yawForcePtr=" << static_cast<const void*>(yawForce.get())
     // );
 
-    // --- Seat: 未着席なら接触判定、着席中ならSteer/Throttle更新のみ行って抜ける ---
-    if (!m_seated && physics) {
-        if (BaseCube* seatCube = physics->findOverlapping(*root, "Seat")) {
-            auto seat = std::static_pointer_cast<Seat>(seatCube->shared_from_this());
-            if (!seat->isOccupied())
-                sitOn(seat, physics);
-        }
-    }
+    // --- Seat: 着席はSeat側が足のTouchedで行う。着席中はSteer/Throttle更新のみ行って抜ける ---
     if (m_seated) {
         setHoverForces(physics, false, 0.0f);
         if (auto gyro = m_rootGyro.lock()) {
@@ -2256,7 +2249,10 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
     // RootをSeatの向きのまま直上へスナップし、速度をゼロクリアしてからWeldで固定する。
     // Decal.FrontはCubeローカル+Z面(Renderer_GUI.cpp参照)だが、Humanoidの正面(getForward)は-Z基準のため、
     // Seatの回転をそのまま使うとFrontとは逆の-Z方向を向いてしまう。180度反転して整合させる
-    CFrame target = seat->getWorldCFrame() * CFrame(0, seat->Size.y * 0.001f - root->Size.y * 0.01f, 0)
+    // RootはSeat座面(Seat中心+Size.y/2)にRoot底面が乗る高さに置く
+    constexpr float SIT_HEIGHT_OFFSET = 0.0f;
+    CFrame target = seat->getWorldCFrame()
+                  * CFrame(0, seat->Size.y * 0.5f + root->Size.y * 0.5f + SIT_HEIGHT_OFFSET, 0)
                   * CFrame::fromAxisAngle(Vector3(0, 1, 0), 0.0f); // やっぱり必要なさそうなので0.0にした
     physics->moveWeldAssembly(root, target);
     physics->setLinearVelocity(*root, Vector3());

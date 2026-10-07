@@ -248,6 +248,7 @@ private:
     static int humanoid_take_damage_closure(lua_State* L);
     static int humanoid_move_toward_closure(lua_State* L);
     static int humanoid_jump_closure(lua_State* L);
+    static int seat_sit_closure(lua_State* L);
 
     // UserInput methods
     static int userinput_ispressed_closure(lua_State* L);

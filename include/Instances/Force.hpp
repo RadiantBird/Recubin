@@ -6,10 +6,14 @@
 // - Torque=false: Value をベクトル(力)として扱う / true: 角力(トルク)として扱う
 // - MaintainVelocity=false: 毎ステップ addForce/addTorque で加算する(重力など他の力と合成)
 //   MaintainVelocity=true:  Value を目標速度(線速度/角速度)として毎ステップ維持する
-// - Value はワールド座標系
+// - Value / AxisMask の座標系は RelativeTo で決まる
+//   World: ワールド軸 / Local: 親 BaseCube のワールド姿勢に基づくローカル軸
+enum class ForceSpace { World = 0, Local = 1 };
+
 class Force : public Instance {
 public:
     bool    Enabled          = true;
+    ForceSpace RelativeTo    = ForceSpace::World;
     bool    Torque           = false;
     bool    MaintainVelocity = false;
     Vector3 Value            = {0.0f, 0.0f, 0.0f};

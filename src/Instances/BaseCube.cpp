@@ -234,6 +234,7 @@ void BaseCube::init() {
 
 void BaseCube::refreshTouchObservation() {
     const bool observed =
+        m_nativeTouchObserved ||
         (Touched && Touched->hasListeners()) ||
         (TouchEnded && TouchEnded->hasListeners());
     if (m_touchObservationActive == observed) return;
@@ -241,6 +242,14 @@ void BaseCube::refreshTouchObservation() {
     if (m_physicsOwner && m_physicsOwner->hasBody(*this))
         m_physicsOwner->refreshCollisionFilter(*this);
 }
+
+void BaseCube::setNativeTouchObserved(bool observed) {
+    if (m_nativeTouchObserved == observed) return;
+    m_nativeTouchObserved = observed;
+    refreshTouchObservation();
+}
+
+void BaseCube::onNativeTouched(BaseCube&) {}
 
 bool BaseCube::IsA(std::string className) {
     if (className == "BaseCube") {

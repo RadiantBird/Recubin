@@ -166,6 +166,34 @@ export type Rod = Instance & {
     Color: Color4,
 }
 
+export type Spring = Instance & {
+    Enabled: boolean,
+    Attachment0: string,
+    Attachment1: string,
+    Cube0: BaseCube, -- write only
+    Cube1: BaseCube, -- write only
+    FreeLength: number, -- 0 = use the distance at creation
+    Stiffness: number,
+    Damping: number,
+    Visible: boolean,
+    Color: Color4,
+    Radius: number,
+    Coils: number,
+    Thickness: number,
+}
+
+export type PrismaticConstraint = Instance & {
+    Enabled: boolean,
+    Attachment0: string,
+    Attachment1: string,
+    Cube0: BaseCube, -- write only
+    Cube1: BaseCube, -- write only
+    Axis: Vector3,
+    LimitsEnabled: boolean,
+    LowerLimit: number,
+    UpperLimit: number,
+}
+
 export type Weld = Instance & {
     Enabled: boolean,
     Cube0: string | BaseCube, -- getter string; setter accepts BaseCube
@@ -642,7 +670,7 @@ export type Moon = CelestialBody & {
     Earthshine: number, -- 影の部分の見え方。0=透明で空が見える、1=不透明（既定0.08）
 }
 export type Truss = Cube & {}
-export type Seat = Cube & { Steer: number, Throttle: number }
+export type Seat = Cube & { Steer: number, Throttle: number, sit: (Seat, Humanoid?) -> () }
 export type LiquidCube = BaseCube & { Density: number }
 export type SpawnLocation = Cube & { Enabled: boolean }
 export type StarterCharacter = Instance & {}

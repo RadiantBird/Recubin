@@ -30,6 +30,7 @@ private:
     CFrame m_compoundLocalOffset;
     Physics* m_physicsOwner = nullptr;
     bool m_touchObservationActive = false;
+    bool m_nativeTouchObserved = false;
     // 最近傍のCharacter Modelから伝播する、保存・複製・公開対象外の実行時ID。
     std::uint32_t m_characterCollisionGroup = 0;
 
@@ -115,6 +116,10 @@ public:
     void setCanCollide(bool canCollide);
     void setCanTouch(bool canTouch);
     bool isTouchObserved() const { return m_touchObservationActive; }
+    // Luaリスナーとは別に、エンジン内部(派生クラス)がTouchを受信するためのフック。
+    // setNativeTouchObserved(true)の間、このCubeにTouchセンサーが作られonNativeTouchedが呼ばれる
+    void setNativeTouchObserved(bool observed);
+    virtual void onNativeTouched(BaseCube& other);
     void setLocked(bool locked);
     void setMaterial(const Material& m);
 

@@ -37,6 +37,8 @@ class Workspace : public Instance {
         friend class BaseCube;
         friend class Rope;
         friend class Rod;
+        friend class Spring;
+        friend class PrismaticConstraint;
         friend class Weld;
         friend class Motor;
         friend class BallSocket;

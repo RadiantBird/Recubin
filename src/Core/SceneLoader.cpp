@@ -36,6 +36,8 @@
 #include <Instances/Moon.hpp>
 #include <include/Core/Terrain.hpp>
 #include <Instances/Rope.hpp>
+#include <Instances/Spring.hpp>
+#include <Instances/PrismaticConstraint.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/Weld.hpp>
 #include <Instances/Motor.hpp>
@@ -455,6 +457,8 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Instance") return std::make_shared<Instance>("Instance");
     if (className == "Rope")  return std::make_shared<Rope>();
     if (className == "Rod")   return std::make_shared<Rod>();
+    if (className == "Spring") return std::make_shared<Spring>();
+    if (className == "PrismaticConstraint") return std::make_shared<PrismaticConstraint>();
     if (className == "BallSocket") return std::make_shared<BallSocket>();
     if (className == "NoCollision") return std::make_shared<NoCollision>();
     if (className == "IntValue")        return std::make_shared<IntValue>();
@@ -559,6 +563,14 @@ void SceneLoader::resolveConstraintRefs(Instance* node) {
                 auto rope = std::static_pointer_cast<Rope>(child);
                 resolvePair(c, "Rope", rope->m_cube0Name, rope->m_cube1Name,
                             [&](auto c0, auto c1) { rope->setCubes(c0, c1); rope->resolveReferencesAndRegister(); });
+            } else if (child->IsA("Spring")) {
+                auto spring = std::static_pointer_cast<Spring>(child);
+                resolvePair(c, "Spring", spring->m_cube0Name, spring->m_cube1Name,
+                            [&](auto c0, auto c1) { spring->setCubes(c0, c1); spring->resolveReferencesAndRegister(); });
+            } else if (child->IsA("PrismaticConstraint")) {
+                auto prismatic = std::static_pointer_cast<PrismaticConstraint>(child);
+                resolvePair(c, "PrismaticConstraint", prismatic->m_cube0Name, prismatic->m_cube1Name,
+                            [&](auto c0, auto c1) { prismatic->setCubes(c0, c1); prismatic->resolveReferencesAndRegister(); });
             } else if (child->IsA("Rod")) {
                 auto rod = std::static_pointer_cast<Rod>(child);
                 resolvePair(c, "Rod", rod->m_cube0Name, rod->m_cube1Name,

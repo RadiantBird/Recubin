@@ -38,6 +38,8 @@ C++23 製、Windows向け自作ゲームエンジン。物理・スクリプト�
   - [Weld](Instances/Weld.md)：剛体結合
   - [Rope](Instances/Rope.md)：バネ付き距離拘束
   - [Rod](Instances/Rod.md)：固定長距離拘束
+  - [Spring](Instances/Spring.md)：双方向ばね（コイル描画）
+  - [PrismaticConstraint](Instances/PrismaticConstraint.md)：直動拘束
   - ツリー上のどこに置いても自動で有効化される（必要プロパティが揃い次第初期化）
 
 ## 4. 地形システム

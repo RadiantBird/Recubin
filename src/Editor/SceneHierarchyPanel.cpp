@@ -46,6 +46,8 @@
 #include <Instances/BallSocket.hpp>
 #include <Instances/NoCollision.hpp>
 #include <Instances/Rope.hpp>
+#include <Instances/Spring.hpp>
+#include <Instances/PrismaticConstraint.hpp>
 #include <Instances/Attachment.hpp>
 #include <Instances/Force.hpp>
 #include <Instances/Model.hpp>
@@ -286,6 +288,8 @@ const ClassIconEntry kClassIcons[] = {
     {ICON_GYRO,             {"Gyro"}},
     {ICON_ROD,              {"Rod"}},
     {ICON_ROPE,             {"Rope"}},
+    {ICON_SPRING,           {"Spring"}},
+    {ICON_PRISMATIC,        {"PrismaticConstraint"}},
     {ICON_BALLSOCKET,       {"BallSocket"}},
     {ICON_NOCOLLISION,      {"NoCollision"}},
     {ICON_ATTACHMENT,       {"Attachment"}},
@@ -1444,6 +1448,8 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
         tryInsertInstance<BallSocket>(m_history, "BallSocket", parentSp);
         tryInsertInstance<NoCollision>(m_history, "NoCollision", parentSp);
         tryInsertInstance<Rope>(m_history, "Rope", parentSp);
+        tryInsertInstance<Spring>(m_history, "Spring", parentSp);
+        tryInsertInstance<PrismaticConstraint>(m_history, "PrismaticConstraint", parentSp);
         tryInsertInstance<Attachment>(m_history, "Attachment", parentSp);
         tryInsertInstance<Force>(m_history, "Force", parentSp);
 
@@ -1687,6 +1693,8 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
             makeGroup("BallSocket", [&] { return std::make_shared<BallSocket>(); });
             makeGroup("NoCollision", [&] { return std::make_shared<NoCollision>(); });
             makeGroup("Rope", [&] { return std::make_shared<Rope>(); });
+            makeGroup("Spring", [&] { return std::make_shared<Spring>(); });
+            makeGroup("PrismaticConstraint", [&] { return std::make_shared<PrismaticConstraint>(); });
             makeGroup("Attachment", [&] { return std::make_shared<Attachment>(); });
             makeGroup("Force", [&] { return std::make_shared<Force>(); });
             ImGui::EndMenu();

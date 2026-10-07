@@ -19,6 +19,7 @@ const std::vector<InstanceCatalogEntry> kEntries = {
     {"Weld", C::Physics}, {"Motor", C::Physics}, {"Motor6D", C::Physics},
     {"Gyro", C::Physics}, {"Rod", C::Physics},
     {"BallSocket", C::Physics}, {"NoCollision", C::Physics}, {"Rope", C::Physics},
+    {"Spring", C::Physics}, {"PrismaticConstraint", C::Physics},
     {"Attachment", C::Physics}, {"Force", C::Physics},
     {"IntValue", C::Values}, {"BoolValue", C::Values}, {"NumberValue", C::Values},
     {"Vector3Value", C::Values}, {"Color4Value", C::Values}, {"CFrameValue", C::Values},

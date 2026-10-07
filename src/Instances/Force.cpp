@@ -6,6 +6,7 @@ static const bool s_forceRegistered = []{
     using namespace PropertyRegistry;
     registerClass("Force", {
         field<&Force::Enabled>("Enabled"),
+        enumProp<&Force::RelativeTo>("RelativeTo", {{"World",0},{"Local",1}}, /*yamlAsString*/true),
         field<&Force::Torque>("Torque"),
         field<&Force::MaintainVelocity>("MaintainVelocity"),
         field<&Force::Value>("Value"),

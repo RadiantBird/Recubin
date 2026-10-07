@@ -13,6 +13,8 @@
 #include <include/Instances/NoCollision.hpp>
 #include <include/Instances/Rod.hpp>
 #include <include/Instances/Rope.hpp>
+#include <include/Instances/Spring.hpp>
+#include <include/Instances/PrismaticConstraint.hpp>
 #include <include/Instances/Weld.hpp>
 #include <include/Instances/Workspace.hpp>
 #include <include/Util/Logger.hpp>
@@ -465,6 +467,39 @@ Quaternion rotationFromZ(const Vector3& directionValue) {
         cross.x * inverse,
         cross.y * inverse,
         cross.z * inverse);
+}
+
+// Box3D prismatic jointはjoint frame AのローカルX軸方向に動く。X軸を方向へ回す回転を返す。
+Quaternion rotationFromX(const Vector3& directionValue) {
+    const Vector3 from(1.0f, 0.0f, 0.0f);
+    Vector3 direction = directionValue.normalize();
+    if (direction.length() < 1.0e-5f) direction = from;
+    const float dot = std::clamp(Vector3::Dot(from, direction), -1.0f, 1.0f);
+    if (dot > 0.999999f) return Quaternion();
+    if (dot < -0.999999f) return Quaternion::fromNormalizedComponents(0.0f, 0.0f, 1.0f, 0.0f);
+    Vector3 cross = Vector3::Cross(from, direction);
+    const float scale = std::sqrt((1.0f + dot) * 2.0f);
+    const float inverse = 1.0f / scale;
+    return Quaternion::fromNormalizedComponents(
+        scale * 0.5f,
+        cross.x * inverse,
+        cross.y * inverse,
+        cross.z * inverse);
+}
+
+// ばね定数k・減衰cを、換算質量からBox3Dのhertz/dampingRatioへ変換する（Rope/Spring共通）。
+void springHertzAndDamping(
+    float stiffness, float damping, float massA, float massB,
+    float& hertz, float& dampingRatio) {
+    const float effectiveMass = massA > 0.0f && massB > 0.0f
+        ? massA * massB / (massA + massB) : std::max(massA, massB);
+    if (stiffness > 0.0f && effectiveMass > 0.0f) {
+        hertz = std::sqrt(stiffness / effectiveMass) / (2.0f * pi);
+        dampingRatio = damping / (2.0f * std::sqrt(stiffness * effectiveMass));
+    } else {
+        hertz = 0.0f;
+        dampingRatio = 0.0f;
+    }
 }
 
 bool idsEqual(b3BodyId first, b3BodyId second) {
@@ -1192,6 +1227,9 @@ void Box3DPhysicsBackend::removeCube(const std::shared_ptr<BaseCube>& cube) {
         } else if (value->IsA("Rope")) {
             auto c = std::static_pointer_cast<Rope>(value);
             first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        } else if (value->IsA("Spring") || value->IsA("PrismaticConstraint")) {
+            auto c = std::static_pointer_cast<PhysicsConstraint>(value);
+            first = c->m_cube0.lock(); second = c->m_cube1.lock();
         } else if (value->IsA("Rod")) {
             auto c = std::static_pointer_cast<Rod>(value);
             first = c->m_cube0.lock(); second = c->m_cube1.lock();
@@ -1478,6 +1516,34 @@ void Box3DPhysicsBackend::enqueueSetRotation(
         id, toB3Position(bodyWorld.Position), toB3Quaternion(bodyWorld.Rotation));
 }
 
+namespace {
+
+// Force.RelativeTo==Local のとき、親BaseCubeのワールド姿勢で回転させたベクトルを返す。
+Vector3 resolveForceVector(const Force& force, const BaseCube& owner,
+                           const Vector3& value) {
+    if (force.RelativeTo != ForceSpace::Local) return value;
+    return owner.getWorldCFrame().Rotation.rotate(value);
+}
+
+Quaternion forceFrame(const Force& force, const BaseCube& owner) {
+    if (force.RelativeTo != ForceSpace::Local) return Quaternion();
+    return owner.getWorldCFrame().Rotation;
+}
+
+// mask==0 の軸は current を維持する。mask は frame 軸系で解釈する(World=単位)。
+b3Vec3 applyAngularAxisMask(b3Vec3 target, b3Vec3 current,
+                            const Vector3& mask, const Quaternion& frame) {
+    const Quaternion inverse = frame.conjugate();
+    Vector3 localTarget  = inverse.rotate(fromB3Vector(target));
+    const Vector3 localCurrent = inverse.rotate(fromB3Vector(current));
+    if (mask.x == 0.0f) localTarget.x = localCurrent.x;
+    if (mask.y == 0.0f) localTarget.y = localCurrent.y;
+    if (mask.z == 0.0f) localTarget.z = localCurrent.z;
+    return toB3Vector(frame.rotate(localTarget));
+}
+
+} // namespace
+
 void Box3DPhysicsBackend::applyForces() {
     m_yawForceDiagnostics.clear();
     m_forceBodyStates.clear();
@@ -1527,14 +1593,19 @@ void Box3DPhysicsBackend::applyForces() {
                 }
                 if (!force->Enabled) continue;
                 if (!force->MaintainVelocity) {
-                    state.additiveForces.push_back(force);
+                    state.additiveForces.push_back({
+                        force,
+                        resolveForceVector(*force, *member, force->Value)});
                 } else if (force->Torque) {
                     state.maintainAngular = true;
-                    state.angularTarget = force->Value;
+                    state.angularTarget =
+                        resolveForceVector(*force, *member, force->Value);
                     state.angularAxisMask = force->AxisMask;
+                    state.angularMaskFrame = forceFrame(*force, *member);
                 } else {
                     state.maintainLinear = true;
-                    state.linearTarget = force->Value;
+                    state.linearTarget =
+                        resolveForceVector(*force, *member, force->Value);
                 }
             }
         }
@@ -1548,16 +1619,17 @@ void Box3DPhysicsBackend::applyForces() {
         // 優先する。shared body内のどのmemberから指定されても同じ。
         b3Body_SetGravityScale(
             id, state.gravityEnabled && !state.maintainLinear ? 1.0f : 0.0f);
-        for (const Force* force : state.additiveForces) {
-            if (force->Torque) {
+        for (const ResolvedForce& resolved : state.additiveForces) {
+            const Vector3& value = resolved.worldValue;
+            if (resolved.force->Torque) {
                 if (state.maintainAngular) continue;
                 b3Body_ApplyTorque(
-                    id, {force->Value.x * TORQUE_TO_MKS,
-                         force->Value.y * TORQUE_TO_MKS,
-                         force->Value.z * TORQUE_TO_MKS}, true);
+                    id, {value.x * TORQUE_TO_MKS,
+                         value.y * TORQUE_TO_MKS,
+                         value.z * TORQUE_TO_MKS}, true);
             } else {
                 if (state.maintainLinear) continue;
-                b3Body_ApplyForceToCenter(id, toB3Length(force->Value), true);
+                b3Body_ApplyForceToCenter(id, toB3Length(value), true);
             }
         }
         if (state.maintainLinear)
@@ -1575,20 +1647,9 @@ void Box3DPhysicsBackend::applyForces() {
             // Preserve unmasked axes so a character can use Force for
             // deterministic yaw while Gyro still controls physical pitch
             // and roll.
-            if (state.angularAxisMask.x == 0.0f) {
-                targetAngularVelocity.x =
-                    currentAngularVelocity.x;
-            }
-
-            if (state.angularAxisMask.y == 0.0f) {
-                targetAngularVelocity.y =
-                    currentAngularVelocity.y;
-            }
-
-            if (state.angularAxisMask.z == 0.0f) {
-                targetAngularVelocity.z =
-                    currentAngularVelocity.z;
-            }
+            targetAngularVelocity = applyAngularAxisMask(
+                targetAngularVelocity, currentAngularVelocity,
+                state.angularAxisMask, state.angularMaskFrame);
 
             b3Body_SetAngularVelocity(
                 id,
@@ -1625,7 +1686,9 @@ void Box3DPhysicsBackend::applyForces() {
                     continue;
                 b3Vec3 angularVelocity =
                     b3Body_GetAngularVelocity(bodyIdValue);
-                angularVelocity.y = toB3Vector(diagnostic.force->Value).y;
+                angularVelocity.y = toB3Vector(resolveForceVector(
+                    *diagnostic.force, *diagnostic.owner,
+                    diagnostic.force->Value)).y;
                 b3Body_SetAngularVelocity(bodyIdValue, angularVelocity);
             }
         }
@@ -1683,20 +1746,9 @@ void Box3DPhysicsBackend::applyMaintainedVelocities() {
             b3Vec3 targetAngularVelocity =
                 toB3Vector(state.angularTarget);
 
-            if (state.angularAxisMask.x == 0.0f) {
-                targetAngularVelocity.x =
-                    currentAngularVelocity.x;
-            }
-
-            if (state.angularAxisMask.y == 0.0f) {
-                targetAngularVelocity.y =
-                    currentAngularVelocity.y;
-            }
-
-            if (state.angularAxisMask.z == 0.0f) {
-                targetAngularVelocity.z =
-                    currentAngularVelocity.z;
-            }
+            targetAngularVelocity = applyAngularAxisMask(
+                targetAngularVelocity, currentAngularVelocity,
+                state.angularAxisMask, state.angularMaskFrame);
 
             // 摩擦などで減速した角速度で姿勢が積分されているため、
             // 目標角速度との差分ぶんの回転をCOM回りに補正する。
@@ -1778,6 +1830,70 @@ void Box3DPhysicsBackend::applyServoMotors() {
     }
 }
 
+namespace {
+
+// rootとPrismaticConstraintで連結された動的ボディ(root自身を含む)を集める。
+// Prismaticは相対回転を固定するため、rootに加えたトルクはこれらを一緒に回す。
+std::vector<b3BodyId> collectRotationCoupledBodies(b3BodyId root) {
+    std::vector<b3BodyId> result{root};
+    std::vector<b3JointId> joints;
+    for (std::size_t index = 0; index < result.size(); ++index) {
+        const b3BodyId current = result[index];
+        const int count = b3Body_GetJointCount(current);
+        joints.resize(static_cast<std::size_t>(count));
+        if (count > 0) b3Body_GetJoints(current, joints.data(), count);
+        for (const b3JointId joint : joints) {
+            if (!b3Joint_IsValid(joint) ||
+                b3Joint_GetType(joint) != b3_prismaticJoint)
+                continue;
+            const b3BodyId bodyA = b3Joint_GetBodyA(joint);
+            const b3BodyId other = idsEqual(bodyA, current)
+                ? b3Joint_GetBodyB(joint) : bodyA;
+            if (B3_IS_NULL(other) || !b3Body_IsValid(other) ||
+                b3Body_GetType(other) != b3_dynamicBody)
+                continue;
+            const bool known = std::any_of(
+                result.begin(), result.end(),
+                [&](b3BodyId value) { return idsEqual(value, other); });
+            if (!known) result.push_back(other);
+        }
+    }
+    return result;
+}
+
+// 連結ボディ全体の質量中心まわりの、worldAxis方向の慣性モーメント。
+float rotationCoupledInertia(
+    const std::vector<b3BodyId>& bodies, b3Vec3 worldAxis) {
+    double totalMass = 0.0;
+    double cx = 0.0, cy = 0.0, cz = 0.0;
+    for (const b3BodyId body : bodies) {
+        const double mass = b3Body_GetMass(body);
+        const b3Pos center = b3Body_GetWorldCenterOfMass(body);
+        totalMass += mass;
+        cx += mass * center.x;
+        cy += mass * center.y;
+        cz += mass * center.z;
+    }
+    if (totalMass <= 0.0) return 0.0f;
+    cx /= totalMass; cy /= totalMass; cz /= totalMass;
+
+    double inertia = 0.0;
+    for (const b3BodyId body : bodies) {
+        const b3Vec3 inverseTimesAxis = b3MulMV(
+            b3Body_GetWorldInverseRotationalInertia(body), worldAxis);
+        const double inverseAxis = b3Dot(worldAxis, inverseTimesAxis);
+        if (inverseAxis > 0.0) inertia += 1.0 / inverseAxis;
+        const b3Pos center = b3Body_GetWorldCenterOfMass(body);
+        const double dx = center.x - cx, dy = center.y - cy, dz = center.z - cz;
+        const double along = dx * worldAxis.x + dy * worldAxis.y + dz * worldAxis.z;
+        inertia += b3Body_GetMass(body) *
+                   (dx * dx + dy * dy + dz * dz - along * along);
+    }
+    return static_cast<float>(inertia);
+}
+
+} // namespace
+
 void Box3DPhysicsBackend::applyGyroForces() {
     constexpr float RESPONSE_RATE = 20.0f;
     constexpr float DEGREES_TO_RADIANS =
@@ -1833,6 +1949,8 @@ void Box3DPhysicsBackend::applyGyroForces() {
         const b3Vec3 worldAngularVelocity = b3Body_GetAngularVelocity(id);
         const b3Matrix3 worldInverseInertia =
             b3Body_GetWorldInverseRotationalInertia(id);
+        const std::vector<b3BodyId> coupledBodies =
+            collectRotationCoupledBodies(id);
 
         b3Vec3 appliedTorque = b3Vec3_zero;
 
@@ -1891,8 +2009,13 @@ void Box3DPhysicsBackend::applyGyroForces() {
                 path + ":invalid-inertia:" +
                 std::to_string(static_cast<int>(axis)));
 
-            const float effectiveInertia =
-                1.0f / inverseEffectiveInertia;
+            // @RadiantBird 2026/10/08:
+            // PrismaticConstraintで回転が固定されたSeatや乗員も、Gyroが動かす
+            // 慣性に含める。含めないと本体の慣性だけでトルクが決まり、乗員が
+            // 乗った車両ではGyroがほぼ無力になる。
+            const float effectiveInertia = coupledBodies.size() > 1
+                ? rotationCoupledInertia(coupledBodies, worldAxis)
+                : 1.0f / inverseEffectiveInertia;
             const float maximumTorque =
                 settings.MaxTorque * TORQUE_TO_MKS;
 
@@ -2355,7 +2478,11 @@ void Box3DPhysicsBackend::dispatchContactEvents() {
     for (const auto& [firstIdentity, secondIdentity] : pendingTouches) {
         auto first = resolveContactIdentity(firstIdentity);
         auto second = resolveContactIdentity(secondIdentity);
-        if (!first || !second || !Physics::s_touchCallback) continue;
+        if (!first || !second) continue;
+        first->onNativeTouched(*second);
+        if (first->m_physicsOwner != m_facade || second->m_physicsOwner != m_facade) continue;
+        second->onNativeTouched(*first);
+        if (!Physics::s_touchCallback) continue;
         Physics::s_touchCallback(first.get(), second.get());
     }
     auto pendingEnds = std::move(m_pendingTouchEnds);
@@ -2613,6 +2740,8 @@ void Box3DPhysicsBackend::clearConstraintHandle(Instance& constraint) {
         static_cast<Rope&>(constraint).m_constraintHandle = {};
     else if (constraint.IsA("Rod"))
         static_cast<Rod&>(constraint).m_constraintHandle = {};
+    else if (constraint.IsA("Spring") || constraint.IsA("PrismaticConstraint"))
+        static_cast<PhysicsConstraint&>(constraint).m_constraintHandle = {};
     else if (constraint.IsA("BallSocket"))
         static_cast<BallSocket&>(constraint).m_constraintHandle = {};
     else if (constraint.IsA("Motor"))
@@ -2775,6 +2904,9 @@ void Box3DPhysicsBackend::rebuildAssembly(
         if (value->IsA("Rope")) {
             auto c = std::static_pointer_cast<Rope>(value);
             first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        } else if (value->IsA("Spring") || value->IsA("PrismaticConstraint")) {
+            auto c = std::static_pointer_cast<PhysicsConstraint>(value);
+            first = c->m_cube0.lock(); second = c->m_cube1.lock();
         } else if (value->IsA("Rod")) {
             auto c = std::static_pointer_cast<Rod>(value);
             first = c->m_cube0.lock(); second = c->m_cube1.lock();
@@ -2858,6 +2990,10 @@ void Box3DPhysicsBackend::rebuildAssembly(
     for (const auto& value : recreate) {
         if (value->IsA("Rope"))
             createRope(std::static_pointer_cast<Rope>(value));
+        else if (value->IsA("Spring"))
+            createSpring(std::static_pointer_cast<Spring>(value));
+        else if (value->IsA("PrismaticConstraint"))
+            createPrismatic(std::static_pointer_cast<PrismaticConstraint>(value));
         else if (value->IsA("Rod"))
             createRod(std::static_pointer_cast<Rod>(value));
         else if (value->IsA("BallSocket"))
@@ -2930,24 +3066,120 @@ void Box3DPhysicsBackend::createRope(const std::shared_ptr<Rope>& rope) {
     definition.lowerSpringForce = -FLT_MAX;
     definition.upperSpringForce = 0.0f;
 
-    const float massA = b3Body_GetMass(bodyA);
-    const float massB = b3Body_GetMass(bodyB);
-    const float effectiveMass = massA > 0.0f && massB > 0.0f
-        ? massA * massB / (massA + massB) : std::max(massA, massB);
-    if (rope->Stiffness > 0.0f && effectiveMass > 0.0f) {
-        definition.hertz =
-            std::sqrt(rope->Stiffness / effectiveMass) / (2.0f * pi);
-        definition.dampingRatio = rope->Damping /
-            (2.0f * std::sqrt(rope->Stiffness * effectiveMass));
-    } else {
-        definition.hertz = 0.0f;
-        definition.dampingRatio = 0.0f;
-    }
+    springHertzAndDamping(
+        rope->Stiffness, rope->Damping, b3Body_GetMass(bodyA),
+        b3Body_GetMass(bodyB), definition.hertz, definition.dampingRatio);
     const b3JointId joint = b3CreateDistanceJoint(m_worldId, &definition);
     if (B3_IS_NULL(joint)) return;
     const PhysicsConstraintHandle handle{b3StoreJointId(joint)};
     rope->m_constraintHandle = handle;
     m_constraints.push_back({rope, handle, joint});
+}
+
+void Box3DPhysicsBackend::createSpring(const std::shared_ptr<Spring>& spring) {
+    if (!spring || findConstraint(spring)) return;
+    auto first = spring->m_cube0.lock();
+    auto second = spring->m_cube1.lock();
+    if (!first || !second) return;
+    const b3BodyId bodyA = bodyId(*first);
+    const b3BodyId bodyB = bodyId(*second);
+    if (B3_IS_NULL(bodyA) || B3_IS_NULL(bodyB)) return;
+    if (idsEqual(bodyA, bodyB)) {
+        const auto handle = allocateLogicalConstraintHandle();
+        spring->m_constraintHandle = handle;
+        m_constraints.push_back({spring, handle, b3_nullJointId});
+        return;
+    }
+
+    const CFrame frameA = attachmentFrame(
+        first->m_compoundLocalOffset, spring->m_attachment0, first.get());
+    const CFrame frameB = attachmentFrame(
+        second->m_compoundLocalOffset, spring->m_attachment1, second.get());
+    const Vector3 worldA = (bodyWorldFrame(bodyA) * frameA).Position;
+    const Vector3 worldB = (bodyWorldFrame(bodyB) * frameB).Position;
+    const float freeLength = std::max(
+        (spring->FreeLength > 0.0f
+             ? spring->FreeLength : (worldB - worldA).length()) * METERS_PER_STUD,
+        B3_LINEAR_SLOP);
+
+    // 双方向ばね: 引きも押しもする（Ropeのような力の片側制限・長さ制限は付けない）。
+    b3DistanceJointDef definition = b3DefaultDistanceJointDef();
+    definition.base.bodyIdA = bodyA;
+    definition.base.bodyIdB = bodyB;
+    definition.base.localFrameA = toB3Transform(frameA);
+    definition.base.localFrameB = toB3Transform(frameB);
+    definition.base.userData = spring.get();
+    definition.enableSpring = true;
+    definition.enableLimit = false;
+    definition.length = freeLength;
+    springHertzAndDamping(
+        spring->Stiffness, spring->Damping, b3Body_GetMass(bodyA),
+        b3Body_GetMass(bodyB), definition.hertz, definition.dampingRatio);
+    const b3JointId joint = b3CreateDistanceJoint(m_worldId, &definition);
+    if (B3_IS_NULL(joint)) return;
+    const PhysicsConstraintHandle handle{b3StoreJointId(joint)};
+    spring->m_constraintHandle = handle;
+    m_constraints.push_back({spring, handle, joint});
+    b3Joint_WakeBodies(joint);
+}
+
+void Box3DPhysicsBackend::createPrismatic(
+    const std::shared_ptr<PrismaticConstraint>& prismatic) {
+    if (!prismatic || findConstraint(prismatic)) return;
+    auto first = prismatic->m_cube0.lock();
+    auto second = prismatic->m_cube1.lock();
+    if (!first || !second) return;
+    const b3BodyId bodyA = bodyId(*first);
+    const b3BodyId bodyB = bodyId(*second);
+    if (B3_IS_NULL(bodyA) || B3_IS_NULL(bodyB)) return;
+    if (idsEqual(bodyA, bodyB)) {
+        const auto handle = allocateLogicalConstraintHandle();
+        prismatic->m_constraintHandle = handle;
+        m_constraints.push_back({prismatic, handle, b3_nullJointId});
+        return;
+    }
+
+    // アンカーはAttachmentがあればその位置、無ければ各Cubeの中心。
+    // 軸はCube0(Attachment0があればその軸系)のローカル方向。
+    const CFrame bodyFrameA = bodyWorldFrame(bodyA);
+    const CFrame bodyFrameB = bodyWorldFrame(bodyB);
+    const CFrame frameA = attachmentFrame(
+        first->m_compoundLocalOffset, prismatic->m_attachment0, first.get());
+    const CFrame frameB = attachmentFrame(
+        second->m_compoundLocalOffset, prismatic->m_attachment1, second.get());
+    const CFrame jointWorldA = bodyFrameA * frameA;
+    const Quaternion jointRotation =
+        jointWorldA.Rotation * rotationFromX(prismatic->Axis);
+    const CFrame jointWorldAxisA(jointWorldA.Position, jointRotation);
+    // B側アンカーは軸直交方向のずれを除いて軸線上へ置く（生成時の初期スナップを避ける）。
+    // 軸方向のずれはそのまま初期translationになり、Lower/UpperLimitはA/Bアンカー間の
+    // 軸方向距離(stud)に対する範囲になる。
+    const Vector3 axisWorld = jointRotation.rotate(Vector3(1.0f, 0.0f, 0.0f));
+    const Vector3 anchorB = (bodyFrameB * frameB).Position;
+    const CFrame jointWorldAxisB(
+        jointWorldA.Position + axisWorld *
+            Vector3::Dot(anchorB - jointWorldA.Position, axisWorld),
+        jointRotation);
+
+    b3PrismaticJointDef definition = b3DefaultPrismaticJointDef();
+    definition.base.bodyIdA = bodyA;
+    definition.base.bodyIdB = bodyB;
+    definition.base.localFrameA =
+        toB3Transform(bodyFrameA.inverse() * jointWorldAxisA);
+    definition.base.localFrameB =
+        toB3Transform(bodyFrameB.inverse() * jointWorldAxisB);
+    definition.base.userData = prismatic.get();
+    definition.enableLimit = prismatic->LimitsEnabled;
+    definition.lowerTranslation =
+        std::min(prismatic->LowerLimit, prismatic->UpperLimit) * METERS_PER_STUD;
+    definition.upperTranslation =
+        std::max(prismatic->LowerLimit, prismatic->UpperLimit) * METERS_PER_STUD;
+    const b3JointId joint = b3CreatePrismaticJoint(m_worldId, &definition);
+    if (B3_IS_NULL(joint)) return;
+    const PhysicsConstraintHandle handle{b3StoreJointId(joint)};
+    prismatic->m_constraintHandle = handle;
+    m_constraints.push_back({prismatic, handle, joint});
+    b3Joint_WakeBodies(joint);
 }
 
 void Box3DPhysicsBackend::createRod(const std::shared_ptr<Rod>& rod) {
@@ -3360,6 +3592,9 @@ void Box3DPhysicsBackend::removeConstraint(
         if (value->IsA("Rope")) {
             auto c = std::static_pointer_cast<Rope>(value);
             first = c->m_cube0.lock(); second = c->m_cube1.lock();
+        } else if (value->IsA("Spring") || value->IsA("PrismaticConstraint")) {
+            auto c = std::static_pointer_cast<PhysicsConstraint>(value);
+            first = c->m_cube0.lock(); second = c->m_cube1.lock();
         } else if (value->IsA("Rod")) {
             auto c = std::static_pointer_cast<Rod>(value);
             first = c->m_cube0.lock(); second = c->m_cube1.lock();
@@ -3443,6 +3678,10 @@ void Box3DPhysicsBackend::removeConstraint(
     for (const auto& value : recreate) {
         if (value->IsA("Rope"))
             createRope(std::static_pointer_cast<Rope>(value));
+        else if (value->IsA("Spring"))
+            createSpring(std::static_pointer_cast<Spring>(value));
+        else if (value->IsA("PrismaticConstraint"))
+            createPrismatic(std::static_pointer_cast<PrismaticConstraint>(value));
         else if (value->IsA("Rod"))
             createRod(std::static_pointer_cast<Rod>(value));
         else if (value->IsA("BallSocket"))
@@ -3471,17 +3710,43 @@ void Box3DPhysicsBackend::updateConstraint(
             entry->jointId, B3_LINEAR_SLOP, maximum);
         const b3BodyId first = b3Joint_GetBodyA(entry->jointId);
         const b3BodyId second = b3Joint_GetBodyB(entry->jointId);
-        const float massA = b3Body_GetMass(first);
-        const float massB = b3Body_GetMass(second);
-        const float effectiveMass = massA > 0.0f && massB > 0.0f
-            ? massA * massB / (massA + massB) : std::max(massA, massB);
-        const float hertz = rope->Stiffness > 0.0f && effectiveMass > 0.0f
-            ? std::sqrt(rope->Stiffness / effectiveMass) / (2.0f * pi) : 0.0f;
-        const float damping = rope->Stiffness > 0.0f && effectiveMass > 0.0f
-            ? rope->Damping /
-                (2.0f * std::sqrt(rope->Stiffness * effectiveMass)) : 0.0f;
+        float hertz = 0.0f;
+        float damping = 0.0f;
+        springHertzAndDamping(
+            rope->Stiffness, rope->Damping, b3Body_GetMass(first),
+            b3Body_GetMass(second), hertz, damping);
         b3DistanceJoint_SetSpringHertz(entry->jointId, hertz);
         b3DistanceJoint_SetSpringDampingRatio(entry->jointId, damping);
+        return;
+    }
+    if (constraint->IsA("Spring") && B3_IS_NON_NULL(entry->jointId) &&
+        b3Joint_IsValid(entry->jointId)) {
+        auto spring = std::static_pointer_cast<Spring>(constraint);
+        // FreeLength==0は生成時の距離を採用する指定。再計算せず現在の自然長を保持する。
+        if (spring->FreeLength > 0.0f)
+            b3DistanceJoint_SetLength(
+                entry->jointId,
+                std::max(spring->FreeLength * METERS_PER_STUD, B3_LINEAR_SLOP));
+        float hertz = 0.0f;
+        float damping = 0.0f;
+        springHertzAndDamping(
+            spring->Stiffness, spring->Damping,
+            b3Body_GetMass(b3Joint_GetBodyA(entry->jointId)),
+            b3Body_GetMass(b3Joint_GetBodyB(entry->jointId)), hertz, damping);
+        b3DistanceJoint_SetSpringHertz(entry->jointId, hertz);
+        b3DistanceJoint_SetSpringDampingRatio(entry->jointId, damping);
+        b3Joint_WakeBodies(entry->jointId);
+        return;
+    }
+    if (constraint->IsA("PrismaticConstraint") &&
+        B3_IS_NON_NULL(entry->jointId) && b3Joint_IsValid(entry->jointId)) {
+        auto prismatic = std::static_pointer_cast<PrismaticConstraint>(constraint);
+        const float lower = std::min(prismatic->LowerLimit, prismatic->UpperLimit);
+        const float upper = std::max(prismatic->LowerLimit, prismatic->UpperLimit);
+        b3PrismaticJoint_SetLimits(
+            entry->jointId, lower * METERS_PER_STUD, upper * METERS_PER_STUD);
+        b3PrismaticJoint_EnableLimit(entry->jointId, prismatic->LimitsEnabled);
+        b3Joint_WakeBodies(entry->jointId);
         return;
     }
     if (constraint->IsA("Motor")) {
@@ -3644,6 +3909,10 @@ void Box3DPhysicsBackend::createPendingConstraints(Workspace& workspace) {
         if (!value || value->IsA("Weld")) continue;
         if (value->IsA("Rope"))
             createRope(std::static_pointer_cast<Rope>(value));
+        else if (value->IsA("Spring"))
+            createSpring(std::static_pointer_cast<Spring>(value));
+        else if (value->IsA("PrismaticConstraint"))
+            createPrismatic(std::static_pointer_cast<PrismaticConstraint>(value));
         else if (value->IsA("Rod"))
             createRod(std::static_pointer_cast<Rod>(value));
         else if (value->IsA("BallSocket"))
@@ -3687,6 +3956,9 @@ void Box3DPhysicsBackend::update(Workspace& workspace, float dt) {
             invalid = isOutside(c->m_cube0) || isOutside(c->m_cube1);
         } else if (value->IsA("Rope")) {
             auto c = std::static_pointer_cast<Rope>(value);
+            invalid = isOutside(c->m_cube0) || isOutside(c->m_cube1);
+        } else if (value->IsA("Spring") || value->IsA("PrismaticConstraint")) {
+            auto c = std::static_pointer_cast<PhysicsConstraint>(value);
             invalid = isOutside(c->m_cube0) || isOutside(c->m_cube1);
         } else if (value->IsA("Rod")) {
             auto c = std::static_pointer_cast<Rod>(value);

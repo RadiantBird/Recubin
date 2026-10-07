@@ -23,7 +23,7 @@
 
 **監査時点の確定事実:**
 - Physics/Character 系の `Force`, `Gyro`, `Motor6D` は schema 登録と Luau dispatch 配線済み。
-- `PhysicsConstraint` と派生の `Rope`, `Rod`, `BallSocket`, `NoCollision`, `Weld`, `Motor` も
+- `PhysicsConstraint` と派生の `Rope`, `Rod`, `Spring`, `PrismaticConstraint`, `BallSocket`, `NoCollision`, `Weld`, `Motor` も
   schema を基準に YAML/clone/editor/Luau を接続済み。
 - ImageLabel / ImageButton の dispatch 配線漏れなど、今回の対象外の既存項目は下記の未実装表に残す。
 
@@ -126,6 +126,8 @@
 | Weld | Cube0 / Cube1 / Enabled | — |
 | Rope | MaxDistance / Stiffness / Damping / LineWidth / Color / Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
 | Rod | LineWidth / Color / Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
+| Spring | FreeLength / Stiffness / Damping / Visible / Color / Radius / Coils / Thickness / Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
+| PrismaticConstraint | Axis / LimitsEnabled / LowerLimit / UpperLimit / Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
 | BallSocket | Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |
 | NoCollision | Cube0 / Cube1 / Enabled | — |
 | Motor | Axis / DriveVelocity / MaxForce / Servo / TargetAngle / Cube0 / Cube1 / Attachment0 / Attachment1 / Enabled | — |

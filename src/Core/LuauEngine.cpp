@@ -58,6 +58,8 @@
 #include "include/Core/SystemState.hpp"
 #include "include/Instances/Rope.hpp"
 #include "include/Instances/Rod.hpp"
+#include "include/Instances/Spring.hpp"
+#include "include/Instances/PrismaticConstraint.hpp"
 #include "include/Instances/Weld.hpp"
 #include "include/Instances/Motor.hpp"
 #include "include/Instances/Motor6D.hpp"
@@ -2636,6 +2638,23 @@ int LuauEngine::humanoid_jump_closure(lua_State* L) {
     return 0;
 }
 
+int LuauEngine::seat_sit_closure(lua_State* L) {
+    auto* ud = (std::weak_ptr<Instance>*)lua_touserdata(L, lua_upvalueindex(1));
+    auto self = ud->lock();
+    if (!self) return 0;
+
+    // L[1] = self, L[2] = Humanoid もしくは nil(着席解除)
+    std::shared_ptr<Humanoid> humanoid;
+    if (!lua_isnoneornil(L, 2)) {
+        auto* argUd = testInstanceUserdata(L, 2);
+        auto arg = argUd ? argUd->lock() : nullptr;
+        humanoid = std::dynamic_pointer_cast<Humanoid>(arg);
+        if (!humanoid) luaL_argerror(L, 2, "Humanoid or nil expected");
+    }
+    static_cast<Seat*>(self.get())->sit(humanoid);
+    return 0;
+}
+
 // L[argIdx] が数値(1始まりスロット) か 文字列(Tool名) を 0始まりスロット index に解決する。無効なら -1。
 static int resolveUserSlotArg(lua_State* L, User* user, int argIdx) {
     if (lua_isnumber(L, argIdx)) {
@@ -3058,6 +3077,8 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "Terrain",          [] { return std::make_shared<Terrain>(); } },
         { "Rope",             [] { return std::make_shared<Rope>(); } },
         { "Rod",              [] { return std::make_shared<Rod>(); } },
+        { "Spring",           [] { return std::make_shared<Spring>(); } },
+        { "PrismaticConstraint", [] { return std::make_shared<PrismaticConstraint>(); } },
         { "BallSocket",       [] { return std::make_shared<BallSocket>(); } },
         { "NoCollision",      [] { return std::make_shared<NoCollision>(); } },
         { "IntValue",         [] { return std::make_shared<IntValue>(); } },

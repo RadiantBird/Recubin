@@ -100,6 +100,8 @@ public:
 
     void createRope(const std::shared_ptr<Rope>& rope);
     void createRod(const std::shared_ptr<Rod>& rod);
+    void createSpring(const std::shared_ptr<Spring>& spring);
+    void createPrismatic(const std::shared_ptr<PrismaticConstraint>& prismatic);
     void createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace);
     void createMotor(const std::shared_ptr<Motor>& motor);
     void createMotor6D(const std::shared_ptr<Motor6D>& motor);

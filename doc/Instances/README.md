@@ -54,6 +54,8 @@ Instance
   ├─ Weld                    ← 物理制約（剛体結合）
   ├─ Rope                    ← 物理制約（バネ付き距離拘束）
   ├─ Rod                     ← 物理制約（固定長距離拘束）
+  ├─ Spring                  ← 物理制約（双方向ばね、コイル描画）
+  ├─ PrismaticConstraint     ← 物理制約（直動拘束）
   ├─ Animation               ← キーフレームアニメーション
   ├─ PostEffect              ← ポストプロセスエフェクト
   ├─ MaterialService         ← Materialを置くサービス（System直下に自動生成）
@@ -115,6 +117,8 @@ Instance
 | [Weld](Weld.md) | `include/Instances/Weld.hpp` | 物理制約（剛体結合） |
 | [Rope](Rope.md) | `include/Instances/Rope.hpp` | 物理制約（バネ付き距離拘束） |
 | [Rod](Rod.md) | `include/Instances/Rod.hpp` | 物理制約（固定長距離拘束） |
+| [Spring](Spring.md) | `include/Instances/Spring.hpp` | 物理制約（双方向ばね、コイル描画） |
+| [PrismaticConstraint](PrismaticConstraint.md) | `include/Instances/PrismaticConstraint.hpp` | 物理制約（直動拘束） |
 | [Animation](Animation.md) | `include/Instances/Animation.hpp` | キーフレームアニメーション |
 | [PostEffect](PostEffect.md) | `include/Instances/PostEffect.hpp` | ポストプロセスエフェクト |
 | [MaterialService](MaterialService.md) | `include/Instances/MaterialService.hpp` | Materialを置くサービス（System直下に自動生成） |

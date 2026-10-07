@@ -14,6 +14,8 @@
 #include "include/Instances/MaterialInstance.hpp"
 #include "include/Instances/Rope.hpp"
 #include "include/Instances/Rod.hpp"
+#include "include/Instances/Spring.hpp"
+#include "include/Instances/PrismaticConstraint.hpp"
 #include "include/Instances/BallSocket.hpp"
 #include "include/Instances/NoCollision.hpp"
 #include "include/Instances/Weld.hpp"
@@ -417,6 +419,8 @@ void LuauEngine::InitDispatchTable_Base() {
     PropertyRegistry::applyToDispatch("MeshCube", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Rope", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Rod", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Spring", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("PrismaticConstraint", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("BallSocket", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("NoCollision", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Weld", DispatchTable, SetterTable);
@@ -564,6 +568,7 @@ void LuauEngine::InitDispatchTable_Misc() {
 
     // Seat — Steer/ThrottleはPropertyRegistry経由でLua読取専用として公開(エンジンが着席中に書き込む)
     PropertyRegistry::applyToDispatch("Seat", DispatchTable, SetterTable);
+    DispatchTable["Seat"]["sit"] = getter_closure(seat_sit_closure, "sit");
 
     // User.Input (UserInputService 相当のインスタンスを返す)
     DispatchTable["User"]["Input"] = [](lua_State* L, Instance* obj) -> int {

@@ -31,6 +31,9 @@
 #include <Instances/Model.hpp>
 #include <Instances/Weather.hpp>
 #include <Instances/Rope.hpp>
+#include <Instances/Spring.hpp>
+#include <Instances/PrismaticConstraint.hpp>
+#include <Util/SpringHelix.hpp>
 #include <Instances/Rod.hpp>
 #include <Instances/Attachment.hpp>
 #include <Instances/Weld.hpp>
@@ -1270,6 +1273,21 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
                 glUniform4f(colorLoc, rope->Color.r, rope->Color.g, rope->Color.b, rope->Color.a);
                 uploadAndDraw(verts, rope->LineWidth);
             }
+        } else if (inst->getClassName() == "Spring") {
+            Spring* spring = static_cast<Spring*>(inst);
+            auto c0 = spring->m_cube0.lock();
+            auto c1 = spring->m_cube1.lock();
+            if (spring->Enabled && spring->Visible && c0 && c1) {
+                auto a0 = spring->m_attachment0.lock();
+                auto a1 = spring->m_attachment1.lock();
+                Vector3 p0 = (a0 ? a0->getWorldCFrame() : c0->getWorldCFrame()).Position;
+                Vector3 p1 = (a1 ? a1->getWorldCFrame() : c1->getWorldCFrame()).Position;
+                std::vector<float> verts;
+                constexpr int SEGMENTS_PER_COIL = 12;
+                SpringHelix::build(p0, p1, spring->Radius, spring->Coils, SEGMENTS_PER_COIL, verts);
+                glUniform4f(colorLoc, spring->Color.r, spring->Color.g, spring->Color.b, spring->Color.a);
+                uploadAndDraw(verts, spring->Thickness);
+            }
         } else if (inst->getClassName() == "Rod") {
             Rod* rod = static_cast<Rod*>(inst);
             auto c0 = rod->m_cube0.lock();
@@ -1319,6 +1337,7 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
     const Color4 FORCE_COLOR  {1.0f,  0.3f,  0.25f, 1.0f};
     const Color4 BALLSOCKET_COLOR {0.45f, 0.6f,  1.0f,  1.0f};
     const Color4 NOCOLL_COLOR     {1.0f,  0.35f, 0.35f, 1.0f};
+    const Color4 PRISMATIC_COLOR  {0.35f, 0.9f,  1.0f,  1.0f};
 
     constexpr float kPhysicsDebugWidth = 0.05f; // ワールド空間幅（旧glLineWidth(2.0f)相当）
     auto uploadAndDraw = [&](const std::vector<float>& verts) {
@@ -1483,6 +1502,35 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
                 // ソケット部: 両Cube中心からピボットへの接続線
                 drawSegment(c0->getWorldCFrame().Position, pivot);
                 drawSegment(c1->getWorldCFrame().Position, pivot);
+            }
+        } else if (cn == "PrismaticConstraint") {
+            PrismaticConstraint* pc = static_cast<PrismaticConstraint*>(inst);
+            auto c0 = pc->m_cube0.lock();
+            auto c1 = pc->m_cube1.lock();
+            if (c0 && c1) {
+                // アンカーと軸は createPrismatic と同じ規則（Attachment優先、無ければCube中心。軸はA側ローカル）
+                auto a0 = pc->m_attachment0.lock();
+                auto a1 = pc->m_attachment1.lock();
+                const CFrame frameA = a0 ? a0->getWorldCFrame() : c0->getWorldCFrame();
+                const Vector3 p0 = frameA.Position;
+                const Vector3 p1 = (a1 ? a1->getWorldCFrame() : c1->getWorldCFrame()).Position;
+                const Vector3 axis = frameA.Rotation.rotate(pc->Axis.normalize());
+
+                setColor(PRISMATIC_COLOR);
+                drawSegment(p0, p1);                  // 2アンカー間
+                drawCross(p0, 0.12f);
+                drawCross(p1, 0.12f);
+                drawArrow(p0, axis, 1.5f);            // 移動軸
+                if (pc->LimitsEnabled) {
+                    // 可動範囲（A側アンカーから軸方向にLower〜Upper）
+                    const float lower = std::min(pc->LowerLimit, pc->UpperLimit);
+                    const float upper = std::max(pc->LowerLimit, pc->UpperLimit);
+                    const Vector3 lo = p0 + axis * lower;
+                    const Vector3 hi = p0 + axis * upper;
+                    drawSegment(lo, hi);
+                    drawCross(lo, 0.2f);
+                    drawCross(hi, 0.2f);
+                }
             }
         } else if (cn == "NoCollision") {
             NoCollision* nc = static_cast<NoCollision*>(inst);
@@ -3259,7 +3307,21 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
     {
         FrameProfiler::Scope treeMain("treeMain");
-        for (BaseCube* cube : individuallyRenderedMainCubes) renderInst(cube);
+        // 不透明を先に描き（深度を書く）、半透明は遠い順に描く。
+        // リスト順のままだと、半透明の後に描かれた不透明が半透明を上書きして消してしまう。
+        auto firstTransparent = std::stable_partition(
+            individuallyRenderedMainCubes.begin(), individuallyRenderedMainCubes.end(),
+            [](BaseCube* c) { return c->Color.a >= 0.999f; });
+        std::vector<std::pair<float, BaseCube*>> transparentCubes;
+        transparentCubes.reserve(individuallyRenderedMainCubes.end() - firstTransparent);
+        for (auto it = firstTransparent; it != individuallyRenderedMainCubes.end(); ++it) {
+            Vector3 d = (*it)->getWorldCFrame().Position - desc.cameraPosition;
+            transparentCubes.emplace_back(d.x * d.x + d.y * d.y + d.z * d.z, *it);
+        }
+        std::stable_sort(transparentCubes.begin(), transparentCubes.end(),
+            [](const auto& a, const auto& b) { return a.first > b.first; });
+        for (auto it = individuallyRenderedMainCubes.begin(); it != firstTransparent; ++it) renderInst(*it);
+        for (const auto& entry : transparentCubes) renderInst(entry.second);
     }
 
     // renderClouds/renderParticles等はGL_BLENDが常時有効という前提のため復元する

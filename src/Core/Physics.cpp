@@ -11,6 +11,8 @@
 #include "include/Instances/PhysicsConstraint.hpp"
 #include "include/Instances/Rod.hpp"
 #include "include/Instances/Rope.hpp"
+#include "include/Instances/Spring.hpp"
+#include "include/Instances/PrismaticConstraint.hpp"
 #include "include/Instances/Weld.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Util/FrameProfiler.hpp"
@@ -312,6 +314,21 @@ void Physics::reconcileConstraints(Workspace& workspace) {
             attachment0 = constraint->m_attachment0.lock();
             attachment1 = constraint->m_attachment1.lock();
             handle = constraint->m_constraintHandle;
+        } else if (value->IsA("Spring")) {
+            auto constraint = std::static_pointer_cast<Spring>(value);
+            cube0 = constraint->m_cube0.lock();
+            cube1 = constraint->m_cube1.lock();
+            attachment0 = constraint->m_attachment0.lock();
+            attachment1 = constraint->m_attachment1.lock();
+            handle = constraint->m_constraintHandle;
+        } else if (value->IsA("PrismaticConstraint")) {
+            auto constraint = std::static_pointer_cast<PrismaticConstraint>(value);
+            cube0 = constraint->m_cube0.lock();
+            cube1 = constraint->m_cube1.lock();
+            attachment0 = constraint->m_attachment0.lock();
+            attachment1 = constraint->m_attachment1.lock();
+            handle = constraint->m_constraintHandle;
+            axis = constraint->Axis;
         } else if (value->IsA("Rod")) {
             auto constraint = std::static_pointer_cast<Rod>(value);
             cube0 = constraint->m_cube0.lock();
@@ -403,7 +420,7 @@ void Physics::reconcileConstraints(Workspace& workspace) {
             finiteQuaternion(current.localFrame0.Rotation) &&
             finiteVector(current.localFrame1.Position) &&
             finiteQuaternion(current.localFrame1.Rotation) &&
-            (!value->IsA("Motor") ||
+            ((!value->IsA("Motor") && !value->IsA("PrismaticConstraint")) ||
              (finiteVector(current.axis) && current.axis.length() > 1.0e-6f));
         if (!bindingFinite) {
             if (m_invalidBindingWarnings.insert(value.get()).second)
@@ -595,6 +612,8 @@ void Physics::enqueueSetRotation(const std::shared_ptr<BaseCube>& cube, Quaterni
 }
 
 void Physics::createRope(const std::shared_ptr<Rope>& rope) { RCBN_PHYSICS_VOID(createRope, rope); }
+void Physics::createSpring(const std::shared_ptr<Spring>& spring) { RCBN_PHYSICS_VOID(createSpring, spring); }
+void Physics::createPrismatic(const std::shared_ptr<PrismaticConstraint>& prismatic) { RCBN_PHYSICS_VOID(createPrismatic, prismatic); }
 void Physics::createRod(const std::shared_ptr<Rod>& rod) { RCBN_PHYSICS_VOID(createRod, rod); }
 void Physics::createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace) {
     RCBN_PHYSICS_VOID(createWeld, weld, workspace);

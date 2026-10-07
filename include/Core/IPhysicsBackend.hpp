@@ -13,6 +13,8 @@ class Workspace;
 class Instance;
 class Rope;
 class Rod;
+class Spring;
+class PrismaticConstraint;
 class Weld;
 class Motor;
 class Motor6D;
@@ -97,6 +99,8 @@ public:
 
     virtual void createRope(const std::shared_ptr<Rope>& rope) = 0;
     virtual void createRod(const std::shared_ptr<Rod>& rod) = 0;
+    virtual void createSpring(const std::shared_ptr<Spring>& spring) = 0;
+    virtual void createPrismatic(const std::shared_ptr<PrismaticConstraint>& prismatic) = 0;
     virtual void createWeld(const std::shared_ptr<Weld>& weld, Workspace& workspace) = 0;
     virtual void createMotor(const std::shared_ptr<Motor>& motor) = 0;
     virtual void createMotor6D(const std::shared_ptr<Motor6D>& motor) = 0;

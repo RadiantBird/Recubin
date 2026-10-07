@@ -255,6 +255,19 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
   最初のlistener接続時に生成し、両signalの最後のlistener切断時に破棄する。相手側のBaseCubeはlistenerを
   持たなくてもvisitorとして検出され、ペア両側にlistenerがある場合も通知はoverlapごとに1回へ集約する。
 
+## Spring
+  Springは2つのBaseCubeを結ぶ双方向ばねであり、`FreeLength`（自然長, stud）へ向けて引きも押しも行う。
+  `FreeLength`が0なら生成時のアンカー間距離を自然長に採用し、以後のプロパティ更新でも再計算しない。
+  `Stiffness`/`Damping`はRopeと同じk,c換算（hertz/dampingRatio）で、長さ制限は持たない。
+  アンカーはAttachmentがあればその位置、無ければ各Cubeの中心。`Visible`がtrueの間だけ
+  `Radius`/`Coils`/`Thickness`/`Color`でコイル状に描画し、`Visible`は物理に影響しない。
+
+## PrismaticConstraint
+  PrismaticConstraintは2つのBaseCubeの相対移動を`Axis`（Cube0ローカル、Attachment0があればその軸系）方向のみに
+  制限する。`LimitsEnabled`時は`LowerLimit`〜`UpperLimit`（stud）をCube0アンカーからCube1アンカーまでの軸方向
+  距離の範囲として使う。モーターとばねは持たない。アンカーはAttachmentがあればその位置、無ければ各Cubeの中心。
+  描画は物理デバッグ表示ON時のみ（アンカー間の線、軸の矢印、可動範囲）。
+
 ## BallSocket
   BallSocketは共有アンカーを維持する球面jointであり、`AngularXMode`、`AngularYMode`、
   `AngularZMode`をそれぞれ`Free`、`Limited`、`Locked`へ設定できる。既定値は後方互換のため

@@ -16,11 +16,19 @@ public:
     float Steer    = 0.0f; // Lua読取専用。エンジンが着席中のHumanoidから毎フレーム書き込む
     float Throttle = 0.0f; // 同上
 
-    using Named<Seat, Cube>::Named;
+    Seat(Vector3 Pos, Vector3 Sz, unsigned int textureID);
 
     bool isOccupied() const { return !m_occupant.expired(); }
     void setOccupant(std::shared_ptr<Humanoid> h) { m_occupant = h; }
     void clearOccupant() { m_occupant.reset(); }
+
+    // Luau: seat:sit(humanoid) / seat:sit(nil)。
+    // Humanoidを既定の着席位置へテレポートして着席させる。nilなら現在の着席者を降ろす。
+    // 占有中のSeatへの着席は何もしない。対象が別のSeatに着席中なら先に降ろしてから移る
+    void sit(std::shared_ptr<Humanoid> humanoid);
+
+    // 足(LeftLeg/RightLeg)がTouchしたHumanoidを自動で着席させる
+    void onNativeTouched(BaseCube& other) override;
 
     std::shared_ptr<Instance> clone() const override;
 
