@@ -189,3 +189,46 @@
 - **`Quaternion::fromAxisAngle`は正規化済みの軸を要求する**(デバッグアサート)。
 - **`computeSpawnPos`は全Cubeへのレイキャスト**。毎フレームのUIから呼ぶと個数に比例して重くなる。
 - **MSVCの既定文字コードはCP932**。日本語UTF-8ソースを単体で`cl`コンパイルするには`/utf-8`が必要(CMakeビルドは通る)。
+
+## 2026-10-08 Spring/PrismaticConstraint追加・乗り物のGyro無力化修正・Box3D独自パッチ整理
+
+### 1. 何をしたか
+- **Spring / PrismaticConstraint追加**(コミット`b8d76e2`)。新規: `Spring`、`PrismaticConstraint`(hpp/cpp)、`Util/SpringHelix`(コイル頂点生成)、`doc/Instances/Spring.md`・`PrismaticConstraint.md`。配線: `IPhysicsBackend`/`Physics`/`Box3DPhysicsBackend`(`createSpring`/`createPrismatic`、IsAチェーン全箇所、`updateConstraint`)、`SceneLoader`、`LuauEngine`/`LuauEngine_Dispatch`/`RCBN.luah`、`SceneHierarchyPanel`/`EditorManager`/`InstanceCatalog`/`IconsDef`、`Renderer`(Springはコイル描画、Prismaticは`renderPhysicsDebug`のみ)、`Workspace.hpp`のfriend、`spec.md`/docs。
+- **Gyro無力化の修正**(`Box3DPhysicsBackend.cpp`の`applyGyroForces`)。無名namespaceに`collectRotationCoupledBodies`と`rotationCoupledInertia`を追加。GyroのPartとPrismaticで連結した動的ボディ全体の慣性(質量中心まわり＋平行軸)でトルクを計算する。連結が無い場合は従来の式のまま。
+- **テスト**: `test_main.cpp`の`runSpringPrismaticRegression`へ、Prismatic接続Cubeでも目標角へ回る4変種(Part側/Base側/重力あり/制限あり)と、baller相当の車両(Sphere+BallSocket、Seat+Prismatic+Spring、乗員Weld)が直立を保つ2件を追加。
+- **Box3D独自パッチの破棄**: `temp_libs/box3d`の未コミット差分(`b3SphericalJoint_SetAngularLimits`、7ファイル約326行)を`git checkout`で上流`8441b4a`へ戻した。`spec.md`のBallSocket節、`doc/Instances/PhysicsConstraint.md`、`doc/Instances/Humanoid.md`を「円錐(X/Y)＋ツイスト(Z)の近似」へ修正。
+
+### 2. なぜそうしたか
+- **Springの挙動**: 双方向ばね(Distance joint+spring)を採用。Ropeは引張のみなので差別化できる。`FreeLength=0`は「生成時の距離」、update時は現在の自然長を保持する(Ropeの`MaxDistance=0`がupdateで`B3_LINEAR_SLOP`に潰れる既知挙動を踏襲しないため)。
+- **Prismaticの軸**: Box3Dの`b3PrismaticJoint`はソースのコメントがZと書いてあるがコードはjoint frame**X軸**方向。`rotationFromX`を新設した。B側アンカーは軸直交のずれを除いてA軸線上へ置き、生成時のスナップを避けた。Lower/UpperはCube0アンカー→Cube1アンカーの軸方向距離(生成時位置を0とする相対値ではない)。
+- **ヘリックス生成を`Util/SpringHelix`に分離**: 単体テストから頂点数・端点一致を検証するため(GUI確認禁止の方針)。
+- **Gyroの慣性を連結ボディで計算**: AとBで迷った。(A)連結ボディ全体の慣性を使う / (B)MaxTorqueやゲインを上げる。Bは実測で「wantedが上限250に全く届いていない(慣性が小さすぎ)」と分かったので不採用。Aのうち、連結対象は**Prismaticのみ**とした(BallSocketは回転を伝えないのでSphereを含めない、Spring=distance jointも回転を伝えない)。回転中心は実際のピボットが不明なため質量中心とした。過大推定するとトルク過剰で離散時間制御が不安定になるが、質量中心まわりは最小値なので安全側(やや鈍い)になる。
+- **Box3Dパッチは破棄(選択肢2)**: 呼び出しが`bde3bf9`(9/25)で外れており、サブモジュール内の未追跡パッチはmac等で"Unknown API"になる。今後の上流更新にも弱いため、ユーザー判断で仕様側を現実装(cone+twist)に合わせた。
+
+### 3. どういう経緯か
+1. 指示: SpringとPrismaticConstraintを他の拘束と同様にAttachmentなしで動作させる。Springはコイル描画(bool)、Prismaticは物理デバッグON時のみ描画。→Plan modeでExploreし、質問(挙動/見た目/軸)に回答を得てimplementerへ委譲、ビルド・専用テスト合格。
+2. 「PrismaticがONだとGyroが効かない」→当初はコードを読んでも干渉が見つからず、動的Cube同士・Gyro側Cube0/1・重力・制限ありの4変種で全て回転することを確認。Anchored相手の場合のみ回らないが物理的に正しい。→ユーザーが`assets/bin/baller.rcaet`を提示し「プレイヤーが乗ると無力化」と再特定。
+3. baller構成(薄い板Body+Gyro、Sphere、BallSocket、Seat+Prismatic+Spring)を再現。乗員なしでも少しずつ傾き(0.1°→4.8°/6秒)、乗員Weldで約1秒で転倒(約100°)。デバッグ出力でBody単体の慣性I≒0.057が使われていると判明→上記修正。修正後は最大傾き0.24°。専用テスト71件合格。
+4. 「Box3D側の未保存は誰が書いたか」→9/14の`cf04ea9`(BallSocket軸別制限)で追加、9/25の`bde3bf9`で呼び出しのみ削除と判明。ユーザー判断で破棄、docs修正。
+
+### 失敗・ハマりどころ
+- `test_main.cpp`へPythonヒアドキュメントで`'\n'`を書くと実改行になりビルドエラー(2回)。ファイルはCRLFなので`\r\n`も混じる。今後は`Edit`ツールで直接編集する。
+- `RecubinTest.exe`をWindows側Pythonから相対パスで起動するとFileNotFound。絶対パスにする。
+- 最初のGyro再現テストはBody=Anchoredの変種を入れて失敗した(物理的に正しい挙動)。期待値側のテストから外した。
+
+### 4. 未解決・保留
+- **見た目の実機確認が未**: Springのコイル(Radius/Coils/Thickness、両端リード長)、Prismaticの物理デバッグ表示、`ICON_SPRING`/`ICON_PRISMATIC`(fa-arrows-v/h代替、`fa-solid-900.ttf`にグリフがあるか未確認)。
+- **実キャラクターが乗る経路は未テスト**: 着席(`Humanoid::sitOn`のSeatWeld、RootGyro無効化)は剛体Weldで代用。baller.rcaetを実機で乗って確認してほしい。
+- **Gyro連結慣性の限界**: 回転中心を質量中心で近似している。BallSocketでぶら下げる車両(今回)では質量中心≠実ピボットのため、なお実効応答は鈍め。Prismatic以外(Motor6D/Weld相当)で連結した場合は対象外。応答が足りなければ`RESPONSE_RATE`やピボット推定を検討。
+- **BallSocketの`Locked`の意味**: Zを`Locked`にしても0°固定ではなくMin/Maxの範囲が使われる(cone+twist近似)。軸別独立制限・非対称制限は不可。直したい場合は`createBallSocket`でZ Lockedを(0,0)にする案がある。
+- **`--audio-diagnostics-regression`は距離減衰5項目で失敗**(今回の変更と無関係、作業前から失敗か未確認)。
+- Migration scene(Spring/Prismatic)は未追加。`doc/Instances/Rope.md`/`Rod.md`はPhysX記述のまま古い(今回は範囲外で触っていない)。
+- 破棄したBox3Dパッチのバックアップはセッションのscratchpad(`box3d-angular-limits.patch`)のみで、セッション終了で失われる可能性がある。
+
+### 5. 暗黙仕様の発見
+- **新しい拘束クラス追加時はBox3DPhysicsBackendのIsAチェーンが約9か所必要**(衝突収集/`clearConstraintHandle`/`rebuildAssembly`/Weld分割後再生成/`updateConstraint`/pending dispatch/invalid check)と`Physics::reconcileConstraints`のスナップショットチェーン。漏れると「Weldで組み直された時に拘束が消える」サイレントバグになる。
+- **Gyroは対象Partの剛体の慣性だけでトルクを決めていた**(連結ボディを考慮しない)。MaxTorqueが十分でも`wanted`が上限に届かないため「効かない」ように見える。
+- **GyroのAnchored相手のPrismatic**: Prismaticは相対回転を完全固定するので、Anchored/静的に繋がったPartはGyroでは回らない(仕様どおり)。
+- **Box3Dの`b3PrismaticJoint`の動作軸はjoint frameのX**(コメントはZ)。
+- **サブモジュール`temp_libs/box3d`は上流そのまま維持する方針**。独自APIを足すとmac/他環境のビルドで未定義になる。
+- **BallSocketの制限は公式API(cone+twist)の写像**であり、`spec.md`に明記した(以前は軸別と書かれて実装と乖離していた)。

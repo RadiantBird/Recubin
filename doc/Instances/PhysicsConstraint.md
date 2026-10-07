@@ -16,7 +16,9 @@
 
 ## BallSocket 固有プロパティ
 
-`BallSocket` は各 joint frame 軸について、`Free`、`Limited`、`Locked` を独立して設定できる。
+`BallSocket` は各 joint frame 軸について、`Free`、`Limited`、`Locked` を設定できる。
+ただし Box3D の球面 joint は「円錐制限1つ＋ツイスト制限1つ」しか持たないため、軸別の独立制限ではなく
+次の近似で解く（Box3D 本体は改造しない）。
 
 | プロパティ | 型 | 説明 |
 |---|---|---|
@@ -25,11 +27,13 @@
 | `AngularYMin` / `AngularYMax` | `float` | Y軸の許可範囲（度） |
 | `AngularZMin` / `AngularZMax` | `float` | Z軸の許可範囲（度） |
 
-`Limited` は対応する Min/Max の範囲、`Locked` は bind pose の相対角度0度を許可する。
-角度は world axis ではなく、BallSocket の `localFrameA/B`（Attachment または Motor6D の
-bind frame）で評価されるため、Character の向きに依存しない。Box3D spherical joint の
-solver が相対 quaternion の軸別 inequality/bilateral constraint を解き、毎 frame の
-Euler角を直接補正しない。
+- **X / Y（円錐制限）**: どちらかが `Free` 以外なら有効。各軸の角度は `Locked`=0度、`Free`=180度、
+  `Limited`=`min(|Min|, |Max|)` とし、X/Y のうち小さい方を円錐の半角にする（Min/Max が非対称でも対称に扱う）。
+- **Z（ツイスト制限）**: `Free` 以外なら有効。`AngularZMin`〜`AngularZMax` をそのまま下限/上限にする。
+  `Locked` でも Min/Max の範囲が使われるため、0度に固定するなら Min=Max=0 にする。
+
+基準は world axis ではなく、BallSocket の `localFrameA/B`（Attachment または Motor6D の
+bind frame）なので、Character の向きに依存しない。
 
 BallSocket は接続 body の collision 設定を変更しない。接続 body 間の衝突を止める場合は、
 別途 `NoCollision` を同じペアへ設定する。

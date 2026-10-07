@@ -111,7 +111,7 @@ enterRagdoll(physics):
   R6 bodyのcollisionを一時的に有効化する（通常Characterの内部self-collisionは抑制するが、
   Ragdoll中にBallSocketで管理されるbody同士は異なるBallSocket chain間でもcollisionを許可し、
   明示的なNoCollisionを優先する）
-  Neck/Shoulder/HipのBallSocketはlocal joint frame基準のAngularX/Y/Z制限を使うため、Neckの360度回転や
+  Neck/Shoulder/HipのBallSocketはlocal joint frame基準の円錐（X/Y）・ツイスト（Z）制限を使うため、Neckの360度回転や
   肩・股関節の裏返りを抑止する。復帰時はBallSocketを先に無効化してからMotor6Dを再有効化する
 
 recoverFromRagdoll(physics):

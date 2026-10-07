@@ -271,14 +271,20 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
 ## BallSocket
   BallSocketは共有アンカーを維持する球面jointであり、`AngularXMode`、`AngularYMode`、
   `AngularZMode`をそれぞれ`Free`、`Limited`、`Locked`へ設定できる。既定値は後方互換のため
-  3軸とも`Free`とする。`Limited`では対応する`Angular{X,Y,Z}Min/Max`（度）を使い、`Locked`
-  ではその軸のbind poseからの相対回転を0度へ拘束する。
+  3軸とも`Free`とする。
 
-  制限軸はworld axisではなく、BallSocket生成時の`localFrameA/B`で定義されたbind poseの
-  joint frame基準とする。AttachmentがあればAttachmentのlocal frameを使い、R6 ragdollの
-  Attachmentが無いBallSocketは対応Motor6DのC0/C1 bind frameを使う。Box3D spherical joint
-  内の相対quaternion軸角 constraintとしてsolverに渡し、Euler角を毎frame直接clampしない。
-  3軸FreeのBallSocketは従来どおり無制限球面jointとして動作する。
+  制限は公式Box3Dの球面jointが持つ「円錐制限1つ＋ツイスト制限1つ」へ次のように写像する
+  （Box3D本体は改造せず、公式APIのみを使う。軸別の独立制限は表現できない近似である）。
+  - **円錐制限（X・Y）**: X/Yのどちらかが`Free`以外なら有効。各軸の角度は`Locked`=0度、
+    `Free`=180度、`Limited`=`min(|Min|, |Max|)`（度）とし、X/Yのうち小さい方を円錐の半角とする。
+    Min/Maxが非対称でも絶対値の小さい方で対称に扱う。
+  - **ツイスト制限（Z）**: Zが`Free`以外なら有効。`AngularZMin`〜`AngularZMax`（度）をそのまま
+    下限/上限として使う。`Locked`でも固定角0度ではなくMin/Maxの範囲が使われるため、
+    0度に固定したい場合はMin=Max=0とする。
+  - 3軸`Free`のBallSocketは従来どおり無制限球面jointとして動作する。
+
+  制限の基準はworld axisではなく、BallSocket生成時の`localFrameA/B`とする。AttachmentがあればAttachmentの
+  local frameを使い、R6 ragdollのAttachmentが無いBallSocketは対応Motor6DのC0/C1 bind frameを使う。
 
   BallSocketは接続body同士のcollisionを変更しない。collision無効化はNoCollisionだけが担当し、
   RagdollのNeck/Shoulder/Hipにはそれぞれlocal joint frame基準の有限な制限を設定する。
