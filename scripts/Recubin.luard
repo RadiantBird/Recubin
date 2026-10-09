@@ -1,0 +1,55 @@
+type Arithmetic = Vector3 | number
+
+declare class Vector3 is
+    public is
+        -- members
+        x: number
+        y: number
+        z: number
+        static zero: Vector3
+
+        function length(v: Vector3): number
+        function normalize(v: Vector3): number
+        static function new(x: number, y: number, z: number): Vector3
+        function set(self, x: number, y: number, z: number): ()
+        
+        -- operator definitions
+        function operator+(a: Vector3, b:Vector3): Vector3
+        function operator-(a: Vector3, b:Vector3): Vector3
+        function operator*(a: Vector3, b:Arithmetic): Vector3
+        function operator/(a: Vector3, b:Arithmetic): Vector3
+    end
+end
+
+declare class Instance is
+    public is
+        Name: string
+        Parent: Instance?
+        template <T> function FindChild(Inst: Instance, name: string): T?
+        template <T> function WaitChild(Inst: Instance, name: string, timeout: number?): T?
+        template <T> function GetChildren(Inst: Instance): { T }
+        function IsA(Inst: Instance, classname: string): boolean
+        function Destroy(Inst: Instance): ()
+        template <T> function Clone(Inst: Instance): T?
+
+        static function new(classname: string): Instance?
+    end
+end
+
+declare class BaseCube is Instance
+    public is
+        Anchored: boolean
+        CanCollide: boolean
+        CanTouch: boolean
+
+        Position: Vector3
+        WorldPosition: Vector3
+    end
+end
+
+declare class Workspace is Instance
+
+end
+
+declare global workspace: Workspace
+-- declare Workspace: Workspace -- FIX LATER: 型名と変数名が同じだとRecubin.luard:55: name 'Workspace' is declared more than onceとなる

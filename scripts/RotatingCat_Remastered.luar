@@ -1,0 +1,46 @@
+-- RotatingCat_Remastered
+import type Recubin
+
+class Cat is
+    public is
+        origin: Vector3
+        range: number
+        name: string
+        cube: BaseCube
+        t: number = 0
+
+        static function new(v: Vector3, range: number, name: string)
+            self.origin = v
+            self.range = range
+            self.name   = name
+
+            if c := Instance.new("Cube") :: BaseCube then
+                self.cube = c
+                self.cube.Name = self.name
+                self.cube.Parent = workspace
+                self.cube.Anchored = true
+            else
+                error("Failed to make Cube")
+            end
+        end
+
+        function rotate(deltatime: number)
+            self.cube.WorldPosition = self.cube.WorldPosition.set(
+                math.sin(self.t) * self.range,
+                0,
+                math.cos(self.t) * self.range
+            )
+
+            self.t = self.t + deltatime
+        end
+    end
+end
+
+function main()
+    local floppa = Cat.new(Vector3.new(10, 10, 10), 25, "Floppa")
+
+    while dt := task.wait() do
+        floppa.rotate(dt)
+    end
+end
+main()

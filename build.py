@@ -27,6 +27,10 @@ DLL_DIR = ROOT_DIR / "dlls"
 DIST_DIR = ROOT_DIR / "dist"
 TESTCASES_DIR = ROOT_DIR / "TestCases"
 VC_REDIST_PATH = ROOT_DIR / "redist" / "vc_redist.x64.exe"
+LUAR_CRATE_DIR = ROOT_DIR / "Luar Programming Language" / "luar-rs"
+# Cargoのcdylib出力(luar_rs.dll)を、エンジンが読む名前(luar_compiler.dll)で配置する。
+LUAR_BUILT_DLL = LUAR_CRATE_DIR / "target" / "release" / "luar_rs.dll"
+LUAR_ENGINE_DLL = DLL_DIR / "luar_compiler.dll"
 
 
 def run_command(args: list[str]) -> int:
@@ -153,9 +157,45 @@ def normalize_config(value: str | None) -> str:
     raise ValueError(f"Unknown configuration: {value}")
 
 
+def sync_luar_compiler() -> None:
+    """Luarサブプロジェクトをビルドし、最新のDLLをdlls/luar_compiler.dllへ反映する。
+
+    cargoやサブモジュールが無い環境では、コミット済みのDLLをそのまま使う。
+    """
+    if not (LUAR_CRATE_DIR / "Cargo.toml").is_file():
+        print(
+            "[WARNING] Luar submodule not found; using the committed dlls/luar_compiler.dll. "
+            "Run: git submodule update --init \"Luar Programming Language\""
+        )
+        return
+    cargo = shutil.which("cargo")
+    if cargo is None:
+        print("[WARNING] cargo not found; using the committed dlls/luar_compiler.dll (may be stale).")
+        return
+
+    print("[INFO] Building Luar compiler (cargo build --release)...")
+    result = run_command([cargo, "build", "--release", "--manifest-path", str(LUAR_CRATE_DIR / "Cargo.toml")])
+    if result != 0:
+        print("[ERROR] Luar compiler build failed; keeping the existing dlls/luar_compiler.dll (may be stale).")
+        return
+    if not LUAR_BUILT_DLL.is_file():
+        print(f"[ERROR] Luar compiler DLL not produced: {LUAR_BUILT_DLL}")
+        return
+
+    try:
+        if copy_if_different(LUAR_BUILT_DLL, LUAR_ENGINE_DLL):
+            print(f"[SUCCESS] Updated {LUAR_ENGINE_DLL.relative_to(ROOT_DIR)}")
+        else:
+            print("[INFO] luar_compiler.dll is up to date.")
+    except PermissionError as exc:
+        print(f"[ERROR] Cannot update {LUAR_ENGINE_DLL} ({exc}). Close any process using it and retry.")
+
+
 def copy_dlls(config: str) -> None:
     if not IS_WINDOWS:
         return
+
+    sync_luar_compiler()
 
     if not DLL_DIR.exists():
         print("[WARNING] dlls folder missing.")
