@@ -297,6 +297,7 @@ export type Humanoid = Instance & {
 export type Script = Instance & {
     Enabled: boolean,
     Path: string,
+    ScriptExtension: "Luau" | "Luar", -- 実行時にLuarコンパイラを通すか
     Source: string, -- read only
     Aborted: boolean, -- read only
     Restart: (Script) -> (),

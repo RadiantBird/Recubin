@@ -747,6 +747,7 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
     if (ImGui::BeginPopupModal(popupTitle.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         static char s_name[128] = "NewScript";
         static int  s_mode = 0; // 0=新規作成, 1=既存ファイル
+        static int  s_extension = static_cast<int>(ScriptExtension::Luau);
 
         if (ImGui::RadioButton(Loc::t(Loc::LocKey::ScriptModeNew), &s_mode, 0)) {
             m_scriptDialogError.clear();
@@ -763,6 +764,9 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
             if (ImGui::InputText("##sname", s_name, sizeof(s_name))) {
                 m_scriptDialogError.clear();
             }
+            ImGui::Text("%s", Loc::t(Loc::LocKey::ScriptExtensionLabel));
+            ImGui::SetNextItemWidth(220.0f);
+            ImGui::Combo("##sext", &s_extension, "Luau (.luau)\0Luar (.luar)\0");
         } else {
             ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::ScriptPickHint));
         }
@@ -778,6 +782,7 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
             } else {
                 m_scriptDialogError.clear();
                 m_pickName     = requestedName;
+                m_pickExtension = static_cast<ScriptExtension>(s_extension);
                 m_pickParent   = m_pendingScriptParent;
                 m_pickExisting = (s_mode == 1);
                 m_doPick       = true;
@@ -826,7 +831,7 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
                 if (ec) {
                     reopenWithError(SCRIPT_PATH_ERROR);
                 } else {
-                    std::filesystem::path scriptPath = folderPath / (m_pickName + ".luau");
+                    std::filesystem::path scriptPath = folderPath / (m_pickName + scriptExtensionSuffix(m_pickExtension));
                     bool scriptExists = std::filesystem::exists(scriptPath, ec);
                     if (ec) {
                         reopenWithError(SCRIPT_PATH_ERROR);
@@ -882,6 +887,8 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
                 default:                              script = std::make_shared<Script>(filePath);       break;
             }
             script->Name = m_pickName;
+            // 新規作成は選択した拡張子、既存ファイルはコンストラクタがPathの拡張子から決めた値を使う
+            if (!m_pickExisting) script->ScriptExt = m_pickExtension;
             if (!m_pendingGroupTargets.empty()) {
                 auto groupParent = m_pendingGroupTargets.front()->Parent.lock();
                 if (groupParent) {

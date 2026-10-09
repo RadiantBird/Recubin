@@ -6,6 +6,7 @@
 #include <Editor/SceneHierarchySelection.hpp>
 #include <Instances/Workspace.hpp>
 #include <Instances/Instance.hpp>
+#include <Instances/Script.hpp>
 #include <Core/User.hpp>
 #include <cctype>
 #include <functional>
@@ -115,6 +116,7 @@ private:
     bool                      m_doPick      = false;
     bool                      m_pickExisting = false; // true=既存ファイル選択
     std::string               m_pickName;
+    ScriptExtension           m_pickExtension = ScriptExtension::Luau; // 新規作成するファイルの拡張子
     std::shared_ptr<Instance> m_pickParent;
     std::string               m_scriptDialogError;
     bool                      m_openTextFileDialog = false;

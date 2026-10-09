@@ -3,10 +3,30 @@
 #include <Core/FileLoader.hpp>
 #include <Core/PropertyRegistry.hpp>
 #include <Util/Logger.hpp>
+#include <algorithm>
+#include <cctype>
 
 namespace {
+std::string lowerExtension(const std::string& path) {
+    const size_t dot = path.find_last_of('.');
+    const size_t slash = path.find_last_of("/\\");
+    if (dot == std::string::npos || (slash != std::string::npos && dot < slash)) return "";
+    std::string ext = path.substr(dot);
+    std::transform(ext.begin(), ext.end(), ext.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return ext;
+}
+
+// Pathの差し替えに言語を追従させる。.luauc(コンパイル済み)は元の言語が分からないので変えない。
+void followPathExtension(Script& script) {
+    const std::string ext = lowerExtension(script.Path);
+    if (ext == ".luar") script.ScriptExt = ScriptExtension::Luar;
+    else if (ext == ".luau" || ext == ".lua") script.ScriptExt = ScriptExtension::Luau;
+}
+
 void setScriptPath(Script& script, const std::string& path) {
     script.Path = path;
+    followPathExtension(script);
     // .luauc files are pre-compiled bytecode — load as binary
     const bool isBytecode = script.Path.size() >= 6 &&
                             script.Path.rfind(".luauc") == script.Path.size() - 6;
@@ -42,8 +62,8 @@ const bool s_scriptRegistered = [] {
             },
             [](Instance* instance, const PropValue& value) {
                 setScriptPath(*static_cast<Script*>(instance), std::get<std::string>(value));
-            }).yaml("ContentPath").filePath("Luau Script (*.luau;*.lua;*.luauc)",
-                                            "*.luau;*.lua;*.luauc")
+            }).yaml("ContentPath").filePath("Luau/Luar Script (*.luau;*.lua;*.luar;*.luauc)",
+                                            "*.luau;*.lua;*.luar;*.luauc")
                .copyStateWith([](const Instance* source, Instance* destination) {
                    const auto* src = static_cast<const Script*>(source);
                    auto* dst = static_cast<Script*>(destination);
@@ -51,12 +71,23 @@ const bool s_scriptRegistered = [] {
                    dst->Path = src->Path;
                    dst->isPrecompiled = src->isPrecompiled;
                }),
+        // Pathの後ろに置く: 保存時はPath→言語の順で書かれ、読込時に明示値がPathからの追従を上書きする
+        enumProp<&Script::ScriptExt>("ScriptExtension", {{"Luau", 0}, {"Luar", 1}}, /*yamlAsString*/true),
     });
     return true;
 }();
 } // namespace
 
+ScriptExtension scriptExtensionFromPath(const std::string& path) {
+    return lowerExtension(path) == ".luar" ? ScriptExtension::Luar : ScriptExtension::Luau;
+}
+
+const char* scriptExtensionSuffix(ScriptExtension extension) {
+    return extension == ScriptExtension::Luar ? ".luar" : ".luau";
+}
+
 Script::Script(string path) : Instance("Script"), Coroutine(nullptr), Path(path) {
+    followPathExtension(*this);
     if (!path.empty()) {
         Source = FileLoader::readText(path);
         if (Source.empty()) {

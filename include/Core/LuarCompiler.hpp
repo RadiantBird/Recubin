@@ -9,6 +9,9 @@ public:
     LuarCompiler();
     ~LuarCompiler();
 
+    // プロセス全体で共有する1インスタンス(DLLのロードを1回に抑える)
+    static LuarCompiler& instance();
+
     // .luarソース → Luauソース。失敗時は空文字列を返す
     std::string compile(const std::string& luarSource);
 

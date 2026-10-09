@@ -81,6 +81,7 @@ Packager::package(cfg, log)
   4. ContentPath / Texture / FacePath / MeshFile / IconPath / SkyboxPaths と Terrain の DataPath を再帰的に収集
   5. 収集したファイルごとに:
        .luau/.lua → luau_compile() で .luauc にインプロセス変換（失敗時はソースをコピー）
+       .luar      → LuarCompiler で Luau に変換（!include 展開済み）してから .luauc に変換（失敗時はソースをコピー）
        それ以外   → 拡張子で assets/{image,sound,scripts} に振り分けてコピー
   6. YAML 内の旧パスを新しい相対パスへ書き換えて assets/scenes/{gameName}.rcbn に出力
   7. エディターの隣にあるRecubinEngine（Windowsは.exe）をコピー。見つからない場合は失敗

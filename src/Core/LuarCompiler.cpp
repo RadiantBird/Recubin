@@ -22,6 +22,11 @@ LuarCompiler::LuarCompiler() {
     }
 }
 
+LuarCompiler& LuarCompiler::instance() {
+    static LuarCompiler s_instance;
+    return s_instance;
+}
+
 LuarCompiler::~LuarCompiler() {
     if (m_dll) getPlatform().freeDynamicLibrary(m_dll);
 }

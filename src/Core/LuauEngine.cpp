@@ -998,14 +998,10 @@ bool LuauEngine::loadScriptChunk(lua_State* co, Script& script) {
     std::string compiledSource;
     const std::string* sourcePtr = &script.Source;
 
-    // .luarファイルはRust製LuarコンパイラでLuauに変換する
-    auto endsWithLuar = [](const std::string& s) {
-        return s.size() >= 5 && s.substr(s.size() - 5) == ".luar";
-    };
-    bool isLuar = endsWithLuar(script.Name) || endsWithLuar(script.Path);
-    if (isLuar) {
-        static LuarCompiler s_luarCompiler;
-        compiledSource = s_luarCompiler.compile(script.Source, script.Path);
+    // ScriptExtension==LuarのスクリプトはRust製LuarコンパイラでLuauに変換する。
+    // .luauc(コンパイル済み)はパッケージ時にLuar変換済みなので対象外。
+    if (script.ScriptExt == ScriptExtension::Luar && !script.isPrecompiled) {
+        compiledSource = LuarCompiler::instance().compile(script.Source, script.Path);
         if (compiledSource.empty()) { script.Aborted = true; return false; }
         RCBN_LOG("\033[32m Compiling Luar Source has succeeded!\033[0m");
         // std::cerr << "[LuarCompiler] Output:\n" << compiledSource << "\n---\n";

@@ -159,6 +159,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "既存ファイルを選択",   "Select Existing File" },
     { "スクリプト名:",        "Script name:" },
     { "ファイルピッカーで .luau/.luar を選択します", "Select a .luau/.luar file using the file picker" },
+    { "拡張子:",            "Extension:" },
     { "Cube系",             "Basic Shapes" },
     { "Workspace内で描画される基本的なクラス。", "Basic classes rendered within the Workspace." },
     { "効果",               "Effects" },

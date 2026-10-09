@@ -25,7 +25,7 @@ void ModuleScript::onAncestorChanged() {
 std::shared_ptr<Instance> ModuleScript::clone() const {
     auto copy = std::make_shared<ModuleScript>();
     copy->Name          = Name;
-    PropertyRegistry::cloneFields(this, copy.get(), "ModuleScript");
+    PropertyRegistry::cloneFields(this, copy.get(), "Script");
     // Path はclone時に再読込せず、元のソース／bytecode状態をそのまま復元する。
     copy->Source        = Source;
     copy->Path          = Path;

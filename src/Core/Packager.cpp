@@ -1,6 +1,7 @@
 #include <Core/Packager.hpp>
 #include <Util/AssetPath.hpp>
 #include <Util/LuauCompile.hpp>
+#include <Core/LuarCompiler.hpp>
 #include <yaml-cpp/yaml.h>
 #include <iostream>
 #include <fstream>
@@ -29,7 +30,7 @@ static bool endsWith(const std::string& s, const std::string& suffix) {
 }
 
 static bool isScript(const std::string& path) {
-    return endsWith(path, ".luau") || endsWith(path, ".lua");
+    return endsWith(path, ".luau") || endsWith(path, ".lua") || endsWith(path, ".luar");
 }
 
 static std::string assetSubdir(const std::string& path) {
@@ -37,7 +38,7 @@ static std::string assetSubdir(const std::string& path) {
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     if (ext == ".mp3" || ext == ".wav" || ext == ".ogg" || ext == ".flac")
         return "assets/sound";
-    if (ext == ".luau" || ext == ".lua" || ext == ".luauc")
+    if (ext == ".luau" || ext == ".lua" || ext == ".luar" || ext == ".luauc")
         return "assets/scripts";
     if (ext == ".glb" || ext == ".gltf")
         return "assets/models";
@@ -103,7 +104,8 @@ static bool copyDirectoryWithoutAutosave(const fs::path& src, const fs::path& ds
     return true;
 }
 
-// Compile a .luau source file to .luauc bytecode in-process. Returns output path, or "" on failure.
+// Compile a .luau/.luar source file to .luauc bytecode in-process. Returns output path, or "" on failure.
+// .luar is first transpiled to Luau (resolving !include), so the packaged game needs no Luar DLL.
 static std::string compileLuauInProc(const fs::path& src, const fs::path& dstDir,
                                       std::function<void(const std::string&)>& log) {
     std::error_code ec;
@@ -115,6 +117,14 @@ static std::string compileLuauInProc(const fs::path& src, const fs::path& dstDir
         return "";
     }
     std::string source((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+
+    if (src.extension() == ".luar") {
+        source = LuarCompiler::instance().compile(source, src.string());
+        if (source.empty()) {
+            log("[WARN] Luar transpile failed (" + AssetPath::toStored(src.filename()) + ")");
+            return "";
+        }
+    }
 
     size_t bytecodeSize = 0;
     char* bytecode = LuauCompile::compile(source, bytecodeSize);

@@ -7,10 +7,19 @@
 struct lua_State;
 class System;
 
+// スクリプトの言語。実行時のコンパイル経路(Luarは先にLuauへ変換する)はこの値だけで決まる。
+enum class ScriptExtension { Luau = 0, Luar = 1 };
+
+// パスの拡張子から言語を決める。.luarはLuar、それ以外(.luau/.lua/.luauc等)はLuau。
+ScriptExtension scriptExtensionFromPath(const std::string& path);
+// 新規作成するファイルの拡張子(ドット付き)。
+const char* scriptExtensionSuffix(ScriptExtension extension);
+
 class Script : public Instance {
     public:
         string Source = "";
         string Path = "";
+        ScriptExtension ScriptExt = ScriptExtension::Luau;
 
         Workspace* lastWorkspace = nullptr;
         System*    lastSystem    = nullptr;  // Workspace外(System配下)で登録中の場合のみ非null

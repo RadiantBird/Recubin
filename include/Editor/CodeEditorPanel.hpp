@@ -51,9 +51,11 @@ private:
     double m_confirmCloseOpenedAt = 0.0;
     bool m_focused = false;
     bool m_loaded = false;
+    bool m_highlightLuar = false; // ハイライトキャッシュ構築時のScriptExtension==Luar
 
     static int resizeInputCallback(ImGuiInputTextCallbackData* data);
     void loadTarget();
+    bool isLuarTarget() const;
     void rebuildHighlightCache();
     void drawHighlightedText(struct ImGuiWindow* parent, unsigned int inputId,
                              float gutterWidth);

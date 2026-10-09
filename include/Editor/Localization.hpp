@@ -65,7 +65,7 @@ enum class LocKey {
 
     // ---- SceneHierarchyPanel ----
     NoWorkspace, NewScriptTitle, ScriptModeNew, ScriptModeExisting,
-    ScriptNameLabel, ScriptPickHint,
+    ScriptNameLabel, ScriptPickHint, ScriptExtensionLabel,
     CategoryCubes, CategoryCubesDesc,
     CategoryEffects, CategoryEffectsDesc, AudioServiceUnavailable,
     CategoryEnvironment, CategoryEnvironmentDesc,

@@ -17,7 +17,9 @@
 | メソッド | 説明 |
 |---|---|
 | `LuarCompiler()` | `luar_compiler.dll` をロードし、`luar_compile` / `luar_get_errors` を解決する。失敗時は `m_dll = nullptr` のままにしてログを出す |
+| `instance()`（static） | プロセス共有の1インスタンス。LuauEngine と Packager が使う（DLL のロードは1回） |
 | `~LuarCompiler()` | `FreeLibrary()` で DLL を解放 |
+| `compile(luarSource, sourcePath)` | `!include` / `import type` を解決するため `.luar` のパスを渡して変換する。`luar_compile_with_path` が無い DLL では path なしにフォールバック |
 | `compile(luarSource)` | `.luar` ソースを Luau ソース文字列に変換。DLL 未ロード時・コンパイル失敗時は空文字列を返し、失敗時は `luar_get_errors` でエラーメッセージを取得してログ出力する |
 | `isLoaded()` | DLL のロードに成功しているか（`m_dll != nullptr`） |
 
@@ -38,4 +40,8 @@ LuarCompiler::compile(luarSource)
 
 ## 使われる場所
 
-- `.luar` 拡張子のスクリプトを実行・パッケージングする際に、Luau へ変換するために呼ばれる
+- `ScriptExtension == Luar` のスクリプトを実行する際（`LuauEngine::loadScriptChunk`）と、`.luar` をパッケージングする際（`Packager`）に、Luau へ変換するために呼ばれる
+
+## DLL の更新
+
+`luar_compiler.dll` は `Luar Programming Language/luar-rs`（Cargo の cdylib 出力 `luar_rs.dll`）から作られる。`python build.py build` / `run` / `test` / `package` のたびに `sync_luar_compiler()` が `cargo build --release` を実行し、差分があれば `dlls/luar_compiler.dll` へ上書きコピーする。`cargo` やサブモジュールが無い環境ではコミット済みの `dlls/luar_compiler.dll` を使い、警告を出す（古い可能性がある）。

@@ -62,6 +62,16 @@ bool isKeyword(std::string_view word) {
     return std::find(std::begin(words), std::end(words), word) != std::end(words);
 }
 
+// Luar専用の予約語・文脈キーワード(正は luar-rs/src/lexer.rs と luar.tmLanguage.json)
+bool isLuarKeyword(std::string_view word) {
+    static constexpr std::string_view words[] = {
+        "class", "is", "public", "private", "static", "abstract", "override", "final",
+        "super", "operator", "import", "declare", "self", "goto", "friend",
+        "const", "using", "template"
+    };
+    return std::find(std::begin(words), std::end(words), word) != std::end(words);
+}
+
 bool isLiteral(std::string_view word) {
     return word == "true" || word == "false" || word == "nil";
 }
@@ -141,7 +151,13 @@ int CodeEditorPanel::resizeInputCallback(ImGuiInputTextCallbackData* data) {
     return 0;
 }
 
+bool CodeEditorPanel::isLuarTarget() const {
+    auto script = std::dynamic_pointer_cast<Script>(m_target.lock());
+    return script && script->ScriptExt == ScriptExtension::Luar;
+}
+
 void CodeEditorPanel::rebuildHighlightCache() {
+    m_highlightLuar = isLuarTarget();
     m_spans.clear();
     m_lineStarts.clear();
     m_lineStarts.push_back(0);
@@ -216,7 +232,7 @@ void CodeEditorPanel::rebuildHighlightCache() {
             while (i < m_text.size() && isIdentifierChar(static_cast<unsigned char>(m_text[i]))) ++i;
             const std::string_view word(m_text.data() + begin, i - static_cast<size_t>(begin));
             if (isLiteral(word)) addSpan(m_spans, begin, static_cast<int>(i), literal);
-            else if (isKeyword(word)) addSpan(m_spans, begin, static_cast<int>(i), keyword);
+            else if (isKeyword(word) || (m_highlightLuar && isLuarKeyword(word))) addSpan(m_spans, begin, static_cast<int>(i), keyword);
             else if (isTypeName(word)) addSpan(m_spans, begin, static_cast<int>(i), type);
             continue;
         }
@@ -425,6 +441,8 @@ void CodeEditorPanel::onRender() {
             m_text.resize(std::strlen(m_text.c_str()));
             m_dirty = m_text != m_loadedText;
             rebuildHighlightCache();
+        } else if (isLuarTarget() != m_highlightLuar) {
+            rebuildHighlightCache(); // PropertiesでScriptExtensionが切り替わった
         }
         drawHighlightedText(parent, inputId, gutterWidth);
         ImGui::PopFont();

@@ -504,6 +504,146 @@ int runMotorServoRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runScriptExtensionRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[ScriptExtension] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    // ---- Pathからの導出 / スキーマ / YAML ----
+    expect(scriptExtensionFromPath("a/b.luar") == ScriptExtension::Luar &&
+               scriptExtensionFromPath("A.LUAR") == ScriptExtension::Luar &&
+               scriptExtensionFromPath("a.luau") == ScriptExtension::Luau &&
+               scriptExtensionFromPath("a.lua") == ScriptExtension::Luau &&
+               scriptExtensionFromPath("a.luauc") == ScriptExtension::Luau &&
+               scriptExtensionFromPath("dir.luar/a") == ScriptExtension::Luau,
+           "scriptExtensionFromPath maps .luar to Luar and everything else to Luau");
+    expect(std::string(scriptExtensionSuffix(ScriptExtension::Luau)) == ".luau" &&
+               std::string(scriptExtensionSuffix(ScriptExtension::Luar)) == ".luar",
+           "scriptExtensionSuffix returns the creation suffix");
+
+    const auto dir = std::filesystem::temp_directory_path() / "recubin_script_extension_regression";
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    const auto luarPath = dir / "probe.luar";
+    const auto luauPath = dir / "probe.luau";
+    {
+        std::ofstream luarFile(luarPath, std::ios::binary | std::ios::trunc);
+        luarFile << "class Probe is\n    public is\n        static function run()\n"
+                 "            print('[ScriptExtensionProbe] ' .. 42)\n        end\n    end\nend\nProbe.run()\n";
+        std::ofstream luauFile(luauPath, std::ios::binary | std::ios::trunc);
+        luauFile << "print('[ScriptExtensionProbe] luau')\n";
+    }
+
+    {
+        Script defaultScript;
+        Script luarScript(luarPath.string());
+        Script luauScript(luauPath.string());
+        expect(defaultScript.ScriptExt == ScriptExtension::Luau &&
+                   luarScript.ScriptExt == ScriptExtension::Luar &&
+                   luauScript.ScriptExt == ScriptExtension::Luau,
+               "Script(path) follows the path extension; default is Luau");
+    }
+
+    {
+        auto script = std::dynamic_pointer_cast<Script>(SceneLoader::createInstance("Script"));
+        expect(script != nullptr, "SceneLoader creates Script");
+        if (!script) return 1;
+        script->setProperty("ContentPath", YAML::Node(luarPath.string()));
+        expect(script->ScriptExt == ScriptExtension::Luar, "setting ContentPath to .luar switches to Luar");
+        script->setProperty("ContentPath", YAML::Node(luauPath.string()));
+        expect(script->ScriptExt == ScriptExtension::Luau, "setting ContentPath to .luau switches back to Luau");
+        script->setProperty("ScriptExtension", YAML::Node("Luar"));
+        expect(script->ScriptExt == ScriptExtension::Luar,
+               "explicit ScriptExtension overrides the value derived from Path");
+
+        YAML::Emitter out;
+        SceneLoader::emitNode(out, script.get());
+        const std::string emitted = out.c_str();
+        const auto pathPos = emitted.find("ContentPath");
+        const auto extPos = emitted.find("ScriptExtension: Luar");
+        expect(pathPos != std::string::npos && extPos != std::string::npos && pathPos < extPos,
+               "YAML saves ScriptExtension as a name after ContentPath");
+
+        // 旧シーン(項目なし)はPathから決まる
+        auto legacy = std::dynamic_pointer_cast<Script>(SceneLoader::createInstance("Script"));
+        legacy->setProperty("ContentPath", YAML::Node(luarPath.string()));
+        expect(legacy->ScriptExt == ScriptExtension::Luar,
+               "scene without ScriptExtension derives it from ContentPath");
+
+        // .luauc(コンパイル済み)は言語を変えない
+        script->setProperty("ContentPath", YAML::Node((dir / "missing.luauc").string()));
+        expect(script->ScriptExt == ScriptExtension::Luar, "a .luauc Path keeps the current ScriptExtension");
+    }
+
+    // ---- 3クラスのschema / clone ----
+    {
+        const std::array<std::shared_ptr<Script>, 3> scripts = {{
+            std::make_shared<Script>(), std::make_shared<LocalScript>(), std::make_shared<ModuleScript>()}};
+        for (const auto& script : scripts) {
+            const auto schema = PropertyRegistry::collectApplicableSchema(script.get());
+            const auto it = std::find_if(schema.begin(), schema.end(), [](const PropertyDesc* d) {
+                return d && d->name == "ScriptExtension";
+            });
+            expect(it != schema.end() && (*it)->type == PropType::Enum && (*it)->enumNames.size() == 2,
+                   script->getClassName() + " exposes ScriptExtension as a 2-value Enum");
+            script->ScriptExt = ScriptExtension::Luar;
+            script->Enabled = false;
+            auto copy = std::dynamic_pointer_cast<Script>(script->clone());
+            expect(copy && copy->ScriptExt == ScriptExtension::Luar && !copy->Enabled,
+                   script->getClassName() + ".clone() copies ScriptExtension and Enabled");
+        }
+    }
+
+    // ---- 実行経路 ----
+    {
+        auto system = std::make_shared<System>();
+        auto workspace = std::make_shared<Workspace>();
+        system->addChild(workspace);
+        const auto runProbe = [&](const std::filesystem::path& path, ScriptExtension extension,
+                                  std::string& captured) {
+            auto script = std::make_shared<Script>(path.string());
+            script->Name = "ScriptExtensionProbe";
+            script->ScriptExt = extension;
+            workspace->addChild(script);
+            LuauEngine engine;
+            engine.setWorkspace(workspace);
+            engine.setSystem(system.get());
+            const auto oldLogHook = g_luauLogHook;
+            g_luauLogHook = [&](const std::string& message) {
+                if (message.find("[ScriptExtensionProbe]") != std::string::npos) captured = message;
+            };
+            const bool started = engine.execute(*script);
+            g_luauLogHook = oldLogHook;
+            workspace->removeChild(script->Name);
+            return started;
+        };
+
+        std::string captured;
+        const bool luarRan = runProbe(luarPath, ScriptExtension::Luar, captured);
+        expect(luarRan && captured.find("42") != std::string::npos,
+               "Luar script runs through LuarCompiler (needs luar_compiler.dll)");
+
+        captured.clear();
+        const bool luarAsLuau = runProbe(luarPath, ScriptExtension::Luau, captured);
+        expect(!luarAsLuau && captured.empty(),
+               "a Luar-only source does not run when ScriptExtension is Luau");
+
+        captured.clear();
+        const bool luauRan = runProbe(luauPath, ScriptExtension::Luau, captured);
+        expect(luauRan && captured.find("luau") != std::string::npos, "Luau script still runs unchanged");
+
+        captured.clear();
+        const bool luauAsLuar = runProbe(luauPath, ScriptExtension::Luar, captured);
+        expect(luauAsLuar && captured.find("luau") != std::string::npos,
+               "plain Luau source is valid Luar and runs when ScriptExtension is Luar");
+    }
+
+    std::filesystem::remove_all(dir, ec);
+    return failures == 0 ? 0 : 1;
+}
+
 int runSpringPrismaticRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -8156,6 +8296,9 @@ int runAssetPathRegression() {
                          "    - joint: LeftShoulder\n      keyframes:\n"
                          "        - time: 0\n          position: [0, 0, 0]\n"
                          "          rotation: [0, 0, 0, 1]\n          easing: linear\n";
+        std::ofstream luarScriptFile(tempRoot / "assets" / "hello.luar", std::ios::binary);
+        luarScriptFile << "class Hello is\n    public is\n        static function run()\n"
+                        "            print(7)\n        end\n    end\nend\nHello.run()\n";
         std::filesystem::create_directories(tempRoot / ".autosave");
         std::ofstream autosaveFile(tempRoot / ".autosave" / "hidden.bin", std::ios::binary);
         autosaveFile << "editor-only";
@@ -8192,6 +8335,11 @@ int runAssetPathRegression() {
                   << "      Name: R6Walk\n"
                   << "      Properties:\n"
                   << "        ContentPath: assets/anims/r6_walk.rcanim\n"
+                  << "    - ClassName: Script\n"
+                  << "      Name: LuarHello\n"
+                  << "      Properties:\n"
+                  << "        ContentPath: assets/hello.luar\n"
+                  << "        ScriptExtension: Luar\n"
                   << "    - ClassName: PostEffect\n"
                   << "      Name: CustomEffect\n"
                   << "      Properties:\n"
@@ -8274,6 +8422,9 @@ int runAssetPathRegression() {
                    packagedScene.find("Size: 40") != std::string::npos &&
                    packagedScene.find('\\') == std::string::npos,
                "packager copies referenced assets, runtime fonts, and portable YAML paths");
+        expect(packaged && std::filesystem::exists(packageContentRoot / "assets/scripts/hello.luauc") &&
+                   packagedScene.find("ContentPath: assets/scripts/hello.luauc") != std::string::npos,
+               "packager transpiles a .luar script (Luar -> Luau) into assets/scripts/*.luauc");
         expect(!std::filesystem::exists(packageContentRoot / ".autosave" / "hidden.bin") &&
                    !std::filesystem::exists(packageContentRoot / "terrain_data" / ".autosave" / "hidden.chunk") &&
                    std::filesystem::exists(packageContentRoot / "terrain_data" / "visible.chunk") &&
@@ -15603,6 +15754,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--physics-migration-regression", runPhysicsMigrationRegression),
         REG("--motor-servo-regression", runMotorServoRegression),
         REG("--spring-prismatic-regression", runSpringPrismaticRegression),
+        REG("--script-extension-regression", runScriptExtensionRegression),
         REG("--physics-lifecycle-regression", runPhysicsLifecycleRegression),
         REG("--constraint-rebind-regression", runConstraintRebindRegression),
         REG("--terrain-instance-regression", runTerrainInstanceRegression),

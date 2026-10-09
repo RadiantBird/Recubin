@@ -74,6 +74,14 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
 - デバイス無しのエンジン（`ma_engine_config.noDevice`）を`ma_engine_read_pcm_frames`で駆動すれば、
   実機の音声デバイス無しで同じ計測をテストできる（`--audio-diagnostics-regression`）。
 
+## スクリプトの言語（ScriptExtension）
+- `Script` / `LocalScript` / `ModuleScript` は `ScriptExtension`（`Luau` / `Luar`）を持ち、実行時にLuarコンパイラを通すかはこの値だけで決まる（ファイル名や`Name`は見ない）。
+- `Path`を設定すると`.luar`→`Luar`、`.luau`/`.lua`→`Luau`に追従する。`.luauc`は変更しない。YAMLに項目が無い旧シーンは`Path`から決まる。
+- YAMLは`ContentPath`の後に`ScriptExtension: Luau|Luar`（文字列）で保存する。読み込み時は明示値が`Path`からの追従を上書きする。
+- 新規スクリプト作成ダイアログは新規ファイルの拡張子（`.luau`/`.luar`）を選べる。既存ファイルを選ぶ場合は拡張子から決まる。
+- パッケージ時、`.luar`は`LuarCompiler`でLuau化してから`.luauc`に出力する（パッケージ済みゲームにLuar DLLは不要）。
+- `luar_compiler.dll`は`python build.py`のビルド/実行時に`Luar Programming Language/luar-rs`を`cargo build --release`し、`dlls/luar_compiler.dll`へ自動反映する。cargoが無い環境はコミット済みDLLを使う。
+
 ## 特殊なインスタンス
   `Weather`はWorkspace直下に置く天候システムで、`CloudColor`（`Color4`）と
   `CloudHeight`（ワールド空間の雲層Y座標）を保持する。雲の水平クアッドはカメラのX/Zへ
