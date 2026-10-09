@@ -25,6 +25,7 @@ _snapshot.rcbn
 *.d
 *.o
 *.exe
+*.dll
 
 # 開発支援ファイル類
 loglog.txt
@@ -32,6 +33,7 @@ patch.txt
 f12log.txt
 output.txt
 .wizard-backup/
+LuarChecker.luau
 
 Claude's last exam/
 CodexField/
