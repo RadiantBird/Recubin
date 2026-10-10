@@ -434,6 +434,35 @@ static Vector3 glbTransformNormal(const float m[16], const Vector3& n) {
     return Vector3(nx, ny, nz);
 }
 
+// この三角形数を超えるメッシュでUVが無い場合、xatlasの代わりに簡易UVを使う
+static constexpr size_t MESH_XATLAS_MAX_TRIANGLES = 10000;
+
+// 頂点の主法線軸に応じて、AABBを基準にした平面投影でUVを与える(頂点は複製しない)。
+// 面の境界ではUVが不連続になるが、xatlasを避けた大きなメッシュの代用としては十分とする
+static void generateBoxProjectedUV(std::vector<MeshVertex>& vertices) {
+    Vector3 minP = vertices[0].Position, maxP = vertices[0].Position;
+    for (auto const& v : vertices) {
+        minP.x = std::min(minP.x, v.Position.x); maxP.x = std::max(maxP.x, v.Position.x);
+        minP.y = std::min(minP.y, v.Position.y); maxP.y = std::max(maxP.y, v.Position.y);
+        minP.z = std::min(minP.z, v.Position.z); maxP.z = std::max(maxP.z, v.Position.z);
+    }
+    const Vector3 ext(std::max(maxP.x - minP.x, 1e-6f), std::max(maxP.y - minP.y, 1e-6f), std::max(maxP.z - minP.z, 1e-6f));
+
+    for (auto& v : vertices) {
+        const float ax = std::abs(v.Normal.x), ay = std::abs(v.Normal.y), az = std::abs(v.Normal.z);
+        const float px = (v.Position.x - minP.x) / ext.x;
+        const float py = (v.Position.y - minP.y) / ext.y;
+        const float pz = (v.Position.z - minP.z) / ext.z;
+        if (ax >= ay && ax >= az) {
+            v.U = pz; v.V = 1.0f - py;
+        } else if (ay >= az) {
+            v.U = px; v.V = 1.0f - pz;
+        } else {
+            v.U = px; v.V = 1.0f - py;
+        }
+    }
+}
+
 bool MeshCube::loadFromGLB(const std::string& path) {
     // The requested path is user data and must survive a failed load so it can
     // be saved with the scene and retried after the asset becomes available.
@@ -496,15 +525,39 @@ bool MeshCube::loadFromGLB(const std::string& path) {
             const cgltf_accessor* uvAcc   = cgltf_find_accessor(&prim, cgltf_attribute_type_texcoord, 0);
 
             unsigned int baseIndex = static_cast<unsigned int>(vertices.size());
-            for (cgltf_size vi = 0; vi < posAcc->count; ++vi) {
+
+            // 頂点ごとのアクセサ呼び出しは高ポリゴンで遅いため、属性を一括展開する。
+            // 展開に失敗した属性は0初期化のまま(従来のread_float失敗時と同じ既定値)
+            const cgltf_size vertexCount = posAcc->count;
+            std::vector<float> posData(vertexCount * 3, 0.0f);
+            cgltf_accessor_unpack_floats(posAcc, posData.data(), vertexCount * 3);
+            std::vector<float> normData;
+            if (normAcc && normAcc->count >= vertexCount) {
+                normData.assign(vertexCount * 3, 0.0f);
+                cgltf_accessor_unpack_floats(normAcc, normData.data(), vertexCount * 3);
+            }
+            std::vector<float> uvData;
+            if (uvAcc && uvAcc->count >= vertexCount) {
+                uvData.assign(vertexCount * 2, 0.0f);
+                cgltf_accessor_unpack_floats(uvAcc, uvData.data(), vertexCount * 2);
+            }
+            const bool hasNormals = !normData.empty();
+
+            // マテリアルのbaseColorFactor.a(透過素材のアルファ)を頂点に格納する
+            float matAlpha = 1.0f;
+            if (prim.material && prim.material->has_pbr_metallic_roughness) {
+                matAlpha = prim.material->pbr_metallic_roughness.base_color_factor[3];
+            }
+
+            vertices.reserve(vertices.size() + vertexCount);
+            normalMissing.reserve(normalMissing.size() + vertexCount);
+            for (cgltf_size vi = 0; vi < vertexCount; ++vi) {
                 MeshVertex v;
-                float p[3] = {0.0f, 0.0f, 0.0f};
-                cgltf_accessor_read_float(posAcc, vi, p, 3);
+                const float* p = &posData[vi * 3];
                 v.Position = glbTransformPoint(worldMat, Vector3(p[0], p[1], p[2]));
 
-                if (normAcc) {
-                    float n[3] = {0.0f, 1.0f, 0.0f};
-                    cgltf_accessor_read_float(normAcc, vi, n, 3);
+                if (hasNormals) {
+                    const float* n = &normData[vi * 3];
                     v.Normal = glbTransformNormal(worldMat, Vector3(n[0], n[1], n[2]));
                 } else {
                     // 法線未定義の印。後段でジオメトリ(三角形)から算出する
@@ -512,26 +565,25 @@ bool MeshCube::loadFromGLB(const std::string& path) {
                     needNormals = true;
                 }
 
-                if (uvAcc) {
-                    float uv[2] = {0.0f, 0.0f};
-                    cgltf_accessor_read_float(uvAcc, vi, uv, 2);
-                    v.U = uv[0]; v.V = 1.0f - uv[1];
+                if (!uvData.empty()) {
+                    v.U = uvData[vi * 2]; v.V = 1.0f - uvData[vi * 2 + 1];
                 } else {
                     v.U = 0.0f; v.V = 0.0f;
                 }
 
-                // マテリアルのbaseColorFactor.a(透過素材のアルファ)を頂点に格納する
-                if (prim.material && prim.material->has_pbr_metallic_roughness) {
-                    v.MatAlpha = prim.material->pbr_metallic_roughness.base_color_factor[3];
-                }
+                v.MatAlpha = matAlpha;
 
                 vertices.push_back(v);
-                normalMissing.push_back(normAcc ? 0 : 1);
+                normalMissing.push_back(hasNormals ? 0 : 1);
             }
 
             if (prim.indices) {
-                for (cgltf_size ii = 0; ii < prim.indices->count; ++ii) {
-                    indices.push_back(baseIndex + static_cast<unsigned int>(cgltf_accessor_read_index(prim.indices, ii)));
+                const cgltf_size indexCount = prim.indices->count;
+                indices.reserve(indices.size() + indexCount);
+                std::vector<cgltf_uint> rawIndices(indexCount);
+                cgltf_accessor_unpack_indices(prim.indices, rawIndices.data(), sizeof(cgltf_uint), indexCount);
+                for (cgltf_size ii = 0; ii < indexCount; ++ii) {
+                    indices.push_back(baseIndex + static_cast<unsigned int>(rawIndices[ii]));
                 }
             } else {
                 for (cgltf_size vi = 0; vi < posAcc->count; ++vi) {
@@ -611,7 +663,13 @@ bool MeshCube::loadFromGLB(const std::string& path) {
     MeshFile = path;
 
     if (!hasValidUV()) {
-        regenerateUV();
+        // xatlasは高ポリゴンで極端に遅くなるため、閾値を超えたら安価な投影UVで代用する
+        if (m_cpuIndices.size() / 3 > MESH_XATLAS_MAX_TRIANGLES) {
+            RCBN_WARN("MeshCube: 三角形数が多いためxatlasを省略し、簡易UVを生成しました: " << path);
+            generateBoxProjectedUV(m_cpuVertices);
+        } else {
+            regenerateUV();
+        }
     }
 
     if (Renderer::instance) uploadToGPU();
