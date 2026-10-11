@@ -571,6 +571,154 @@ int runToolSignalIsolationRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+// 重い車体(20x2x10)に密度1の軽い円柱の車輪4つをMotorで付けた車(左右の速度差で前進しながら旋回する)。
+// substeps<0ならPhysicsSubstepsをYAMLに書かない(既定値)
+static std::shared_ptr<Workspace> loadMotorCarScene(int substeps) {
+    std::ostringstream yaml;
+    yaml << "recubin:\n  type: scene\n  version: 0\nRoot:\n  Children:\n    - ClassName: Workspace\n      Name: Workspace\n"
+            "      Properties:\n        Gravity: [0, -196.2, 0]\n";
+    if (substeps >= 0) yaml << "        PhysicsSubsteps: " << substeps << "\n";
+    yaml << "      Children:\n        - ClassName: Cube\n          Name: Floor\n          Properties:\n"
+            "            Position: [0, -0.5, 0]\n            Size: [2000, 1, 2000]\n            Anchored: true\n"
+            "        - ClassName: Model\n          Name: Car\n          Children:\n            - ClassName: Cube\n"
+            "              Name: Chassis\n              Properties:\n                Position: [0, 4, 0]\n"
+            "                Size: [20, 2, 10]\n                Anchored: false\n              Children:\n";
+    const float xs[4] = {-8.0f, 8.0f, -8.0f, 8.0f};
+    const float zs[4] = {5.0f, 5.0f, -5.0f, -5.0f};
+    const float speeds[4] = {15.0f, 15.0f, 5.0f, 5.0f}; // 左右の速度差で前進しながら旋回する
+    for (int i = 0; i < 4; ++i) {
+        yaml << "                - {ClassName: Attachment, Name: A" << i << ", Properties: {Position: [" << xs[i]
+             << ", -0.5, " << zs[i] << "]}}\n";
+        yaml << "                - {ClassName: Motor, Name: M" << i << ", Properties: {Cube0: Car\\Chassis, Cube1: Car\\W" << i
+             << ", Attachment0: A" << i << ", Attachment1: Attachment, Axis: [0, 0, 1], DriveVelocity: " << speeds[i]
+             << ", MaxForce: 1000}}\n";
+    }
+    for (int i = 0; i < 4; ++i) {
+        const float side = zs[i] > 0.0f ? 1.0f : -1.0f;
+        yaml << "            - ClassName: Cylinder\n              Name: W" << i << "\n              Properties: {Position: ["
+             << xs[i] << ", 3.5, " << zs[i] + 0.5f * side
+             << "], Size: [4, 1, 4], Rotation: [0.7071068, 0, 0, 0.7071068], Anchored: false, MassDensity: 1}\n"
+             << "              Children:\n                - {ClassName: Attachment, Name: Attachment, Properties: {Position: [0, "
+             << -0.5f * side << ", 0]}}\n";
+    }
+    const auto path = std::filesystem::temp_directory_path() / "recubin_motor_axle_regression.yaml";
+    {
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        out << yaml.str();
+    }
+    auto root = SceneLoader::loadScene(path.string());
+    std::error_code removeError;
+    std::filesystem::remove(path, removeError);
+    std::shared_ptr<Workspace> workspace;
+    if (root) {
+        for (auto& [name, child] : root->getChildren())
+            if (child->IsA("Workspace")) workspace = std::static_pointer_cast<Workspace>(child);
+    }
+    if (workspace) workspace->initPhysics();
+    return workspace;
+}
+
+// 車体から見た車輪の軸の、今の最大の傾き(度)
+static float motorCarAxleTilt(Workspace& workspace) {
+    auto car = workspace.getChildren().at("Car");
+    auto chassis = std::dynamic_pointer_cast<BaseCube>(car->getChildren().at("Chassis"));
+    const CFrame inverse = chassis->getWorldCFrame().inverse();
+    float maxTilt = 0.0f;
+    for (int i = 0; i < 4; ++i) {
+        auto wheel = std::dynamic_pointer_cast<BaseCube>(car->getChildren().at("W" + std::to_string(i)));
+        const CFrame local = inverse * wheel->getWorldCFrame();
+        const float alignment = std::min(1.0f, std::abs(local.Rotation.rotate(Vector3(0.0f, 1.0f, 0.0f)).z));
+        maxTilt = std::max(maxTilt, std::acos(alignment) * 57.29578f);
+    }
+    return maxTilt;
+}
+
+// 5秒走らせたときの車輪の軸の最大の傾き(度)
+static float measureMotorAxleTilt(int substeps, int& loadedSubsteps) {
+    constexpr float DT = 1.0f / 60.0f;
+    auto workspace = loadMotorCarScene(substeps);
+    loadedSubsteps = workspace ? workspace->PhysicsSubsteps : -1;
+    Physics* physics = workspace ? workspace->getPhysicsEngine() : nullptr;
+    if (!physics) return -1.0f;
+    float maxTilt = 0.0f;
+    for (int frame = 0; frame < 300; ++frame) {
+        physics->update(*workspace, DT);
+        maxTilt = std::max(maxTilt, motorCarAxleTilt(*workspace));
+    }
+    return maxTilt;
+}
+
+int runMotorAxleRegression() {
+    int failures = 0;
+    auto expect = [&](bool ok, const char* message) {
+        std::cout << "[MotorAxleRegression] " << (ok ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!ok) ++failures;
+    };
+    int loaded4 = 0, loadedDefault = 0, loaded16 = 0;
+    const float tilt4 = measureMotorAxleTilt(4, loaded4);
+    const float tiltDefault = measureMotorAxleTilt(-1, loadedDefault);
+    const float tilt16 = measureMotorAxleTilt(16, loaded16);
+    std::cout << "[MotorAxleRegression] maxTilt substeps4=" << tilt4 << " default(" << loadedDefault << ")="
+              << tiltDefault << " substeps16=" << tilt16 << '\n';
+    expect(loaded4 == 4 && loaded16 == 16 && loadedDefault == Workspace::DEFAULT_PHYSICS_SUBSTEPS,
+           "Workspace.PhysicsSubsteps loads from YAML and defaults to 8");
+    expect(tilt4 > 0.0f && tiltDefault > 0.0f && tilt16 > 0.0f, "the motor car scene simulates");
+    expect(tiltDefault < 3.5f && tiltDefault < tilt4, "the default substeps keep light wheels straighter than 4 substeps");
+    expect(tilt16 < 1.5f, "16 substeps keep light wheels on their axles");
+
+    // 走行中にMotorのnative jointが作り直されない(Attachmentの丸め誤差を変更と見なさない)
+    {
+        constexpr float DT = 1.0f / 60.0f;
+        auto workspace = loadMotorCarScene(-1);
+        Physics* physics = workspace ? workspace->getPhysicsEngine() : nullptr;
+        if (!physics) return failures;
+        auto chassis = std::dynamic_pointer_cast<BaseCube>(
+            workspace->getChildren().at("Car")->getChildren().at("Chassis"));
+        auto motor = std::static_pointer_cast<Motor>(chassis->getChildren().at("M0"));
+        for (int frame = 0; frame < 10; ++frame) physics->update(*workspace, DT);
+        const PhysicsConstraintHandle first = motor->getConstraintHandle();
+        int recreated = 0;
+        for (int frame = 0; frame < 300; ++frame) {
+            physics->update(*workspace, DT);
+            if (!(motor->getConstraintHandle() == first)) ++recreated;
+        }
+        std::cout << "[MotorAxleRegression] motor joint recreated in " << recreated << " of 300 frames\n";
+        expect(first && recreated == 0, "driving does not recreate the motor joints every step");
+    }
+
+    // 走行中(旋回の負荷で車輪が傾いている間)に車体のボディが作り直される(着席でのWeld合成・
+    // 主導権の切り替えでのAnchored切替と同じ)。Motorの関節も作り直されるが、そのときの傾きを
+    // 新しい基準として取り込まず、止めれば元の軸へ戻る
+    {
+        constexpr float DT = 1.0f / 60.0f;
+        auto workspace = loadMotorCarScene(4); // 傾きが大きく出る設定で、取り込まれないことを確かめる
+        Physics* physics = workspace ? workspace->getPhysicsEngine() : nullptr;
+        expect(physics != nullptr, "the rebuild scene simulates");
+        if (!physics) return failures;
+        auto car = workspace->getChildren().at("Car");
+        auto chassis = std::dynamic_pointer_cast<BaseCube>(car->getChildren().at("Chassis"));
+        std::vector<std::shared_ptr<Motor>> motors;
+        for (auto& [name, child] : chassis->getChildren())
+            if (child->IsA("Motor")) motors.push_back(std::static_pointer_cast<Motor>(child));
+        float tiltAtRebuild = 0.0f;
+        float restTilt = 0.0f;
+        for (int cycle = 0; cycle < 6; ++cycle) {
+            for (size_t i = 0; i < motors.size(); ++i) motors[i]->setDriveVelocity(i < 2 ? 15.0f : 5.0f);
+            for (int frame = 0; frame < 120; ++frame) physics->update(*workspace, DT);
+            tiltAtRebuild = std::max(tiltAtRebuild, motorCarAxleTilt(*workspace));
+            chassis->setAnchored(true);
+            chassis->setAnchored(false);
+            for (auto& motor : motors) motor->setDriveVelocity(0.0f);
+            for (int frame = 0; frame < 90; ++frame) physics->update(*workspace, DT);
+            restTilt = motorCarAxleTilt(*workspace);
+        }
+        std::cout << "[MotorAxleRegression] rebuild tiltAtRebuild=" << tiltAtRebuild << " restTilt=" << restTilt << '\n';
+        expect(tiltAtRebuild > 0.5f, "the wheels are tilted by the turning load when the body is rebuilt (precondition)");
+        expect(restTilt < 0.5f, "rebuilding the joints does not bake the momentary tilt into the axle");
+    }
+    return failures;
+}
+
 int runMotorServoRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -17617,6 +17765,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--frame-profiler-regression", runFrameProfilerRegression),
         REG("--physics-migration-regression", runPhysicsMigrationRegression),
         REG("--motor-servo-regression", runMotorServoRegression),
+        REG("--motor-axle-regression", runMotorAxleRegression),
         REG("--spring-prismatic-regression", runSpringPrismaticRegression),
         REG("--script-extension-regression", runScriptExtensionRegression),
         REG("--physics-lifecycle-regression", runPhysicsLifecycleRegression),

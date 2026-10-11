@@ -86,6 +86,12 @@ class Workspace : public Instance {
         Vector3 Gravity = {0.0f, -METER_TO_STUD * EARTH_GRAVITY_MPS2, 0.0f};
         Vector3 Wind = {0.0f, 0.0f, 0.0f};  // Weatherが毎フレーム書き込む。ParticleEmitter::resolveWind()が読む
         bool PhysicsEnabled = true;
+        // 1物理stepあたりのソルバーのサブステップ数。多いほど関節(Motor等)が硬くなり、重い車体に
+        // 軽い車輪を付けても軸が曲がりにくくなるが、ソルバーの計算はほぼ比例して増える
+        static constexpr int MIN_PHYSICS_SUBSTEPS = 1;
+        static constexpr int MAX_PHYSICS_SUBSTEPS = 16;
+        static constexpr int DEFAULT_PHYSICS_SUBSTEPS = 8;
+        int PhysicsSubsteps = DEFAULT_PHYSICS_SUBSTEPS;
 
         std::vector<std::shared_ptr<Instance>> pendingInstances;
         // pendingInstancesの重複チェック用(線形探索だと1フレームに大量生成したときに二乗で遅い)。

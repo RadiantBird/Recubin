@@ -40,10 +40,11 @@ constexpr float METERS_PER_STUD = 1.0f / STUDS_PER_METER;
 constexpr float DENSITY_TO_MKS = 8000.0f;
 constexpr float TORQUE_TO_MKS = 1.0f / 400.0f;
 constexpr float FIXED_STEP = 1.0f / 60.0f;
-constexpr int SUB_STEPS = 4;
 constexpr int MAX_STEPS = 10;
 constexpr float CLIP_EPSILON = 1.0e-5f;
 constexpr int MAX_HULL_VERTICES = 44;
+// Box3Dは関節の硬さを「サブステップの周波数×0.25」(=15Hz×サブステップ数)で頭打ちにする。
+// 240HzはPhysicsSubsteps=16のときにだけそのまま効き、それより少ないときは上限に切り詰められる
 constexpr float MOTOR_CONSTRAINT_HERTZ = 240.0f;
 constexpr float MOTOR_CONSTRAINT_DAMPING_RATIO = 2.0f;
 // Servo: 角度誤差(rad)に掛けて目標回転速度(rad/s)にする比例ゲイン(1/s)。
@@ -598,6 +599,7 @@ void syncCubeWorldCFramePreservingAttachments(
 
 Box3DPhysicsBackend::Box3DPhysicsBackend(Physics* facade)
     : m_facade(facade),
+      m_subSteps(Workspace::DEFAULT_PHYSICS_SUBSTEPS),
       m_noCollisionSnapshot(std::make_shared<const std::set<CubePair>>()) {}
 
 Box3DPhysicsBackend::~Box3DPhysicsBackend() {
@@ -2624,7 +2626,7 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
                 b3World_Step(
                 m_worldId,
                 FIXED_STEP,
-                SUB_STEPS
+                m_subSteps
                 );
             }
         FrameProfiler::get().addCount(
@@ -3437,26 +3439,47 @@ void Box3DPhysicsBackend::createMotor(const std::shared_ptr<Motor>& motor) {
     const CFrame bodyFrameB = bodyWorldFrame(bodyB);
     const CFrame cubeWorldA = bodyFrameA * first->m_compoundLocalOffset;
     const CFrame cubeWorldB = bodyFrameB * second->m_compoundLocalOffset;
-    const CFrame frameA = attachmentFrame(
-        first->m_compoundLocalOffset, motor->m_attachment0, first.get());
-    const CFrame frameB = attachmentFrame(
-        second->m_compoundLocalOffset, motor->m_attachment1, second.get());
-    Vector3 pivotA = (cubeWorldA.Position + cubeWorldB.Position) * 0.5f;
-    Vector3 pivotB = pivotA;
     auto attachmentA = motor->m_attachment0.lock();
     auto attachmentB = motor->m_attachment1.lock();
-    if (attachmentA && attachmentB) {
-        pivotA = (bodyFrameA * frameA).Position;
-        pivotB = (bodyFrameB * frameB).Position;
-    } else if (attachmentA || attachmentB) {
-        const CFrame& frame = attachmentA ? frameA : frameB;
-        const CFrame& bodyFrame = attachmentA ? bodyFrameA : bodyFrameB;
-        pivotA = pivotB = (bodyFrame * frame).Position;
+    const Quaternion jointRotationLocalA = rotationFromZ(motor->Axis);
+
+    // 2回目以降(ボディの作り直し)は、最初に作ったときの支点と向きを各Cubeのローカルで使い直す
+    Motor::NativeJointFrames& frames = motor->m_nativeJointFrames;
+    const bool reuseFrames = frames.valid && frames.cube0 == first.get() &&
+        frames.cube1 == second.get() && frames.attachment0 == attachmentA.get() &&
+        frames.attachment1 == attachmentB.get() && frames.axis == motor->Axis;
+    if (!reuseFrames) {
+        const CFrame frameA = attachmentFrame(
+            first->m_compoundLocalOffset, motor->m_attachment0, first.get());
+        const CFrame frameB = attachmentFrame(
+            second->m_compoundLocalOffset, motor->m_attachment1, second.get());
+        Vector3 pivotA = (cubeWorldA.Position + cubeWorldB.Position) * 0.5f;
+        Vector3 pivotB = pivotA;
+        if (attachmentA && attachmentB) {
+            pivotA = (bodyFrameA * frameA).Position;
+            pivotB = (bodyFrameB * frameB).Position;
+        } else if (attachmentA || attachmentB) {
+            const CFrame& frame = attachmentA ? frameA : frameB;
+            const CFrame& bodyFrame = attachmentA ? bodyFrameA : bodyFrameB;
+            pivotA = pivotB = (bodyFrame * frame).Position;
+        }
+        frames.cube0 = first.get();
+        frames.cube1 = second.get();
+        frames.attachment0 = attachmentA.get();
+        frames.attachment1 = attachmentB.get();
+        frames.axis = motor->Axis;
+        frames.pivot0 = cubeWorldA.Rotation.conjugate().rotate(pivotA - cubeWorldA.Position);
+        frames.pivot1 = cubeWorldB.Rotation.conjugate().rotate(pivotB - cubeWorldB.Position);
+        frames.rotation1 =
+            cubeWorldB.Rotation.conjugate() * cubeWorldA.Rotation * jointRotationLocalA;
+        frames.valid = true;
     }
-    const Quaternion jointRotation =
-        cubeWorldA.Rotation * rotationFromZ(motor->Axis);
-    const CFrame jointWorldA(pivotA, jointRotation);
-    const CFrame jointWorldB(pivotB, jointRotation);
+    const CFrame jointWorldA(
+        cubeWorldA.Position + cubeWorldA.Rotation.rotate(frames.pivot0),
+        cubeWorldA.Rotation * jointRotationLocalA);
+    const CFrame jointWorldB(
+        cubeWorldB.Position + cubeWorldB.Rotation.rotate(frames.pivot1),
+        cubeWorldB.Rotation * frames.rotation1);
 
     b3RevoluteJointDef definition = b3DefaultRevoluteJointDef();
     definition.base.bodyIdA = bodyA;
@@ -3479,6 +3502,9 @@ void Box3DPhysicsBackend::createMotor(const std::shared_ptr<Motor>& motor) {
     definition.maxMotorTorque = motorTorqueToMks(motor->MaxForce);
     const b3JointId joint = b3CreateRevoluteJoint(m_worldId, &definition);
     if (B3_IS_NULL(joint)) return;
+    // 作り直しでは角度0が最初の生成時の姿勢なので、今の角度から目標への速度を入れ直す
+    if (motor->Servo && reuseFrames)
+        b3RevoluteJoint_SetMotorSpeed(joint, servoMotorSpeed(*motor, b3RevoluteJoint_GetAngle(joint)));
     const PhysicsConstraintHandle handle{b3StoreJointId(joint)};
     motor->m_constraintHandle = handle;
     m_constraints.push_back({motor, handle, joint});
@@ -4029,6 +4055,8 @@ void Box3DPhysicsBackend::update(Workspace& workspace, float dt) {
         ~UpdateWorkspaceScope() { slot = nullptr; }
     } updateWorkspaceScope(m_updateWorkspace, &workspace);
     setGravity(workspace.Gravity);
+    m_subSteps = std::clamp(workspace.PhysicsSubsteps,
+        Workspace::MIN_PHYSICS_SUBSTEPS, Workspace::MAX_PHYSICS_SUBSTEPS);
     removeExpiredEntries();
 
     auto isOutside = [&](const std::weak_ptr<BaseCube>& reference) {

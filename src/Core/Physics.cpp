@@ -272,12 +272,17 @@ void Physics::reconcileConstraints(Workspace& workspace) {
     std::erase_if(m_invalidBindingWarnings,
         [&](Instance* value) { return !live.contains(value); });
 
+    // Attachmentのローカル姿勢には、物理同期・Modelのpivot同期で毎フレーム1e-6程度の丸め誤差が乗る。
+    // 完全一致で比べると、Motor等の関節が毎stepその瞬間の姿勢で作り直され、負荷による傾きが
+    // 新しい基準として取り込まれ続ける(車軸が曲がったまま戻らない)。編集による変更だけを拾う
     auto sameFrame = [](const CFrame& first, const CFrame& second) {
-        return first.Position == second.Position &&
-            first.Rotation.w == second.Rotation.w &&
-            first.Rotation.x == second.Rotation.x &&
-            first.Rotation.y == second.Rotation.y &&
-            first.Rotation.z == second.Rotation.z;
+        constexpr float POSITION_TOLERANCE = 1.0e-4f;
+        constexpr float ROTATION_DOT_TOLERANCE = 1.0e-7f;
+        const Vector3 delta = first.Position - second.Position;
+        if (delta.length() > POSITION_TOLERANCE) return false;
+        const float dot = first.Rotation.w * second.Rotation.w + first.Rotation.x * second.Rotation.x +
+            first.Rotation.y * second.Rotation.y + first.Rotation.z * second.Rotation.z;
+        return std::abs(dot) >= 1.0f - ROTATION_DOT_TOLERANCE;
     };
 
     for (const auto& value : constraints) {

@@ -15,6 +15,7 @@
 | `physicsEngine` | `Physics*` | リンクされた物理エンジン |
 | `pendingInstances` | `vector<Instance*>` | 物理アクター未作成のキューブ待機リスト |
 | `scripts` | `vector<Instance*>` | 実行対象の Script オブジェクト一覧 |
+| `PhysicsSubsteps` | `int` (1..16、既定8) | 1物理step(1/60秒)あたりのソルバーのサブステップ数。YAML保存・Luau読み書き可。Box3Dは関節の硬さを15Hz×サブステップ数で頭打ちにするため、多いほどMotor等の関節が硬くなり、重い車体に軽い車輪を付けても軸が曲がりにくくなる。ソルバーの計算はほぼ比例して増える。範囲外の値は物理更新時に1..16へ丸める |
 
 ## メソッド
 
@@ -26,7 +27,7 @@
 | `setPhysicsEngine(physics)` | Physics を接続 |
 
 `Workspace::cloneTree()` は複製先も `Workspace` 型を維持し、`Name`、`Gravity`、`Wind`、
-`PhysicsEnabled` と子ツリーを複製する。物理エンジン、物理登録待ちリスト、制約待ちリスト、
+`PhysicsEnabled`、`PhysicsSubsteps` と子ツリーを複製する。物理エンジン、物理登録待ちリスト、制約待ちリスト、
 スクリプト登録などの実行時状態は複製せず、新しい祖先関係により必要な登録が行われる。
 
 ## フレンドクラス

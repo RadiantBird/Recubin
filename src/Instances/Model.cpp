@@ -3,6 +3,7 @@
 #include <include/Core/PropertyRegistry.hpp>
 #include <include/Instances/Workspace.hpp>
 #include <include/Instances/Weld.hpp>
+#include <include/Instances/Attachment.hpp>
 #include <include/Util/Logger.hpp>
 #include <atomic>
 #include <algorithm>
@@ -205,6 +206,27 @@ bool hasDynamicCube(const Instance& root) {
     }
     return false;
 }
+
+void collectCubeAttachmentLocals(Instance& root, std::vector<std::pair<Spatial*, CFrame>>& out) {
+    for (const auto& [_, child] : root.children) {
+        if (!child) continue;
+        if (auto* attachment = dynamic_cast<Attachment*>(child.get())) {
+            const auto parent = attachment->Parent.lock();
+            if (parent && parent->IsA("BaseCube")) out.emplace_back(attachment, attachment->getCFrame());
+        }
+        collectCubeAttachmentLocals(*child, out);
+    }
+}
+
+// pivotの同期でModelだけを動かす。setWorldCFrameは子孫のワールド姿勢を保存する(物理ボディは動かさない)が、
+// 部品(Cube)に付いたAttachmentはその部品が動いていないので、ローカル姿勢のまま戻す。
+// ワールド姿勢から逆算し直すと毎回丸め誤差が乗って積み上がり、Motor等の取り付け位置が少しずつずれる
+void movePivotKeepingCubeAttachments(Model& model, const CFrame& worldCFrame) {
+    std::vector<std::pair<Spatial*, CFrame>> attachmentLocals;
+    collectCubeAttachmentLocals(model, attachmentLocals);
+    model.setWorldCFrame(worldCFrame);
+    if (!attachmentLocals.empty()) Spatial::applyLocalCFrameBatch(attachmentLocals);
+}
 }
 
 void Model::syncPivotToPrimaryCube() {
@@ -214,7 +236,7 @@ void Model::syncPivotToPrimaryCube() {
     const Vector3 target = primary->getWorldPosition();
     if ((target - world.Position).length() < PRIMARY_PIVOT_SYNC_EPSILON) return;
     // setWorldCFrameは子孫のワールド姿勢を保存する。物理ボディは動かさない。
-    setWorldCFrame(CFrame(target, world.Rotation));
+    movePivotKeepingCubeAttachments(*this, CFrame(target, world.Rotation));
 }
 
 void Model::syncPivotsToPrimaryCube(const std::vector<Model*>& models) {
@@ -233,7 +255,7 @@ void Model::syncPivotToCentroid() {
     const CFrame pivot = getPivotCFrame();
     if ((pivot.Position - world.Position).length() < PIVOT_SYNC_EPSILON) return;
     // setWorldCFrameは子孫のワールド姿勢を保存する。物理ボディは動かさない。
-    setWorldCFrame(CFrame(pivot.Position, world.Rotation));
+    movePivotKeepingCubeAttachments(*this, CFrame(pivot.Position, world.Rotation));
 }
 
 void Model::syncPivotsToCentroid(Instance& root) {

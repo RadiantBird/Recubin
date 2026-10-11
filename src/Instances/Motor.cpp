@@ -64,6 +64,7 @@ void Motor::recreateConstraint() {
         !m_lastWorkspace->getPhysicsEngine()) return;
     auto self = std::static_pointer_cast<Motor>(shared_from_this());
     Physics* physics = m_lastWorkspace->getPhysicsEngine();
+    m_nativeJointFrames.valid = false; // joint frameが変わる変更なので、新しい姿勢を基準にする
     physics->removeConstraint(self);
     physics->createMotor(self);
     if (!m_constraintHandle) m_lastWorkspace->registerConstraint(self);

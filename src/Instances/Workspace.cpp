@@ -29,6 +29,9 @@ static const bool s_workspaceRegistered = []{
         method_prop<&Workspace::getGravity, &Workspace::setGravity>("Gravity"),
         field<&Workspace::Wind>("Wind"),
         method_prop<&Workspace::getPhysicsEnabled, &Workspace::setPhysicsEnabled>("PhysicsEnabled"),
+        field<&Workspace::PhysicsSubsteps>("PhysicsSubsteps",
+            static_cast<float>(Workspace::MIN_PHYSICS_SUBSTEPS),
+            static_cast<float>(Workspace::MAX_PHYSICS_SUBSTEPS), 1.0f),
     });
     return true;
 }();

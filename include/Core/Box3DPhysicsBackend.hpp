@@ -110,6 +110,7 @@ private:
     Physics* m_facade = nullptr;
     b3WorldId m_worldId = b3_nullWorldId;
     float m_accumulator = 0.0f;
+    int m_subSteps; // 1stepあたりのソルバーのサブステップ数。update()でWorkspace.PhysicsSubstepsから取る
     bool m_safetyBreakActive = false;
     std::uint64_t m_nextLogicalConstraintHandle = 1;
     std::vector<BodyEntry> m_bodies;

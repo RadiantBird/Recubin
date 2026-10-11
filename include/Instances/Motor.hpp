@@ -26,6 +26,23 @@ class Motor : public PhysicsConstraint {
     void resolveAdditionalReferences() override;
     // Axisや参照先などjoint frameが変わるプロパティの変更時だけnative jointを再生成する
     void recreateConstraint();
+
+    // 最初にnative jointを作ったときの、各Cubeから見たジョイントの支点と、Cube1から見たジョイントの向き。
+    // 着席(Weld合成)やAnchoredの切り替えでボディが作り直されるとjointも作り直されるが、そのとき
+    // その瞬間の(旋回の負荷などで傾いた)姿勢を新しい基準にすると、傾きが積み上がって車軸が曲がる。
+    // 作り直しではこの基準を使う。参照先・Axis・Attachmentが変わったら使わない。保存・複製はしない
+    struct NativeJointFrames {
+        const BaseCube* cube0 = nullptr;
+        const BaseCube* cube1 = nullptr;
+        const Attachment* attachment0 = nullptr;
+        const Attachment* attachment1 = nullptr;
+        Vector3 axis{};
+        Vector3 pivot0{};     // Cube0ローカル
+        Vector3 pivot1{};     // Cube1ローカル
+        Quaternion rotation1; // Cube1ローカルのジョイントの向き
+        bool valid = false;
+    };
+    NativeJointFrames m_nativeJointFrames;
 public:
     Vector3 Axis          = {1.0f, 0.0f, 0.0f}; // 回転軸（Cube0基準のローカル方向）
     float DriveVelocity   = 1.0f;  // rad/s
@@ -33,7 +50,7 @@ public:
     // true: DriveVelocity による連続回転ではなく、TargetAngleを維持するサーボとして動く。
     // このときDriveVelocityは最大回転速度(|rad/s|)、MaxForceは出せる最大トルクとして働く。
     bool  Servo           = false;
-    // Servo有効時の目標角度(度)。Axis周りの右ねじ方向が正で、ジョイント生成時の姿勢が0度。
+    // Servo有効時の目標角度(度)。Axis周りの右ねじ方向が正で、最初のジョイント生成時の姿勢が0度。
     // 物理側の角度は[-180,180]で扱うため、目標との差は最短経路で解く。
     float TargetAngle     = 0.0f;
 
