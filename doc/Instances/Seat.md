@@ -2,7 +2,7 @@
 
 `include/Instances/Seat.hpp`
 
-座席。RobloxのVehicleSeat相当。Seatは自身にTouchセンサーを持ち(`setNativeTouchObserved(true)`)、`Humanoid`の足(`LeftLeg`/`RightLeg`)が触れると`onNativeTouched`から`sit`を呼び、未占有であれば自動的に着席させる(`Humanoid::sitOn`): Rootを座面(Seat中心+Size.y/2)にRoot底面が乗る高さへスナップし、ハードコードされた座りポーズへ切り替え、`Weld`でRootとSeatを剛体結合する。着席中はSpace押下で`Humanoid::standUp`が呼ばれ、Weldを解除して離脱する。ネットワーク時も離席はHost権威で確定し、Clientの要求はHost ACKまで再送される。
+座席。RobloxのVehicleSeat相当。Seatは自身にTouchセンサーを持ち(`setNativeTouchObserved(true)`)、`Humanoid`の足(`LeftLeg`/`RightLeg`)が触れると`onNativeTouched`から`sit`を呼び、未占有であれば自動的に着席させる(`Humanoid::sitOn`): Rootを座面(Seat中心+Size.y/2)にRoot底面が乗る高さへスナップし、ハードコードされた座りポーズへ切り替え、`Weld`でRootとSeatを剛体結合する。着席中はSpace押下で`Humanoid::standUp`が呼ばれ、Weldを解除して離脱する。ネットワーク時の着席はHost権威で、Host上のプロキシの足が触れたときに確定してSeatStateで通知される(Clientでは接触による自動着席をしない)。離席はClientがローカルで行い、`StandUpRequest`(Reliable)でHostへ知らせる。リモートプレイヤーが着席すると、そのSeatと拘束(Weld/Motor等)でつながる同期物体一式の演算主導権がそのClientへ渡り(Host側はキネマティック追従)、離席・切断でHostへ戻る。着席中のSteer/ThrottleはClientから届いた値をHost上のSeatへ書き込み、Host上のスクリプトが設定したMotorの駆動値は`JointDrive`で所有Clientへ複製される。
 
 見た目・衝突形状は`Cube`と完全に同じ(Box、Decal/Texture対応込み)で、専用ジオメトリは持たない。
 

@@ -214,14 +214,63 @@ struct ReplicationTestAccess {
         return it != replication.m_remoteAvatars.end() && it->second.isPhysicsProxy;
     }
 
-    static void queueInputs(
-        ReplicationManager& replication, PeerId id, const std::vector<AvatarInputWire>& inputs) {
-        replication.hostQueueInputs(id, inputs);
+    static void hostReceiveAvatarState(
+        ReplicationManager& replication, PeerId id, const std::vector<std::uint8_t>& payload) {
+        replication.hostReceiveAvatarState(id, payload.data(), payload.size());
     }
 
-    static std::uint32_t lastProcessedSeq(ReplicationManager& replication, PeerId id) {
-        auto it = replication.m_lastProcessedSeq.find(id);
-        return it == replication.m_lastProcessedSeq.end() ? 0u : it->second;
+    static void hostReceiveOwnedTransforms(
+        ReplicationManager& replication, PeerId id, const std::vector<std::uint8_t>& payload) {
+        replication.hostReceiveOwnedTransforms(id, payload.data(), payload.size());
+    }
+
+    // update()のHost側と同じく、各Clientの時計を進める
+    static void hostAdvanceClocks(ReplicationManager& replication, float dt) {
+        for (auto& [id, clock] : replication.m_peerClocks) {
+            (void)id;
+            clock.advance(dt, replication.interpolationDelayTicks());
+        }
+    }
+
+    static void hostUpdateOwnership(ReplicationManager& replication) {
+        replication.hostUpdateOwnership();
+    }
+
+    static PeerId hostObjectOwner(ReplicationManager& replication, const BaseCube& cube) {
+        for (const auto& [netId, obj] : replication.m_hostObjects) {
+            (void)netId;
+            if (obj.cube.lock().get() == &cube) return obj.owner;
+        }
+        return 0;
+    }
+
+    static std::uint32_t hostNetId(ReplicationManager& replication, const BaseCube& cube) {
+        for (const auto& [netId, obj] : replication.m_hostObjects) {
+            if (obj.cube.lock().get() == &cube) return netId;
+        }
+        return 0;
+    }
+
+    static std::size_t ownedMotorCount(ReplicationManager& replication) {
+        return replication.m_ownedMotors.size();
+    }
+
+    static void collectMechanism(ReplicationManager& replication, const std::shared_ptr<Seat>& seat,
+                                 std::vector<std::uint32_t>& netIds, std::vector<std::shared_ptr<Motor>>& motors) {
+        replication.collectMechanism(seat, netIds, motors);
+    }
+
+    static void clientApplyOwnership(ReplicationManager& replication, const std::vector<std::uint8_t>& payload) {
+        replication.clientApplyOwnership(payload.data(), payload.size());
+    }
+
+    static bool clientObjectOwned(ReplicationManager& replication, std::uint32_t netId) {
+        auto it = replication.m_clientObjects.find(netId);
+        return it != replication.m_clientObjects.end() && it->second.owned;
+    }
+
+    static void clientApplyJointDrive(ReplicationManager& replication, const std::vector<std::uint8_t>& payload) {
+        replication.clientApplyJointDrive(payload.data(), payload.size());
     }
 
     static CFrame latestPose(ReplicationManager& replication, PeerId id) {
@@ -229,26 +278,22 @@ struct ReplicationTestAccess {
         return it == replication.m_latestPoses.end() ? CFrame() : it->second;
     }
 
-    static void clientEnsureInputRecording(ReplicationManager& replication) {
-        replication.clientEnsureInputRecording();
-    }
-
-    static std::vector<BufferedInput> inputHistory(ReplicationManager& replication) {
-        return {replication.m_inputHistory.begin(), replication.m_inputHistory.end()};
-    }
-
     static void hostSimulateAvatars(
         ReplicationManager& replication, float dt, Physics* physics) {
         replication.hostSimulateAvatars(dt, physics);
     }
 
-    static void translateLocalCharacter(
-        ReplicationManager& replication, const Vector3& offset, const Vector3& velocityDelta) {
-        replication.translateLocalCharacter(offset, velocityDelta);
+    static void translateCharacter(ReplicationManager& replication, Instance& character,
+                                   const Vector3& offset, const Vector3& velocityDelta) {
+        replication.translateCharacter(character, offset, velocityDelta);
     }
 
     static void hostRescanWorld(ReplicationManager& replication) {
         replication.hostRescanWorld();
+    }
+
+    static void ensurePreStepCallback(ReplicationManager& replication) {
+        replication.ensurePreStepCallback();
     }
 
     static void clientAdvanceRenderClock(ReplicationManager& replication, float dt) {
@@ -3349,21 +3394,21 @@ int runNetworkAvatarRegression() {
         world.physics = world.workspace->getPhysicsEngine();
         return world;
     };
-    // 1step分の入力(Userが毎フレーム渡すものと同じ形)
-    auto walkInput = [](std::uint32_t seq, bool turn) {
-        AvatarInputWire in;
-        in.seq = seq;
-        in.hasInput = true;
-        in.flatForward = Vector3(0.0f, 0.0f, -1.0f);
-        in.flatRight = Vector3(1.0f, 0.0f, 0.0f);
-        in.isPressingMove = true;
-        in.targetMoveDir = turn ? Vector3(1.0f, 0.0f, 0.0f) : Vector3(0.6f, 0.0f, -0.8f);
-        in.forwardAxis = 1.0f;
-        in.smoothing = 0.15f;
-        return in;
+    // ClientのAvatarState(自キャラの姿勢)と同じ形のpayload
+    auto avatarStatePayload = [](std::uint32_t tick, const CFrame& pose, float forwardAxis, float rightAxis) {
+        ByteWriter writer;
+        writer.writeU32(tick);
+        writer.writeVector3(pose.Position);
+        writer.writeQuat(pose.Rotation);
+        writer.writeVector3(Vector3{});
+        writer.writeF32(0.0f);
+        writer.writeU8(1);
+        writer.writeF32(forwardAxis);
+        writer.writeF32(rightAxis);
+        return writer.data;
     };
 
-    // ---- Host: リモートキャラの物理プロキシ(地面判定・ホバー・入力バッファ・ジャンプ) ----
+    // ---- Host: リモートキャラのプロキシは、Clientから受けた姿勢へ固定stepごとに追従する ----
     {
         NetworkAvatarWorld host = makeWorld("NetworkAvatarHostWorkspace");
         expect(host.physics != nullptr, "host physics is available");
@@ -3375,155 +3420,380 @@ int runNetworkAvatarRegression() {
         auto root = humanoid ? humanoid->getRootPart() : nullptr;
         expect(root != nullptr, "remote avatar has a Humanoid Root");
         if (!root) return failures;
+        ReplicationTestAccess::ensurePreStepCallback(replication);
 
-        // Clientは毎フレーム、未ackの入力をまとめて再送する(ここでは直近4件)
-        std::vector<AvatarInputWire> sent;
-        std::uint32_t nextSeq = 1;
-        auto runFrames = [&](int frames, bool jumpFirst, float& peak) {
+        // Clientは1tickに0.2stud進みながら向きを変える。20Hz(3tickごと)で届く
+        constexpr float SPEED_PER_TICK = 0.2f;
+        const Vector3 start = root->getWorldPosition();
+        auto clientPose = [&](std::uint32_t tick) {
+            const float yaw = static_cast<float>(tick) * 0.01f;
+            return CFrame(start + Vector3(0.0f, 0.0f, -SPEED_PER_TICK * static_cast<float>(tick)),
+                          Quaternion::fromAxisAngle(Vector3(0.0f, 1.0f, 0.0f), yaw));
+        };
+        std::uint32_t clientTick = 0;
+        float maxFollowError = 0.0f;
+        auto runFrames = [&](int frames, std::uint32_t tickJump) {
             for (int frame = 0; frame < frames; ++frame) {
-                AvatarInputWire in;
-                in.seq = nextSeq++;
-                in.hasInput = true;
-                in.flatForward = Vector3(0.0f, 0.0f, -1.0f);
-                in.flatRight = Vector3(1.0f, 0.0f, 0.0f);
-                in.jump = jumpFirst && frame == 0;
-                sent.push_back(in);
-                const size_t resend = std::min<size_t>(sent.size(), 4);
-                ReplicationTestAccess::queueInputs(
-                    replication, PEER, std::vector<AvatarInputWire>(sent.end() - resend, sent.end()));
+                ++clientTick;
+                if (clientTick % 3 == 0) {
+                    ReplicationTestAccess::hostReceiveAvatarState(
+                        replication, PEER, avatarStatePayload(clientTick, clientPose(clientTick + tickJump), 0.0f, 0.0f));
+                }
                 ReplicationTestAccess::hostSimulateAvatars(replication, DT, host.physics);
+                ReplicationTestAccess::hostAdvanceClocks(replication, DT);
                 host.physics->update(*host.workspace, DT);
-                peak = std::max(peak, root->getWorldPosition().y);
             }
         };
-
-        float ignored = 0.0f;
-        runFrames(240, false, ignored);
-        const float settled = root->getWorldPosition().y;
-        std::cout << "[NetworkAvatarRegression] settledHeight=" << settled
-                  << " lastProcessedSeq=" << ReplicationTestAccess::lastProcessedSeq(replication, PEER)
-                  << " sentSeq=" << nextSeq - 1 << '\n';
+        runFrames(240, 0);
+        // 表示はNetworkInterpolationDelay(0.1s=6tick)遅れ。step後の姿勢はそのstepの終わり(+1tick)なので約5tick遅れ
+        for (int frame = 0; frame < 60; ++frame) {
+            runFrames(1, 0);
+            const Vector3 expected = clientPose(clientTick - 5).Position;
+            maxFollowError = std::max(maxFollowError, positionDistance(root->getWorldPosition(), expected));
+        }
+        const Vector3 facing = root->getWorldCFrame().Rotation.rotate(Vector3(0.0f, 0.0f, -1.0f));
+        const Vector3 expectedFacing = clientPose(clientTick - 5).Rotation.rotate(Vector3(0.0f, 0.0f, -1.0f));
+        std::cout << "[NetworkAvatarRegression] proxy followError=" << maxFollowError
+                  << " facingDot=" << Vector3::Dot(facing, expectedFacing) << '\n';
         expect(ReplicationTestAccess::isPhysicsProxy(replication, PEER), "remote avatar becomes a host physics proxy");
-        expect(std::abs(settled - humanoid->getHipHeight()) < 0.3f,
-               "host proxy hovers at HipHeight like a local character");
-        expect(humanoid->getIsGrounded(), "host proxy updates its grounded state");
-        const std::uint32_t lag = (nextSeq - 1) - ReplicationTestAccess::lastProcessedSeq(replication, PEER);
-        expect(lag <= 4, "the host consumes one input per fixed step with a small buffer");
+        expect(maxFollowError < 0.3f, "the host proxy follows the client pose (interpolation delay behind)");
+        expect(Vector3::Dot(facing, expectedFacing) > 0.99f, "the host proxy faces the client's heading");
 
-        float firstPeak = settled;
-        runFrames(180, true, firstPeak);
-        std::cout << "[NetworkAvatarRegression] firstJumpPeak=" << firstPeak << '\n';
-        expect(firstPeak > settled + 1.5f, "a jump in the input stream is applied on the host proxy");
+        // リスポーン等で遠くへ移った姿勢には、速度で追わずに瞬間移動する
+        runFrames(30, 300);
+        const float teleportError = positionDistance(root->getWorldPosition(), clientPose(clientTick + 300 - 5).Position);
+        std::cout << "[NetworkAvatarRegression] proxy teleportError=" << teleportError << '\n';
+        expect(teleportError < 0.5f, "the host proxy teleports to a far target");
 
-        // 同じseqのジャンプ入力が再送で何度届いても、1回しか実行されない
-        const float beforeResend = root->getWorldPosition().y;
-        float resendPeak = beforeResend;
-        for (int frame = 0; frame < 180; ++frame) {
-            AvatarInputWire duplicate = sent.front();
-            duplicate.jump = true; // 処理済みseqのジャンプ
-            ReplicationTestAccess::queueInputs(replication, PEER, {duplicate});
-            runFrames(1, false, resendPeak);
-        }
-        std::cout << "[NetworkAvatarRegression] resendPeak=" << resendPeak << '\n';
-        expect(resendPeak < beforeResend + 0.5f, "a resent (already processed) jump is not applied again");
-
-        const float beforeSecond = root->getWorldPosition().y;
-        float secondPeak = beforeSecond;
-        runFrames(180, true, secondPeak);
-        std::cout << "[NetworkAvatarRegression] secondJumpPeak=" << secondPeak << '\n';
-        expect(secondPeak > beforeSecond + 1.5f, "a second jump is applied after landing");
+        // 着席中は、Clientの操作軸がHost上のSeat.Throttle/Steerに入る
+        auto seat = std::make_shared<Seat>(root->getWorldPosition() + Vector3(0.0f, -1.0f, 0.0f),
+                                           Vector3(4.0f, 1.0f, 2.0f), Cube::defaultTextureID);
+        seat->Name = "ProxySeat";
+        seat->Anchored = true;
+        host.workspace->addChild(seat);
+        host.physics->update(*host.workspace, 0.0f);
+        seat->sit(humanoid);
+        ReplicationTestAccess::hostReceiveAvatarState(
+            replication, PEER, avatarStatePayload(clientTick + 1000, clientPose(clientTick), 0.5f, -1.0f));
+        ReplicationTestAccess::hostSimulateAvatars(replication, DT, host.physics);
+        expect(humanoid->isSeated() && std::abs(seat->Throttle - 0.5f) < 1.0e-5f && std::abs(seat->Steer + 1.0f) < 1.0e-5f,
+               "a seated proxy writes the client's axes to Seat.Throttle/Steer");
     }
 
-    // ---- Client→Host: 同じ入力列なら、同じseqでのClientとHostの移動量が一致する ----
+    // ---- Host: 運転席に座ったClientへ乗り物の主導権を渡し、降りたら取り戻す ----
     {
-        NetworkAvatarWorld client = makeWorld("NetworkAvatarClientEquivalence");
-        NetworkAvatarWorld host = makeWorld("NetworkAvatarHostEquivalence");
-        expect(client.physics && host.physics, "equivalence worlds are available");
-        if (!client.physics || !host.physics) return failures;
+        NetworkAvatarWorld host = makeWorld("NetworkAvatarOwnershipWorkspace");
+        if (!host.physics) return failures;
+        auto car = std::make_shared<Model>();
+        car->Name = "Car";
+        host.workspace->addChild(car);
+        auto chassis = std::make_shared<Cube>(Vector3(20.0f, 2.0f, 0.0f), Vector3(8.0f, 1.0f, 4.0f), Cube::defaultTextureID);
+        chassis->Name = "Chassis";
+        auto seat = std::make_shared<Seat>(Vector3(20.0f, 3.0f, 0.0f), Vector3(2.0f, 1.0f, 2.0f), Cube::defaultTextureID);
+        seat->Name = "Seat";
+        auto wheel = std::make_shared<Cube>(Vector3(24.0f, 1.0f, 3.0f), Vector3(2.0f, 2.0f, 1.0f), Cube::defaultTextureID);
+        wheel->Name = "Wheel";
+        auto crate = std::make_shared<Cube>(Vector3(20.0f, 4.0f, 6.0f), Vector3(1.0f, 1.0f, 1.0f), Cube::defaultTextureID);
+        crate->Name = "Crate";
+        car->addChild(chassis);
+        car->addChild(seat);
+        car->addChild(wheel);
+        host.workspace->addChild(crate);
+        car->addChild(std::make_shared<Weld>(seat, chassis));
+        auto motor = std::make_shared<Motor>(chassis, wheel);
+        motor->Name = "WheelMotor";
+        car->addChild(motor);
+        car->addChild(std::make_shared<NoCollision>(chassis, crate)); // 物を結び付けない拘束はたどらない
+        for (int frame = 0; frame < 2; ++frame) host.physics->update(*host.workspace, DT);
 
-        // Client: Userのキャラ生成と同じ経路(テンプレートclone→スポーン配置→Rootを衝突させる)
-        auto user = User::createRemoteUser(2);
-        auto character = User::buildCharacterModel(client.system.get(), "LocalCharacter");
-        auto localHumanoid = std::dynamic_pointer_cast<Humanoid>(character->getChildren().at("Humanoid"));
-        localHumanoid->resolveParts(character.get());
-        auto localRoot = localHumanoid->getRootPart();
-        localRoot->Anchored = false;
-        localRoot->CanCollide = true;
-        User::placeCharacterAtSpawn(character, localHumanoid, client.workspace.get(), 2);
-        client.workspace->addChild(character);
-        user->character = character;
-        user->humanoid = localHumanoid;
-        ReplicationManager clientReplication(client.workspace, user, client.system.get());
-
-        // Host: 同じピアのリモートキャラ
-        ReplicationManager hostReplication(host.workspace, nullptr, host.system.get());
-        constexpr PeerId PEER = 2;
-        ReplicationTestAccess::spawnRemoteAvatar(hostReplication, PEER);
-
-        // どちらも入力なしで静止させてから始める
-        localHumanoid->setTickControlled(true);
-        for (int frame = 0; frame < 180; ++frame) {
-            client.physics->update(*client.workspace, DT);
-            ReplicationTestAccess::hostSimulateAvatars(hostReplication, DT, host.physics);
+        ReplicationManager replication(host.workspace, nullptr, host.system.get());
+        constexpr PeerId PEER = 3;
+        ReplicationTestAccess::spawnRemoteAvatar(replication, PEER);
+        auto humanoid = ReplicationTestAccess::humanoid(replication, PEER);
+        for (int frame = 0; frame < 3; ++frame) {
+            ReplicationTestAccess::hostSimulateAvatars(replication, DT, host.physics);
             host.physics->update(*host.workspace, DT);
         }
+        ReplicationTestAccess::hostRescanWorld(replication);
+        ReplicationTestAccess::ensurePreStepCallback(replication);
 
-        // Client: Userと同じく毎フレーム入力を渡し、固定stepごとに記録させる
-        ReplicationTestAccess::clientEnsureInputRecording(clientReplication);
-        constexpr int STEPS = 150;
-        for (int frame = 0; frame < STEPS; ++frame) {
-            const AvatarInputWire in = walkInput(0, frame >= STEPS / 2);
-            HumanoidControlInput control;
-            control.flatForward = in.flatForward;
-            control.flatRight = in.flatRight;
-            control.targetMoveDir = in.targetMoveDir;
-            control.isPressingMove = in.isPressingMove;
-            control.forwardAxis = in.forwardAxis;
-            control.smoothing = in.smoothing;
-            localHumanoid->setControlInput(control);
-            if (frame == STEPS / 3) localHumanoid->requestJump();
-            client.physics->update(*client.workspace, DT);
-        }
-        const auto history = ReplicationTestAccess::inputHistory(clientReplication);
-        expect(history.size() == static_cast<size_t>(STEPS), "the client records one input per fixed step");
+        std::vector<std::uint32_t> mechanism;
+        std::vector<std::shared_ptr<Motor>> motors;
+        ReplicationTestAccess::collectMechanism(replication, seat, mechanism, motors);
+        auto contains = [&](const BaseCube& cube) {
+            const std::uint32_t netId = ReplicationTestAccess::hostNetId(replication, cube);
+            return netId != 0 && std::find(mechanism.begin(), mechanism.end(), netId) != mechanism.end();
+        };
+        expect(mechanism.size() == 3 && contains(*chassis) && contains(*seat) && contains(*wheel) && !contains(*crate)
+                   && motors.size() == 1,
+               "a seat's mechanism contains welded and motor-driven parts but not NoCollision partners");
 
-        // Host: 記録された入力を、毎フレーム直近4件の再送つきで流し込む
-        std::map<std::uint32_t, Vector3> hostPositions;
-        size_t delivered = 0;
-        for (int frame = 0; frame < STEPS + 30; ++frame) {
-            if (delivered < history.size()) ++delivered;
-            std::vector<AvatarInputWire> packet;
-            for (size_t i = delivered > 4 ? delivered - 4 : 0; i < delivered; ++i)
-                packet.push_back(history[i].input);
-            if (!packet.empty()) ReplicationTestAccess::queueInputs(hostReplication, PEER, packet);
-            ReplicationTestAccess::hostSimulateAvatars(hostReplication, DT, host.physics);
+        seat->sit(humanoid);
+        ReplicationTestAccess::hostUpdateOwnership(replication);
+        expect(chassis->Anchored && seat->Anchored && wheel->Anchored && !crate->Anchored,
+               "giving a vehicle to its driver makes the host copy kinematic");
+        expect(ReplicationTestAccess::hostObjectOwner(replication, *chassis) == PEER &&
+                   ReplicationTestAccess::hostObjectOwner(replication, *crate) == 0 &&
+                   ReplicationTestAccess::ownedMotorCount(replication) == 1,
+               "the driver owns the vehicle parts and motors");
+
+        // 所有Clientの演算結果(1tickに0.1stud進む)に、Host側の車体がキネマティックで追従する
+        const std::uint32_t chassisId = ReplicationTestAccess::hostNetId(replication, *chassis);
+        const Vector3 chassisStart = chassis->getWorldPosition();
+        std::uint32_t clientTick = 500;
+        for (int frame = 0; frame < 120; ++frame) {
+            ++clientTick;
+            if (clientTick % 3 == 0) {
+                ByteWriter writer;
+                writer.writeU32(clientTick);
+                writer.writeU16(1);
+                writer.writeU32(chassisId);
+                writer.writeVector3(chassisStart + Vector3(0.1f * static_cast<float>(clientTick - 500), 0.0f, 0.0f));
+                writer.writeQuat(Quaternion());
+                writer.writeVector3(Vector3(6.0f, 0.0f, 0.0f));
+                writer.writeVector3(Vector3{});
+                ReplicationTestAccess::hostReceiveOwnedTransforms(replication, PEER, writer.data);
+            }
+            ReplicationTestAccess::hostAdvanceClocks(replication, DT);
             host.physics->update(*host.workspace, DT);
-            const std::uint32_t seq = ReplicationTestAccess::lastProcessedSeq(hostReplication, PEER);
-            if (seq != 0) hostPositions[seq] = ReplicationTestAccess::latestPose(hostReplication, PEER).Position;
         }
+        const float expectedX = chassisStart.x + 0.1f * static_cast<float>(clientTick - 5 - 500);
+        std::cout << "[NetworkAvatarRegression] owned chassisX=" << chassis->getWorldPosition().x
+                  << " expected=" << expectedX << '\n';
+        expect(std::abs(chassis->getWorldPosition().x - expectedX) < 0.3f,
+               "the host copy follows the owner's transforms");
 
-        const std::uint32_t firstSeq = history.front().seq;
-        const auto hostFirst = hostPositions.find(firstSeq);
-        expect(hostFirst != hostPositions.end() && hostPositions.size() == history.size(),
-               "the host consumes every recorded input exactly once");
-        if (hostFirst == hostPositions.end()) return failures;
-        float maxError = 0.0f;
-        float maxTravel = 0.0f;
-        for (const auto& entry : history) {
-            const auto hostEntry = hostPositions.find(entry.seq);
-            if (hostEntry == hostPositions.end()) continue;
-            const Vector3 clientMove = entry.rootPositionBefore - history.front().rootPositionBefore;
-            const Vector3 hostMove = hostEntry->second - hostFirst->second;
-            maxError = std::max(maxError, positionDistance(clientMove, hostMove));
-            maxTravel = std::max(maxTravel, clientMove.length());
-        }
-        std::cout << "[NetworkAvatarRegression] equivalence maxTravel=" << maxTravel
-                  << " maxError=" << maxError << '\n';
-        expect(maxTravel > 5.0f && maxTravel < 100.0f, "the recorded input walks the client character on the floor");
-        expect(maxError < 0.05f, "the host reproduces the client's movement for the same input sequence");
+        humanoid->standUp(host.physics);
+        ReplicationTestAccess::hostUpdateOwnership(replication);
+        const Vector3 velocity = host.physics->getLinearVelocity(*chassis);
+        expect(!chassis->Anchored && !seat->Anchored && !wheel->Anchored &&
+                   ReplicationTestAccess::hostObjectOwner(replication, *chassis) == 0 &&
+                   ReplicationTestAccess::ownedMotorCount(replication) == 0,
+               "standing up returns the vehicle to the host");
+        expect(std::abs(velocity.x - 6.0f) < 0.5f, "the host keeps the owner's last velocity");
     }
 
-    // ---- Client: 自キャラ補正(全リグ並進・速度保持)とWorldTransformsのワールド座標送信 ----
+    // ---- Client: 主導権の表と、Motorの駆動値の反映 ----
+    {
+        auto workspace = std::make_shared<Workspace>();
+        workspace->Name = "NetworkAvatarClientOwnershipWorkspace";
+        auto body = std::make_shared<Cube>(Vector3(0.0f, 5.0f, 0.0f), Vector3(2.0f, 1.0f, 2.0f), Cube::defaultTextureID);
+        body->Name = "OwnedBody";
+        body->Anchored = true;
+        auto rotor = std::make_shared<Cube>(Vector3(3.0f, 5.0f, 0.0f), Vector3(1.0f, 1.0f, 1.0f), Cube::defaultTextureID);
+        rotor->Name = "Rotor";
+        rotor->Anchored = true;
+        workspace->addChild(body);
+        workspace->addChild(rotor);
+        auto motor = std::make_shared<Motor>(body, rotor);
+        motor->Name = "DriveMotor";
+        workspace->addChild(motor);
+        workspace->initPhysics();
+        Physics* physics = workspace->getPhysicsEngine();
+        if (!physics) return failures;
+        physics->update(*workspace, 0.0f);
+
+        ReplicationManager replication(workspace, nullptr, nullptr);
+        ReplicationTestAccess::addClientObject(replication, 7, body);
+        const PeerId localId = NetworkManager::get().getLocalPeerId();
+        auto ownershipPayload = [](std::uint32_t netId, PeerId owner, bool present) {
+            ByteWriter writer;
+            writer.writeU16(present ? 1 : 0);
+            if (present) {
+                writer.writeU32(netId);
+                writer.writeU32(owner);
+            }
+            return writer.data;
+        };
+        ReplicationTestAccess::clientApplyOwnership(replication, ownershipPayload(7, localId, true));
+        expect(ReplicationTestAccess::clientObjectOwned(replication, 7) && !body->Anchored,
+               "an object given to this client becomes dynamic and owned");
+        ReplicationTestAccess::clientApplyOwnership(replication, ownershipPayload(7, localId, false));
+        expect(!ReplicationTestAccess::clientObjectOwned(replication, 7) && body->Anchored,
+               "an object returned to the host becomes kinematic again");
+
+        ByteWriter drive;
+        drive.writeU16(1);
+        const std::string path = motor->getWorkspaceRelativePath();
+        drive.writeU16(static_cast<std::uint16_t>(path.size()));
+        for (char c : path) drive.writeU8(static_cast<std::uint8_t>(c));
+        drive.writeF32(12.5f);
+        drive.writeF32(800.0f);
+        drive.writeU8(0);
+        drive.writeF32(0.0f);
+        ReplicationTestAccess::clientApplyJointDrive(replication, drive.data);
+        expect(std::abs(motor->getDriveVelocity() - 12.5f) < 1.0e-5f && std::abs(motor->getMaxForce() - 800.0f) < 1.0e-3f,
+               "JointDrive applies the host's motor drive values");
+    }
+
+    // ---- Client: 受信姿勢で動かした車を主導権で受け取っても、Motorの取り付け位置がずれない ----
+    // (同期で部品を動かすとき、子のAttachmentが元の位置に取り残されると、拘束を作り直したときに
+    //  車輪が外れる・軸がずれる・車体が落ちる)
+    {
+        const std::filesystem::path scenePath =
+            std::filesystem::temp_directory_path() / "recubin_vehicle_ownership_regression.yaml";
+        {
+            std::ofstream scene(scenePath, std::ios::binary | std::ios::trunc);
+            scene << R"YAML(recubin:
+  type: scene
+  version: 0
+Root:
+  Properties:
+    UseNetwork: true
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Properties:
+        Gravity: [0, -196.2, 0]
+      Children:
+        - ClassName: Cube
+          Name: Floor
+          Properties:
+            Position: [0, -0.5, 0]
+            Size: [400, 1, 400]
+            Anchored: true
+        - ClassName: Model
+          Name: Car
+          Children:
+            - ClassName: Cube
+              Name: Chassis
+              Properties:
+                Position: [0, 4, 0]
+                Size: [20, 2, 10]
+                Anchored: false
+              Children:
+                - {ClassName: Attachment, Name: A0, Properties: {Position: [-8, -0.5, 5]}}
+                - {ClassName: Attachment, Name: A1, Properties: {Position: [8, -0.5, 5]}}
+                - {ClassName: Attachment, Name: A2, Properties: {Position: [-8, -0.5, -5]}}
+                - {ClassName: Attachment, Name: A3, Properties: {Position: [8, -0.5, -5]}}
+                - {ClassName: Motor, Name: M0, Properties: {Cube0: Car\Chassis, Cube1: Car\W0, Attachment0: A0, Attachment1: Attachment, Axis: [0, 0, 1], DriveVelocity: 0, MaxForce: 1000}}
+                - {ClassName: Motor, Name: M1, Properties: {Cube0: Car\Chassis, Cube1: Car\W1, Attachment0: A1, Attachment1: Attachment, Axis: [0, 0, 1], DriveVelocity: 0, MaxForce: 1000}}
+                - {ClassName: Motor, Name: M2, Properties: {Cube0: Car\Chassis, Cube1: Car\W2, Attachment0: A2, Attachment1: Attachment, Axis: [0, 0, 1], DriveVelocity: 0, MaxForce: 1000}}
+                - {ClassName: Motor, Name: M3, Properties: {Cube0: Car\Chassis, Cube1: Car\W3, Attachment0: A3, Attachment1: Attachment, Axis: [0, 0, 1], DriveVelocity: 0, MaxForce: 1000}}
+            - ClassName: Cylinder
+              Name: W0
+              Properties: {Position: [-8, 3.5, 5.5], Size: [4, 1, 4], Rotation: [0.7071068, 0, 0, 0.7071068], Anchored: false, MassDensity: 10}
+              Children:
+                - {ClassName: Attachment, Name: Attachment, Properties: {Position: [0, -0.5, 0]}}
+            - ClassName: Cylinder
+              Name: W1
+              Properties: {Position: [8, 3.5, 5.5], Size: [4, 1, 4], Rotation: [0.7071068, 0, 0, 0.7071068], Anchored: false, MassDensity: 10}
+              Children:
+                - {ClassName: Attachment, Name: Attachment, Properties: {Position: [0, -0.5, 0]}}
+            - ClassName: Cylinder
+              Name: W2
+              Properties: {Position: [-8, 3.5, -5.5], Size: [4, 1, 4], Rotation: [0.7071068, 0, 0, 0.7071068], Anchored: false, MassDensity: 10}
+              Children:
+                - {ClassName: Attachment, Name: Attachment, Properties: {Position: [0, 0.5, 0]}}
+            - ClassName: Cylinder
+              Name: W3
+              Properties: {Position: [8, 3.5, -5.5], Size: [4, 1, 4], Rotation: [0.7071068, 0, 0, 0.7071068], Anchored: false, MassDensity: 10}
+              Children:
+                - {ClassName: Attachment, Name: Attachment, Properties: {Position: [0, 0.5, 0]}}
+)YAML";
+        }
+        auto root = SceneLoader::loadScene(scenePath.string());
+        std::error_code removeError;
+        std::filesystem::remove(scenePath, removeError);
+        std::shared_ptr<Workspace> workspace;
+        if (root) {
+            for (auto& [name, child] : root->getChildren())
+                if (child->IsA("Workspace")) workspace = std::static_pointer_cast<Workspace>(child);
+        }
+        expect(workspace != nullptr, "vehicle scene loads");
+        if (!workspace) return failures;
+        workspace->initPhysics();
+        Physics* physics = workspace->getPhysicsEngine();
+        if (!physics) return failures;
+        auto car = workspace->getChildren().at("Car");
+        auto carPart = [&](const char* name) {
+            return std::dynamic_pointer_cast<BaseCube>(car->getChildren().at(name));
+        };
+        auto chassis = carPart("Chassis");
+        std::vector<std::shared_ptr<BaseCube>> wheels{carPart("W0"), carPart("W1"), carPart("W2"), carPart("W3")};
+        std::vector<std::shared_ptr<BaseCube>> parts{chassis, wheels[0], wheels[1], wheels[2], wheels[3]};
+        std::vector<std::shared_ptr<Motor>> motors;
+        for (auto& [name, child] : chassis->getChildren())
+            if (child->IsA("Motor")) motors.push_back(std::static_pointer_cast<Motor>(child));
+        for (int frame = 0; frame < 60; ++frame) physics->update(*workspace, DT);
+
+        // 車輪の、車体から見た位置と軸(円柱の軸=ローカルY)
+        auto wheelLocal = [&](const BaseCube& wheel) {
+            return chassis->getWorldCFrame().inverse() * wheel.getWorldCFrame();
+        };
+        std::vector<Vector3> restHubs;
+        for (auto& wheel : wheels) restHubs.push_back(wheelLocal(*wheel).Position);
+        const CFrame attachmentBefore =
+            std::dynamic_pointer_cast<Attachment>(chassis->getChildren().at("A0"))->getCFrame();
+
+        // Client: Hostが演算する車として受け取り、受信姿勢で走らせる(1tickに0.2stud、車輪は転がる)
+        ReplicationManager replication(workspace, nullptr, nullptr);
+        for (std::uint32_t i = 0; i < parts.size(); ++i) {
+            parts[i]->setAnchored(true);
+            ReplicationTestAccess::addClientObject(replication, i + 1, parts[i]);
+        }
+        ReplicationTestAccess::ensurePreStepCallback(replication);
+        std::vector<CFrame> base;
+        for (auto& part : parts) base.push_back(part->getWorldCFrame());
+        constexpr float SPEED_PER_TICK = 0.2f;
+        for (std::uint32_t tick = 1; tick <= 180; ++tick) {
+            if (tick % 3 == 0) {
+                ByteWriter writer;
+                writer.writeU32(tick);
+                writer.writeU16(static_cast<std::uint16_t>(parts.size()));
+                for (std::uint32_t i = 0; i < parts.size(); ++i) {
+                    CFrame pose = base[i];
+                    pose.Position = pose.Position + Vector3(SPEED_PER_TICK * static_cast<float>(tick), 0.0f, 0.0f);
+                    if (i > 0) {
+                        const float roll = -SPEED_PER_TICK * static_cast<float>(tick) / 2.0f;
+                        pose.Rotation = Quaternion::fromAxisAngle(Vector3(0.0f, 0.0f, 1.0f), roll) * pose.Rotation;
+                    }
+                    writer.writeU32(i + 1);
+                    writer.writeVector3(pose.Position);
+                    writer.writeQuat(pose.Rotation);
+                }
+                ReplicationTestAccess::clientStoreWorldTransforms(replication, writer.data);
+            }
+            ReplicationTestAccess::clientAdvanceRenderClock(replication, DT);
+            ReplicationTestAccess::clientApplyWorldSmoothing(replication, DT);
+            physics->update(*workspace, DT);
+        }
+        const CFrame attachmentAfter =
+            std::dynamic_pointer_cast<Attachment>(chassis->getChildren().at("A0"))->getCFrame();
+        const float carried = chassis->getWorldPosition().x - base[0].Position.x;
+        std::cout << "[NetworkAvatarRegression] vehicle carried=" << carried << " attachmentDrift="
+                  << positionDistance(attachmentBefore.Position, attachmentAfter.Position) << '\n';
+        expect(carried > 20.0f, "the kinematic car follows the received transforms");
+        expect(positionDistance(attachmentBefore.Position, attachmentAfter.Position) < 1.0e-3f,
+               "moving a synced part keeps its attachments' local offsets");
+
+        // 主導権を受け取って自分で走らせる
+        ByteWriter ownership;
+        ownership.writeU16(static_cast<std::uint16_t>(parts.size()));
+        for (std::uint32_t i = 0; i < parts.size(); ++i) {
+            ownership.writeU32(i + 1);
+            ownership.writeU32(NetworkManager::get().getLocalPeerId());
+        }
+        ReplicationTestAccess::clientApplyOwnership(replication, ownership.data);
+        for (auto& motor : motors) motor->setDriveVelocity(15.0f);
+        const float ownedStart = chassis->getWorldPosition().x;
+        for (int frame = 0; frame < 120; ++frame) physics->update(*workspace, DT);
+        float maxHubError = 0.0f;
+        float minAxle = 1.0f;
+        for (size_t i = 0; i < wheels.size(); ++i) {
+            const CFrame local = wheelLocal(*wheels[i]);
+            maxHubError = std::max(maxHubError, positionDistance(local.Position, restHubs[i]));
+            minAxle = std::min(minAxle, std::abs(local.Rotation.rotate(Vector3(0.0f, 1.0f, 0.0f)).z));
+        }
+        const float driven = std::abs(chassis->getWorldPosition().x - ownedStart);
+        std::cout << "[NetworkAvatarRegression] owned vehicle driven=" << driven << " hubError=" << maxHubError
+                  << " axle=" << minAxle << '\n';
+        expect(maxHubError < 0.3f && minAxle > 0.98f,
+               "an owned car keeps its wheels on their axles after the joints are rebuilt");
+        expect(driven > 10.0f, "an owned car drives with its motors");
+    }
+
+    // ---- キャラの全リグ並進(速度保持)とWorldTransformsのワールド座標送信 ----
     {
         auto workspace = std::make_shared<Workspace>();
         workspace->Name = "NetworkAvatarClientWorkspace";
@@ -3565,8 +3835,8 @@ int runNetworkAvatarRegression() {
         const Vector3 rootBefore = root->getWorldPosition();
         const Vector3 torsoBefore = torso->getWorldPosition();
         physics->setLinearVelocity(*root, Vector3(0.0f, 20.0f, 0.0f));
-        ReplicationTestAccess::translateLocalCharacter(
-            replication, Vector3(1.0f, 0.0f, 0.0f), Vector3(0.0f, 5.0f, 0.0f));
+        ReplicationTestAccess::translateCharacter(
+            replication, *character, Vector3(1.0f, 0.0f, 0.0f), Vector3(0.0f, 5.0f, 0.0f));
         const Vector3 rootMoved = root->getWorldPosition() - rootBefore;
         const Vector3 torsoMoved = torso->getWorldPosition() - torsoBefore;
         expect(std::abs(rootMoved.x - 1.0f) < 1.0e-3f && std::abs(rootMoved.y) < 1.0e-3f,
@@ -3622,6 +3892,8 @@ int runNetworkAvatarRegression() {
         writer.writeVector3(Vector3(0.0f, 6.0f, 0.0f) + offset);
         writer.writeQuat(Quaternion());
         ReplicationTestAccess::clientStoreWorldTransforms(replication, writer.data);
+        ReplicationTestAccess::ensurePreStepCallback(replication);
+        ReplicationTestAccess::clientAdvanceRenderClock(replication, DT);
         ReplicationTestAccess::clientApplyWorldSmoothing(replication, DT);
         physics->update(*workspace, DT);
         std::cout << "[NetworkAvatarRegression] weldedChassis=("
@@ -3693,6 +3965,83 @@ int runNetworkAvatarRegression() {
         expect(std::abs(lag250 - 15.0f) < 1.5f, "a longer NetworkInterpolationDelay (0.25s) delays the display accordingly");
         expect(step100 < 0.02f && step250 < 0.02f,
                "objects received at 20Hz move smoothly every frame (no stair steps)");
+    }
+
+    // ---- Client: 物理ボディを持つ同期物体は、フレームレートが揺れても固定stepごとに等速で動く ----
+    {
+        auto workspace = std::make_shared<Workspace>();
+        workspace->Name = "NetworkAvatarKinematicStepWorkspace";
+        auto chassis = std::make_shared<Cube>(
+            Vector3(0.0f, 5.0f, 0.0f), Vector3(8.0f, 1.0f, 4.0f), Cube::defaultTextureID);
+        chassis->Name = "StepChassis";
+        chassis->Anchored = true;
+        auto seat = std::make_shared<Cube>(
+            Vector3(0.0f, 6.0f, 0.0f), Vector3(2.0f, 1.0f, 2.0f), Cube::defaultTextureID);
+        seat->Name = "StepSeat";
+        seat->Anchored = true;
+        workspace->addChild(chassis);
+        workspace->addChild(seat);
+        workspace->addChild(std::make_shared<Weld>(seat, chassis));
+        workspace->initPhysics();
+        Physics* physics = workspace->getPhysicsEngine();
+        if (!physics) return failures;
+        physics->update(*workspace, 0.0f);
+
+        ReplicationManager replication(workspace, nullptr, nullptr);
+        ReplicationTestAccess::addClientObject(replication, 1, chassis);
+        ReplicationTestAccess::addClientObject(replication, 2, seat);
+        ReplicationTestAccess::ensurePreStepCallback(replication);
+
+        // Hostでは1tickに0.1stud進む車体。20Hz(3tickごと)で届く
+        constexpr float SPEED_PER_TICK = 0.1f;
+        const float frameDts[] = {1.0f / 144.0f, 1.0f / 144.0f, 1.0f / 30.0f, 1.0f / 60.0f, 1.0f / 90.0f};
+        double hostTime = 0.0;
+        std::uint32_t lastSentTick = 0;
+        float maxStepSpeedError = 0.0f;
+        float maxIdleMove = 0.0f;
+        int checkedFrames = 0;
+        for (int frame = 0; frame < 600; ++frame) {
+            const float frameDt = frameDts[frame % 5];
+            hostTime += frameDt;
+            const std::uint32_t hostTick = 1000u + static_cast<std::uint32_t>(hostTime * 60.0);
+            if (hostTick / 3 != lastSentTick / 3) {
+                lastSentTick = hostTick;
+                const float x = static_cast<float>(hostTick) * SPEED_PER_TICK;
+                ByteWriter writer;
+                writer.writeU32(hostTick);
+                writer.writeU16(2);
+                writer.writeU32(1);
+                writer.writeVector3(Vector3(x, 5.0f, 0.0f));
+                writer.writeQuat(Quaternion());
+                writer.writeU32(2);
+                writer.writeVector3(Vector3(x, 6.0f, 0.0f));
+                writer.writeQuat(Quaternion());
+                ReplicationTestAccess::clientStoreWorldTransforms(replication, writer.data);
+            }
+            ReplicationTestAccess::clientAdvanceRenderClock(replication, frameDt);
+            ReplicationTestAccess::clientApplyWorldSmoothing(replication, frameDt);
+            const float before = chassis->getWorldPosition().x;
+            const std::uint64_t ticksBefore = physics->getSimulationTick();
+            physics->update(*workspace, frameDt);
+            const std::uint64_t steps = physics->getSimulationTick() - ticksBefore;
+            const float moved = chassis->getWorldPosition().x - before;
+            if (frame < 240) continue; // 表示時刻が落ち着くまで
+            ++checkedFrames;
+            if (steps == 0) {
+                maxIdleMove = std::max(maxIdleMove, std::abs(moved));
+            } else {
+                maxStepSpeedError = std::max(
+                    maxStepSpeedError, std::abs(moved / static_cast<float>(steps) - SPEED_PER_TICK));
+            }
+        }
+        std::cout << "[NetworkAvatarRegression] kinematic per-step speedError=" << maxStepSpeedError
+                  << " idleMove=" << maxIdleMove << " seatOffset="
+                  << seat->getWorldPosition().x - chassis->getWorldPosition().x << '\n';
+        expect(checkedFrames > 0 && maxStepSpeedError < 0.02f,
+               "a welded synced body moves one host step per physics step at any frame rate");
+        expect(maxIdleMove < 1.0e-4f, "a welded synced body does not move in frames without a physics step");
+        expect(std::abs(seat->getWorldPosition().x - chassis->getWorldPosition().x) < 1.0e-3f,
+               "welded synced members stay together");
     }
 
     // ---- Seat: Host権威の着席(Clientは接触で座らない)と着席高さ ----

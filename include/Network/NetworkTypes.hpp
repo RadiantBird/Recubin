@@ -99,12 +99,16 @@ enum class MessageType : uint8_t {
     Welcome         = 3, // Host→Client: 割当PeerId
     Roster          = 4, // Host→全員: 全PeerInfo+nextPeerId
     ResourceReport  = 5, // Client→Host: cpuScore定期報告
-    AvatarState     = 6, // Client→Host (UNRELIABLE): 未ackの固定step入力をまとめて送る(count/先頭seq + 各step: flatForward/flatRight/targetMoveDir/flags/forwardAxis/rightAxis/smoothing。flags: 1=押下 2=CtrlLock 4=入力あり 8=ジャンプ 16=降車)
-    AvatarBatch     = 7, // Host→全員 (UNRELIABLE): 全ピアのアバター姿勢(各エントリ: id/pos/quat/linVel/lastProcessedSeq。リモートキャラはlastProcessedSeqを使う直前の状態)
+    AvatarState     = 6, // Client→Host (UNRELIABLE): 自キャラの姿勢(Clientが演算)。Clientのtick/pos/quat/linVel/walkCycle/flags(1=接地)/forwardAxis/rightAxis
+    AvatarBatch     = 7, // Host→全員 (UNRELIABLE): 全ピアのアバター姿勢(Host tick + 各エントリ: id/pos/quat/linVel/walkCycle/flags。flags: 1=接地 2=着席 4=Ragdoll)
     WorldMapping    = 8, // Host→全員 (RELIABLE): netId→Workspace相対パス表
     WorldTransforms = 9, // Host→全員 (UNRELIABLE): netIdごとのpos+quat(分割送信)
     SimulationClock = 10, // Host→全員: 物理tick+accumulator alpha
-    SeatState       = 11  // Host→全員 (RELIABLE): 変化したプレイヤーの着席先(各エントリ: id/Seatのworkspace相対パス、空=非着席)
+    SeatState       = 11, // Host→全員 (RELIABLE): 変化したプレイヤーの着席先(各エントリ: id/Seatのworkspace相対パス、空=非着席)
+    OwnedTransforms = 12, // Client→Host (UNRELIABLE): 主導権を持つ同期物体の姿勢(Clientのtick + 各エントリ: netId/pos/quat/linVel/angVel)
+    Ownership       = 13, // Host→全員 (RELIABLE): 同期物体の主導権表の全量(各エントリ: netId/所有ピアid)。載っていない物体はHostが演算する
+    JointDrive      = 14, // Host→全員 (RELIABLE): 主導権を渡した機構内Motorの駆動値(各エントリ: workspace相対パス/DriveVelocity/MaxForce/Servo/TargetAngle)
+    StandUpRequest  = 15  // Client→Host (RELIABLE): 自キャラがローカルで降車した
 };
 
 // ホスト移行の進行状態(遷移処理はPhase 2で実装)

@@ -15,6 +15,17 @@ private:
 
     std::unique_ptr<IPhysicsBackend> m_backend;
     PhysicsBackendType m_backendType = PhysicsBackendType::PhysX;
+
+public:
+    // update()中の各固定stepの直前に呼ぶ外部処理(dtは固定step)
+    using PreStepCallback = std::function<void(Physics& physics, float dt)>;
+
+private:
+    struct PreStepCallbackEntry {
+        std::weak_ptr<void> owner;
+        PreStepCallback callback;
+    };
+    std::vector<PreStepCallbackEntry> m_preStepCallbacks;
     bool m_available = false;
     double m_wavePhaseOffsetTicks = 0.0;
     double m_wavePhaseTargetOffsetTicks = 0.0;
@@ -65,6 +76,9 @@ public:
     void makeSimulationClockAuthoritative();
 
     void update(Workspace& workspace, float dt);
+    // 固定stepの直前に呼ぶ処理を登録する。ownerが破棄されたら自動で外れる
+    // (登録側はPhysicsより先に消えてもよく、解除を呼ぶ必要はない)
+    void addPreStepCallback(std::weak_ptr<void> owner, PreStepCallback callback);
     void stepOnce(float dt);
     void syncAllCubes();
     void moveWeldAssembly(const std::shared_ptr<BaseCube>& member, const CFrame& worldCFrame);

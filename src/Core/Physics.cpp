@@ -480,7 +480,16 @@ void Physics::update(Workspace& workspace, float dt) {
     // キャラクター制御は固定stepごとに1回だけ進める(フレームレートに依存させない)。
     // フックはこのupdate中だけ有効にする
     const std::vector<Humanoid*>& humanoids = workspace.getRenderHumanoids();
+    std::erase_if(m_preStepCallbacks, [](const PreStepCallbackEntry& entry) {
+        return entry.owner.expired();
+    });
     m_backend->setPreStepHook([this, &humanoids](float stepDt, int stepIndex) {
+        // 登録処理の中で登録が増えても安全なよう、添字で回す
+        for (size_t i = 0; i < m_preStepCallbacks.size(); ++i) {
+            if (m_preStepCallbacks[i].owner.expired()) continue;
+            const PreStepCallback callback = m_preStepCallbacks[i].callback;
+            callback(*this, stepDt);
+        }
         Humanoid::stepControlAll(humanoids, this, stepDt, stepIndex > 0);
     });
     m_backend->update(workspace, dt);
@@ -490,6 +499,11 @@ void Physics::update(Workspace& workspace, float dt) {
     FrameProfiler::Scope syncPivots("physics.syncPivots");
     Model::syncPivotsToCentroid(workspace.getRenderModels());
 }
+void Physics::addPreStepCallback(std::weak_ptr<void> owner, PreStepCallback callback) {
+    if (owner.expired() || !callback) return;
+    m_preStepCallbacks.push_back({std::move(owner), std::move(callback)});
+}
+
 void Physics::stepOnce(float dt) {
     if (!isAvailable()) return;
     const std::uint64_t before = m_backend->getSimulationTick();
