@@ -52,4 +52,3 @@ declare class Workspace is Instance
 end
 
 declare global workspace: Workspace
--- declare Workspace: Workspace -- FIX LATER: 型名と変数名が同じだとRecubin.luard:55: name 'Workspace' is declared more than onceとなる
