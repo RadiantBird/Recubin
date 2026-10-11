@@ -286,3 +286,71 @@
 - **Terrain.DataPath は任意フォルダを指せる**（「Use Existing...」）。DataPath配下はregionファイル以外も存在しうる前提で扱う必要がある。
 - **Host側のリモートアバターは物理プロキシ**のため、Client→HostのAvatarBatch偽装は姿勢に効かない。実害経路は「悪意あるHost→全Client」。
 - ネットワークゲームではスクリプトが起動しない（game_main）ため、ネットワーク検証シーンでLuauによる状態表示はできない。
+
+---
+
+## 2026-10-11 キャラクター/ネットワーク物理の改修（Seat降車姿勢・Host権威+固定tick決定論・補間表示）
+
+### 1. 何をしたか
+- **Seat降車で傾いたまま**（`Humanoid::standUp`）: 降車ホップをYawのみ残した直立姿勢(`Quaternion::fromEuler(0,yaw,0)`)にし、`collectCharacterBodies`の全ボディを同じ剛体変換で`moveWeldAssembly`（ネイティブボディ単位で1回）。
+- **第1段階（明確なバグ修正）**（`Replication.cpp/.hpp`）:
+  - Hostのリモートキャラで`updatePhysicsState`を実行（ジャンプ1回きり・ホバー無しで高さ3.5〜3.9studずれる問題）。
+  - リモートキャラをテンプレートの`CanCollide`に戻し、NoCollisionをRoot同士→衝突ボディ同士へ拡大（`enablePhysicsProxy`、`RemoteAvatar::templateCanCollide`）。
+  - レガシー物理用の予測シーン（shadow root/static mirror/入力リプレイ）を削除し、履歴比較の補正に置換。補正は`translateLocalCharacter`で全R6ボディを並進＋速度保持（`setMemberWorldCFrame`が速度を0にするため保存・復元）。回転は補正しない。
+  - `hostSendWorldTransforms`がローカルCFrameを送っていたのを`getWorldCFrame()`に（10/01の保留事項）。
+- **Client側で車体が置き去り**: `Physics::setMemberKinematicTarget` / `IPhysicsBackend::setBodyKinematicTarget`（既定は瞬間移動、Box3Dは`b3Body_SetTargetTransform`）を追加し、`clientApplyWorldSmoothing`からネイティブボディごとに1回呼ぶ。
+- **2a キャラ制御の固定tick化（全モード）**: `IPhysicsBackend::setPreStepHook`（Box3Dの`stepOnce`ループで`applyBuoyancy`前に呼ぶ）、`Physics::update`中だけ`Humanoid::stepControlAll`を登録。`Humanoid`に`HumanoidControlInput`、`setTickControlled`/`setControlInput`/`clearControlInput`/`requestJump`/`requestStandUp`/`stepControl`を追加。`User::processInput`/`processCharacterMovement`/`applyQueuedJump`は入力を渡すだけに（`move()`と毎フレームの`updatePhysicsState`呼び出しを削除）。
+- **Seat**: 着席高さを`Humanoid::seatedRootHeight`（RootJoint/HipのMotor6D C0/C1から股関節高さ→曲げた脚の下面が座面に接する高さ）に。着席をHost権威化: `Seat::setTouchSitEnabled`（Client中は無効、`ReplicationManager::update`で毎フレーム設定、デストラクタで有効に戻す）、新メッセージ`SeatState=11`（Reliable、`hostSendSeatStates`/`clientApplySeatState`/`applyLocalSeatPath`）、`NetworkManager`のゲームメッセージ範囲を`SeatState`まで拡張、`Humanoid::getSeat()`。
+- **2b 入力のtick同期**: `Humanoid::setControlStepCallback`（stepControl冒頭）、`getControlInput`/`hasPendingJump`/`hasPendingStandUp`。Clientは`clientRecordInputStep`で1step=1seqの入力と適用前Root位置・速度を記録し、`clientSendInputs`で未ack分を毎フレーム最大32件まとめて送る。Hostは`hostQueueInputs`→`hostConsumeInputStep`（ピア別`PeerInputQueue`、3件溜めて開始、未着は直前移動を継続しcursor据え置き、12件超で古いものを破棄）。AvatarBatchのposeは「そのseqを使う直前の状態」。補正は0.25stud超で位置＋速度差を適用。`AvatarInputWire`の`jumpSeq/standUpSeq`、`bufferLocalInput`、`m_pendingAvatarInput`等を削除。AvatarStateの形式変更（`NetworkTypes.hpp`のコメント更新）。
+- **2c 補間表示**: `System.NetworkInterpolationDelay`（秒、0〜1、既定0.1、luaReadOnly、`SceneRuntime::copySystemScalars`、`doc/Instances/System.md`、`spec.md`）。AvatarBatch/WorldTransformsの先頭にHost tick（`hostTickForSend`）。Clientは`TimedPose`のスナップショット(最大64)を`pushSnapshot`/`sampleSnapshots`で補間、`clientNoteHostTick`/`clientAdvanceRenderClock`で表示時刻を管理。指数平滑を廃止。Client側リモートアバターのボディは重力OFF。
+- **テスト**（`test_main.cpp`）: 新規`--network-avatar-regression`（Hostプロキシのホバー/ジャンプ/重複jump、Client→Host同一入力の移動量一致、補正、WorldTransformsワールド座標、Weld同期物体、補間、Seat権威/着席高さ）、`--character-tick-control-regression`（60fpsと30fpsで同一結果、ジャンプ要求の消費）。`ReplicationTestAccess`を拡張。既存`--remote-avatar-spawn-transform-regression`の1項目を新方式の期待値へ変更、セキュリティテストの`worldTransformsPayload`にtickを追加。
+
+### 2. なぜそうしたか
+- **降車の傾き原因**: RootのLockFlags(AngularX|Z)は「その時点の姿勢」で回転を固定する。傾いたまま`createActor`されるとGyroのX/Zトルクがロック軸に通らず二度と起き上がれない。ロックはそのままに、姿勢を直立にしてから降ろす方を選んだ。Rootだけ起こすとMotor6Dのばねで手足に引っ張られるため全ボディを動かした。
+- **方式: Host権威+tick決定論 vs 完全ロックステップ vs Client権威** → Host権威+tick決定論（ユーザー選択）。Box3Dにワールドのスナップショット/巻き戻しAPIが無く全世界リプレイは不可。ロックステップは入力遅延・途中参加の全状態転送・Win/Mac間の非決定性リスク。
+- **2段階**で進めた（ユーザー選択）。第1段階で明確なバグを潰して症状を軽くし、第2段階で構造を変えた。
+- **Weld compoundの同期をAPI追加で解決**（ユーザー選択）: Replicationだけで瞬間移動する案は速度0になり、車体に立つキャラが運ばれない。
+- **固定tick化は全モード**（ユーザー選択）: オフラインとネットワークで制御経路を一本化。1updateの2step目以降だけキャラ7ボディを`syncCube`（`syncCube`は`m_bodies`線形探索なので毎stepは大量Cubeシーンで重い。1step目は前フレーム末の`syncAllCubes`で最新）。
+- **着席Host権威**（ユーザー承認）: 各ピアが独立に接触着席していたのが二重着席の原因。着席が往復遅延ぶん遅れる代わりに食い違いが起きない。降車はローカル予測で即時。
+- **2bのジャンプ/降車はtick入力のフラグに統合**: 入力自体が冗長送信されseqで重複排除されるので、第1段階のjumpSeq方式は不要になった。
+- **Host入力バッファの未着時はcursorを進めない**（holdで遅延を自動拡張）＋溢れたら破棄。進める方式だと遅れて着いた入力が常に捨てられ予測外れが続く。
+- **補間遅延はSystemプロパティ**（ユーザー選択）。表示時刻は「最新受信tick＋受信後経過」から推定し緩やかに追従（受信間隔ごとの段差で時刻が跳ねないように）。
+
+### 3. どういう経緯か
+1. 調査依頼（ネットワークのジッター・向き・ジャンプ、Seat降車後の傾き）→コード調査で原因を列挙。
+2. Seat降車修正→ユーザー確認OK。
+3. 第1段階を計画（Plan mode）→実装→実機で「車体が置き去り、車輪が横転」。
+4. 使い捨てプローブ（`--car-probe`/`--car-client-probe`、Floating world/baseplate.yaml読込）でHost物理は正常、Clientでweld compoundのAnchored体が`syncCubeWithBodyState`によりbody poseで上書きされ動かないことを特定→キネマティック目標API追加。
+5. 「旋回すると車輪が曲がる」→プローブでオフラインでも再現（6秒で軸ずれ約85°）。原因は車体(約400)と車輪(約13)の質量比。車輪MassDensity=10で約4°、SUB_STEPS=8で約13°。ユーザーがMassDensityを上げて解決（エンジンは変更せず）。
+6. 第2段階: 2a→実機OK→Seat二重着席・着席高さの報告→修正→実機OK→2b→実機OK→2c。
+
+### 試して失敗・やり直した方法
+- `MOTOR_CONSTRAINT_HERTZ`を240→60に変えても結果がビット単位で同一。Box3Dは`joint.c:1466`で関節hertzを`0.25*サブステップ周波数`(=60Hz)に頭打ちしている（240設定は実質無効）。
+- プローブでMotorの`DriveVelocity`をフィールド直書きしても物理に反映されない（`setDriveVelocity`→`updateConstraint`経由が必要）。
+- 2aのテストで経過時間をfloat積算すると60fps/30fpsで入力切替フレームがずれ0.24studの差に見えた。tick数で判定すると差は2e-6。
+- 比較テストでSpawnLocation(8×8)から歩いて落下しmaxTravel=368になった→広い床を追加。
+- 着席テストで脚の下面が座面より0.55下→脚がMotor6Dのばねで重力に負け約73°しか曲がっていないだけで、股関節高さは正しかった（テストは股関節基準に変更）。
+- Bashヒアドキュメント内のPythonで`'\n'`を書くと実改行になりC++ビルドが壊れる（今回も2回）。スクラッチパッドに.pyを書いて実行するか、Editツールを使う。
+- `--character-rig-v2-regression`という名前の専用テストは存在しない（`Unknown regression mode`）。
+
+### 4. 未解決・保留
+- **2cの実機確認がまだ**（他プレイヤーの滑らかさ、沈み込み解消、`NetworkInterpolationDelay`の効き）。リモートアバターの補間と重力OFFはClient役（実ネットワーク）でしか動かず自動テスト未検証。
+- 着席中の脚がMotor6Dのばねで約73°までしか曲がらず垂れる（ユーザーに報告済み、未対応）。
+- 車輪が曲がる問題はコンテンツ側（MassDensity）で回避。エンジン側の対策（質量比の警告、効いていない`MOTOR_CONSTRAINT_HERTZ`の整理、サブステップ増）は未実施。
+- Client入力送信は60Hz×未ack最大32件（RTT100msで約30KB/s）。量子化等は未検討。未ackが32件を超える高遅延ではHostが入力を取りこぼす。
+- Client側の補正は巻き戻しなし（位置は1回最大0.5stud、速度差は全量）。Clientではキネマティックな同期物体・他プレイヤーとの接触で誤差が出うる。
+- PhysXバックエンドはtickフック未対応（PhysXは既に起動不可）。
+- `SeatState`再送はロスター増加時のみ。Clientがローカル予測で降車した直後にロスターが増えると一瞬再着席する可能性。
+- `--audio-diagnostics-regression`の失敗は継続（10/08から、今回と無関係）。
+- `scripts/Recubin.luard`はセッション開始前からの変更でコミット対象外。
+
+### 5. 暗黙仕様の発見
+- **Rootの`LockFlags`(AngularX|Z)は作成時の姿勢で回転を固定する**。傾いた姿勢でボディが作り直されると直立に戻れない（Gyroも効かない）。
+- **Weld compoundのAnchoredボディは同期時にbody poseが正**（`syncCubeWithBodyState`の`sharesBody`分岐）。論理CFrameを書いても動かない。単独Anchoredは論理→`SetTargetTransform`。
+- **Box3Dの関節hertzは`0.25*inv_h`で頭打ち**（SUB_STEPS=4なら60Hz）。
+- **`syncCube`は`m_bodies`の線形探索**（O(N)）。
+- **エディターのローカルサーバーは非プレイヤーの専用Host**（`startHost(0,false)`）。
+- **`setMemberWorldCFrame`(=`setBodyWorldCFrame`)は線速度・角速度を0にする**。
+- **接触イベント（Seat着席など）は`Physics::update`末尾の`dispatchContactEvents`でまとめて配送**され、固定stepループ中には起きない。
+- 既定リグは股関節がRoot中心の1下、baseplateのStarterCharacterはRoot 2×4×1で股関節がRoot中心（リグごとに着席高さが違う）。
+- キャラ制御はPlay中、固定step(1/60)ごとに`Humanoid::stepControl`で進む。`User`は入力を渡すだけ（spec.md未記載）。

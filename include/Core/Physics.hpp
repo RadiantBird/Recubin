@@ -82,6 +82,9 @@ public:
     // origin access remains an implementation detail of the facade.
     CFrame getMemberWorldCFrame(const BaseCube& cube) const;
     void setMemberWorldCFrame(BaseCube& cube, const CFrame& worldCFrame);
+    // Anchored(キネマティック)ボディを、memberがworldCFrameになるよう次の固定stepで動かす。
+    // Weld compoundでもnative bodyごと動く。compoundでは1ボディにつき1回だけ呼ぶこと。
+    void setMemberKinematicTarget(BaseCube& cube, const CFrame& worldCFrame);
     Vector3 getLinearVelocity(const BaseCube& cube) const;
     Vector3 getAngularVelocity(const BaseCube& cube) const;
     float consumeContactImpact(const BaseCube& cube) const;

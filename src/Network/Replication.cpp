@@ -6,16 +6,20 @@
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
 #include <Core/Physics.hpp>
+#include <Core/CharacterRig.hpp>
 #include <Instances/Model.hpp>
 #include <Instances/BaseCube.hpp>
 #include <Instances/NoCollision.hpp>
 #include <Instances/Humanoid.hpp>
+#include <Instances/Seat.hpp>
+#include <Instances/System.hpp>
 #include <Instances/Gyro.hpp>
 #include <Instances/Cube.hpp>
 #include <Util/Logger.hpp>
 
 #include <algorithm>
 #include <limits>
+#include <optional>
 #include <cmath>
 #include <unordered_set>
 
@@ -27,11 +31,41 @@ namespace {
 bool isFiniteWireVector(const Vector3& v) {
     return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
 }
+
+HumanoidControlInput toControlInput(const AvatarInputWire& in) {
+    HumanoidControlInput control;
+    control.flatForward = in.flatForward;
+    control.flatRight = in.flatRight;
+    control.targetMoveDir = in.targetMoveDir;
+    control.isPressingMove = in.isPressingMove;
+    control.ctrlLockEnabled = in.ctrlLockEnabled;
+    control.forwardAxis = in.forwardAxis;
+    control.rightAxis = in.rightAxis;
+    control.smoothing = in.smoothing;
+    return control;
+}
+
+// 入力の移動部分だけをHumanoidへ渡す(単発アクションは呼び出し側で扱う)
+void applyMovementInput(Humanoid& humanoid, const AvatarInputWire& in) {
+    if (in.hasInput) humanoid.setControlInput(toControlInput(in));
+    else humanoid.clearControlInput();
+}
 }
 
 ReplicationManager::ReplicationManager(std::shared_ptr<Workspace> workspace, std::shared_ptr<User> user, Instance* characterSearchRoot)
     : m_workspace(workspace), m_user(user), m_characterSearchRoot(characterSearchRoot),
       m_physics(workspace ? workspace->getPhysicsEngine() : nullptr) {
+}
+
+ReplicationManager::~ReplicationManager() {
+    // Client中に止めた接触着席を、ネットワーク終了後のローカルPlayへ持ち越さない
+    Seat::setTouchSitEnabled(true);
+    // Humanoidに登録したstepごとのコールバックは、このオブジェクトを参照している
+    clientDetachInputRecording();
+    for (auto& [id, avatar] : m_remoteAvatars) {
+        (void)id;
+        if (avatar.humanoid) avatar.humanoid->setControlStepCallback({});
+    }
 }
 
 void ReplicationManager::setWorkspace(std::shared_ptr<Workspace> workspace) {
@@ -54,20 +88,13 @@ void ReplicationManager::setWorkspace(std::shared_ptr<Workspace> workspace) {
     clientReleaseWorldObjects();
     m_latestPoses.clear();
     m_latestVels.clear();
-    m_pendingAvatarInput.clear();
+    m_inputQueues.clear();
     m_lastProcessedSeq.clear();
+    m_sentSeatPaths.clear();
+    m_seatStateRosterSize = 0;
     m_pathToNetId.clear();
     m_hostObjects.clear();
     m_clientObjects.clear();
-
-    if (m_predictionPhysics) m_predictionPhysics->clearCubes();
-    m_predictionGyro.reset();
-    m_predictionStaticMirror.clear();
-    m_predictionHumanoid.reset();
-    m_shadowRoot.reset();
-    m_predictionPhysics.reset();
-    m_predictionSceneReady = false;
-    m_predictionRescanTimer = 0.0f;
 
     // WorkspaceとPhysicsは同じ更新点で交換し、以降のpacket/updateから旧worldを
     // 参照できないよう世代を進める。
@@ -88,6 +115,8 @@ void ReplicationManager::setWorkspace(std::shared_ptr<Workspace> workspace) {
     m_nextNetId = 1;
     m_hasHostAuthoritativeSelfPose = false;
     m_inputHistory.clear();
+    m_hasHostTick = false;
+    m_hasRenderTick = false;
 
     const NetworkRole role = NetworkManager::get().getRole();
     m_forceReliableSimulationClock = role == NetworkRole::Host;
@@ -119,6 +148,8 @@ void ReplicationManager::update(float dt, Physics* physics) {
     }
     m_warnedPhysicsMismatch = false;
     m_physics = boundPhysics;
+    // 着席はHostが決める。Clientでは接触による自動着席をしない(SeatStateで反映する)
+    Seat::setTouchSitEnabled(!(net.isActive() && net.getRole() == NetworkRole::Client));
     if (!net.isActive()) return;
 
     reconcileAvatars();
@@ -133,22 +164,16 @@ void ReplicationManager::update(float dt, Physics* physics) {
     }
 
     sendAvatarUpdates(dt);
+    if (net.getRole() == NetworkRole::Client) clientAdvanceRenderClock(dt);
     applyAvatarPoses(dt);
 
     if (net.getRole() == NetworkRole::Host) {
         hostSendSimulationClock(dt, m_physics);
+        hostSendSeatStates();
         hostUpdateWorld(dt);
     } else if (net.getRole() == NetworkRole::Client) {
-        ensurePredictionScene();
-        if (m_predictionSceneReady) {
-            m_predictionRescanTimer += dt;
-            if (m_predictionRescanTimer >= 2.0f) {
-                m_predictionRescanTimer = 0.0f;
-                rescanPredictionStaticGeometry();
-            }
-            syncPredictionShadowToLocal();
-        }
-        bufferLocalInput(dt);
+        clientEnsureInputRecording();
+        clientSendInputs();
         reconcileLocalPose();
         clientApplyWorldSmoothing(dt);
     }
@@ -180,6 +205,83 @@ void ReplicationManager::hostSendSimulationClock(float dt, Physics* physics) {
     if (periodic) m_simulationClockTimer = 0.0f;
 }
 
+void ReplicationManager::hostSendSeatStates() {
+    auto& net = NetworkManager::get();
+    const size_t rosterSize = net.getRoster().size();
+    const bool resendAll = rosterSize > m_seatStateRosterSize;
+    m_seatStateRosterSize = rosterSize;
+
+    auto seatPathOf = [](const std::shared_ptr<Humanoid>& humanoid) {
+        const auto seat = humanoid ? humanoid->getSeat() : nullptr;
+        return seat ? seat->getWorkspaceRelativePath() : std::string();
+    };
+    std::unordered_map<PeerId, std::string> current;
+    if (net.isLocalPlayer() && m_user && m_user->humanoid)
+        current[net.getLocalPeerId()] = seatPathOf(m_user->humanoid);
+    for (const auto& [id, avatar] : m_remoteAvatars)
+        current[id] = seatPathOf(avatar.humanoid);
+    std::erase_if(m_sentSeatPaths, [&](const auto& entry) {
+        return !current.contains(entry.first);
+    });
+
+    std::vector<std::pair<PeerId, std::string>> changed;
+    for (const auto& [id, path] : current) {
+        const auto sent = m_sentSeatPaths.find(id);
+        if (resendAll || sent == m_sentSeatPaths.end() || sent->second != path)
+            changed.emplace_back(id, path);
+    }
+    if (changed.empty()) return;
+
+    ByteWriter writer;
+    writer.writeU8(static_cast<uint8_t>(MessageType::SeatState));
+    writer.writeU16(static_cast<uint16_t>(changed.size()));
+    for (const auto& [id, path] : changed) {
+        const size_t length = (std::min)(path.size(), static_cast<size_t>(UINT16_MAX));
+        writer.writeU32(id);
+        writer.writeU16(static_cast<uint16_t>(length));
+        for (size_t i = 0; i < length; ++i) writer.writeU8(static_cast<uint8_t>(path[i]));
+    }
+    // 送れなかった(まだ相手がいない)ときは記録せず、次のフレームで送り直す
+    if (!net.sendBytes(writer.data, NetworkChannel::Reliable)) return;
+    for (const auto& [id, path] : changed) m_sentSeatPaths[id] = path;
+}
+
+void ReplicationManager::clientApplySeatState(const uint8_t* payload, size_t len) {
+    ByteReader reader{payload, len};
+    uint16_t count = 0;
+    if (!reader.readU16(count)) return;
+    const PeerId localId = NetworkManager::get().getLocalPeerId();
+    for (uint16_t i = 0; i < count; ++i) {
+        uint32_t id = 0;
+        uint16_t pathLength = 0;
+        if (!reader.readU32(id) || !reader.readU16(pathLength)) return;
+        if (reader.remaining < pathLength) return;
+        std::string path(reinterpret_cast<const char*>(reader.p), pathLength);
+        reader.p += pathLength;
+        reader.remaining -= pathLength;
+        // リモートアバターはAvatarBatchの着席フラグで見た目だけ合わせる(ローカルで溶接しない)
+        if (id == localId) applyLocalSeatPath(path);
+    }
+}
+
+void ReplicationManager::applyLocalSeatPath(const std::string& seatPath) {
+    if (!m_user || !m_user->humanoid || !m_physics) return;
+    const auto humanoid = m_user->humanoid;
+    if (seatPath.empty()) {
+        if (humanoid->isSeated()) humanoid->standUp(m_physics);
+        return;
+    }
+    Instance* found = m_workspace ? m_workspace->getChildByPath(seatPath) : nullptr;
+    const auto seat = found
+        ? std::dynamic_pointer_cast<Seat>(found->shared_from_this()) : nullptr;
+    if (!seat) {
+        RCBN_WARN("Replication: SeatState refers to a missing Seat: " << seatPath);
+        return;
+    }
+    if (humanoid->getSeat() == seat) return;
+    seat->sit(humanoid);
+}
+
 bool ReplicationManager::getLocalRootCFrame(CFrame& out) const {
     if (!m_user || !m_user->character) return false;
 
@@ -200,27 +302,8 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
     if (m_avatarSendTimer < 0.05f) return;
     m_avatarSendTimer = 0.0f;
 
-    if (net.getRole() == NetworkRole::Client) {
-        CFrame local;
-        if (!getLocalRootCFrame(local)) return;
-        if (!net.hasPeers() || !m_user || m_inputHistory.empty()) return;
-        const auto& entry = m_inputHistory.back();
-        const auto& in = entry.input;
-        ByteWriter w;
-        w.writeU8(static_cast<uint8_t>(MessageType::AvatarState));
-        w.writeVector3(in.flatForward);
-        w.writeVector3(in.flatRight);
-        w.writeVector3(in.targetMoveDir);
-        bool standUpPending = m_standUpRequestSeq != 0 && m_standUpRequestSeq > m_hostAckedSeq;
-        uint8_t flags = (in.isPressingMove ? 1 : 0) | (in.ctrlLockEnabled ? 2 : 0) |
-                        (m_pendingJumpLatch ? 4 : 0) | (standUpPending ? 8 : 0);
-        w.writeU8(flags);
-        w.writeF32(in.forwardAxis);
-        w.writeF32(in.rightAxis);
-        w.writeU32(in.seq);
-        net.sendBytes(w.data, NetworkChannel::Unreliable);
-        m_pendingJumpLatch = false;
-    } else if (net.getRole() == NetworkRole::Host) {
+    // Clientの入力はclientSendInputs()が毎フレーム送る
+    if (net.getRole() == NetworkRole::Host) {
         CFrame local;
         if (net.isLocalPlayer() && getLocalRootCFrame(local)) {
             m_latestPoses[net.getLocalPeerId()] = local;
@@ -249,6 +332,7 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
 
         ByteWriter w;
         w.writeU8(static_cast<uint8_t>(MessageType::AvatarBatch));
+        w.writeU32(hostTickForSend());
         w.writeU8(static_cast<uint8_t>(entries.size()));
         for (const auto& [id, pose] : entries) {
             auto velIt = m_latestVels.find(id);
@@ -303,6 +387,7 @@ void ReplicationManager::sendDebugNaNAvatarBatch(const std::vector<std::pair<Pee
     const float nan = std::numeric_limits<float>::quiet_NaN();
     ByteWriter w;
     w.writeU8(static_cast<uint8_t>(MessageType::AvatarBatch));
+    w.writeU32(hostTickForSend());
     w.writeU8(static_cast<uint8_t>(entries.size()));
     for (const auto& [id, pose] : entries) {
         w.writeU32(id);
@@ -336,41 +421,49 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
         if (net.getRole() != NetworkRole::Host || sender == net.getRoster().end())
             return;
         ByteReader r{payload, len};
-        AvatarInputWire in;
-        uint8_t flags = 0;
-        if (!r.readVector3(in.flatForward) || !r.readVector3(in.flatRight) || !r.readVector3(in.targetMoveDir)
-            || !r.readU8(flags) || !r.readF32(in.forwardAxis) || !r.readF32(in.rightAxis) || !r.readU32(in.seq)) return;
-        auto finiteVector = [](const Vector3& v) {
-            return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
-        };
-        if (!finiteVector(in.flatForward) || !finiteVector(in.flatRight) || !finiteVector(in.targetMoveDir)
-            || !std::isfinite(in.forwardAxis) || !std::isfinite(in.rightAxis)) return;
-        uint32_t newestSeq = 0;
-        if (auto it = m_lastProcessedSeq.find(senderId); it != m_lastProcessedSeq.end()) newestSeq = it->second;
-        if (auto it = m_pendingAvatarInput.find(senderId); it != m_pendingAvatarInput.end()) {
-            if (it->second.seq > newestSeq) newestSeq = it->second.seq;
-        }
-        if (in.seq <= newestSeq) return;
-        in.isPressingMove  = (flags & 1) != 0;
-        in.ctrlLockEnabled = (flags & 2) != 0;
-        in.jumpRequested   = (flags & 4) != 0;
-        in.standUpRequested = (flags & 8) != 0;
+        uint8_t count = 0;
+        uint32_t firstSeq = 0;
+        if (!r.readU8(count) || !r.readU32(firstSeq)) return;
+        if (count == 0 || count > MAX_INPUTS_PER_PACKET) return;
         auto flattenAndClamp = [](Vector3 v) {
             v.y = 0.0f;
             float len = v.length();
             return (len > 1.0f) ? (v * (1.0f / len)) : v;
         };
-        in.flatForward = flattenAndClamp(in.flatForward);
-        in.flatRight = flattenAndClamp(in.flatRight);
-        in.targetMoveDir = in.isPressingMove ? flattenAndClamp(in.targetMoveDir) : Vector3{};
-        in.forwardAxis = std::clamp(in.forwardAxis, -1.0f, 1.0f);
-        in.rightAxis = std::clamp(in.rightAxis, -1.0f, 1.0f);
-        m_pendingAvatarInput[senderId] = in;
+        std::vector<AvatarInputWire> inputs;
+        inputs.reserve(count);
+        for (uint8_t i = 0; i < count; ++i) {
+            AvatarInputWire in;
+            uint8_t flags = 0;
+            if (!r.readVector3(in.flatForward) || !r.readVector3(in.flatRight) || !r.readVector3(in.targetMoveDir)
+                || !r.readU8(flags) || !r.readF32(in.forwardAxis) || !r.readF32(in.rightAxis)
+                || !r.readF32(in.smoothing)) return;
+            // 破損/悪意ある入力でも歩行速度定数を超えられないよう、1件でも非有限ならパケットごと捨てる
+            if (!isFiniteWireVector(in.flatForward) || !isFiniteWireVector(in.flatRight) ||
+                !isFiniteWireVector(in.targetMoveDir) || !std::isfinite(in.forwardAxis) ||
+                !std::isfinite(in.rightAxis) || !std::isfinite(in.smoothing)) return;
+            in.seq = firstSeq + i;
+            in.isPressingMove  = (flags & 1) != 0;
+            in.ctrlLockEnabled = (flags & 2) != 0;
+            in.hasInput        = (flags & 4) != 0;
+            in.jump            = (flags & 8) != 0;
+            in.standUp         = (flags & 16) != 0;
+            in.flatForward = flattenAndClamp(in.flatForward);
+            in.flatRight = flattenAndClamp(in.flatRight);
+            in.targetMoveDir = in.isPressingMove ? flattenAndClamp(in.targetMoveDir) : Vector3{};
+            in.forwardAxis = std::clamp(in.forwardAxis, -1.0f, 1.0f);
+            in.rightAxis = std::clamp(in.rightAxis, -1.0f, 1.0f);
+            in.smoothing = std::clamp(in.smoothing, 0.0f, 1.0f);
+            inputs.push_back(in);
+        }
+        hostQueueInputs(senderId, inputs);
     } else if (type == static_cast<uint8_t>(MessageType::AvatarBatch)) {
         if (NetworkManager::get().getRole() != NetworkRole::Client) return;
         ByteReader r{payload, len};
+        uint32_t hostTick = 0;
         uint8_t count = 0;
-        if (!r.readU8(count)) return;
+        if (!r.readU32(hostTick) || !r.readU8(count)) return;
+        clientNoteHostTick(hostTick);
 
         auto& net = NetworkManager::get();
         PeerId localId = net.getLocalPeerId();
@@ -402,6 +495,7 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
             }
             m_latestPoses[id] = CFrame(pos, rot);
             if (auto avatarIt = m_remoteAvatars.find(id); avatarIt != m_remoteAvatars.end()) {
+                pushSnapshot(avatarIt->second.snapshots, hostTick, CFrame(pos, rot));
                 avatarIt->second.walkCycle = walkCycle;
                 avatarIt->second.grounded = (visualFlags & 1) != 0;
                 avatarIt->second.seated = (visualFlags & 2) != 0;
@@ -422,6 +516,11 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
         if (bindingIsCurrent() &&
             NetworkManager::get().getRole() == NetworkRole::Client) {
             clientStoreWorldTransforms(payload, len);
+        }
+    } else if (type == static_cast<uint8_t>(MessageType::SeatState)) {
+        if (bindingIsCurrent() &&
+            NetworkManager::get().getRole() == NetworkRole::Client) {
+            clientApplySeatState(payload, len);
         }
     } else if (type == static_cast<uint8_t>(MessageType::SimulationClock)) {
         Physics* receivedPhysics = m_physics;
@@ -501,25 +600,44 @@ void ReplicationManager::enablePhysicsProxy(RemoteAvatar& avatar, PeerId id, Phy
     physics->recreateActor(root);
     avatar.isPhysicsProxy = true;
 
-    // 既に物理参加中の全Root(ローカルUserのRoot + 他の物理プロキシ)との衝突を除外する
+    // ローカルキャラと同じリグ構成で動かすため、Root以外はテンプレートのCanCollideへ戻す
+    // (表示専用アバターとして非衝突化していたもの)。setCanCollideはフィルタ更新のみで
+    // ボディ・拘束を作り直さない
+    for (const auto& [part, rel] : avatar.parts) {
+        (void)rel;
+        if (!part || part == root.get()) continue;
+        const auto found = avatar.templateCanCollide.find(part);
+        if (found != avatar.templateCanCollide.end() && found->second)
+            part->setCanCollide(true);
+    }
+
+    // 既に物理参加中の全キャラ(ローカルUser + 他の物理プロキシ)の衝突ボディ同士の衝突を除外する
     // (プレイヤー同士のPvP衝突は今回スコープ外のため)
-    std::vector<std::shared_ptr<BaseCube>> otherRoots;
-    if (m_user && m_user->character) {
-        for (auto& [name, child] : m_user->character->getChildren()) {
-            if (name != "Root") continue;
-            if (auto localRoot = std::dynamic_pointer_cast<BaseCube>(child)) otherRoots.push_back(localRoot);
+    auto collectCollidingBodies = [](Instance* character) {
+        std::vector<std::shared_ptr<BaseCube>> bodies;
+        for (auto& body : CharacterRig::collectR6Bodies(character)) {
+            if (body && body->CanCollide) bodies.push_back(std::move(body));
         }
+        return bodies;
+    };
+    const auto ownBodies = collectCollidingBodies(avatar.model.get());
+    std::vector<std::shared_ptr<BaseCube>> otherBodies;
+    if (m_user && m_user->character) {
+        for (auto& body : collectCollidingBodies(m_user->character.get()))
+            otherBodies.push_back(std::move(body));
     }
     for (auto& [otherId, otherAvatar] : m_remoteAvatars) {
         if (otherId == id) continue;
-        if (otherAvatar.isPhysicsProxy && otherAvatar.humanoid) {
-            if (auto otherRoot = otherAvatar.humanoid->getRootPart())
-                otherRoots.push_back(otherRoot);
+        if (otherAvatar.isPhysicsProxy && otherAvatar.model) {
+            for (auto& body : collectCollidingBodies(otherAvatar.model.get()))
+                otherBodies.push_back(std::move(body));
         }
     }
-    for (auto& otherRoot : otherRoots) {
-        auto nc = std::make_shared<NoCollision>(root, otherRoot);
-        avatar.model->addChild(nc);
+    for (const auto& ownBody : ownBodies) {
+        for (const auto& otherBody : otherBodies) {
+            auto nc = std::make_shared<NoCollision>(ownBody, otherBody);
+            avatar.model->addChild(nc);
+        }
     }
 
     RCBN_LOG("Replication: enabled physics proxy for peer " << id);
@@ -574,7 +692,9 @@ void ReplicationManager::spawnRemoteAvatar(PeerId id) {
     for (auto& [name, child] : model->getChildren()) {
         collectBaseCubes(child, cubes);
     }
+    std::unordered_map<BaseCube*, bool> templateCanCollide;
     for (BaseCube* cube : cubes) {
+        templateCanCollide[cube] = cube->CanCollide;
         cube->CanCollide = false;
     }
 
@@ -590,6 +710,7 @@ void ReplicationManager::spawnRemoteAvatar(PeerId id) {
     RemoteAvatar avatar;
     avatar.model = model;
     avatar.humanoid = humanoid;
+    avatar.templateCanCollide = std::move(templateCanCollide);
     const CFrame rootWorldInverse = root->getWorldCFrame().inverse();
     for (BaseCube* cube : cubes) {
         avatar.parts.emplace_back(
@@ -616,8 +737,11 @@ void ReplicationManager::despawnRemoteAvatar(PeerId id) {
     if (it->second.identity) {
         if (auto parent = it->second.identity->Parent.lock()) parent->removeChild(it->second.identity->Name);
     }
+    if (it->second.humanoid) it->second.humanoid->setControlStepCallback({});
     m_latestPoses.erase(id);
     m_latestVels.erase(id);
+    m_inputQueues.erase(id);
+    m_lastProcessedSeq.erase(id);
     m_remoteAvatars.erase(it);
 
     RCBN_LOG("Replication: despawned " << NetworkIdentity::characterName(id));
@@ -640,14 +764,24 @@ void ReplicationManager::applyAvatarPoses(float dt) {
         if (it == m_latestPoses.end()) continue;
         const CFrame& pose = it->second;
 
+        // Host tick基準で「少し前」の姿勢を前後の受信姿勢から補間する。
+        // 時刻がまだ決まっていなければ最新の受信姿勢をそのまま使う
+        CFrame displayed = pose;
+        if (m_hasRenderTick) sampleSnapshots(avatar.snapshots, m_renderTick, displayed);
         if (!avatar.hasPose) {
-            avatar.current = pose;
             avatar.hasPose = true;
             RCBN_LOG("Replication: first pose for peer " << id);
-        } else {
-            float alpha = 1.0f - std::exp(-15.0f * dt);
-            avatar.current.Position = avatar.current.Position + (pose.Position - avatar.current.Position) * alpha;
-            avatar.current.Rotation = Quaternion::Slerp(avatar.current.Rotation, pose.Rotation, alpha);
+        }
+        avatar.current = displayed;
+
+        // Client側のアバターは表示専用。毎フレーム姿勢を与えるので、重力で沈ませない
+        if (!avatar.gravityDisabled && m_physics &&
+            NetworkManager::get().getRole() == NetworkRole::Client) {
+            for (const auto& [part, rel] : avatar.parts) {
+                (void)rel;
+                if (part && m_physics->hasBody(*part)) m_physics->setGravityEnabled(*part, false);
+            }
+            avatar.gravityDisabled = true;
         }
 
         BaseCube* root = nullptr;
@@ -719,115 +853,90 @@ void ReplicationManager::applyAvatarPoses(float dt) {
 void ReplicationManager::reconcileLocalPose() {
     if (!m_hasHostAuthoritativeSelfPose) return;
     m_hasHostAuthoritativeSelfPose = false; // 1回消費
-    uint32_t ackSeq = m_hostAckedSeq;
+    const uint32_t ackSeq = m_hostAckedSeq;
 
-    // ack済み(Hostが処理済み)の入力履歴は不要なので破棄する
+    // Hostはseq Nの入力を自分の1stepで使う直前の状態を返す。Clientの同じseqの
+    // 「適用前」状態と比べる(現在の状態と比べると、遅延中の正常な移動までズレと誤認する)
+    std::optional<BufferedInput> atAck;
+    for (const auto& entry : m_inputHistory) {
+        if (entry.seq == ackSeq) {
+            atAck = entry;
+            break;
+        }
+    }
+
+    // ack済み(Hostが処理済み)の入力履歴は不要なので破棄する(未ack分だけを再送し続ける)
     while (!m_inputHistory.empty() && m_inputHistory.front().seq <= ackSeq) {
         m_inputHistory.pop_front();
     }
 
-    if (!m_user || !m_user->humanoid) return;
-    auto root = m_user->humanoid->getRootPart();
-    if (!root) return;
+    if (!atAck || !m_user || !m_user->humanoid) return;
+    // 着席中はRootがSeat(Hostから同期される乗り物)のcompoundに属するため、自キャラだけ補正しない
+    if (m_user->humanoid->isSeated()) return;
 
-    CFrame local;
-    if (!getLocalRootCFrame(local)) return;
+    const Vector3 hostPosition = m_hostAuthoritativeSelfPose.Position;
+    if (!isFiniteWireVector(hostPosition) || !isFiniteWireVector(atAck->rootPositionBefore)) return;
 
-    Vector3 diff = m_hostAuthoritativeSelfPose.Position - local.Position;
-    float distSq = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
-    float preReplayDrift = std::sqrt(distSq);
-    auto finiteVector = [](const Vector3& v) {
-        return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
-    };
-    if (!finiteVector(local.Position) || !finiteVector(m_hostAuthoritativeSelfPose.Position)) return;
+    const Vector3 error = hostPosition - atAck->rootPositionBefore;
+    const float errorLength = error.length();
+    if (!std::isfinite(errorLength)) return;
 
-    // localhostの実シーンで静止中も3.5〜3.9studの物理差が観測される。
-    // この誤差はClientのローカル表示にしか影響せず、Host/他ピアはHost物理姿勢を使うため受容できる。
-    constexpr float kAcceptedError = 4.5f;
+    // 同じ入力を同じstepで使うため、通常の誤差はほぼ0。ずれるのは、Clientでは
+    // キネマティックな同期物体・他プレイヤーとの接触や、入力の到着遅れがあったとき
+    constexpr float kAcceptedError = 0.25f;
     constexpr float kHardSnapError = 12.0f;
+    if (errorLength <= kAcceptedError) return;
 
-    auto applyCorrectedPose = [&](const CFrame& target, bool hardSnap, float error) {
-        CFrame corrected = target;
-        if (!hardSnap) {
-            Vector3 delta = target.Position - local.Position;
-            float alpha = 0.5f / error;
-            if (alpha > 0.25f) alpha = 0.25f; // 1回の可視補正は最大0.5stud
-            corrected.Position = local.Position + delta * alpha;
-            corrected.Rotation = Quaternion::Slerp(local.Rotation, target.Rotation, 0.25f);
-        }
-        Physics* physics = m_workspace ? m_workspace->getPhysicsEngine() : nullptr;
-        if (physics) physics->setMemberWorldCFrame(*root, corrected);
-        root->setWorldCFrame(corrected);
-    };
+    const bool hardSnap = errorLength > kHardSnapError;
+    float alpha = 1.0f;
+    if (!hardSnap) {
+        alpha = 0.5f / errorLength;
+        if (alpha > 0.25f) alpha = 0.25f; // 1回の可視補正は最大0.5stud
+    }
+    const Vector3 offset = error * alpha;
+    // 速度の差(ジャンプの成否が食い違った等)は位置だけでは追いつかないため、そのまま合わせる
+    Vector3 velocityDelta = m_hostAuthoritativeSelfVel - atAck->rootVelocityBefore;
+    if (!isFiniteWireVector(velocityDelta)) velocityDelta = Vector3{};
+    translateLocalCharacter(offset, velocityDelta);
 
-    // 予測シーンがまだ使えない初期フレームだけは、Host姿勢を直接目標にする。
-    if (!m_predictionSceneReady || !m_shadowRoot || !m_predictionHumanoid || m_inputHistory.empty()) {
-        if (preReplayDrift <= kAcceptedError) return;
-        bool hardSnap = preReplayDrift > kHardSnapError || !std::isfinite(preReplayDrift);
-        applyCorrectedPose(m_hostAuthoritativeSelfPose, hardSnap, preReplayDrift);
-        RCBN_LOG("Replication: " << (hardSnap ? "hard" : "soft")
-                 << " fallback correction (error=" << preReplayDrift << ")");
-        return;
+    // 補正ぶんは未ack履歴にも反映し、次回の比較で二重に数えない
+    for (auto& entry : m_inputHistory) {
+        entry.rootPositionBefore = entry.rootPositionBefore + offset;
+        entry.rootVelocityBefore = entry.rootVelocityBefore + velocityDelta;
     }
 
-    // ---- 入力リプレイ ----
-    // 一番古い未ack入力の「適用前」状態(巻き戻し先)。以降の巻き戻し・リプレイ準備で使う
-    const auto& firstEntry = m_inputHistory.front();
+    RCBN_LOG("Replication: " << (hardSnap ? "hard" : "soft")
+             << " correction (error=" << errorLength << ", ack=" << ackSeq << ")");
+}
 
-    // 1. シャドウRootをHost権威姿勢へ巻き戻す
-    //    回転はauthoritative姿勢ではなくfirstEntry.rotationBeforeを使う
-    //    (actorとcframeの回転を一致させ、後段のsyncAllCubes()による上書きを正しい値にするため)
-    if (m_predictionPhysics && m_predictionPhysics->hasBody(*m_shadowRoot)) {
-        CFrame shadowBodyCFrame = m_hostAuthoritativeSelfPose;
-        shadowBodyCFrame.Rotation = firstEntry.rotationBefore;
-        m_predictionPhysics->setMemberWorldCFrame(*m_shadowRoot, shadowBodyCFrame);
-        m_predictionPhysics->setLinearVelocity(*m_shadowRoot, m_hostAuthoritativeSelfVel);
-        m_predictionPhysics->setAngularVelocity(*m_shadowRoot, Vector3());
+void ReplicationManager::translateLocalCharacter(const Vector3& offset, const Vector3& velocityDelta) {
+    if (!m_user || !m_user->character || !m_physics) return;
+
+    // Motor6Dで繋がった手足は別ボディなので、Rootだけ動かすとばねで引き戻されて揺れる。
+    // 全リグボディを同じ並進で動かし、同じネイティブボディは一度だけ動かす。
+    // setMemberWorldCFrameは速度を0にするため、ジャンプ中の上昇速度などを保存して戻す
+    const auto bodies = CharacterRig::collectR6Bodies(m_user->character.get());
+    std::unordered_set<std::uint64_t> movedBodies;
+    for (const auto& body : bodies) {
+        if (!body || !m_physics->hasBody(*body)) continue;
+        const PhysicsBodyHandle handle = m_physics->getBodyHandle(*body);
+        if (!handle || !movedBodies.insert(handle.value).second) continue;
+
+        const Vector3 linearVelocity = m_physics->getLinearVelocity(*body);
+        const Vector3 angularVelocity = m_physics->getAngularVelocity(*body);
+        CFrame target = m_physics->getMemberWorldCFrame(*body);
+        target.Position = target.Position + offset;
+        m_physics->setMemberWorldCFrame(*body, target);
+        m_physics->setLinearVelocity(*body, linearVelocity + velocityDelta);
+        m_physics->setAngularVelocity(*body, angularVelocity);
     }
-    m_shadowRoot->setCFrame(CFrame(m_hostAuthoritativeSelfPose.Position,
-                                   firstEntry.rotationBefore));
-
-    // 2. Humanoidの内部補間状態を、一番古い未ack入力の「適用前」状態へ復元
-    m_predictionHumanoid->setCurrentMoveDir(firstEntry.currentMoveDirBefore);
-    m_predictionHumanoid->setSmoothedHeadingDirection(
-        firstEntry.smoothedHeadingDirectionBefore);
-    m_predictionHumanoid->setWalkCycle(firstEntry.walkCycleBefore);
-
-    // 3. 未ack入力を古い順に1件ずつ再生(1エントリ=1回のmove()+stepOnce()を厳守)
-    for (const auto& entry : m_inputHistory) {
-        if (entry.input.standUpRequested) m_predictionHumanoid->standUp(m_predictionPhysics.get());
-        if (entry.input.jumpRequested) m_predictionHumanoid->jump(m_predictionPhysics.get());
-        m_predictionHumanoid->move(entry.input.flatForward, entry.input.flatRight, entry.input.isPressingMove,
-                                    entry.input.targetMoveDir, entry.input.ctrlLockEnabled, m_predictionPhysics.get(),
-                                    false, false, entry.input.forwardAxis, entry.input.rightAxis,
-                                    m_user ? m_user->characterSmoothing : 0.15f, entry.dt);
-        m_predictionPhysics->stepOnce(entry.dt);
-        m_predictionPhysics->syncAllCubes();
+    for (const auto& body : bodies) {
+        if (body && m_physics->hasBody(*body)) m_physics->syncCube(*body);
     }
-
-    // 4. リプレイ結果と「同じ時点の現在予測」の差だけを本当の誤差として評価する。
-    //    Hostのack時点姿勢と現在姿勢を直接比較すると、正常な未ack入力分までズレと誤認する。
-    CFrame result = m_shadowRoot->getWorldCFrame();
-    if (!finiteVector(result.Position)) {
-        applyCorrectedPose(m_hostAuthoritativeSelfPose, true, preReplayDrift);
-        RCBN_LOG("Replication: hard correction after non-finite replay result");
-        return;
-    }
-    Vector3 residualDelta = result.Position - local.Position;
-    float residual = residualDelta.length();
-    if (!std::isfinite(residual)) {
-        applyCorrectedPose(m_hostAuthoritativeSelfPose, true, preReplayDrift);
-        return;
-    }
-    if (residual <= kAcceptedError) return; // ローカル表示だけに存在する小さな誤差は受容
-
-    bool hardSnap = residual > kHardSnapError;
-    applyCorrectedPose(result, hardSnap, residual);
-    RCBN_LOG("Replication: " << (hardSnap ? "hard" : "soft") << " replay correction, frames="
-             << m_inputHistory.size() << " preDrift=" << preReplayDrift << " residual=" << residual);
 }
 
 void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
+    (void)dt;
     if (!physics) return;
 
     for (auto& [id, avatar] : m_remoteAvatars) {
@@ -844,35 +953,77 @@ void ReplicationManager::hostSimulateAvatars(float dt, Physics* physics) {
             continue;
         }
 
-        AvatarInputWire in;
-        if (auto it = m_pendingAvatarInput.find(id); it != m_pendingAvatarInput.end()) {
-            in = it->second;
+        // ローカルのUserと同じく、移動・接地判定は固定stepごとにHumanoid::stepControlで行う。
+        // 各stepの冒頭で、そのピアの入力バッファから次のseqを1つだけ供給する
+        avatar.humanoid->setTickControlled(true);
+        if (!avatar.inputCallbackInstalled) {
+            const PeerId peer = id;
+            avatar.humanoid->setControlStepCallback([this, peer](Humanoid& humanoid) {
+                hostConsumeInputStep(peer, humanoid);
+            });
+            avatar.inputCallbackInstalled = true;
         }
-
-        // 妥当性チェック: 破損/悪意ある入力でも歩行速度定数を超えられないようクランプする
-        auto clampUnit = [](Vector3 v) {
-            float len = v.length();
-            return (len > 1.0f) ? (v * (1.0f / len)) : v;
-        };
-        in.targetMoveDir = clampUnit(in.targetMoveDir);
-        in.flatForward   = clampUnit(in.flatForward);
-        in.flatRight     = clampUnit(in.flatRight);
-        if (in.forwardAxis > 1.0f) in.forwardAxis = 1.0f;
-        if (in.forwardAxis < -1.0f) in.forwardAxis = -1.0f;
-        if (in.rightAxis > 1.0f) in.rightAxis = 1.0f;
-        if (in.rightAxis < -1.0f) in.rightAxis = -1.0f;
-
-        if (in.standUpRequested) avatar.humanoid->standUp(physics);
-        if (in.jumpRequested) avatar.humanoid->jump(physics);
-        avatar.humanoid->move(in.flatForward, in.flatRight, in.isPressingMove, in.targetMoveDir,
-                               in.ctrlLockEnabled, physics, false, false, in.forwardAxis, in.rightAxis,
-                               avatar.identity ? avatar.identity->characterSmoothing : 0.15f, dt);
-
-        m_latestPoses[id] = root->getWorldCFrame();
-        Vector3 vel = physics->getLinearVelocity(*root);
-        m_latestVels[id] = vel;
-        m_lastProcessedSeq[id] = in.seq;
     }
+}
+
+void ReplicationManager::hostQueueInputs(PeerId id, const std::vector<AvatarInputWire>& inputs) {
+    PeerInputQueue& queue = m_inputQueues[id];
+    uint32_t processed = 0;
+    if (auto it = m_lastProcessedSeq.find(id); it != m_lastProcessedSeq.end()) processed = it->second;
+    for (const auto& in : inputs) {
+        if (in.seq <= processed) continue;                    // 処理済み(再送分)
+        if (queue.started && in.seq < queue.cursor) continue; // 読み飛ばし済み
+        queue.inputs.emplace(in.seq, in);                     // 同じseqの再送は最初の1件だけ
+    }
+}
+
+void ReplicationManager::hostConsumeInputStep(PeerId id, Humanoid& humanoid) {
+    PeerInputQueue& queue = m_inputQueues[id];
+    if (!queue.started) {
+        // 到着の揺れを吸収するため、少し溜まってから消費を始める
+        if (queue.inputs.size() < INPUT_BUFFER_START) {
+            humanoid.clearControlInput();
+            return;
+        }
+        queue.started = true;
+        queue.cursor = queue.inputs.begin()->first;
+    }
+    if (queue.inputs.size() > INPUT_BUFFER_MAX) {
+        // 溜まりすぎ(Clientの方が速い・一時停止明け等)。古い入力を捨てて遅延を戻す
+        const size_t dropped = queue.inputs.size() - INPUT_BUFFER_START;
+        while (queue.inputs.size() > INPUT_BUFFER_START) queue.inputs.erase(queue.inputs.begin());
+        queue.cursor = queue.inputs.begin()->first;
+        RCBN_LOG("Replication: input buffer of peer " << id << " overflowed; skipped "
+                 << dropped << " step(s)");
+    }
+
+    const auto next = queue.inputs.find(queue.cursor);
+    if (next == queue.inputs.end()) {
+        // まだ届いていない。直前の移動だけ続け、読み取り位置は進めない
+        // (遅れた分だけバッファが伸び、以降の到着の揺れに耐えられるようになる)
+        if (queue.hasLast) applyMovementInput(humanoid, queue.last);
+        else humanoid.clearControlInput();
+        return;
+    }
+
+    const AvatarInputWire input = next->second;
+    applyMovementInput(humanoid, input);
+    if (input.standUp) humanoid.requestStandUp();
+    if (input.jump) humanoid.requestJump();
+
+    // このseqを使う直前の状態を、Clientの同じseqの「適用前」状態と比べられるよう返す
+    if (auto root = humanoid.getRootPart()) {
+        m_latestPoses[id] = root->getWorldCFrame();
+        m_latestVels[id] = m_physics ? m_physics->getLinearVelocity(*root) : Vector3{};
+    }
+    m_lastProcessedSeq[id] = input.seq;
+
+    queue.last = input;
+    queue.last.jump = false;
+    queue.last.standUp = false;
+    queue.hasLast = true;
+    queue.inputs.erase(next);
+    ++queue.cursor;
 }
 
 void ReplicationManager::hostUpdateWorld(float dt) {
@@ -991,7 +1142,8 @@ void ReplicationManager::hostSendWorldTransforms(bool forceAll) {
         auto cube = obj.cube.lock();
         if (!cube) continue;
 
-        const CFrame cf = cube->getCFrame();
+        // 受信側はsetWorldCFrameで適用するため、ワールド姿勢を送る(Model配下でずれないように)
+        const CFrame cf = cube->getWorldCFrame();
         bool moved = false;
         if (obj.hasSent) {
             Vector3 dp = cf.Position - obj.lastSent.Position;
@@ -1020,6 +1172,7 @@ void ReplicationManager::hostSendWorldTransforms(bool forceAll) {
         size_t count = (std::min)(CHUNK, toSend.size() - offset);
         ByteWriter w;
         w.writeU8(static_cast<uint8_t>(MessageType::WorldTransforms));
+        w.writeU32(hostTickForSend());
         w.writeU16(static_cast<uint16_t>(count));
         for (size_t i = 0; i < count; ++i) {
             const auto& [id, cf] = toSend[offset + i];
@@ -1084,8 +1237,10 @@ void ReplicationManager::clientApplyWorldMapping(const uint8_t* payload, size_t 
 
 void ReplicationManager::clientStoreWorldTransforms(const uint8_t* payload, size_t len) {
     ByteReader r{payload, len};
+    uint32_t hostTick = 0;
     uint16_t count = 0;
-    if (!r.readU16(count)) return;
+    if (!r.readU32(hostTick) || !r.readU16(count)) return;
+    clientNoteHostTick(hostTick);
 
     for (uint16_t i = 0; i < count; ++i) {
         uint32_t id = 0;
@@ -1102,26 +1257,100 @@ void ReplicationManager::clientStoreWorldTransforms(const uint8_t* payload, size
 
         it->second.target = CFrame(pos, rot);
         it->second.hasTarget = true;
+        pushSnapshot(it->second.snapshots, hostTick, it->second.target);
     }
 }
 
 void ReplicationManager::clientApplyWorldSmoothing(float dt) {
+    // Weldで1つのnative bodyにまとまった同期物体(車体+Seatなど)は、memberの論理姿勢を
+    // 書き換えても物理同期でbody poseに戻される。native bodyごとに1回だけ移動目標を渡す
+    std::unordered_set<std::uint64_t> drivenBodies;
     for (auto& [id, obj] : m_clientObjects) {
         if (!obj.hasTarget) continue;
         auto cube = obj.cube.lock();
         if (!cube) continue;
 
-        if (!obj.snapped) {
-            obj.current = obj.target;
-            obj.snapped = true;
-        } else {
-            float alpha = 1.0f - std::exp(-15.0f * dt);
-            obj.current.Position = obj.current.Position + (obj.target.Position - obj.current.Position) * alpha;
-            obj.current.Rotation = Quaternion::Slerp(obj.current.Rotation, obj.target.Rotation, alpha);
-        }
+        // Host tick基準で「少し前」の姿勢を前後の受信姿勢から補間する
+        CFrame displayed = obj.target;
+        if (m_hasRenderTick) sampleSnapshots(obj.snapshots, m_renderTick, displayed);
 
-        cube->setWorldCFrame(obj.current);
+        cube->setWorldCFrame(displayed);
+        if (m_physics && cube->Anchored && m_physics->hasBody(*cube)) {
+            const PhysicsBodyHandle handle = m_physics->getBodyHandle(*cube);
+            if (handle && drivenBodies.insert(handle.value).second)
+                m_physics->setMemberKinematicTarget(*cube, displayed);
+        }
     }
+}
+
+uint32_t ReplicationManager::hostTickForSend() const {
+    return m_physics ? static_cast<uint32_t>(m_physics->getSimulationTick() & 0xffffffffu) : 0u;
+}
+
+float ReplicationManager::interpolationDelaySeconds() const {
+    constexpr float DEFAULT_DELAY = 0.1f;
+    const auto* system = dynamic_cast<const System*>(m_characterSearchRoot);
+    if (!system || !std::isfinite(system->NetworkInterpolationDelay)) return DEFAULT_DELAY;
+    return std::clamp(system->NetworkInterpolationDelay, 0.0f, 1.0f);
+}
+
+void ReplicationManager::clientNoteHostTick(uint32_t tick) {
+    // 32bitの周回を考慮して新旧を比べる
+    if (m_hasHostTick && static_cast<int32_t>(tick - m_latestHostTick) <= 0) return;
+    m_latestHostTick = tick;
+    m_hasHostTick = true;
+    m_ticksSinceHostTick = 0.0;
+}
+
+void ReplicationManager::clientAdvanceRenderClock(float dt) {
+    if (!m_hasHostTick) return;
+    constexpr double TICKS_PER_SECOND = 60.0;
+    constexpr double SNAP_ERROR_TICKS = 30.0;   // これ以上ずれたら(初回・長い途絶)合わせ直す
+    constexpr double FOLLOW_RATE = 2.0;         // 1秒あたりに詰めるずれの割合
+    const double step = static_cast<double>((std::max)(dt, 0.0f)) * TICKS_PER_SECOND;
+    m_ticksSinceHostTick += step;
+    // 最新受信tickからの経過を足してHostの現在tickを見積もる(受信間隔の段差で時刻が跳ねないように)
+    const double target = static_cast<double>(m_latestHostTick) + m_ticksSinceHostTick -
+        static_cast<double>(interpolationDelaySeconds()) * TICKS_PER_SECOND;
+    if (!m_hasRenderTick || std::abs(target - m_renderTick) > SNAP_ERROR_TICKS) {
+        m_renderTick = target;
+        m_hasRenderTick = true;
+        return;
+    }
+    m_renderTick += step;
+    m_renderTick += (target - m_renderTick) *
+        (std::min)(1.0, static_cast<double>((std::max)(dt, 0.0f)) * FOLLOW_RATE);
+}
+
+void ReplicationManager::pushSnapshot(
+    std::deque<TimedPose>& snapshots, uint32_t tick, const CFrame& pose) {
+    constexpr size_t MAX_SNAPSHOTS = 64;
+    if (!snapshots.empty() && static_cast<int32_t>(tick - snapshots.back().tick) <= 0) return;
+    snapshots.push_back({tick, pose});
+    while (snapshots.size() > MAX_SNAPSHOTS) snapshots.pop_front();
+}
+
+bool ReplicationManager::sampleSnapshots(
+    std::deque<TimedPose>& snapshots, double tick, CFrame& out) {
+    if (snapshots.empty()) return false;
+    // tickより前の姿勢は、補間の始点になる1件だけ残す
+    while (snapshots.size() >= 2 && static_cast<double>(snapshots[1].tick) <= tick)
+        snapshots.pop_front();
+
+    // 1件だけ残った(tickが最新より後)か、tickが最古より前なら、その端の姿勢をそのまま使う
+    const TimedPose& first = snapshots.front();
+    if (snapshots.size() == 1 || tick <= static_cast<double>(first.tick)) {
+        out = first.pose;
+        return true;
+    }
+    const TimedPose& second = snapshots[1];
+    const double span = static_cast<double>(second.tick) - static_cast<double>(first.tick);
+    const float alpha = span > 0.0
+        ? static_cast<float>(std::clamp((tick - static_cast<double>(first.tick)) / span, 0.0, 1.0))
+        : 1.0f;
+    out.Position = first.pose.Position + (second.pose.Position - first.pose.Position) * alpha;
+    out.Rotation = Quaternion::Slerp(first.pose.Rotation, second.pose.Rotation, alpha);
+    return true;
 }
 
 void ReplicationManager::clientReleaseWorldObjects() {
@@ -1149,12 +1378,17 @@ void ReplicationManager::onNetworkRoleChanged(NetworkRole oldRole, NetworkRole n
         m_hostObjects.clear();
         m_worldMappingDirty = false;
         m_prevRosterSize = 0;
-        m_predictionSceneReady = false;
-        m_predictionStaticMirror.clear();
-        m_predictionRescanTimer = 0.0f;
-        m_standUpRequestSeq = 0;
-        m_pendingJumpLatch = false;
+        m_inputQueues.clear();
+        m_lastProcessedSeq.clear();
+        clientDetachInputRecording();
+        m_inputHistory.clear();
+        m_hasHostTick = false;
+        m_hasRenderTick = false;
+        m_sentSeatPaths.clear();
+        m_seatStateRosterSize = 0;
     } else if (oldRole == NetworkRole::Client && newRole == NetworkRole::Host) {
+        clientDetachInputRecording();
+        m_inputHistory.clear();
         if (m_physics) m_physics->makeSimulationClockAuthoritative();
         m_forceReliableSimulationClock = true;
         // ホスト昇格: クライアントとして凍結(Anchored化)していた物理を解放し、自分の世界を権威として再スキャンさせる
@@ -1168,146 +1402,82 @@ void ReplicationManager::onNetworkRoleChanged(NetworkRole oldRole, NetworkRole n
     }
 }
 
-void ReplicationManager::bufferLocalInput(float dt) {
-    if (!m_user || !m_user->humanoid) return;
-    auto root = m_user->humanoid->getRootPart();
+void ReplicationManager::clientEnsureInputRecording() {
+    const auto humanoid = m_user ? m_user->humanoid : nullptr;
+    const auto current = m_recordingHumanoid.lock();
+    if (current == humanoid) return;
+    if (current) current->setControlStepCallback({});
+    // キャラが替わったら旧キャラの履歴は比較に使えない。seqは連番のまま続ける
+    m_inputHistory.clear();
+    m_recordingHumanoid = humanoid;
+    if (humanoid) {
+        humanoid->setControlStepCallback([this](Humanoid& value) {
+            clientRecordInputStep(value);
+        });
+    }
+}
 
+void ReplicationManager::clientDetachInputRecording() {
+    if (const auto current = m_recordingHumanoid.lock())
+        current->setControlStepCallback({});
+    m_recordingHumanoid.reset();
+}
+
+void ReplicationManager::clientRecordInputStep(Humanoid& humanoid) {
     BufferedInput entry;
     entry.seq = m_nextSeq++;
-    entry.input.flatForward     = m_user->lastMovementInput.flatForward;
-    entry.input.flatRight       = m_user->lastMovementInput.flatRight;
-    entry.input.targetMoveDir   = m_user->lastMovementInput.targetMoveDir;
-    entry.input.isPressingMove  = m_user->lastMovementInput.isPressingMove;
-    entry.input.ctrlLockEnabled = m_user->lastMovementInput.ctrlLockEnabled;
-    entry.input.forwardAxis     = m_user->lastMovementInput.forwardAxis;
-    entry.input.rightAxis       = m_user->lastMovementInput.rightAxis;
-    entry.input.jumpRequested   = m_user->lastMovementInput.jumpRequested;
-    entry.input.standUpRequested = m_user->lastMovementInput.standUpRequested;
-    if (entry.input.jumpRequested) m_pendingJumpLatch = true;
-    entry.input.seq             = entry.seq;
-    if (entry.input.standUpRequested) m_standUpRequestSeq = entry.seq;
-    entry.dt = dt;
-    entry.currentMoveDirBefore = m_user->humanoid->getCurrentMoveDir();
-    entry.smoothedHeadingDirectionBefore =
-        m_user->humanoid->getSmoothedHeadingDirection();
-    entry.walkCycleBefore      = m_user->humanoid->getWalkCycle();
-    entry.rotationBefore       = root ? root->getRotation() : Quaternion();
-
+    AvatarInputWire& in = entry.input;
+    in.seq = entry.seq;
+    if (const auto& control = humanoid.getControlInput()) {
+        in.hasInput        = true;
+        in.flatForward     = control->flatForward;
+        in.flatRight       = control->flatRight;
+        in.targetMoveDir   = control->targetMoveDir;
+        in.isPressingMove  = control->isPressingMove;
+        in.ctrlLockEnabled = control->ctrlLockEnabled;
+        in.forwardAxis     = control->forwardAxis;
+        in.rightAxis       = control->rightAxis;
+        in.smoothing       = control->smoothing;
+    }
+    in.jump = humanoid.hasPendingJump();
+    in.standUp = humanoid.hasPendingStandUp();
+    if (const auto root = humanoid.getRootPart()) {
+        entry.rootPositionBefore = root->getWorldPosition();
+        if (m_physics && m_physics->hasBody(*root))
+            entry.rootVelocityBefore = m_physics->getLinearVelocity(*root);
+    }
     m_inputHistory.push_back(entry);
 
-    // 直近2秒程度(60fps換算で最大240件)を超えたら古いものから破棄する安全弁
+    // 直近4秒(240step)を超えたら古いものから破棄する安全弁
     // (ackが来ずに際限なく溜まり続けることを防ぐ。通常は受信のたびにack済み分が破棄される)
     while (m_inputHistory.size() > 240) {
         m_inputHistory.pop_front();
     }
 }
 
-// ---- クライアント予測用の分離シーン(Step2) ----
+void ReplicationManager::clientSendInputs() {
+    auto& net = NetworkManager::get();
+    if (!net.hasPeers() || m_inputHistory.empty()) return;
 
-void ReplicationManager::ensurePredictionScene() {
-    if (m_predictionSceneReady) return;
-    if (!m_user || !m_user->humanoid) return;
-    auto realRoot = m_user->humanoid->getRootPart();
-    if (!realRoot) return;
-
-    m_predictionPhysics = std::make_unique<Physics>();
-    m_predictionPhysics->init();
-    if (m_workspace) m_predictionPhysics->setGravity(m_workspace->Gravity);
-
-    m_shadowRoot = std::make_shared<Cube>(realRoot->getWorldPosition(), realRoot->Size, 0);
-    m_shadowRoot->Name = "PredictionShadowRoot";
-    m_shadowRoot->Anchored = false;
-    m_shadowRoot->CanCollide = true;
-    m_shadowRoot->setCFrame(realRoot->getWorldCFrame());
-    m_predictionHumanoid = std::make_shared<Humanoid>();
-    m_predictionHumanoid->setRootPart(m_shadowRoot);
-    m_predictionPhysics->createActor(m_shadowRoot);
-    m_predictionGyro = std::make_shared<Gyro>();
-    m_predictionGyro->Name = "PredictionRootGyro";
-    m_predictionGyro->setPart(m_shadowRoot);
-
-    // @RadiantBird 2026/09/12:
-    // Prediction has no CharacterRig builder, so initialize its three axes
-    // here, then use the shared Character heading conversion.
-    m_predictionGyro->setAxisEnabled(GyroAxis::X, true);
-    m_predictionGyro->setTargetAngle(GyroAxis::X, 0.0f);
-    m_predictionGyro->setAxisEnabled(GyroAxis::Y, true);
-    m_predictionGyro->setAxisEnabled(GyroAxis::Z, true);
-    m_predictionGyro->setTargetAngle(GyroAxis::Z, 0.0f);
-    m_predictionGyro->setCharacterRotation(
-        realRoot->getWorldCFrame().Rotation
-    );
-    m_predictionHumanoid->setRootGyro(m_predictionGyro);
-    m_predictionPhysics->createGyro(m_predictionGyro);
-
-    m_predictionSceneReady = true;
-    RCBN_LOG("Replication: prediction scene created (shadow root size=" << realRoot->Size.x << "," << realRoot->Size.y << "," << realRoot->Size.z << ")");
-}
-
-void ReplicationManager::syncPredictionShadowToLocal() {
-    if (!m_predictionSceneReady || !m_shadowRoot || !m_predictionPhysics ||
-        !m_predictionPhysics->hasBody(*m_shadowRoot)) return;
-    if (!m_user || !m_user->humanoid) return;
-    auto realRoot = m_user->humanoid->getRootPart();
-    if (!realRoot) return;
-
-    CFrame realCFrame = realRoot->getWorldCFrame();
-
-    m_predictionPhysics->setMemberWorldCFrame(*m_shadowRoot, realCFrame);
-
-    m_shadowRoot->setCFrame(realCFrame);
-
-    m_predictionPhysics->setLinearVelocity(*m_shadowRoot, Vector3());
-    m_predictionPhysics->setAngularVelocity(*m_shadowRoot, Vector3());
-}
-
-static void collectPredictionStaticGeometry(const std::shared_ptr<Instance>& node,
-                                             std::vector<std::shared_ptr<BaseCube>>& out) {
-    auto cube = std::dynamic_pointer_cast<BaseCube>(node);
-    if (cube && cube->Anchored && cube->CanCollide) out.push_back(cube);
-    for (auto& [name, child] : node->getChildren()) {
-        collectPredictionStaticGeometry(child, out);
+    // 履歴に残っている(=未ackの)入力を、新しい側から最大MAX_INPUTS_PER_PACKET件まとめて送る。
+    // seqは連番なので先頭seqだけ書く
+    const size_t count = (std::min)(m_inputHistory.size(), MAX_INPUTS_PER_PACKET);
+    const auto first = m_inputHistory.end() - static_cast<std::ptrdiff_t>(count);
+    ByteWriter writer;
+    writer.writeU8(static_cast<uint8_t>(MessageType::AvatarState));
+    writer.writeU8(static_cast<uint8_t>(count));
+    writer.writeU32(first->seq);
+    for (auto it = first; it != m_inputHistory.end(); ++it) {
+        const AvatarInputWire& in = it->input;
+        writer.writeVector3(in.flatForward);
+        writer.writeVector3(in.flatRight);
+        writer.writeVector3(in.targetMoveDir);
+        writer.writeU8(static_cast<uint8_t>(
+            (in.isPressingMove ? 1 : 0) | (in.ctrlLockEnabled ? 2 : 0) |
+            (in.hasInput ? 4 : 0) | (in.jump ? 8 : 0) | (in.standUp ? 16 : 0)));
+        writer.writeF32(in.forwardAxis);
+        writer.writeF32(in.rightAxis);
+        writer.writeF32(in.smoothing);
     }
-}
-
-void ReplicationManager::rescanPredictionStaticGeometry() {
-    if (!m_predictionSceneReady || !m_workspace) return;
-
-    std::vector<std::shared_ptr<BaseCube>> targets;
-    for (auto& [name, child] : m_workspace->getChildren()) {
-        collectPredictionStaticGeometry(child, targets);
-    }
-
-    std::unordered_map<std::string, std::shared_ptr<BaseCube>> newMirror;
-    int added = 0;
-    for (auto& target : targets) {
-        std::string path = target->getWorkspaceRelativePath();
-        auto existing = m_predictionStaticMirror.find(path);
-        if (existing != m_predictionStaticMirror.end()) {
-            newMirror[path] = existing->second;
-            continue;
-        }
-        auto mirror = std::make_shared<Cube>(target->getWorldPosition(), target->Size, 0);
-        mirror->Name = "Mirror_" + target->Name;
-        mirror->Anchored = true;
-        mirror->CanCollide = true;
-        mirror->setCFrame(target->getWorldCFrame());
-        m_predictionPhysics->createActor(mirror);
-        newMirror[path] = mirror;
-        added++;
-    }
-
-    int removed = 0;
-    for (auto& [path, mirror] : m_predictionStaticMirror) {
-        if (newMirror.find(path) == newMirror.end()) {
-            m_predictionPhysics->removeCube(mirror);
-            removed++;
-        }
-    }
-
-    m_predictionStaticMirror = std::move(newMirror);
-    if (added > 0 || removed > 0) {
-        RCBN_LOG("Replication: prediction static mirror rescan +" << added << " -" << removed
-                  << " (total " << m_predictionStaticMirror.size() << ")");
-    }
+    net.sendBytes(writer.data, NetworkChannel::Unreliable);
 }

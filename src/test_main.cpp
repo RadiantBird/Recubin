@@ -202,6 +202,83 @@ struct ReplicationTestAccess {
         return it != replication.m_remoteAvatars.end() &&
             replication.hasPendingPhysicsRegistration(it->second);
     }
+
+    static std::shared_ptr<Humanoid> humanoid(
+        ReplicationManager& replication, PeerId id) {
+        auto it = replication.m_remoteAvatars.find(id);
+        return it == replication.m_remoteAvatars.end() ? nullptr : it->second.humanoid;
+    }
+
+    static bool isPhysicsProxy(ReplicationManager& replication, PeerId id) {
+        auto it = replication.m_remoteAvatars.find(id);
+        return it != replication.m_remoteAvatars.end() && it->second.isPhysicsProxy;
+    }
+
+    static void queueInputs(
+        ReplicationManager& replication, PeerId id, const std::vector<AvatarInputWire>& inputs) {
+        replication.hostQueueInputs(id, inputs);
+    }
+
+    static std::uint32_t lastProcessedSeq(ReplicationManager& replication, PeerId id) {
+        auto it = replication.m_lastProcessedSeq.find(id);
+        return it == replication.m_lastProcessedSeq.end() ? 0u : it->second;
+    }
+
+    static CFrame latestPose(ReplicationManager& replication, PeerId id) {
+        auto it = replication.m_latestPoses.find(id);
+        return it == replication.m_latestPoses.end() ? CFrame() : it->second;
+    }
+
+    static void clientEnsureInputRecording(ReplicationManager& replication) {
+        replication.clientEnsureInputRecording();
+    }
+
+    static std::vector<BufferedInput> inputHistory(ReplicationManager& replication) {
+        return {replication.m_inputHistory.begin(), replication.m_inputHistory.end()};
+    }
+
+    static void hostSimulateAvatars(
+        ReplicationManager& replication, float dt, Physics* physics) {
+        replication.hostSimulateAvatars(dt, physics);
+    }
+
+    static void translateLocalCharacter(
+        ReplicationManager& replication, const Vector3& offset, const Vector3& velocityDelta) {
+        replication.translateLocalCharacter(offset, velocityDelta);
+    }
+
+    static void hostRescanWorld(ReplicationManager& replication) {
+        replication.hostRescanWorld();
+    }
+
+    static void clientAdvanceRenderClock(ReplicationManager& replication, float dt) {
+        replication.clientAdvanceRenderClock(dt);
+    }
+
+    static bool sampleSnapshots(std::deque<TimedPose>& snapshots, double tick, CFrame& out) {
+        return ReplicationManager::sampleSnapshots(snapshots, tick, out);
+    }
+
+    static void applyLocalSeatPath(ReplicationManager& replication, const std::string& path) {
+        replication.applyLocalSeatPath(path);
+    }
+
+    static void clientApplyWorldSmoothing(ReplicationManager& replication, float dt) {
+        replication.clientApplyWorldSmoothing(dt);
+    }
+
+    static void hostSendWorldTransforms(ReplicationManager& replication) {
+        replication.hostSendWorldTransforms(true);
+    }
+
+    static std::vector<CFrame> hostLastSentTransforms(ReplicationManager& replication) {
+        std::vector<CFrame> result;
+        for (const auto& [id, object] : replication.m_hostObjects) {
+            (void)id;
+            if (object.hasSent) result.push_back(object.lastSent);
+        }
+        return result;
+    }
 };
 
 namespace {
@@ -2319,18 +2396,14 @@ int runRemoteAvatarSpawnTransformRegression() {
     const CFrame nextPoseTwo(
         Vector3(52, 21, -44),
         Quaternion::fromEuler(Vector3(-31, 78, 26)));
+    // Host tick付きの姿勢がまだ無い(補間時刻が未確定)間は、最新の受信姿勢をそのまま表示する。
+    // tick基準の補間は--network-avatar-regressionで確認する
     constexpr float interpolationDt = 0.1f;
-    const float alpha = 1.0f - std::exp(-15.0f * interpolationDt);
-    CFrame expectedInterpolated = poseTwo;
-    expectedInterpolated.Position = poseTwo.Position +
-        (nextPoseTwo.Position - poseTwo.Position) * alpha;
-    expectedInterpolated.Rotation = Quaternion::Slerp(
-        poseTwo.Rotation, nextPoseTwo.Rotation, alpha);
     ReplicationTestAccess::setLatestPose(replication, 2, nextPoseTwo);
     ReplicationTestAccess::applyAvatarPoses(replication, interpolationDt);
-    expect(cframeNear(rootTwo->getWorldCFrame(), expectedInterpolated) &&
+    expect(cframeNear(rootTwo->getWorldCFrame(), nextPoseTwo) &&
                cframeNear(rootThree->getWorldCFrame(), poseThree),
-           "second pose interpolates only its target peer in world space");
+           "second pose updates only its target peer in world space");
     expect(cframeNear(modelTwo->getWorldCFrame(), modelTwoSpawnFrame) &&
                cframeNear(modelThree->getWorldCFrame(), modelThreeSpawnFrame),
            "pose application preserves each nonidentity Model CFrame");
@@ -3142,6 +3215,544 @@ int runSeatNetworkRegression() {
     expect(!humanoid->isSeated() && !seat->isOccupied(), "standUp clears SeatWeld and occupant");
     expect(seatWeldRemoved, "standUp removes SeatWeld instance");
     expect(velocity.y >= humanoid->JumpPower - 0.1f, "standUp applies upward hop velocity");
+    return failures;
+}
+
+int runCharacterTickControlRegression() {
+    int failures = 0;
+    auto expect = [&](bool ok, const char* msg) {
+        std::cout << "[CharacterTickControl] " << (ok ? "PASS: " : "FAIL: ") << msg << '\n';
+        if (!ok) ++failures;
+    };
+
+    struct RunResult {
+        Vector3 rootPosition;
+        float rootYaw = 0.0f;
+        float peakY = 0.0f;
+        bool available = false;
+    };
+    // frameDtで描画フレームを刻み、固定stepごとのHumanoid制御を進める
+    auto simulate = [](float frameDt, int frames, bool jumpTwice) {
+        RunResult result;
+        auto workspace = std::make_shared<Workspace>();
+        workspace->Name = "TickControlWorkspace";
+        auto floor = std::make_shared<Cube>(
+            Vector3(0.0f, -0.5f, 0.0f), Vector3(200.0f, 1.0f, 200.0f), Cube::defaultTextureID);
+        floor->Anchored = true;
+        workspace->addChild(floor);
+        auto character = std::make_shared<Model>();
+        character->Name = "TickCharacter";
+        CharacterRig::buildDefaultRigParts(character, Vector3(0.0f, 3.0f, 0.0f));
+        workspace->addChild(character);
+        workspace->initPhysics();
+        Physics* physics = workspace->getPhysicsEngine();
+        if (!physics) return result;
+        physics->update(*workspace, 0.0f);
+        auto humanoid = std::dynamic_pointer_cast<Humanoid>(character->getChildren().at("Humanoid"));
+        auto root = humanoid->getRootPart();
+        humanoid->setTickControlled(true);
+
+        HumanoidControlInput input;
+        input.flatForward = Vector3(0.0f, 0.0f, -1.0f);
+        input.flatRight = Vector3(1.0f, 0.0f, 0.0f);
+        input.smoothing = 0.15f;
+        // 切り替えは経過tick数で判定する(floatの経過時間の積算誤差で境界がずれないように)
+        const int stepsPerFrame = static_cast<int>(std::lround(frameDt * 60.0f));
+        const int totalSteps = stepsPerFrame * frames;
+        bool jumped = false;
+        bool jumpedAgain = false;
+        result.peakY = root->getWorldPosition().y;
+        for (int frame = 0; frame < frames; ++frame) {
+            const int step = frame * stepsPerFrame;
+            // 前半は斜め前へ歩き、後半は右へ向きを変える(向き制御も比較する)
+            const bool secondHalf = step >= totalSteps / 2;
+            input.isPressingMove = true;
+            input.targetMoveDir = secondHalf
+                ? Vector3(1.0f, 0.0f, 0.0f)
+                : Vector3(0.6f, 0.0f, -0.8f);
+            humanoid->setControlInput(input);
+            if (!jumped && step >= totalSteps / 4) {
+                humanoid->requestJump();
+                jumped = true;
+            }
+            if (jumpTwice && !jumpedAgain && step >= totalSteps / 4 + stepsPerFrame) {
+                humanoid->requestJump();
+                jumpedAgain = true;
+            }
+            physics->update(*workspace, frameDt);
+            result.peakY = std::max(result.peakY, root->getWorldPosition().y);
+        }
+        result.rootPosition = root->getWorldPosition();
+        result.rootYaw = Gyro::angleFromRotation(GyroAxis::Y, root->getWorldCFrame().Rotation);
+        result.available = true;
+        return result;
+    };
+
+    // 同じ2秒を、60fps(1frame=1step)と30fps(1frame=2step)で進める
+    const RunResult at60 = simulate(1.0f / 60.0f, 120, false);
+    const RunResult at30 = simulate(1.0f / 30.0f, 60, false);
+    expect(at60.available && at30.available, "tick control scenes are available");
+    if (!at60.available || !at30.available) return failures;
+    const float positionError = positionDistance(at60.rootPosition, at30.rootPosition);
+    const float yawError = std::abs(at60.rootYaw - at30.rootYaw);
+    std::cout << "[CharacterTickControl] at60=(" << at60.rootPosition.x << "," << at60.rootPosition.y
+              << "," << at60.rootPosition.z << ") at30=(" << at30.rootPosition.x << ","
+              << at30.rootPosition.y << "," << at30.rootPosition.z << ") positionError="
+              << positionError << " yawError=" << yawError << '\n';
+    expect(positionDistance(at60.rootPosition, Vector3(0.0f, 3.0f, 0.0f)) > 5.0f,
+           "tick-controlled character walks from its control input");
+    expect(positionError < 0.01f, "the same input reaches the same position at 60fps and 30fps");
+    expect(yawError < 0.5f, "the same input reaches the same heading at 60fps and 30fps");
+    expect(at60.peakY > 3.0f + 1.5f, "a requested jump is executed on the next fixed step");
+
+    // 着地前に2回要求しても、2回目は空中なので実行されない(要求は1回ずつ消費される)
+    const RunResult doubleJump = simulate(1.0f / 60.0f, 120, true);
+    std::cout << "[CharacterTickControl] singlePeak=" << at60.peakY
+              << " doubleRequestPeak=" << doubleJump.peakY << '\n';
+    expect(std::abs(doubleJump.peakY - at60.peakY) < 0.05f,
+           "a jump request made while airborne does not add a second jump");
+    return failures;
+}
+
+int runNetworkAvatarRegression() {
+    int failures = 0;
+    auto expect = [&](bool ok, const char* msg) {
+        std::cout << "[NetworkAvatarRegression] " << (ok ? "PASS: " : "FAIL: ") << msg << '\n';
+        if (!ok) ++failures;
+    };
+    constexpr float DT = 1.0f / 60.0f;
+
+    // System+StarterCharacter+SpawnLocation(上面y=0)の世界。ClientとHostで同じものを作る
+    struct NetworkAvatarWorld {
+        std::shared_ptr<System> system;
+        std::shared_ptr<Workspace> workspace;
+        Physics* physics = nullptr;
+    };
+    auto makeWorld = [](const char* name) {
+        NetworkAvatarWorld world;
+        world.system = std::make_shared<System>();
+        world.workspace = std::make_shared<Workspace>();
+        world.workspace->Name = name;
+        auto users = std::make_shared<Users>();
+        auto starter = std::make_shared<StarterCharacter>();
+        CharacterRig::buildDefaultRigParts(starter);
+        world.system->addChild(world.workspace);
+        world.system->addChild(users);
+        world.system->addChild(starter);
+        world.workspace->addChild(std::make_shared<SpawnLocation>(Vector3(0.0f, -0.5f, 0.0f)));
+        auto floor = std::make_shared<Cube>(
+            Vector3(0.0f, -0.5f, 0.0f), Vector3(400.0f, 1.0f, 400.0f), Cube::defaultTextureID);
+        floor->Name = "Floor";
+        floor->Anchored = true;
+        world.workspace->addChild(floor);
+        world.workspace->initPhysics();
+        world.physics = world.workspace->getPhysicsEngine();
+        return world;
+    };
+    // 1step分の入力(Userが毎フレーム渡すものと同じ形)
+    auto walkInput = [](std::uint32_t seq, bool turn) {
+        AvatarInputWire in;
+        in.seq = seq;
+        in.hasInput = true;
+        in.flatForward = Vector3(0.0f, 0.0f, -1.0f);
+        in.flatRight = Vector3(1.0f, 0.0f, 0.0f);
+        in.isPressingMove = true;
+        in.targetMoveDir = turn ? Vector3(1.0f, 0.0f, 0.0f) : Vector3(0.6f, 0.0f, -0.8f);
+        in.forwardAxis = 1.0f;
+        in.smoothing = 0.15f;
+        return in;
+    };
+
+    // ---- Host: リモートキャラの物理プロキシ(地面判定・ホバー・入力バッファ・ジャンプ) ----
+    {
+        NetworkAvatarWorld host = makeWorld("NetworkAvatarHostWorkspace");
+        expect(host.physics != nullptr, "host physics is available");
+        if (!host.physics) return failures;
+        ReplicationManager replication(host.workspace, nullptr, host.system.get());
+        constexpr PeerId PEER = 2;
+        expect(ReplicationTestAccess::spawnRemoteAvatar(replication, PEER), "remote avatar is spawned");
+        auto humanoid = ReplicationTestAccess::humanoid(replication, PEER);
+        auto root = humanoid ? humanoid->getRootPart() : nullptr;
+        expect(root != nullptr, "remote avatar has a Humanoid Root");
+        if (!root) return failures;
+
+        // Clientは毎フレーム、未ackの入力をまとめて再送する(ここでは直近4件)
+        std::vector<AvatarInputWire> sent;
+        std::uint32_t nextSeq = 1;
+        auto runFrames = [&](int frames, bool jumpFirst, float& peak) {
+            for (int frame = 0; frame < frames; ++frame) {
+                AvatarInputWire in;
+                in.seq = nextSeq++;
+                in.hasInput = true;
+                in.flatForward = Vector3(0.0f, 0.0f, -1.0f);
+                in.flatRight = Vector3(1.0f, 0.0f, 0.0f);
+                in.jump = jumpFirst && frame == 0;
+                sent.push_back(in);
+                const size_t resend = std::min<size_t>(sent.size(), 4);
+                ReplicationTestAccess::queueInputs(
+                    replication, PEER, std::vector<AvatarInputWire>(sent.end() - resend, sent.end()));
+                ReplicationTestAccess::hostSimulateAvatars(replication, DT, host.physics);
+                host.physics->update(*host.workspace, DT);
+                peak = std::max(peak, root->getWorldPosition().y);
+            }
+        };
+
+        float ignored = 0.0f;
+        runFrames(240, false, ignored);
+        const float settled = root->getWorldPosition().y;
+        std::cout << "[NetworkAvatarRegression] settledHeight=" << settled
+                  << " lastProcessedSeq=" << ReplicationTestAccess::lastProcessedSeq(replication, PEER)
+                  << " sentSeq=" << nextSeq - 1 << '\n';
+        expect(ReplicationTestAccess::isPhysicsProxy(replication, PEER), "remote avatar becomes a host physics proxy");
+        expect(std::abs(settled - humanoid->getHipHeight()) < 0.3f,
+               "host proxy hovers at HipHeight like a local character");
+        expect(humanoid->getIsGrounded(), "host proxy updates its grounded state");
+        const std::uint32_t lag = (nextSeq - 1) - ReplicationTestAccess::lastProcessedSeq(replication, PEER);
+        expect(lag <= 4, "the host consumes one input per fixed step with a small buffer");
+
+        float firstPeak = settled;
+        runFrames(180, true, firstPeak);
+        std::cout << "[NetworkAvatarRegression] firstJumpPeak=" << firstPeak << '\n';
+        expect(firstPeak > settled + 1.5f, "a jump in the input stream is applied on the host proxy");
+
+        // 同じseqのジャンプ入力が再送で何度届いても、1回しか実行されない
+        const float beforeResend = root->getWorldPosition().y;
+        float resendPeak = beforeResend;
+        for (int frame = 0; frame < 180; ++frame) {
+            AvatarInputWire duplicate = sent.front();
+            duplicate.jump = true; // 処理済みseqのジャンプ
+            ReplicationTestAccess::queueInputs(replication, PEER, {duplicate});
+            runFrames(1, false, resendPeak);
+        }
+        std::cout << "[NetworkAvatarRegression] resendPeak=" << resendPeak << '\n';
+        expect(resendPeak < beforeResend + 0.5f, "a resent (already processed) jump is not applied again");
+
+        const float beforeSecond = root->getWorldPosition().y;
+        float secondPeak = beforeSecond;
+        runFrames(180, true, secondPeak);
+        std::cout << "[NetworkAvatarRegression] secondJumpPeak=" << secondPeak << '\n';
+        expect(secondPeak > beforeSecond + 1.5f, "a second jump is applied after landing");
+    }
+
+    // ---- Client→Host: 同じ入力列なら、同じseqでのClientとHostの移動量が一致する ----
+    {
+        NetworkAvatarWorld client = makeWorld("NetworkAvatarClientEquivalence");
+        NetworkAvatarWorld host = makeWorld("NetworkAvatarHostEquivalence");
+        expect(client.physics && host.physics, "equivalence worlds are available");
+        if (!client.physics || !host.physics) return failures;
+
+        // Client: Userのキャラ生成と同じ経路(テンプレートclone→スポーン配置→Rootを衝突させる)
+        auto user = User::createRemoteUser(2);
+        auto character = User::buildCharacterModel(client.system.get(), "LocalCharacter");
+        auto localHumanoid = std::dynamic_pointer_cast<Humanoid>(character->getChildren().at("Humanoid"));
+        localHumanoid->resolveParts(character.get());
+        auto localRoot = localHumanoid->getRootPart();
+        localRoot->Anchored = false;
+        localRoot->CanCollide = true;
+        User::placeCharacterAtSpawn(character, localHumanoid, client.workspace.get(), 2);
+        client.workspace->addChild(character);
+        user->character = character;
+        user->humanoid = localHumanoid;
+        ReplicationManager clientReplication(client.workspace, user, client.system.get());
+
+        // Host: 同じピアのリモートキャラ
+        ReplicationManager hostReplication(host.workspace, nullptr, host.system.get());
+        constexpr PeerId PEER = 2;
+        ReplicationTestAccess::spawnRemoteAvatar(hostReplication, PEER);
+
+        // どちらも入力なしで静止させてから始める
+        localHumanoid->setTickControlled(true);
+        for (int frame = 0; frame < 180; ++frame) {
+            client.physics->update(*client.workspace, DT);
+            ReplicationTestAccess::hostSimulateAvatars(hostReplication, DT, host.physics);
+            host.physics->update(*host.workspace, DT);
+        }
+
+        // Client: Userと同じく毎フレーム入力を渡し、固定stepごとに記録させる
+        ReplicationTestAccess::clientEnsureInputRecording(clientReplication);
+        constexpr int STEPS = 150;
+        for (int frame = 0; frame < STEPS; ++frame) {
+            const AvatarInputWire in = walkInput(0, frame >= STEPS / 2);
+            HumanoidControlInput control;
+            control.flatForward = in.flatForward;
+            control.flatRight = in.flatRight;
+            control.targetMoveDir = in.targetMoveDir;
+            control.isPressingMove = in.isPressingMove;
+            control.forwardAxis = in.forwardAxis;
+            control.smoothing = in.smoothing;
+            localHumanoid->setControlInput(control);
+            if (frame == STEPS / 3) localHumanoid->requestJump();
+            client.physics->update(*client.workspace, DT);
+        }
+        const auto history = ReplicationTestAccess::inputHistory(clientReplication);
+        expect(history.size() == static_cast<size_t>(STEPS), "the client records one input per fixed step");
+
+        // Host: 記録された入力を、毎フレーム直近4件の再送つきで流し込む
+        std::map<std::uint32_t, Vector3> hostPositions;
+        size_t delivered = 0;
+        for (int frame = 0; frame < STEPS + 30; ++frame) {
+            if (delivered < history.size()) ++delivered;
+            std::vector<AvatarInputWire> packet;
+            for (size_t i = delivered > 4 ? delivered - 4 : 0; i < delivered; ++i)
+                packet.push_back(history[i].input);
+            if (!packet.empty()) ReplicationTestAccess::queueInputs(hostReplication, PEER, packet);
+            ReplicationTestAccess::hostSimulateAvatars(hostReplication, DT, host.physics);
+            host.physics->update(*host.workspace, DT);
+            const std::uint32_t seq = ReplicationTestAccess::lastProcessedSeq(hostReplication, PEER);
+            if (seq != 0) hostPositions[seq] = ReplicationTestAccess::latestPose(hostReplication, PEER).Position;
+        }
+
+        const std::uint32_t firstSeq = history.front().seq;
+        const auto hostFirst = hostPositions.find(firstSeq);
+        expect(hostFirst != hostPositions.end() && hostPositions.size() == history.size(),
+               "the host consumes every recorded input exactly once");
+        if (hostFirst == hostPositions.end()) return failures;
+        float maxError = 0.0f;
+        float maxTravel = 0.0f;
+        for (const auto& entry : history) {
+            const auto hostEntry = hostPositions.find(entry.seq);
+            if (hostEntry == hostPositions.end()) continue;
+            const Vector3 clientMove = entry.rootPositionBefore - history.front().rootPositionBefore;
+            const Vector3 hostMove = hostEntry->second - hostFirst->second;
+            maxError = std::max(maxError, positionDistance(clientMove, hostMove));
+            maxTravel = std::max(maxTravel, clientMove.length());
+        }
+        std::cout << "[NetworkAvatarRegression] equivalence maxTravel=" << maxTravel
+                  << " maxError=" << maxError << '\n';
+        expect(maxTravel > 5.0f && maxTravel < 100.0f, "the recorded input walks the client character on the floor");
+        expect(maxError < 0.05f, "the host reproduces the client's movement for the same input sequence");
+    }
+
+    // ---- Client: 自キャラ補正(全リグ並進・速度保持)とWorldTransformsのワールド座標送信 ----
+    {
+        auto workspace = std::make_shared<Workspace>();
+        workspace->Name = "NetworkAvatarClientWorkspace";
+        workspace->Gravity = {};
+        auto floor = std::make_shared<Cube>(
+            Vector3(0.0f, -0.5f, 0.0f), Vector3(40.0f, 1.0f, 40.0f), Cube::defaultTextureID);
+        floor->Anchored = true;
+        workspace->addChild(floor);
+        auto character = std::make_shared<Model>();
+        character->Name = "LocalCharacter";
+        CharacterRig::buildDefaultRigParts(character, Vector3(0.0f, 3.0f, 0.0f));
+        workspace->addChild(character);
+
+        auto syncedModel = std::make_shared<Model>();
+        syncedModel->Name = "SyncedModel";
+        workspace->addChild(syncedModel);
+        syncedModel->setCFrame(CFrame(Vector3(10.0f, 0.0f, 0.0f)));
+        auto syncedCube = std::make_shared<Cube>(
+            Vector3(10.0f, 5.0f, 0.0f), Vector3(1.0f, 1.0f, 1.0f), Cube::defaultTextureID);
+        syncedCube->Name = "SyncedCube";
+        syncedCube->Anchored = false;
+        syncedModel->addChild(syncedCube);
+
+        workspace->initPhysics();
+        Physics* physics = workspace->getPhysicsEngine();
+        expect(physics != nullptr, "client physics is available");
+        if (!physics) return failures;
+        physics->update(*workspace, 0.0f);
+
+        auto user = User::createRemoteUser(5);
+        user->character = character;
+        ReplicationManager replication(workspace, user, nullptr);
+
+        auto part = [&](const char* name) {
+            return std::dynamic_pointer_cast<BaseCube>(character->getChildren().at(name));
+        };
+        auto root = part("Root");
+        auto torso = part("Torso");
+        const Vector3 rootBefore = root->getWorldPosition();
+        const Vector3 torsoBefore = torso->getWorldPosition();
+        physics->setLinearVelocity(*root, Vector3(0.0f, 20.0f, 0.0f));
+        ReplicationTestAccess::translateLocalCharacter(
+            replication, Vector3(1.0f, 0.0f, 0.0f), Vector3(0.0f, 5.0f, 0.0f));
+        const Vector3 rootMoved = root->getWorldPosition() - rootBefore;
+        const Vector3 torsoMoved = torso->getWorldPosition() - torsoBefore;
+        expect(std::abs(rootMoved.x - 1.0f) < 1.0e-3f && std::abs(rootMoved.y) < 1.0e-3f,
+               "correction translates Root by the requested offset");
+        expect(std::abs(torsoMoved.x - 1.0f) < 1.0e-3f && std::abs(torsoMoved.y) < 1.0e-3f,
+               "correction translates limbs together with Root");
+        expect(std::abs(physics->getLinearVelocity(*root).y - 25.0f) < 1.0e-3f,
+               "correction keeps the upward velocity and adds the velocity difference");
+
+        expect(positionDistance(syncedCube->getCFrame().Position, syncedCube->getWorldPosition()) > 1.0f,
+               "synced cube local and world poses differ (precondition)");
+        ReplicationTestAccess::hostRescanWorld(replication);
+        ReplicationTestAccess::hostSendWorldTransforms(replication);
+        const auto sent = ReplicationTestAccess::hostLastSentTransforms(replication);
+        expect(sent.size() == 1 &&
+                   positionDistance(sent.front().Position, syncedCube->getWorldPosition()) < 1.0e-3f,
+               "WorldTransforms sends the world pose of a Model child");
+    }
+
+    // ---- Client: Weldで1ボディにまとまった同期物体(車体+Seat相当)も受信姿勢へ動く ----
+    {
+        auto workspace = std::make_shared<Workspace>();
+        workspace->Name = "NetworkAvatarWeldedClientWorkspace";
+        auto chassis = std::make_shared<Cube>(
+            Vector3(0.0f, 5.0f, 0.0f), Vector3(8.0f, 1.0f, 4.0f), Cube::defaultTextureID);
+        chassis->Name = "Chassis";
+        chassis->Anchored = true;
+        auto seat = std::make_shared<Cube>(
+            Vector3(0.0f, 6.0f, 0.0f), Vector3(2.0f, 1.0f, 2.0f), Cube::defaultTextureID);
+        seat->Name = "SeatPart";
+        seat->Anchored = true;
+        workspace->addChild(chassis);
+        workspace->addChild(seat);
+        workspace->addChild(std::make_shared<Weld>(seat, chassis));
+        workspace->initPhysics();
+        Physics* physics = workspace->getPhysicsEngine();
+        expect(physics != nullptr, "welded client physics is available");
+        if (!physics) return failures;
+        physics->update(*workspace, 0.0f);
+        expect(physics->sharesBody(*chassis, *seat), "welded synced parts share one native body (precondition)");
+
+        ReplicationManager replication(workspace, nullptr, nullptr);
+        ReplicationTestAccess::addClientObject(replication, 1, chassis);
+        ReplicationTestAccess::addClientObject(replication, 2, seat);
+        const Vector3 offset(12.0f, 0.0f, -7.0f);
+        ByteWriter writer;
+        writer.writeU32(100); // host tick
+        writer.writeU16(2);
+        writer.writeU32(1);
+        writer.writeVector3(Vector3(0.0f, 5.0f, 0.0f) + offset);
+        writer.writeQuat(Quaternion());
+        writer.writeU32(2);
+        writer.writeVector3(Vector3(0.0f, 6.0f, 0.0f) + offset);
+        writer.writeQuat(Quaternion());
+        ReplicationTestAccess::clientStoreWorldTransforms(replication, writer.data);
+        ReplicationTestAccess::clientApplyWorldSmoothing(replication, DT);
+        physics->update(*workspace, DT);
+        std::cout << "[NetworkAvatarRegression] weldedChassis=("
+                  << chassis->getWorldPosition().x << "," << chassis->getWorldPosition().y << ","
+                  << chassis->getWorldPosition().z << ")\n";
+        expect(positionDistance(chassis->getWorldPosition(), Vector3(0.0f, 5.0f, 0.0f) + offset) < 1.0e-3f,
+               "welded synced chassis follows the received pose");
+        expect(positionDistance(seat->getWorldPosition(), Vector3(0.0f, 6.0f, 0.0f) + offset) < 1.0e-3f,
+               "welded synced seat follows the received pose");
+    }
+
+    // ---- Client: Host tick基準の補間 ----
+    {
+        std::deque<TimedPose> snapshots{
+            {100, CFrame(Vector3(0.0f, 0.0f, 0.0f))},
+            {106, CFrame(Vector3(6.0f, 0.0f, 0.0f))},
+            {112, CFrame(Vector3(12.0f, 0.0f, 0.0f))},
+        };
+        CFrame sampled;
+        ReplicationTestAccess::sampleSnapshots(snapshots, 99.0, sampled);
+        expect(std::abs(sampled.Position.x - 0.0f) < 1.0e-4f, "interpolation before the oldest pose holds it");
+        ReplicationTestAccess::sampleSnapshots(snapshots, 103.0, sampled);
+        expect(std::abs(sampled.Position.x - 3.0f) < 1.0e-4f, "interpolation between poses is linear in host ticks");
+        ReplicationTestAccess::sampleSnapshots(snapshots, 109.0, sampled);
+        expect(std::abs(sampled.Position.x - 9.0f) < 1.0e-4f && snapshots.size() == 2,
+               "interpolation drops poses that are no longer needed");
+        ReplicationTestAccess::sampleSnapshots(snapshots, 130.0, sampled);
+        expect(std::abs(sampled.Position.x - 12.0f) < 1.0e-4f, "interpolation after the newest pose holds it");
+
+        // 1tickに0.1stud動く物体を、20Hz(3tickごと)のWorldTransformsで受け取る
+        auto runLag = [&](float delaySeconds, float& lagTicks, float& maxStepError) {
+            auto system = std::make_shared<System>();
+            system->NetworkInterpolationDelay = delaySeconds;
+            auto workspace = std::make_shared<Workspace>();
+            system->addChild(workspace);
+            auto cube = std::make_shared<Cube>(Vector3(), Vector3(1.0f, 1.0f, 1.0f), Cube::defaultTextureID);
+            cube->Anchored = true;
+            workspace->addChild(cube);
+            ReplicationManager replication(workspace, nullptr, system.get());
+            ReplicationTestAccess::addClientObject(replication, 1, cube);
+            std::uint32_t hostTick = 1000;
+            float previousX = 0.0f;
+            maxStepError = 0.0f;
+            for (int frame = 0; frame < 240; ++frame) {
+                ++hostTick;
+                if (hostTick % 3 == 0) {
+                    ByteWriter writer;
+                    writer.writeU32(hostTick);
+                    writer.writeU16(1);
+                    writer.writeU32(1);
+                    writer.writeVector3(Vector3(static_cast<float>(hostTick) * 0.1f, 0.0f, 0.0f));
+                    writer.writeQuat(Quaternion());
+                    ReplicationTestAccess::clientStoreWorldTransforms(replication, writer.data);
+                }
+                ReplicationTestAccess::clientAdvanceRenderClock(replication, DT);
+                ReplicationTestAccess::clientApplyWorldSmoothing(replication, DT);
+                const float x = cube->getWorldPosition().x;
+                if (frame >= 180) maxStepError = std::max(maxStepError, std::abs((x - previousX) - 0.1f));
+                previousX = x;
+            }
+            lagTicks = static_cast<float>(hostTick) - cube->getWorldPosition().x / 0.1f;
+        };
+        float lag100 = 0.0f, step100 = 0.0f, lag250 = 0.0f, step250 = 0.0f;
+        runLag(0.1f, lag100, step100);
+        runLag(0.25f, lag250, step250);
+        std::cout << "[NetworkAvatarRegression] interpolation lag(0.1s)=" << lag100 << "ticks step="
+                  << step100 << " lag(0.25s)=" << lag250 << "ticks step=" << step250 << '\n';
+        expect(std::abs(lag100 - 6.0f) < 1.5f, "objects are displayed NetworkInterpolationDelay (0.1s) behind the host");
+        expect(std::abs(lag250 - 15.0f) < 1.5f, "a longer NetworkInterpolationDelay (0.25s) delays the display accordingly");
+        expect(step100 < 0.02f && step250 < 0.02f,
+               "objects received at 20Hz move smoothly every frame (no stair steps)");
+    }
+
+    // ---- Seat: Host権威の着席(Clientは接触で座らない)と着席高さ ----
+    {
+        auto workspace = std::make_shared<Workspace>();
+        workspace->Name = "NetworkAvatarSeatWorkspace";
+        auto floor = std::make_shared<Cube>(
+            Vector3(0.0f, -0.5f, 0.0f), Vector3(100.0f, 1.0f, 100.0f), Cube::defaultTextureID);
+        floor->Anchored = true;
+        workspace->addChild(floor);
+        auto seat = std::make_shared<Seat>(Vector3(0.0f, 1.0f, 0.0f), Vector3(4.0f, 1.0f, 2.0f),
+                                           Cube::defaultTextureID);
+        seat->Name = "AuthoritySeat";
+        seat->Anchored = true;
+        workspace->addChild(seat);
+        auto character = std::make_shared<Model>();
+        character->Name = "SeatCharacter";
+        CharacterRig::buildDefaultRigParts(character, Vector3(10.0f, 3.0f, 0.0f));
+        workspace->addChild(character);
+        workspace->initPhysics();
+        Physics* physics = workspace->getPhysicsEngine();
+        expect(physics != nullptr, "seat physics is available");
+        if (!physics) return failures;
+        physics->update(*workspace, 0.0f);
+        auto humanoid = std::dynamic_pointer_cast<Humanoid>(character->getChildren().at("Humanoid"));
+        auto leftLeg = std::dynamic_pointer_cast<BaseCube>(character->getChildren().at("LeftLeg"));
+
+        Seat::setTouchSitEnabled(false);
+        seat->onNativeTouched(*leftLeg);
+        expect(!humanoid->isSeated() && !seat->isOccupied(),
+               "a leg touch does not seat while touch sitting is disabled (network client)");
+        Seat::setTouchSitEnabled(true);
+
+        auto user = User::createRemoteUser(4);
+        user->character = character;
+        user->humanoid = humanoid;
+        ReplicationManager replication(workspace, user, nullptr);
+        ReplicationTestAccess::applyLocalSeatPath(replication, seat->getWorkspaceRelativePath());
+        expect(humanoid->isSeated() && humanoid->getSeat() == seat,
+               "a host SeatState path seats the local character");
+
+        humanoid->setTickControlled(true);
+        humanoid->setControlInput(HumanoidControlInput{});
+        for (int frame = 0; frame < 60; ++frame) physics->update(*workspace, DT);
+        // 脚はMotor6Dのばねで重力に抗して曲げるため、角度は90度に届ききらない。
+        // 股関節(脚の上端)の高さで、90度に曲げた脚の下面が座面に接する位置かを確かめる
+        const CFrame legFrame = leftLeg->getWorldCFrame();
+        const Vector3 hip = legFrame.Position + legFrame.Rotation.getUp() * (leftLeg->Size.y * 0.5f);
+        const float bentLegBottom = hip.y - leftLeg->Size.z * 0.5f;
+        const float seatTop = seat->getWorldPosition().y + seat->Size.y * 0.5f;
+        std::cout << "[NetworkAvatarRegression] seatedHipY=" << hip.y
+                  << " bentLegBottom=" << bentLegBottom << " seatTop=" << seatTop
+                  << " legUpY=" << legFrame.Rotation.getUp().y << '\n';
+        expect(std::abs(bentLegBottom - seatTop) < 0.1f,
+               "a seated character's hips sit so that bent legs rest on the seat surface");
+
+        ReplicationTestAccess::applyLocalSeatPath(replication, "");
+        expect(!humanoid->isSeated() && !seat->isOccupied(),
+               "an empty host SeatState path stands the local character up");
+    }
     return failures;
 }
 
@@ -16433,6 +17044,7 @@ void testPackager(const fs::path& work) {
 std::vector<std::uint8_t> worldTransformsPayload(
     const std::vector<std::pair<std::uint32_t, Vector3>>& entries) {
     ByteWriter writer;
+    writer.writeU32(1); // host tick
     writer.writeU16(static_cast<std::uint16_t>(entries.size()));
     for (const auto& [id, position] : entries) {
         writer.writeU32(id);
@@ -16686,6 +17298,8 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--shadow-mode-regression", runShadowModeRegression),
         REG("--humanoid-rig-collision-regression", runHumanoidRigCollisionRegression),
         REG("--seat-network-regression", runSeatNetworkRegression),
+        REG("--network-avatar-regression", runNetworkAvatarRegression),
+        REG("--character-tick-control-regression", runCharacterTickControlRegression),
         REG("--physical-file-instance-regression", runPhysicalFileInstanceRegression),
         REG("--property-text-input-regression", runPropertyTextInputRegression),
         REG("--property-schema-regression", runPropertySchemaRegression),

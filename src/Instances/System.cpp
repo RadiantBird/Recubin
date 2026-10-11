@@ -10,6 +10,8 @@ static const bool s_systemRegistered = []{
     registerClass("System", {
         field<&System::BaseResolution>("BaseResolution", 1.f, 16384.f, 1.f).luaReadOnly(),
         field<&System::UseNetwork>("UseNetwork"),
+        field<&System::NetworkInterpolationDelay>("NetworkInterpolationDelay", 0.0f, 1.0f, 0.01f)
+            .luaReadOnly(),
         field<&System::EnableIOAPI>("EnableIOAPI").luaReadOnly(),
         field<&System::EnableIPCAPI>("EnableIPCAPI").luaReadOnly(),
         field<&System::EnableExternalFileAccess>("EnableExternalFileAccess").luaReadOnly(),

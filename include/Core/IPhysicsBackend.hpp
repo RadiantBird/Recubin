@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <include/Core/PhysicsTypes.hpp>
 #include <include/Math/Vector3.hpp>
 #include <memory>
@@ -44,9 +45,14 @@ struct ShapeCastHit {
 };
 
 class IPhysicsBackend {
+public:
+    // 固定step(dt)の直前に呼ばれるフック。stepIndexは1回のupdate内で0から数える。
+    using PreStepHook = std::function<void(float dt, int stepIndex)>;
+
 protected:
     std::uint64_t m_simulationTick = 0;
     float m_accumulatorAlpha = 0.0f;
+    PreStepHook m_preStepHook;
 
 public:
     virtual ~IPhysicsBackend();
@@ -56,6 +62,8 @@ public:
     virtual PhysicsBackendType getType() const = 0;
     std::uint64_t getSimulationTick() const;
     float getAccumulatorAlpha() const;
+    // update()中の各固定stepの直前に呼ぶ処理を設定する(空で解除)。
+    void setPreStepHook(PreStepHook hook);
 
     virtual void update(Workspace& workspace, float dt) = 0;
     virtual void stepOnce(float dt) = 0;
@@ -72,6 +80,12 @@ public:
     virtual bool sharesBody(const BaseCube& first, const BaseCube& second) const = 0;
     virtual CFrame getBodyWorldCFrame(const BaseCube& cube) const = 0;
     virtual void setBodyWorldCFrame(BaseCube& cube, const CFrame& worldCFrame) = 0;
+    // キネマティック(Anchored)ボディを次の固定stepでworldCFrame(native body原点)へ動かす。
+    // 瞬間移動と違い移動ぶんの速度が付くため、上に乗った物体が一緒に運ばれる。
+    // 既定実装は瞬間移動で代用する。
+    virtual void setBodyKinematicTarget(BaseCube& cube, const CFrame& worldCFrame) {
+        setBodyWorldCFrame(cube, worldCFrame);
+    }
     virtual Vector3 getLinearVelocity(const BaseCube& cube) const = 0;
     virtual Vector3 getAngularVelocity(const BaseCube&) const {
         return Vector3();

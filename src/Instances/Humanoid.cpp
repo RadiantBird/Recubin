@@ -21,6 +21,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <limits>
+#include <unordered_set>
 
 namespace {
 
@@ -2249,10 +2250,10 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
     // RootをSeatの向きのまま直上へスナップし、速度をゼロクリアしてからWeldで固定する。
     // Decal.FrontはCubeローカル+Z面(Renderer_GUI.cpp参照)だが、Humanoidの正面(getForward)は-Z基準のため、
     // Seatの回転をそのまま使うとFrontとは逆の-Z方向を向いてしまう。180度反転して整合させる
-    // RootはSeat座面(Seat中心+Size.y/2)にRoot底面が乗る高さに置く
+    // Rootは、前へ曲げた脚の下面が座面(Seat中心+Size.y/2)に接する高さに置く(seatedRootHeight)
     constexpr float SIT_HEIGHT_OFFSET = 0.0f;
     CFrame target = seat->getWorldCFrame()
-                  * CFrame(0, seat->Size.y * 0.5f + root->Size.y * 0.5f + SIT_HEIGHT_OFFSET, 0)
+                  * CFrame(0, seat->Size.y * 0.5f + seatedRootHeight(*root) + SIT_HEIGHT_OFFSET, 0)
                   * CFrame::fromAxisAngle(Vector3(0, 1, 0), 0.0f); // やっぱり必要なさそうなので0.0にした
     physics->moveWeldAssembly(root, target);
     physics->setLinearVelocity(*root, Vector3());
@@ -2281,6 +2282,33 @@ void Humanoid::sitOn(std::shared_ptr<Seat> seat, Physics* physics) {
     m_seat   = seat;
 }
 
+float Humanoid::seatedRootHeight(const BaseCube& root) const {
+    // 着席ポーズでは脚が股関節(脚の上端)まわりに前へ90度曲がり、縦方向の厚みは脚のSize.zになる。
+    // 股関節の高さはアニメーション中の姿勢ではなく、Motor6Dの結合(バインド)位置から求める。
+    // 関節が見つからないリグは、Root底面を座面に載せる
+    const float fallback = root.Size.y * 0.5f;
+    const auto rootJoint = findJointMotor("RootJoint");
+    auto hip = findJointMotor("LeftHip");
+    if (!hip) hip = findJointMotor("RightHip");
+    auto leg = getLeftLegPart();
+    if (!leg) leg = getRightLegPart();
+    if (!rootJoint || !hip || !leg) return fallback;
+
+    const CFrame rootToTorso = rootJoint->C0 * rootJoint->C1.inverse();
+    const float hipY = (rootToTorso * hip->C0).Position.y;
+    const float height = -hipY + leg->Size.z * 0.5f;
+    if (!std::isfinite(height)) {
+        RCBN_ERROR("Humanoid \"" << getFullPath()
+                   << "\": non-finite seated Root height; using Root bottom");
+        return fallback;
+    }
+    return height;
+}
+
+std::shared_ptr<Seat> Humanoid::getSeat() const {
+    return m_seated ? m_seat.lock() : nullptr;
+}
+
 void Humanoid::standUp(Physics* physics) {
     if (!m_seated) return;
 
@@ -2300,9 +2328,31 @@ void Humanoid::standUp(Physics* physics) {
 
     // 降りるホップ + シートから離れて再着席ループを防ぐ
     if (root && physics && physics->hasBody(*root)) {
-        CFrame target = root->getWorldCFrame();
+        // 乗り物が傾いていても直立(Yawのみ保持)で降ろす。AngularX/Zロックは
+        // 現在の姿勢のまま回転を固定するため、傾いたまま降ろすとRootGyroでも起き上がれない
+        const CFrame before = root->getWorldCFrame();
+        float yawDegrees = 0.0f;
+        if (!tryGetHorizontalYaw(before.Rotation, yawDegrees)) {
+            yawDegrees = m_hasLastValidYaw ? m_lastValidYawDegrees : 0.0f;
+        }
+        CFrame target(
+            before.Position,
+            Quaternion::fromEuler(Vector3(0.0f, yawDegrees, 0.0f)));
         target.Position.y += root->Size.y;
-        physics->moveWeldAssembly(root, target);
+
+        // Motor6Dで繋がった手足(別ボディ)も同じ剛体変換で動かし、ばねで引き戻されないようにする。
+        // 移動先は動かす前にすべて求め、同じネイティブボディは一度だけ動かす
+        const CFrame delta = target * before.inverse();
+        std::vector<std::pair<std::shared_ptr<BaseCube>, CFrame>> bodyTargets;
+        for (const auto& body : collectCharacterBodies()) {
+            if (!body || body->Anchored || !physics->hasBody(*body)) continue;
+            bodyTargets.emplace_back(body, delta * body->getWorldCFrame());
+        }
+        std::unordered_set<std::uint64_t> movedBodies;
+        for (const auto& [body, bodyTarget] : bodyTargets) {
+            if (!movedBodies.insert(physics->getBodyHandle(*body).value).second) continue;
+            physics->moveWeldAssembly(body, bodyTarget);
+        }
         Vector3 vel = physics->getLinearVelocity(*root);
         vel.y = JumpPower;
         physics->setLinearVelocity(*root, vel);
@@ -2318,6 +2368,70 @@ void Humanoid::standUp(Physics* physics) {
             );
         }
         gyro->setEnabled(true);
+    }
+}
+
+// ============================================================
+// 固定step制御
+// ============================================================
+
+void Humanoid::setControlInput(const HumanoidControlInput& input) {
+    m_controlInput = input;
+}
+
+void Humanoid::clearControlInput() {
+    m_controlInput.reset();
+}
+
+void Humanoid::requestJump() {
+    m_jumpRequested = true;
+}
+
+void Humanoid::requestStandUp() {
+    m_standUpRequested = true;
+}
+
+void Humanoid::setControlStepCallback(ControlStepCallback callback) {
+    m_controlStepCallback = std::move(callback);
+}
+
+void Humanoid::stepControl(Physics* physics, float dt, bool syncBodies) {
+    if (!m_tickControlled || !physics) return;
+
+    if (syncBodies) {
+        for (const auto& body : collectCharacterBodies()) {
+            if (body && physics->hasBody(*body)) physics->syncCube(*body);
+        }
+    }
+
+    if (m_controlStepCallback) m_controlStepCallback(*this);
+
+    if (m_standUpRequested) {
+        m_standUpRequested = false;
+        standUp(physics);
+    }
+    if (m_jumpRequested) {
+        m_jumpRequested = false;
+        jump(physics);
+    }
+    if (m_controlInput) {
+        const HumanoidControlInput& input = *m_controlInput;
+        move(input.flatForward, input.flatRight, input.isPressingMove, input.targetMoveDir,
+             input.ctrlLockEnabled, physics, input.leftArmRaised, input.rightArmRaised,
+             input.forwardAxis, input.rightAxis, input.smoothing, dt);
+    }
+    updatePhysicsState(physics);
+}
+
+void Humanoid::stepControlAll(const std::vector<Humanoid*>& humanoids, Physics* physics,
+                              float dt, bool syncBodies) {
+    // 制御中の着席・降車などでツリーが変わりうるため、先にshared_ptrへ控える
+    std::vector<std::shared_ptr<Instance>> snapshot;
+    for (Humanoid* humanoid : humanoids) {
+        if (humanoid && humanoid->m_tickControlled) snapshot.push_back(humanoid->shared_from_this());
+    }
+    for (const auto& value : snapshot) {
+        static_cast<Humanoid*>(value.get())->stepControl(physics, dt, syncBodies);
     }
 }
 

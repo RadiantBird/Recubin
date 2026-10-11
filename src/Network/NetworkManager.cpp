@@ -1404,7 +1404,7 @@ void NetworkManager::handleEvent(const ENetEvent& event) {
                             }
                         }
                     }
-                } else if (type >= MessageType::AvatarState && type <= MessageType::SimulationClock) {
+                } else if (type >= MessageType::AvatarState && type <= MessageType::SeatState) {
                     // レプリケーション系メッセージはゲーム層(ReplicationManager)へ委譲する。
                     // packet破棄前の同期呼び出しなのでpayloadポインタをそのまま渡してよい。
                     if (onGameMessage) {

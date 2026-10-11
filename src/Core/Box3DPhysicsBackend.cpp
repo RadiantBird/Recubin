@@ -807,6 +807,25 @@ void Box3DPhysicsBackend::setBodyWorldCFrame(
     }
 }
 
+void Box3DPhysicsBackend::setBodyKinematicTarget(
+    BaseCube& cube, const CFrame& worldCFrame) {
+    const b3BodyId id = bodyId(cube);
+    if (B3_IS_NULL(id) || !b3Body_IsValid(id)) return;
+    // Weld compoundのAnchoredボディは同期時にbody poseを正としてmemberへ反映するため、
+    // memberの論理姿勢を書き換えても動かない。外部からはこの経路で目標を渡す。
+    if (b3Body_GetType(id) != b3_kinematicBody) {
+        RCBN_ERROR("setBodyKinematicTarget requires an anchored body: "
+                   << cube.getFullPath());
+        return;
+    }
+    if (rejectNonFinite(worldCFrame, "setBodyKinematicTarget")) return;
+    const b3WorldTransform target = {
+        toB3Position(worldCFrame.Position),
+        toB3Quaternion(worldCFrame.Rotation),
+    };
+    b3Body_SetTargetTransform(id, target, FIXED_STEP, true);
+}
+
 Vector3 Box3DPhysicsBackend::getLinearVelocity(const BaseCube& cube) const {
     const b3BodyId id = bodyId(cube);
     return B3_IS_NON_NULL(id)
@@ -2579,6 +2598,10 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
         m_accumulator >= FIXED_STEP &&
         stepCount < MAX_STEPS
     ) {
+        if (m_preStepHook) {
+            FrameProfiler::Scope scope("physics.preStepHook");
+            m_preStepHook(FIXED_STEP, stepCount);
+        }
         {
             FrameProfiler::Scope scope("physics.buoyancy");
             applyBuoyancy();

@@ -30,6 +30,11 @@ public:
     // 足(LeftLeg/RightLeg)がTouchしたHumanoidを自動で着席させる
     void onNativeTouched(BaseCube& other) override;
 
+    // 接触による自動着席の有効/無効(既定は有効)。ネットワークClientでは着席を
+    // Hostが決めるため無効にする(各ピアが独立に座らせると二重着席・食い違いが起きる)
+    static void setTouchSitEnabled(bool enabled);
+    static bool isTouchSitEnabled();
+
     std::shared_ptr<Instance> clone() const override;
 
 private:

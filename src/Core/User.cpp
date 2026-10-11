@@ -497,14 +497,16 @@ bool User::activateTool() {
 }
 
 void User::applyQueuedJump(Physics* physics) {
+    (void)physics;
     if (!m_jumpQueued) return;
     m_jumpQueued = false;
     if (!humanoid) return;
+    // 実行はHumanoidの次の固定stepで行う
     if (humanoid->isSeated()) {
-        humanoid->standUp(physics);
+        humanoid->requestStandUp();
         lastMovementInput.standUpRequested = true;
     } else {
-        humanoid->jump(physics);
+        humanoid->requestJump();
         lastMovementInput.jumpRequested = true;
     }
 }
@@ -775,8 +777,19 @@ void User::processCharacterMovement(Physics* physics, float deltaTime) {
     lastMovementInput.forwardAxis     = forwardAxis;
     lastMovementInput.rightAxis       = rightAxis;
 
-    humanoid->move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, physics,
-                   leftArmRaised, rightArmRaised, forwardAxis, rightAxis, characterSmoothing, deltaTime);
+    HumanoidControlInput controlInput;
+    controlInput.flatForward     = flatForward;
+    controlInput.flatRight       = flatRight;
+    controlInput.targetMoveDir   = targetMoveDir;
+    controlInput.isPressingMove  = isPressingMove;
+    controlInput.ctrlLockEnabled = ctrlLockEnabled;
+    controlInput.leftArmRaised   = leftArmRaised;
+    controlInput.rightArmRaised  = rightArmRaised;
+    controlInput.forwardAxis     = forwardAxis;
+    controlInput.rightAxis       = rightAxis;
+    controlInput.smoothing       = characterSmoothing;
+    // 実際の移動は次の固定stepから(Humanoid::stepControl)
+    humanoid->setControlInput(controlInput);
 
     // --- カメラ追従 ---
     const Vector3 headOffset = Vector3(0, 2.5f, 0); // Humanoid::applyBodyAnimation()のheadOffsetと一致させる
@@ -924,11 +937,16 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
         m_input->consumeScrollDelta();
     }
     if (humanoid) humanoid->updateFirstPersonState(cameraDistance <= firstPersonThreshold);
+    // 操作キャラの移動・接地判定は固定stepごとにHumanoid側で行う。このフレームで
+    // 移動入力が無ければ(フォーカス外・死亡中など)入力を外し、接地判定だけ続ける
+    if (humanoid) {
+        humanoid->setTickControlled(character != nullptr);
+        humanoid->clearControlInput();
+    }
     // 死亡中はキャラクター移動を駆動しない（ばらしたパーツを上書きしないため）
     if (!humanoid || !humanoid->isDead() || getControlMode() == ControlMode::Free) {
         processMovement(viewportFocused && !wantsTextInput, physics, deltaTime);
     }
-    if (humanoid && character) humanoid->updatePhysicsState(physics);
     if (rotated) updateVectors();
     if (m_movementInputEnabled && !wantsTextInput && getControlMode() == ControlMode::Character &&
         m_input->isKeyDown(KeyCode::Space)) {

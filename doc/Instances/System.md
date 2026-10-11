@@ -20,6 +20,7 @@
 | `EnableIPCAPI` | `bool` | IPC APIスタブの許可（既定false） |
 | `EnableExternalFileAccess` | `bool` | ゲーム領域外ファイルアクセスの許可（既定false） |
 | `DefaultCameraMode` | `CameraMode` | パッケージ版ゲーム起動時のカメラモード（`Character`/`Free`/`Program`、既定`Character`） |
+| `NetworkInterpolationDelay` | `float` | Clientで他プレイヤー・同期物体を何秒前の状態として補間表示するか（0〜1、既定0.1）。長いほど通信の揺れに強く滑らか、短いほど現在に近い。Luauからは読み取り専用 |
 
 `MaxClonesPerFrame`/`MaxRestartsPerFrame`/`ScriptLoopTimeoutSeconds` は意図的にLuauへバインドしない（DispatchTable/SetterTableに非登録）。エディターからのみ編集可能。
 

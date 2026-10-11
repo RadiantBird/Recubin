@@ -166,6 +166,8 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
   `"PlayerCharacter_<PeerId>"`となる。StarterCharacterが存在しない場合は、既定のリグ(旧来
   ハードコードされていたもの)を持つStarterCharacterが自動的にSystem直下に生成される。
 - **System.AutoSpawnPlayerCharacter**: ゲーム開始時にローカルPlayerCharacterを自動生成するかを指定する。
+- **System.NetworkInterpolationDelay**: ネットワークClientで、他プレイヤーとHostから同期される物体を
+  何秒前の状態として補間表示するか（0〜1秒、既定0.1秒）。Hostの物理tick付きの姿勢を前後で補間する。
   既定値は`true`。`false`の場合はローカルPlayerCharacterを生成せず、既定カメラモードの設定値に
   かかわらずUserの起動カメラを`Free`にする。ネットワーク接続時のリモートアバター生成はこの設定の対象外とする。
 - **SpawnLocation**: `Cube`派生の出現地点。既定値は`Name=SpawnLocation`、`Size=[8,1,8]`、

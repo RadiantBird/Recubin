@@ -226,6 +226,7 @@ public:
     bool sharesBody(const BaseCube& first, const BaseCube& second) const override;
     CFrame getBodyWorldCFrame(const BaseCube& cube) const override;
     void setBodyWorldCFrame(BaseCube& cube, const CFrame& worldCFrame) override;
+    void setBodyKinematicTarget(BaseCube& cube, const CFrame& worldCFrame) override;
     Vector3 getLinearVelocity(const BaseCube& cube) const override;
     Vector3 getAngularVelocity(const BaseCube& cube) const override;
     float consumeContactImpact(const BaseCube& cube) override;

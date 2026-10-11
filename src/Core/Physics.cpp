@@ -4,6 +4,7 @@
 #include "include/Instances/Attachment.hpp"
 #include "include/Instances/BallSocket.hpp"
 #include "include/Instances/Model.hpp"
+#include "include/Instances/Humanoid.hpp"
 #include "include/Instances/Motor.hpp"
 #include "include/Instances/Motor6D.hpp"
 #include "include/Instances/Gyro.hpp"
@@ -96,6 +97,10 @@ bool validTerrainDescriptor(const PhysicsTerrainDescriptor& descriptor) {
 }
 
 IPhysicsBackend::~IPhysicsBackend() = default;
+void IPhysicsBackend::setPreStepHook(PreStepHook hook) {
+    m_preStepHook = std::move(hook);
+}
+
 std::uint64_t IPhysicsBackend::getSimulationTick() const {
     return m_simulationTick;
 }
@@ -472,7 +477,14 @@ void Physics::update(Workspace& workspace, float dt) {
         reconcileConstraints(workspace);
     }
     const std::uint64_t before = m_backend->getSimulationTick();
+    // キャラクター制御は固定stepごとに1回だけ進める(フレームレートに依存させない)。
+    // フックはこのupdate中だけ有効にする
+    const std::vector<Humanoid*>& humanoids = workspace.getRenderHumanoids();
+    m_backend->setPreStepHook([this, &humanoids](float stepDt, int stepIndex) {
+        Humanoid::stepControlAll(humanoids, this, stepDt, stepIndex > 0);
+    });
     m_backend->update(workspace, dt);
+    m_backend->setPreStepHook({});
     advanceWavePhaseCorrection(m_backend->getSimulationTick() - before);
     // 物理で動いた子に合わせて、Modelの原点を重心へ追従させる
     FrameProfiler::Scope syncPivots("physics.syncPivots");
@@ -552,6 +564,12 @@ CFrame Physics::getMemberWorldCFrame(const BaseCube& cube) const {
 void Physics::setMemberWorldCFrame(BaseCube& cube, const CFrame& worldCFrame) {
     if (!isAvailable() || !ownsBody(cube)) return;
     m_backend->setBodyWorldCFrame(
+        cube, worldCFrame * cube.m_compoundLocalOffset.inverse());
+}
+
+void Physics::setMemberKinematicTarget(BaseCube& cube, const CFrame& worldCFrame) {
+    if (!isAvailable() || !ownsBody(cube)) return;
+    m_backend->setBodyKinematicTarget(
         cube, worldCFrame * cube.m_compoundLocalOffset.inverse());
 }
 

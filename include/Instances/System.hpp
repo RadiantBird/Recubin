@@ -37,6 +37,9 @@ class System : public Instance {
         // trueの場合、LocalScript/Scriptが区別されて動作する(Client側ではLocalScriptのみ実行)。
         // falseの場合、区別されず、ネットワーク通信も一切行わない。
         bool UseNetwork = false;
+        // Clientで他プレイヤー・同期物体を何秒前の状態として補間表示するか。
+        // 長いほど通信の揺れに強く滑らか、短いほど現在に近い(既定0.1秒)
+        float NetworkInterpolationDelay = 0.1f;
 
         // Opt-in system extensions. These are
         // intentionally read-only from Luau; only the scene/editor may configure them.

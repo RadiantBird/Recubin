@@ -16,6 +16,18 @@ static const bool s_seatRegistered = []{
     return true;
 }();
 
+namespace {
+bool g_touchSitEnabled = true;
+}
+
+void Seat::setTouchSitEnabled(bool enabled) {
+    g_touchSitEnabled = enabled;
+}
+
+bool Seat::isTouchSitEnabled() {
+    return g_touchSitEnabled;
+}
+
 Seat::Seat(Vector3 Pos, Vector3 Sz, unsigned int textureID)
     : Named<Seat, Cube>(Pos, Sz, textureID) {
     setNativeTouchObserved(true);
@@ -46,7 +58,7 @@ void Seat::sit(std::shared_ptr<Humanoid> humanoid) {
 }
 
 void Seat::onNativeTouched(BaseCube& other) {
-    if (isOccupied()) return;
+    if (!g_touchSitEnabled || isOccupied()) return;
     if (other.Name != "LeftLeg" && other.Name != "RightLeg") return;
 
     auto parent = other.Parent.lock();

@@ -7,6 +7,7 @@
 #include <Core/RCBNScriptSignal.hpp>
 #include <Instances/Animation.hpp>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <utility>
@@ -14,6 +15,20 @@
 
 class Physics;   // Forward declaration
 class AnimationClip;
+
+// 固定stepごとにHumanoidへ与える移動入力。各値の意味はHumanoid::move()の引数と同じ
+struct HumanoidControlInput {
+    Vector3 flatForward{};
+    Vector3 flatRight{};
+    Vector3 targetMoveDir{};
+    bool isPressingMove = false;
+    bool ctrlLockEnabled = false;
+    bool leftArmRaised = false;
+    bool rightArmRaised = false;
+    float forwardAxis = 0.0f;
+    float rightAxis = 0.0f;
+    float smoothing = 0.15f;
+};
 class Seat;      // Forward declaration
 class Weld;      // Forward declaration
 class Gyro;
@@ -118,8 +133,35 @@ public:
 
     // Seatに着席中か。着席中はUser側の通常移動の代わりにSeat.Steer/Throttle更新のみ行われる
     bool isSeated() const { return m_seated; }
+    // 着席中のSeat(非着席ならnullptr)
+    std::shared_ptr<Seat> getSeat() const;
     // Space押下時、着席中ならjump()の代わりにこちらが呼ばれ、Weldを解除して離脱する
     void standUp(Physics* physics);
+
+    // ---- 固定step制御 ----
+    // tick制御中のHumanoidは、Physics::update()の各固定step(1/60秒)の直前に
+    // stepControl()で1回ずつ駆動される(User操作キャラとHostのリモートキャラ)。
+    void setTickControlled(bool enabled) { m_tickControlled = enabled; }
+    bool isTickControlled() const { return m_tickControlled; }
+    // 次に置き換え/解除されるまで、各stepで使う移動入力
+    void setControlInput(const HumanoidControlInput& input);
+    void clearControlInput();
+    const std::optional<HumanoidControlInput>& getControlInput() const { return m_controlInput; }
+    // 次のstepで1回だけ実行する単発アクション
+    void requestJump();
+    void requestStandUp();
+    bool hasPendingJump() const { return m_jumpRequested; }
+    bool hasPendingStandUp() const { return m_standUpRequested; }
+    // stepControl()の冒頭(要求・入力を処理する前)に毎step呼ばれる。ネットワーク同期が
+    // このstepの入力を記録(Client)・供給(Host)するのに使う。空で解除
+    using ControlStepCallback = std::function<void(Humanoid&)>;
+    void setControlStepCallback(ControlStepCallback callback);
+    // 1step分の制御: standUp/jump要求 → move(dt) → updatePhysicsState。
+    // syncBodiesはキャラのボディの論理姿勢をstep前に物理から読み直すか
+    // (1回のupdateの2step目以降は論理姿勢がまだ同期されていない)
+    void stepControl(Physics* physics, float dt, bool syncBodies);
+    static void stepControlAll(const std::vector<Humanoid*>& humanoids, Physics* physics,
+                               float dt, bool syncBodies);
 
     // パス追従用: targetへ向けて1フレーム分移動する（move()のXZ方向移動ロジックを流用）。
     // arrivalRadius以内に到達していれば何もせず true を返す。
@@ -289,6 +331,13 @@ private:
     std::weak_ptr<BaseCube> m_rightLeg;
     std::weak_ptr<Gyro> m_rootGyro;
 
+    // --- 固定step制御 ---
+    bool m_tickControlled = false;
+    std::optional<HumanoidControlInput> m_controlInput;
+    bool m_jumpRequested = false;
+    bool m_standUpRequested = false;
+    ControlStepCallback m_controlStepCallback;
+
     // --- Seat(着席) ---
     bool m_seated = false;
     std::weak_ptr<Seat> m_seat;
@@ -296,6 +345,8 @@ private:
     // Seatの既定着席位置へテレポートして着席し、Weldで固定する(Seat::sitから呼ばれる)
     friend class Seat;
     void sitOn(std::shared_ptr<Seat> seat, Physics* physics);
+    // 着席時のRoot中心の、座面からの高さ
+    float seatedRootHeight(const BaseCube& root) const;
 
     std::shared_ptr<Animation> m_currentAnim;
     std::weak_ptr<Animation> m_walkAnimation;
