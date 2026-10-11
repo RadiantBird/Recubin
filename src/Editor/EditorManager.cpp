@@ -407,9 +407,11 @@ void EditorManager::render(GLFWwindow* window) {
 
     // ---- エディターショートカット処理 ----
     if (isEditMode()) handleEditorShortcuts();
+    else if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S)) m_showPlaySaveBlocked = true;
 
     // ---- 未保存ダイアログ ----
     renderSaveDialog();
+    renderPlaySaveBlockedDialog();
     renderCodeEditorSaveDialog();
     // ---- テストプレイ中のシーン読み込み確認ダイアログ ----
     renderPlayLoadConfirmDialog();
@@ -442,8 +444,9 @@ void EditorManager::render(GLFWwindow* window) {
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu(Loc::t(Loc::LocKey::MenuFile))) {
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuNewScene), "Ctrl+N") && isEditMode()) requestNewScene();
-            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuSaveScene), "Ctrl+S") && isEditMode()) {
-                if (!saveActiveCodeEditor()) saveCurrentScene();
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuSaveScene), "Ctrl+S")) {
+                if (!isEditMode()) m_showPlaySaveBlocked = true;
+                else if (!saveActiveCodeEditor()) saveCurrentScene();
             }
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuOpenScene), "Ctrl+O")) openSceneDialog();
             ImGui::BeginDisabled(!isEditMode());
@@ -959,6 +962,25 @@ void EditorManager::requestNewScene() {
     pendingScene = {true, PendingSceneKind::New, {}, {}, false};
 }
 
+void EditorManager::renderPlaySaveBlockedDialog() {
+    if (m_showPlaySaveBlocked) {
+        ImGui::OpenPopup("###PlaySaveBlocked");
+        m_showPlaySaveBlocked = false;
+    }
+
+    std::string popupTitle = std::string(Loc::t(Loc::LocKey::PlaySaveBlockedTitle)) + "###PlaySaveBlocked";
+    // 時間制限なし: OKを押すまで閉じない（ウィンドウ外クリック・Escでは閉じない）
+    if (ImGui::BeginPopupModal(popupTitle.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("%s", Loc::t(Loc::LocKey::PlaySaveBlockedLine1));
+        ImGui::Text("%s", Loc::t(Loc::LocKey::PlaySaveBlockedLine2));
+        ImGui::Separator();
+        if (ImGui::Button(Loc::t(Loc::LocKey::OK), ImVec2(90.0f * m_uiLayoutScale, 0))) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+}
+
 void EditorManager::renderPlayLoadConfirmDialog() {
     if (m_showPlayLoadConfirm) {
         ImGui::OpenPopup("###PlayLoadConfirm");
@@ -1388,6 +1410,9 @@ void EditorManager::renderToolbarBasic() {
     const float scale = m_uiLayoutScale;
     const ImVec2 iconBtnSz = ImVec2(78.0f * scale, 58.0f * scale);
     const ImVec2 playBtnSz = ImVec2(120.0f * scale, 58.0f * scale);
+    // Play中のPause+StopはPlayボタンと同じ幅に収め、ツールバー全体の幅を変えない
+    const ImVec2 playStateBtnSz = ImVec2(
+        (playBtnSz.x - ImGui::GetStyle().ItemSpacing.x) * 0.5f, playBtnSz.y);
 
     // ---- Play方式 / Client数 / Play / Pause / Stop ----
     ImGui::BeginGroup();
@@ -1457,7 +1482,7 @@ void EditorManager::renderToolbarBasic() {
             mode == EditorMode::Pause ? ImVec4(0.7f, 0.55f, 0.0f, 1.0f)
                                       : ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
         ImGui::BeginDisabled(localServerActive);
-        if (drawIconButton(ICON_PAUSE, Loc::t(Loc::LocKey::PauseButton), iconBtnSz))
+        if (drawIconButton(ICON_PAUSE, Loc::t(Loc::LocKey::PauseButton), playStateBtnSz))
             mode = (mode == EditorMode::Pause) ? EditorMode::Play : EditorMode::Pause;
         ImGui::EndDisabled();
         ImGui::PopStyleColor();
@@ -1465,7 +1490,7 @@ void EditorManager::renderToolbarBasic() {
         ImGui::SameLine();
 
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.18f, 0.18f, 1.0f));
-        const bool stopClicked = drawIconButton(ICON_STOP, Loc::t(Loc::LocKey::StopButton), iconBtnSz);
+        const bool stopClicked = drawIconButton(ICON_STOP, Loc::t(Loc::LocKey::StopButton), playStateBtnSz);
         GuiAutomation::registerLastItem("Editor/Toolbar/Stop");
         if (stopClicked) {
             mode = EditorMode::Edit;
@@ -1602,32 +1627,26 @@ void EditorManager::renderToolbarBasic() {
             if (label.ends_with(japaneseSuffix)) label.erase(label.size() - japaneseSuffix.size());
             return label;
         };
-        std::string snapTLabel = compactSnapLabel(Loc::LocKey::SnapTranslate) + "##snapT";
-        ImGui::Checkbox(snapTLabel.c_str(), &activeViewport->snapTranslate);
+        // 3項目を縦に積んで横幅を節約する（行の左端を揃えるためチェックボックス幅を固定）
+        ImGui::BeginGroup();
+        auto snapRow = [&](Loc::LocKey key, const char* checkId, const char* dragLabel,
+                           bool& enabled, float& value, float speed, float maxVal) {
+            std::string label = compactSnapLabel(key) + checkId;
+            ImGui::Checkbox(label.c_str(), &enabled);
+            ImGui::SameLine(114.0f * scale);
+            ImGui::SetNextItemWidth(60.0f * scale);
+            if (!enabled) ImGui::BeginDisabled();
+            ImGui::DragFloat(dragLabel, &value, speed, 0.001f, maxVal, "%.3f");
+            if (!enabled) ImGui::EndDisabled();
+        };
+        snapRow(Loc::LocKey::SnapTranslate, "##snapT", "studs##snapTVal",
+                activeViewport->snapTranslate, activeViewport->snapTranslateVal, 0.005f, 100.0f);
+        snapRow(Loc::LocKey::SnapRotate, "##snapR", "°##snapRVal",
+                activeViewport->snapRotate, activeViewport->snapRotateVal, 0.05f, 180.0f);
+        snapRow(Loc::LocKey::SnapScale, "##snapS", "studs##snapSVal",
+                activeViewport->snapScale, activeViewport->snapScaleVal, 0.005f, 100.0f);
+        ImGui::EndGroup();
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(52.0f * scale);
-        if (!activeViewport->snapTranslate) ImGui::BeginDisabled();
-        ImGui::DragFloat("studs##snapTVal", &activeViewport->snapTranslateVal,
-                         0.005f, 0.001f, 100.0f, "%.3f");
-        if (!activeViewport->snapTranslate) ImGui::EndDisabled();
-        addToolbarInlineGap(scale);
-        std::string snapRLabel = compactSnapLabel(Loc::LocKey::SnapRotate) + "##snapR";
-        ImGui::Checkbox(snapRLabel.c_str(), &activeViewport->snapRotate);
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(52.0f * scale);
-        if (!activeViewport->snapRotate) ImGui::BeginDisabled();
-        ImGui::DragFloat("\xc2\xb0##snapRVal", &activeViewport->snapRotateVal,
-                         0.05f, 0.001f, 180.0f, "%.3f");
-        if (!activeViewport->snapRotate) ImGui::EndDisabled();
-        addToolbarInlineGap(scale);
-        std::string snapSLabel = compactSnapLabel(Loc::LocKey::SnapScale) + "##snapS";
-        ImGui::Checkbox(snapSLabel.c_str(), &activeViewport->snapScale);
-        ImGui::SameLine();
-        ImGui::SetNextItemWidth(52.0f * scale);
-        if (!activeViewport->snapScale) ImGui::BeginDisabled();
-        ImGui::DragFloat("studs##snapSVal", &activeViewport->snapScaleVal,
-                         0.005f, 0.001f, 100.0f, "%.3f");
-        if (!activeViewport->snapScale) ImGui::EndDisabled();
         addToolbarInlineGap(scale);
         ImGui::TextDisabled("Advanced:");
         ImGui::SameLine();
@@ -1659,10 +1678,14 @@ void EditorManager::renderToolbarBasic() {
 
     // ---- Save / Load（右端）----
     float saveLoadW = iconBtnSz.x * 2 + ImGui::GetStyle().ItemSpacing.x;
-    ImGui::SameLine(ImGui::GetWindowWidth() - saveLoadW - 8.0f * scale);
+    // 右端に寄せるが、左側(New Script等)と重ならないよう現在位置を下限とする
+    const float saveLoadX = std::max(ImGui::GetWindowWidth() - saveLoadW - 8.0f * scale,
+                                     ImGui::GetCursorPosX());
+    ImGui::SameLine(saveLoadX);
 
     if (drawIconButton(ICON_SAVE, Loc::t(Loc::LocKey::SaveButton), iconBtnSz)) {
-        saveCurrentScene();
+        if (isEditMode()) saveCurrentScene();
+        else m_showPlaySaveBlocked = true;
     }
     ImGui::SameLine();
     if (drawIconButton(ICON_LOAD, Loc::t(Loc::LocKey::LoadButton), iconBtnSz)) {
@@ -1677,7 +1700,7 @@ void EditorManager::renderToolbarCubes() {
     const ImVec2 btnSz(78.0f * m_uiLayoutScale, 58.0f * m_uiLayoutScale);
 
     tryAddObjectButton<Cube>(ICON_CUBE, "Cube", "Cube", ws, btnSz,
-        spawnPos, Vector3(1, 1, 1), Cube::defaultTextureID);
+        spawnPos, Vector3(4, 1, 2), Cube::defaultTextureID);
     ImGui::SameLine();
     tryAddObjectButton<Cylinder>(ICON_CYLINDER, "Cylinder", "Cylinder", ws, btnSz,
         spawnPos, Vector3(1, 1, 1));

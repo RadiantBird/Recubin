@@ -240,6 +240,9 @@ private:
     bool        m_showPlayLoadConfirm = false;
     std::string m_pendingPlayLoadPath;
 
+    // テストプレイ中のシーン保存を拒否する警告モーダル（時間制限なし、OKで閉じる）
+    bool        m_showPlaySaveBlocked = false;
+
     // テストプレイ方式と外部クライアント状態
     EditorPlayMode m_selectedPlayMode = EditorPlayMode::Normal;
     EditorPlayMode m_activePlayMode   = EditorPlayMode::Normal;
@@ -291,6 +294,7 @@ private:
     void renderSaveDialog();
     void renderCodeEditorSaveDialog();
     void renderPlayLoadConfirmDialog();
+    void renderPlaySaveBlockedDialog();
     void renderCrashRecoveryDialog();
     void renderPlayStartErrorDialog();
     void renderPackageDialog();

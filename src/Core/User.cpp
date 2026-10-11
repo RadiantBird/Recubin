@@ -677,7 +677,10 @@ void User::processMovement(bool viewportFocused, Physics* physics, float deltaTi
 
             if (m_hasScriptMoveDirection) {
                 moveDirection = m_scriptMoveDirection;
-            } else if (m_movementInputEnabled) {
+            } else if (m_movementInputEnabled &&
+                       !m_input->isKeyDown(KeyCode::LeftControl) &&
+                       !m_input->isKeyDown(KeyCode::RightControl)) {
+                // Ctrl押下中はショートカット(Ctrl+S等)と衝突するのでカメラを動かさない
                 if (m_input->isKeyDown(KeyCode::W)) moveDirection += forward;
                 if (m_input->isKeyDown(KeyCode::S)) moveDirection -= forward;
                 if (m_input->isKeyDown(KeyCode::A)) moveDirection -= right;

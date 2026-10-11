@@ -303,7 +303,8 @@ void ViewportPanel::updateOwnCameraInput() {
             m_ownCamDragging = false;
         }
         // フォーカス中はWASD+E/Qで移動
-        if (isViewportFocused && !io.WantTextInput) {
+        // Ctrl押下中はショートカット(Ctrl+S等)と衝突するので移動しない
+        if (isViewportFocused && !io.WantTextInput && !io.KeyCtrl) {
             float spd = user->speed;
             Vector3 fwd = camForward(), right = camRight(), up = camUp();
             if (ImGui::IsKeyDown(ImGuiKey_W)) m_camPos = m_camPos + fwd   *  spd;

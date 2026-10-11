@@ -40,7 +40,7 @@ enum class LocKey {
     ProfilerSurfaceGuiBaked, ProfilerSurfaceGuiReused,
 
     // ---- EditorManager: ダイアログ ----
-    PlayLoadTitle, PlayLoadLine1, PlayLoadLine2, PlayLoadConfirm,
+    PlayLoadTitle, PlayLoadLine1, PlayLoadLine2, PlayLoadConfirm, PlaySaveBlockedTitle, PlaySaveBlockedLine1, PlaySaveBlockedLine2,
     UnsavedTitle, UnsavedLine1, UnsavedLine2,
     UnsavedCodeTitle, UnsavedCodeLine1, UnsavedCodeLine2, UnsavedCodeCloseLine,
     SaveAndQuit, QuitWithoutSaving,
