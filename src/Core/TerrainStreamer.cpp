@@ -3,6 +3,8 @@
 #include <include/Core/FileLoader.hpp>
 #include <Core/Physics.hpp>
 #include <Util/AssetPath.hpp>
+#include <Util/AtomicFile.hpp>
+#include <regex>
 #include <include/Instances/PathfindingService.hpp>
 #include <yaml-cpp/yaml.h>
 #include <Util/YamlLoadResult.hpp>
@@ -34,6 +36,29 @@ void ensureDir(const std::string& path) {
 #else
     mkdir(path.c_str(), 0755);
 #endif
+}
+
+// DataPath 直下の地形リージョンファイル(r_<rx>_<rz>.yaml)だけを削除する。
+// それ以外のファイルやサブディレクトリには触れない。
+void removeRegionFiles(const std::string& dir) {
+    static const std::regex REGION_FILE_PATTERN(R"(^r_-?[0-9]+_-?[0-9]+\.yaml$)");
+    const std::filesystem::path dirPath = AssetPath::fromStored(dir);
+    std::error_code ec;
+    std::filesystem::directory_iterator it(dirPath, ec);
+    if (ec) return;
+    for (const std::filesystem::directory_iterator end; it != end; it.increment(ec)) {
+        if (ec) break;
+        std::error_code entryError;
+        if (!it->is_regular_file(entryError) || entryError) continue;
+        // string() は ANSI コードページで表せない名前で例外を投げるため UTF-8 で比較する
+        const std::string name = AssetPath::toStored(it->path().filename());
+        if (!std::regex_match(name, REGION_FILE_PATTERN)) continue;
+        std::filesystem::remove(it->path(), entryError);
+        if (entryError) {
+            std::cerr << "[TerrainStreamer] Failed to remove region file: " << name
+                      << " (" << entryError.message() << ")" << std::endl;
+        }
+    }
 }
 
 inline int32_t chunkToRegion(int32_t c) {
@@ -406,15 +431,9 @@ void TerrainStreamer::flushRegionsToDisk() {
             std::string path = regionPath(terrainDir, k.rx, k.rz);
             YAML::Emitter out;
             out << cache.root;
-            std::ofstream ofs(path);
-            if (!ofs.is_open()) {
-                std::cerr << "[TerrainStreamer] Failed to open for write: " << path << std::endl;
-                continue;
-            }
-            ofs << out.c_str();
-            ofs.flush();
-            if (!ofs) {
-                std::cerr << "[TerrainStreamer] Failed to write: " << path << std::endl;
+            std::string error;
+            if (!AtomicFile::writeReplacing(AssetPath::fromStored(path), out.c_str(), error)) {
+                std::cerr << "[TerrainStreamer] Failed to write: " << path << " (" << error << ")" << std::endl;
                 continue;
             }
             cache.modified = false;
@@ -535,8 +554,7 @@ void TerrainStreamer::workerLoop()
             m_noise.reseed(job.seed);
             m_flat = job.flat;
             m_regions.clear();
-            std::error_code ec;
-            std::filesystem::remove_all(terrainDir, ec); // DataPath を丸ごと削除
+            removeRegionFiles(terrainDir); // DataPath 直下のリージョンファイルだけ削除
             ensureDir(terrainDir);
             break;
         }

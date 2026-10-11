@@ -15,12 +15,19 @@
 #include <Util/Logger.hpp>
 
 #include <algorithm>
+#include <limits>
 #include <cmath>
 #include <unordered_set>
 
 #ifdef max
 #undef max
 #endif
+
+namespace {
+bool isFiniteWireVector(const Vector3& v) {
+    return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
+}
+}
 
 ReplicationManager::ReplicationManager(std::shared_ptr<Workspace> workspace, std::shared_ptr<User> user, Instance* characterSearchRoot)
     : m_workspace(workspace), m_user(user), m_characterSearchRoot(characterSearchRoot),
@@ -275,7 +282,41 @@ void ReplicationManager::sendAvatarUpdates(float dt) {
                 (ragdoll ? 4 : 0)));
         }
         net.sendBytes(w.data, NetworkChannel::Unreliable);
+        if (m_debugInjectNaNAvatarBatch) sendDebugNaNAvatarBatch(entries);
     }
+}
+
+void ReplicationManager::setDebugInjectNaNAvatarBatch(bool enabled) {
+    m_debugInjectNaNAvatarBatch = enabled;
+    m_debugInjectBatchCounter = 0;
+    if (enabled) {
+        RCBN_WARN("[DebugInject] NaN AvatarBatch injection is ENABLED (verification only). "
+                  "Host sends a NaN copy of every AvatarBatch entry about once per second.");
+    }
+}
+
+// 検証専用: 通常のAvatarBatchとは別に、全エントリの位置・速度をNaNにしたAvatarBatchを送る。
+// 正規の姿勢は直前のAvatarBatchで届いているため、修正済みClientはNaN分だけを捨てて動作を続ける。
+void ReplicationManager::sendDebugNaNAvatarBatch(const std::vector<std::pair<PeerId, CFrame>>& entries) {
+    constexpr uint32_t INJECT_EVERY_BATCHES = 20; // AvatarBatchは0.05秒間隔なので約1秒ごと
+    if (++m_debugInjectBatchCounter % INJECT_EVERY_BATCHES != 0) return;
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    ByteWriter w;
+    w.writeU8(static_cast<uint8_t>(MessageType::AvatarBatch));
+    w.writeU8(static_cast<uint8_t>(entries.size()));
+    for (const auto& [id, pose] : entries) {
+        w.writeU32(id);
+        w.writeVector3(Vector3(nan, nan, nan));
+        w.writeQuat(pose.Rotation);
+        w.writeVector3(Vector3(nan, nan, nan));
+        w.writeU32(0u);
+        w.writeF32(0.0f);
+        w.writeU8(1);
+    }
+    NetworkManager::get().sendBytes(w.data, NetworkChannel::Unreliable);
+    ++m_debugInjectSentCount;
+    RCBN_LOG("[DebugInject] sent NaN AvatarBatch #" << m_debugInjectSentCount
+             << " (entries=" << entries.size() << ")");
 }
 
 void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, size_t len, PeerId senderId) {
@@ -326,6 +367,7 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
         in.rightAxis = std::clamp(in.rightAxis, -1.0f, 1.0f);
         m_pendingAvatarInput[senderId] = in;
     } else if (type == static_cast<uint8_t>(MessageType::AvatarBatch)) {
+        if (NetworkManager::get().getRole() != NetworkRole::Client) return;
         ByteReader r{payload, len};
         uint8_t count = 0;
         if (!r.readU8(count)) return;
@@ -343,6 +385,10 @@ void ReplicationManager::onGameMessage(uint8_t type, const uint8_t* payload, siz
             uint8_t visualFlags = 0;
             if (!r.readU32(id) || !r.readVector3(pos) || !r.readQuat(rot) || !r.readVector3(vel)
                 || !r.readU32(lastProcessedSeq) || !r.readF32(walkCycle) || !r.readU8(visualFlags)) return;
+            if (!isFiniteWireVector(pos) || !isFiniteWireVector(vel)) {
+                RCBN_WARN("Replication: AvatarBatch entry with non-finite pose/velocity ignored (id=" << id << ")");
+                continue;
+            }
             if (id == localId) {
                 if (m_user && m_user->humanoid) {
                     m_user->humanoid->setRagdollStateForReplication(
@@ -1046,6 +1092,10 @@ void ReplicationManager::clientStoreWorldTransforms(const uint8_t* payload, size
         Vector3 pos;
         Quaternion rot;
         if (!r.readU32(id) || !r.readVector3(pos) || !r.readQuat(rot)) return;
+        if (!isFiniteWireVector(pos)) {
+            RCBN_WARN("Replication: WorldTransforms entry with non-finite position ignored (id=" << id << ")");
+            continue;
+        }
 
         auto it = m_clientObjects.find(id);
         if (it == m_clientObjects.end()) continue; // マッピング未着のUNRELIABLE先行は正常系

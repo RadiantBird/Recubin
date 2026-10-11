@@ -160,6 +160,30 @@ struct ReplicationTestAccess {
         replication.applyAvatarPoses(dt);
     }
 
+    static void addClientObject(
+        ReplicationManager& replication, std::uint32_t netId, const std::shared_ptr<BaseCube>& cube) {
+        replication.m_clientObjects[netId].cube = cube;
+    }
+
+    static void clientStoreWorldTransforms(
+        ReplicationManager& replication, const std::vector<std::uint8_t>& payload) {
+        replication.clientStoreWorldTransforms(payload.data(), payload.size());
+    }
+
+    static bool clientObjectHasTarget(ReplicationManager& replication, std::uint32_t netId) {
+        auto it = replication.m_clientObjects.find(netId);
+        return it != replication.m_clientObjects.end() && it->second.hasTarget;
+    }
+
+    static Vector3 clientObjectTarget(ReplicationManager& replication, std::uint32_t netId) {
+        auto it = replication.m_clientObjects.find(netId);
+        return it == replication.m_clientObjects.end() ? Vector3{} : it->second.target.Position;
+    }
+
+    static std::size_t latestPoseCount(ReplicationManager& replication) {
+        return replication.m_latestPoses.size();
+    }
+
     static std::shared_ptr<Model> model(
         ReplicationManager& replication, PeerId id) {
         auto it = replication.m_remoteAvatars.find(id);
@@ -15721,6 +15745,885 @@ static int runAudioDiagnosticsRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+// ==================== Security probes ====================
+// 脆弱性の再現専用。回帰レジストリには登録しない（再現できる＝現状の不具合を示すため）。
+// 使い方: RecubinTest.exe --security-probe <name> <workDir>
+// 終了コード: 0=再現せず / 10=再現(非クラッシュ) / 11=SIGSEGV捕捉 / 12=未捕捉例外(terminate)
+#include <atomic>
+#include <csignal>
+#include <typeinfo>
+
+namespace SecurityProbe {
+namespace fs = std::filesystem;
+
+constexpr int NOT_REPRODUCED = 0;
+constexpr int REPRODUCED = 10;
+
+void say(const std::string& message) { std::cout << "[SecurityProbe] " << message << std::endl; }
+
+void onSegv(int) {
+    std::fputs("[SecurityProbe] CRASH: SIGSEGV (access violation)\n", stdout);
+    std::fflush(stdout);
+    std::_Exit(11);
+}
+
+void onTerminate() {
+    std::string what = "unknown";
+    if (auto current = std::current_exception()) {
+        try { std::rethrow_exception(current); }
+        catch (const std::exception& e) { what = std::string(typeid(e).name()) + ": " + e.what(); }
+        catch (...) {}
+    }
+    std::cout << "[SecurityProbe] CRASH: std::terminate (uncaught exception) " << what << std::endl;
+    std::_Exit(12);
+}
+
+void writeText(const fs::path& path, const std::string& text) {
+    fs::create_directories(path.parent_path());
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    out << text;
+}
+
+std::string readText(const fs::path& path) {
+    std::ifstream in(path, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), {});
+}
+
+// --- F1: Terrain の再生成が DataPath 配下の無関係なファイルを削除する ---
+int terrainRegenerate(const fs::path& work) {
+    const fs::path userFolder = work / "MyDocuments";
+    writeText(userFolder / "important.txt", "user data");
+    writeText(userFolder / "photos" / "a.png", "png");
+    say("before: important.txt exists=" + std::to_string(fs::exists(userFolder / "important.txt")));
+    {
+        auto workspace = std::make_shared<Workspace>();
+        auto streamer = std::make_unique<TerrainStreamer>(
+            workspace.get(), nullptr, AssetPath::toStored(userFolder));
+        streamer->regenerate(1, true);
+        streamer.reset(); // ワーカーjoin（Regenerateジョブ完了を待つ）
+    }
+    const bool importantGone = !fs::exists(userFolder / "important.txt");
+    const bool photosGone = !fs::exists(userFolder / "photos" / "a.png");
+    say("after: important.txt gone=" + std::to_string(importantGone) +
+        " photos/a.png gone=" + std::to_string(photosGone));
+    return importantGone || photosGone ? REPRODUCED : NOT_REPRODUCED;
+}
+
+// --- M1: 検証されないGLBの読み込み ---
+void appendU32(std::string& out, std::uint32_t value) {
+    out.append(reinterpret_cast<const char*>(&value), sizeof(value));
+}
+
+void writeGlb(const fs::path& path, std::uint64_t positionCount,
+              const std::array<std::uint32_t, 3>& triangle) {
+    std::string bin;
+    const float positions[9] = {0, 0, 0, 1, 0, 0, 0, 1, 0};
+    bin.append(reinterpret_cast<const char*>(positions), sizeof(positions));
+    for (std::uint32_t index : triangle) appendU32(bin, index);
+    std::string json =
+        "{\"asset\":{\"version\":\"2.0\"},\"scene\":0,\"scenes\":[{\"nodes\":[0]}],"
+        "\"nodes\":[{\"mesh\":0}],"
+        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}],"
+        "\"buffers\":[{\"byteLength\":48}],"
+        "\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},"
+        "{\"buffer\":0,\"byteOffset\":36,\"byteLength\":12}],"
+        "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":" +
+        std::to_string(positionCount) +
+        ",\"type\":\"VEC3\",\"min\":[0,0,0],\"max\":[1,1,0]},"
+        "{\"bufferView\":1,\"componentType\":5125,\"count\":3,\"type\":\"SCALAR\"}]}";
+    while (json.size() % 4 != 0) json.push_back(' ');
+    std::string glb;
+    appendU32(glb, 0x46546C67u);
+    appendU32(glb, 2u);
+    appendU32(glb, static_cast<std::uint32_t>(12 + 8 + json.size() + 8 + bin.size()));
+    appendU32(glb, static_cast<std::uint32_t>(json.size()));
+    appendU32(glb, 0x4E4F534Au);
+    glb += json;
+    appendU32(glb, static_cast<std::uint32_t>(bin.size()));
+    appendU32(glb, 0x004E4942u);
+    glb += bin;
+    writeText(path, glb);
+}
+
+int loadGlb(const fs::path& work, const char* label, std::uint64_t positionCount,
+            const std::array<std::uint32_t, 3>& triangle) {
+    const fs::path path = work / (std::string(label) + ".glb");
+    writeGlb(path, positionCount, triangle);
+    say(std::string("loading ") + label + " positionCount=" + std::to_string(positionCount) +
+        " indices=" + std::to_string(triangle[0]) + "," + std::to_string(triangle[1]) + "," +
+        std::to_string(triangle[2]));
+    auto mesh = std::make_shared<MeshCube>(Vector3{}, Vector3(1, 1, 1));
+    const bool loaded = mesh->loadFromGLB(AssetPath::toStored(path));
+    say(std::string("returned loaded=") + std::to_string(loaded) +
+        " fallback=" + std::to_string(mesh->isUsingFallback()) +
+        " indexCount=" + std::to_string(mesh->getIndexCount()));
+    return loaded;
+}
+
+int glbControl(const fs::path& work) {
+    return loadGlb(work, "control", 3, {0, 1, 2}) ? NOT_REPRODUCED : REPRODUCED;
+}
+int glbIndex(const fs::path& work) {
+    loadGlb(work, "bad_index", 3, {0, 1, 0x40000000u});
+    return NOT_REPRODUCED;
+}
+int glbOverrun(const fs::path& work) {
+    loadGlb(work, "accessor_overrun", 20'000'000ull, {0, 1, 2});
+    return NOT_REPRODUCED;
+}
+int glbHugeCount(const fs::path& work) {
+    loadGlb(work, "huge_count", 1'000'000'000'000ull, {0, 1, 2});
+    return NOT_REPRODUCED;
+}
+
+// --- C1: .rcaet インポートで型違いの ClassName ---
+std::string writeBadAsset(const fs::path& work) {
+    YAML::Node document = YAML::Load(
+        "recubin: {type: asset, version: 1}\nAsset:\n  Name: Bad\n  Roots:\n"
+        "    - {ClassName: [Folder], Name: R}\n");
+    std::vector<AssetContainer::EmbeddedFile> files;
+    const std::string path = AssetPath::toStored(work / "bad.rcaet");
+    if (!AssetContainer::write(path, document, files)) say("asset write failed");
+    return path;
+}
+
+int assetImport(const fs::path& work) {
+    const std::string path = writeBadAsset(work);
+    AssetImporter::Loaded loaded;
+    const auto loadResult = AssetImporter::load(path, loaded);
+    say("load ok=" + std::to_string(static_cast<bool>(loadResult)));
+    AssetImporter::Options options;
+    options.extractRoot = AssetPath::toStored(work / "imported");
+    AssetImporter::Imported imported;
+    say("instantiate...");
+    const auto result = AssetImporter::instantiate(loaded, options, nullptr, imported);
+    say("instantiate returned ok=" + std::to_string(static_cast<bool>(result)));
+    return NOT_REPRODUCED;
+}
+
+// 対照: 同じノードを通常のシーン読み込みに通すと例外は捕捉される
+int sceneLoadControl(const fs::path& work) {
+    const fs::path path = work / "bad_scene.rcbn";
+    writeText(path, "recubin: {type: scene, version: 1}\nRoot:\n  ClassName: [System]\n");
+    const auto result = SceneLoader::loadSceneResult(AssetPath::toStored(path));
+    say("loadSceneResult returned root=" + std::to_string(result.root != nullptr));
+    return NOT_REPRODUCED;
+}
+
+// --- F5: RuntimeFileSystem の破損経路 ---
+int runtimeFsDirectoryWrite(const fs::path& work) {
+    const fs::path root = work / "root";
+    writeText(root / "textfiles" / "saved.txt", "save data");
+    RuntimeFileSystem files(false, root);
+    const auto result = files.write("textfiles", "x");
+    std::string backups;
+    for (const auto& entry : fs::directory_iterator(root))
+        backups += entry.path().filename().string() + (entry.is_directory() ? "/ " : " ");
+    say("write(\"textfiles\") success=" + std::to_string(result.success) + " error=" + result.error);
+    say("textfiles is_regular_file=" + std::to_string(fs::is_regular_file(root / "textfiles")) +
+        " saved.txt reachable=" + std::to_string(fs::exists(root / "textfiles" / "saved.txt")));
+    say("root entries: " + backups);
+    return fs::is_regular_file(root / "textfiles") ? REPRODUCED : NOT_REPRODUCED;
+}
+
+int runtimeFsTmpClobber(const fs::path& work) {
+    const fs::path root = work / "root";
+    writeText(root / "notes.txt.tmp", "user's own tmp file");
+    RuntimeFileSystem files(false, root);
+    const auto result = files.write("notes.txt", "new");
+    const bool lost = !fs::exists(root / "notes.txt.tmp");
+    say("write(\"notes.txt\") success=" + std::to_string(result.success) +
+        " user notes.txt.tmp lost=" + std::to_string(lost));
+    return lost ? REPRODUCED : NOT_REPRODUCED;
+}
+
+int runtimeFsMoveOverwrite(const fs::path& work) {
+    const fs::path root = work / "root";
+    writeText(root / "src.txt", "source");
+    writeText(root / "dst.txt", "destination data");
+    RuntimeFileSystem files(false, root);
+    RuntimeFileResult result;
+    {
+        std::ifstream holdOpen(root / "src.txt", std::ios::binary); // 共有モードでrenameを失敗させる
+        result = files.move("src.txt", "dst.txt", true);
+    }
+    const bool dstLost = !fs::exists(root / "dst.txt");
+    say("move(overwrite) success=" + std::to_string(result.success) + " error=" + result.error);
+    say("dst.txt lost=" + std::to_string(dstLost) +
+        " src.txt still exists=" + std::to_string(fs::exists(root / "src.txt")));
+    return !result.success && dstLost ? REPRODUCED : NOT_REPRODUCED;
+}
+
+int runtimeFsRootWrite(const fs::path& work) {
+    const fs::path root = work / "portable";
+    writeText(root / "save.dat", "save data");
+    RuntimeFileSystem files(false, root);
+    const auto result = files.write(".", "x");
+    say("write(\".\") success=" + std::to_string(result.success) + " error=" + result.error);
+    say("root is_regular_file=" + std::to_string(fs::is_regular_file(root)) +
+        " save.dat reachable=" + std::to_string(fs::exists(root / "save.dat")));
+    std::string siblings;
+    for (const auto& entry : fs::directory_iterator(work))
+        siblings += entry.path().filename().string() + " ";
+    say("work entries: " + siblings);
+    return fs::is_regular_file(root) ? REPRODUCED : NOT_REPRODUCED;
+}
+
+// --- F3: Packager が出力先の外を上書きする / 同名スクリプトが衝突する ---
+int packagerEscape(const fs::path& work) {
+    const fs::path repoRoot = fs::current_path();
+    const fs::path cwd = work / "proj" / "sub";
+    const fs::path outside = work / "out" / "victim" / "f.png";
+    writeText(work / "victim" / "f.png", "SOURCE ASSET");
+    writeText(outside, "UNRELATED USER FILE");
+    writeText(cwd / "a" / "Main.luau", "print('a')\n");
+    writeText(cwd / "b" / "Main.luau", "print('b')\n");
+    writeText(cwd / "scene.rcbn",
+              "recubin: {type: scene, version: 1}\n"
+              "Root:\n  ClassName: System\n  Children:\n"
+              "    - {ClassName: Decal, Properties: {Texture: ../../victim/f.png}}\n"
+              "    - {ClassName: Script, Properties: {ContentPath: a/Main.luau}}\n"
+              "    - {ClassName: Script, Properties: {ContentPath: b/Main.luau}}\n");
+    fs::current_path(cwd);
+    Packager::Config cfg;
+    cfg.gameName = "Game";
+    cfg.outputDir = AssetPath::toStored(work / "out" / "pkg");
+    cfg.scenePath = "scene.rcbn";
+    cfg.engineExePath = AssetPath::toStored(repoRoot / "Recubin.exe");
+    const bool ok = Packager::package(cfg, [](const std::string& line) {
+        if (line.find("Copied") != std::string::npos || line.find("Compiled") != std::string::npos ||
+            line.find("ERROR") != std::string::npos)
+            say("  log: " + line);
+    });
+    fs::current_path(repoRoot);
+    const std::string victim = readText(outside);
+    say("package ok=" + std::to_string(ok) + " file outside package now contains: '" + victim + "'");
+    const std::string scene = readText(work / "out" / "pkg" / "Game" / "assets" / "scenes" / "Game.rcbn");
+    std::size_t refs = 0;
+    for (std::size_t at = scene.find("assets/scripts/Main.luauc"); at != std::string::npos;
+         at = scene.find("assets/scripts/Main.luauc", at + 1)) ++refs;
+    say("packaged scene references to assets/scripts/Main.luauc: " + std::to_string(refs) +
+        " (a/ and b/ collapsed into one file)");
+    return victim == "SOURCE ASSET" || refs >= 2 ? REPRODUCED : NOT_REPRODUCED;
+}
+
+// --- N1: 受信したNaN座標がBox3Dへ渡る ---
+int networkNaN(const fs::path&) {
+    ByteWriter w;
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    w.writeVector3(Vector3(nan, nan, nan));
+    ByteReader r{w.data.data(), w.data.size()};
+    Vector3 received;
+    say("ByteReader::readVector3 accepts NaN=" + std::to_string(r.readVector3(received)));
+
+    auto workspace = std::make_shared<Workspace>();
+    auto root = std::make_shared<Cube>(Vector3(0, 10, 0), Vector3(2, 2, 2), 0);
+    root->Name = "Root";
+    root->Anchored = true;
+    workspace->addChild(root);
+    auto other = std::make_shared<Cube>(Vector3(0, 13, 0), Vector3(2, 2, 2), 0);
+    other->Name = "Other";
+    workspace->addChild(other);
+    workspace->initPhysics();
+    auto* physics = workspace->getPhysicsEngine();
+    if (!physics || !physics->isAvailable()) { say("physics unavailable"); return NOT_REPRODUCED; }
+    physics->update(*workspace, 0.0f);
+    say("applying NaN pose like ReplicationManager::applyAvatarPoses");
+    root->setWorldCFrame(CFrame(received, Quaternion()));
+    for (int i = 0; i < 120; ++i) {
+        if (i % 30 == 0) say("physics->update frame " + std::to_string(i));
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    say("stepped 120 frames; other position=" + std::to_string(other->getWorldPosition().y));
+    say("raycast with NaN origin...");
+    RaycastHit hit;
+    const bool didHit = physics->raycast(Vector3(nan, 0, 0), Vector3(0, -1, 0), 100.0f, hit);
+    say("raycast with NaN origin returned hit=" + std::to_string(didHit));
+    const bool otherNaN = !std::isfinite(other->getWorldPosition().y);
+    say("NaN propagated to neighbouring dynamic body=" + std::to_string(otherNaN));
+    return otherNaN ? REPRODUCED : NOT_REPRODUCED;
+}
+
+int raycastNaN(const fs::path&) {
+    auto workspace = std::make_shared<Workspace>();
+    auto floor = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(20, 1, 20), 0);
+    floor->Anchored = true;
+    workspace->addChild(floor);
+    workspace->initPhysics();
+    auto* physics = workspace->getPhysicsEngine();
+    if (!physics || !physics->isAvailable()) { say("physics unavailable"); return NOT_REPRODUCED; }
+    physics->update(*workspace, 0.0f);
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    RaycastHit hit;
+    say("raycast with NaN origin on a healthy world...");
+    const bool a = physics->raycast(Vector3(nan, 5, 0), Vector3(0, -1, 0), 100.0f, hit);
+    say("returned hit=" + std::to_string(a));
+    say("raycast with NaN direction...");
+    const bool b = physics->raycast(Vector3(0, 5, 0), Vector3(nan, -1, 0), 100.0f, hit);
+    say("returned hit=" + std::to_string(b));
+    return NOT_REPRODUCED;
+}
+
+// --- P1: 子プロセスの連続出力で Program::poll が戻らない ---
+int programSpam(const fs::path&) {
+    ChildProcessLaunchOptions options;
+    options.executable = fs::absolute(fs::path(g_testExecutablePath)).string();
+    options.arguments = {"--security-spam-child"};
+    Program program;
+    auto process = getPlatform().launchPipedProcess(options);
+    if (!process || !program.attachProcess(std::move(process))) {
+        say("failed to launch spam child");
+        return NOT_REPRODUCED;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(500)); // 子が出力を始めるまで待つ
+    std::atomic<bool> done{false};
+    std::thread watchdog([&] {
+        for (int i = 0; i < 100 && !done.load(); ++i)
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if (!done.load()) {
+            say("HANG: a single Program::poll() did not return within 10 s");
+            std::_Exit(REPRODUCED);
+        }
+    });
+    const auto start = std::chrono::steady_clock::now();
+    program.poll();
+    done = true;
+    watchdog.join();
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - start).count();
+    say("poll() returned after " + std::to_string(ms) + " ms");
+    program.forceClose();
+    return ms > 1000 ? REPRODUCED : NOT_REPRODUCED;
+}
+
+int spamChild() {
+    static const std::string block(64 * 1024, 'x');
+    for (;;) {
+        if (std::fwrite(block.data(), 1, block.size(), stdout) != block.size()) return 0;
+        if (std::fflush(stdout) != 0) return 0;
+    }
+}
+
+int run(int argc, char** argv) {
+    if (argc < 4) {
+        std::cerr << "usage: --security-probe <name> <workDir>\n";
+        return 2;
+    }
+    std::signal(SIGSEGV, onSegv);
+    std::set_terminate(onTerminate);
+#ifdef _MSC_VER
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
+    const std::string name = argv[2];
+    const fs::path work = fs::absolute(fs::path(argv[3])) / name;
+    std::error_code ec;
+    fs::remove_all(work, ec);
+    fs::create_directories(work);
+    static const std::vector<std::pair<std::string, int (*)(const fs::path&)>> probes = {
+        {"terrain-regenerate", terrainRegenerate},
+        {"glb-control", glbControl},
+        {"glb-index", glbIndex},
+        {"glb-overrun", glbOverrun},
+        {"glb-huge-count", glbHugeCount},
+        {"asset-import", assetImport},
+        {"scene-load-control", sceneLoadControl},
+        {"runtimefs-directory-write", runtimeFsDirectoryWrite},
+        {"runtimefs-tmp-clobber", runtimeFsTmpClobber},
+        {"runtimefs-move-overwrite", runtimeFsMoveOverwrite},
+        {"runtimefs-root-write", runtimeFsRootWrite},
+        {"packager-escape", packagerEscape},
+        {"network-nan", networkNaN},
+        {"raycast-nan", raycastNaN},
+        {"program-spam", programSpam},
+    };
+    for (const auto& [probeName, probe] : probes) {
+        if (probeName != name) continue;
+        say("probe " + name + " start");
+        const int result = probe(work);
+        say("probe " + name + " end result=" + (result == REPRODUCED ? "REPRODUCED" : "NOT_REPRODUCED"));
+        return result;
+    }
+    std::cerr << "unknown probe: " << name << '\n';
+    return 2;
+}
+} // namespace SecurityProbe
+
+// ==================== Security regression ====================
+// SecurityProbe で再現した脆弱性が修正後に再現しないことを確認する。
+namespace SecurityRegression {
+namespace fs = std::filesystem;
+using SecurityProbe::readText;
+using SecurityProbe::writeGlb;
+using SecurityProbe::writeText;
+
+int g_failures = 0;
+
+void expect(bool condition, const std::string& message) {
+    std::cout << "[SecurityRegression] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+    if (!condition) ++g_failures;
+}
+
+std::size_t countFiles(const fs::path& directory) {
+    std::error_code ec;
+    if (!fs::exists(directory, ec)) return 0;
+    std::size_t count = 0;
+    for (const auto& entry : fs::recursive_directory_iterator(directory, ec)) {
+        if (entry.is_regular_file(ec)) ++count;
+    }
+    return count;
+}
+
+bool hasTemporaryFile(const fs::path& directory) {
+    std::error_code ec;
+    for (const auto& entry : fs::directory_iterator(directory, ec)) {
+        if (entry.path().extension() == ".tmp") return true;
+    }
+    return false;
+}
+
+// ---- F1: Terrain regenerate ----
+void testTerrain(const fs::path& work) {
+    const fs::path dir = work / "terrain";
+    writeText(dir / "important.txt", "user data");
+    writeText(dir / "photos" / "a.png", "png");
+    writeText(dir / "r_0_0.yaml", "region");
+    writeText(dir / "r_-1_2.yaml", "region");
+    writeText(dir / "r_x_y.yaml", "not a region");
+    writeText(dir / "r_0_0.yaml.bak", "backup");
+    {
+        auto workspace = std::make_shared<Workspace>();
+        auto streamer = std::make_unique<TerrainStreamer>(
+            workspace.get(), nullptr, AssetPath::toStored(dir));
+        streamer->regenerate(1, true);
+        streamer.reset();
+    }
+    expect(fs::exists(dir / "important.txt") && readText(dir / "important.txt") == "user data",
+           "Terrain regenerate keeps user file important.txt");
+    expect(fs::exists(dir / "photos" / "a.png"), "Terrain regenerate keeps photos/a.png");
+    expect(fs::exists(dir / "r_x_y.yaml"), "Terrain regenerate keeps r_x_y.yaml");
+    expect(fs::exists(dir / "r_0_0.yaml.bak"), "Terrain regenerate keeps r_0_0.yaml.bak");
+    expect(!fs::exists(dir / "r_0_0.yaml"), "Terrain regenerate removes r_0_0.yaml");
+    expect(!fs::exists(dir / "r_-1_2.yaml"), "Terrain regenerate removes r_-1_2.yaml");
+}
+
+// ---- M1: GLB ----
+void testGlb(const fs::path& work) {
+    auto load = [&](const char* label, std::uint64_t count, const std::array<std::uint32_t, 3>& triangle,
+                    bool& usingFallback) {
+        const fs::path path = work / (std::string(label) + ".glb");
+        writeGlb(path, count, triangle);
+        auto mesh = std::make_shared<MeshCube>(Vector3{}, Vector3(1, 1, 1));
+        const bool loaded = mesh->loadFromGLB(AssetPath::toStored(path));
+        usingFallback = mesh->isUsingFallback();
+        return loaded;
+    };
+    bool fallback = false;
+    expect(load("control", 3, {0, 1, 2}, fallback) && !fallback, "valid GLB loads");
+    expect(!load("bad_index", 3, {0, 1, 0x40000000u}, fallback) && fallback,
+           "GLB with out-of-range index falls back");
+    expect(!load("index_eq_count", 3, {0, 1, 3}, fallback) && fallback,
+           "GLB with index == vertex count falls back");
+    expect(!load("overrun", 20'000'000ull, {0, 1, 2}, fallback) && fallback,
+           "GLB with accessor overrun falls back");
+    expect(!load("huge_count", 1'000'000'000'000ull, {0, 1, 2}, fallback) && fallback,
+           "GLB with huge accessor count falls back");
+}
+
+// ---- C1: AssetImport ----
+void testAssetImport(const fs::path& work) {
+    auto makeAsset = [&](const char* name, const char* yamlText, bool withFile) {
+        std::vector<AssetContainer::EmbeddedFile> files;
+        if (withFile) {
+            AssetContainer::EmbeddedFile file;
+            file.source = "a/one.bin";
+            file.file = "one.bin";
+            file.data = {'1', '2', '3'};
+            files.push_back(std::move(file));
+        }
+        const std::string path = AssetPath::toStored(work / name);
+        AssetContainer::write(path, YAML::Load(yamlText), files);
+        return path;
+    };
+    auto run = [&](const std::string& path, const char* extractName, bool& instantiateOk) {
+        AssetImporter::Loaded loaded;
+        const bool loadOk = static_cast<bool>(AssetImporter::load(path, loaded));
+        AssetImporter::Options options;
+        options.extractRoot = AssetPath::toStored(work / extractName);
+        AssetImporter::Imported imported;
+        instantiateOk = loadOk && static_cast<bool>(
+            AssetImporter::instantiate(loaded, options, nullptr, imported));
+        return loadOk;
+    };
+    bool ok = true;
+    const std::string badClass = makeAsset("bad_class.rcaet",
+        "recubin: {type: asset, version: 1}\nAsset:\n  Name: Bad\n  Roots:\n"
+        "    - {ClassName: [Folder], Name: R}\n", true);
+    expect(run(badClass, "extract_bad_class", ok) && !ok, "asset with array ClassName fails to instantiate");
+    expect(countFiles(work / "extract_bad_class") == 0, "failed asset import extracts no files");
+
+    const std::string badSize = makeAsset("bad_size.rcaet",
+        "recubin: {type: asset, version: 1}\nAsset:\n  Name: BadSize\n  Roots:\n"
+        "    - {ClassName: Cube, Name: C, Properties: {Size: [a, b, c]}}\n", true);
+    expect(run(badSize, "extract_bad_size", ok) && !ok, "asset with mistyped Cube.Size fails to instantiate");
+    expect(countFiles(work / "extract_bad_size") == 0, "mistyped asset import extracts no files");
+
+    const std::string good = makeAsset("good.rcaet",
+        "recubin: {type: asset, version: 1}\nAsset:\n  Name: Good\n  Roots:\n"
+        "    - {ClassName: Folder, Name: F}\n", true);
+    expect(run(good, "extract_good", ok) && ok, "valid Folder asset instantiates");
+    expect(countFiles(work / "extract_good") == 1, "valid asset import extracts its embedded file");
+}
+
+// ---- F5: RuntimeFileSystem ----
+void testRuntimeFileSystem(const fs::path& work) {
+    {
+        const fs::path root = work / "rfs_dir";
+        writeText(root / "textfiles" / "saved.txt", "save data");
+        RuntimeFileSystem files(false, root);
+        expect(!files.write("textfiles", "x").success, "write to an existing directory fails");
+        expect(readText(root / "textfiles" / "saved.txt") == "save data" &&
+                   fs::is_directory(root / "textfiles"),
+               "directory and its contents survive a failed write");
+    }
+    {
+        const fs::path root = work / "rfs_root";
+        writeText(root / "save.dat", "save data");
+        RuntimeFileSystem files(false, root);
+        expect(!files.write(".", "x").success, "write(\".\") fails");
+        expect(fs::is_directory(root) && fs::exists(root / "save.dat"), "root stays a directory");
+    }
+    {
+        const fs::path root = work / "rfs_tmp";
+        writeText(root / "notes.txt.tmp", "user's own tmp file");
+        RuntimeFileSystem files(false, root);
+        expect(files.write("notes.txt", "new").success && readText(root / "notes.txt") == "new",
+               "write succeeds next to a user .tmp file");
+        expect(readText(root / "notes.txt.tmp") == "user's own tmp file", "user .tmp file is untouched");
+    }
+    {
+        const fs::path root = work / "rfs_move";
+        writeText(root / "src.txt", "source");
+        writeText(root / "dst.txt", "destination data");
+        RuntimeFileSystem files(false, root);
+        RuntimeFileResult result;
+        {
+            std::ifstream holdOpen(root / "src.txt", std::ios::binary);
+            result = files.move("src.txt", "dst.txt", true);
+        }
+#ifdef _WIN32
+        expect(!result.success, "overwrite move fails while the source is held open");
+        expect(readText(root / "dst.txt") == "destination data",
+               "failed overwrite move keeps the destination");
+#else
+        (void)result;
+        expect(true, "held-open overwrite move check is Windows only (skipped)");
+#endif
+        writeText(root / "src.txt", "source");
+        expect(!files.move("src.txt", "dst.txt", false).success, "non-overwrite move onto an existing file fails");
+        expect(readText(root / "dst.txt") == "destination data", "non-overwrite move keeps the destination");
+        expect(files.move("src.txt", "dst.txt", true).success && readText(root / "dst.txt") == "source" &&
+                   !fs::exists(root / "src.txt"),
+               "overwrite move replaces the destination");
+        writeText(root / "fresh.txt", "fresh");
+        expect(files.move("fresh.txt", "moved.txt", false).success && readText(root / "moved.txt") == "fresh",
+               "move to a new path succeeds");
+        expect(files.write("new.txt", "one").success && readText(root / "new.txt") == "one", "new write succeeds");
+        expect(files.write("new.txt", "two").success && readText(root / "new.txt") == "two",
+               "overwriting write succeeds");
+        expect(!hasTemporaryFile(root), "no temporary files remain after successful writes");
+    }
+    {
+        const fs::path root = work / "rfs_held";
+        writeText(root / "held.txt", "old");
+        RuntimeFileSystem files(false, root);
+        RuntimeFileResult result;
+        {
+            std::ifstream holdOpen(root / "held.txt", std::ios::binary);
+            result = files.write("held.txt", "new");
+        }
+#ifdef _WIN32
+        expect(!result.success, "write over a held-open file fails");
+        expect(readText(root / "held.txt") == "old", "failed write keeps the original content");
+        expect(!hasTemporaryFile(root), "failed write leaves no temporary file");
+#else
+        (void)result;
+        expect(true, "held-open write check is Windows only (skipped)");
+#endif
+    }
+}
+
+// ---- F2: 原子的なシーン保存 ----
+void testAtomicSceneSave(const fs::path& work) {
+    const fs::path dir = work / "scene_save";
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    system->addChild(workspace);
+    workspace->addChild(std::make_shared<Cube>(Vector3(1, 2, 3), Vector3(2, 2, 2), 0));
+    const fs::path scenePath = dir / "scene.rcbn";
+    writeText(scenePath, "ORIGINAL");
+    bool heldResult = true;
+    {
+        std::ifstream holdOpen(scenePath, std::ios::binary);
+        heldResult = SceneLoader::saveSceneResult(system.get(), AssetPath::toStored(scenePath));
+    }
+#ifdef _WIN32
+    expect(!heldResult, "saveSceneResult fails while the scene file is held open");
+    expect(readText(scenePath) == "ORIGINAL", "failed save keeps the original scene content");
+    expect(!hasTemporaryFile(dir), "failed save leaves no temporary file");
+#else
+    (void)heldResult;
+    expect(true, "held-open scene save check is Windows only (skipped)");
+#endif
+    expect(SceneLoader::saveSceneResult(system.get(), AssetPath::toStored(scenePath)),
+           "saveSceneResult succeeds when the file is not held");
+    const std::string saved = readText(scenePath);
+    expect(saved != "ORIGINAL" && saved.find("Cube") != std::string::npos, "scene content is updated");
+    expect(!hasTemporaryFile(dir), "successful save leaves no temporary file");
+}
+
+// ---- F3: Packager ----
+void testPackager(const fs::path& work) {
+    const fs::path repoRoot = fs::current_path();
+    const fs::path cwd = work / "pack" / "proj" / "sub";
+    const fs::path outside = work / "pack" / "out" / "victim" / "f.png";
+    writeText(work / "pack" / "victim" / "f.png", "SOURCE ASSET");
+    writeText(outside, "UNRELATED USER FILE");
+    writeText(cwd / "a" / "Main.luau", "print('a')\n");
+    writeText(cwd / "b" / "Main.luau", "print('b')\n");
+    writeText(cwd / "scene.rcbn",
+              "recubin: {type: scene, version: 1}\n"
+              "Root:\n  ClassName: System\n  Children:\n"
+              "    - {ClassName: Decal, Properties: {Texture: ../../victim/f.png}}\n"
+              "    - {ClassName: Script, Properties: {ContentPath: a/Main.luau}}\n"
+              "    - {ClassName: Script, Properties: {ContentPath: b/Main.luau}}\n");
+    fs::current_path(cwd);
+    Packager::Config cfg;
+    cfg.gameName = "Game";
+    cfg.outputDir = AssetPath::toStored(work / "pack" / "out" / "pkg");
+    cfg.scenePath = "scene.rcbn";
+    cfg.engineExePath = AssetPath::toStored(repoRoot / "Recubin.exe");
+    Packager::package(cfg, [](const std::string&) {});
+    fs::current_path(repoRoot);
+
+    expect(readText(outside) == "UNRELATED USER FILE", "Packager does not overwrite files outside the package");
+    const fs::path gameDir = work / "pack" / "out" / "pkg" / "Game";
+    std::vector<std::string> scriptPaths;
+    const fs::path scenePath = gameDir / "assets" / "scenes" / "Game.rcbn";
+    if (fs::exists(scenePath)) {
+        const YAML::Node scene = YAML::LoadFile(scenePath.string());
+        const YAML::Node children = scene["Root"]["Children"];
+        for (const auto& child : children) {
+            if (child["ClassName"].as<std::string>("") != "Script") continue;
+            scriptPaths.push_back(child["Properties"]["ContentPath"].as<std::string>(""));
+        }
+    }
+    expect(scriptPaths.size() == 2 && !scriptPaths[0].empty() && scriptPaths[0] != scriptPaths[1],
+           "same-named scripts get distinct packaged paths");
+    bool filesExist = scriptPaths.size() == 2;
+    for (const auto& path : scriptPaths) {
+        filesExist = filesExist && !path.empty() && fs::exists(gameDir / AssetPath::fromStored(path));
+    }
+    expect(filesExist, "both packaged scripts exist inside the package");
+    expect(fs::exists(gameDir / "assets" / "image" / "f.png") &&
+               readText(gameDir / "assets" / "image" / "f.png") == "SOURCE ASSET",
+           "escaping asset is relocated inside the package");
+}
+
+// ---- N1: NaN ----
+std::vector<std::uint8_t> worldTransformsPayload(
+    const std::vector<std::pair<std::uint32_t, Vector3>>& entries) {
+    ByteWriter writer;
+    writer.writeU16(static_cast<std::uint16_t>(entries.size()));
+    for (const auto& [id, position] : entries) {
+        writer.writeU32(id);
+        writer.writeVector3(position);
+        writer.writeQuat(Quaternion());
+    }
+    return writer.data;
+}
+
+void testNaN(const fs::path&) {
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const Vector3 start(1, 2, 3);
+    const auto positionUnchanged = [&](const std::shared_ptr<Cube>& cube) {
+        const Vector3 p = cube->getWorldPosition();
+        return p.x == start.x && p.y == start.y && p.z == start.z;
+    };
+    {
+        auto cube = std::make_shared<Cube>(start, Vector3(2, 2, 2), 0);
+        cube->setWorldCFrame(CFrame(Vector3(nan, 0, 0), Quaternion()));
+        expect(positionUnchanged(cube), "setWorldCFrame rejects NaN position");
+        cube->setCFrame(CFrame(Vector3(0, nan, 0), Quaternion()));
+        expect(positionUnchanged(cube), "setCFrame rejects NaN position");
+        cube->teleportTo(Vector3(0, 0, nan));
+        expect(positionUnchanged(cube), "teleportTo rejects NaN position");
+    }
+    {
+        auto luaSystem = std::make_shared<System>();
+        auto luaWorkspace = std::make_shared<Workspace>();
+        luaSystem->addChild(luaWorkspace);
+        auto cube = std::make_shared<Cube>(start, Vector3(2, 2, 2), 0);
+        cube->Name = "NaNCube";
+        luaWorkspace->addChild(cube);
+        auto script = std::make_shared<Script>();
+        script->Name = "NaNScript";
+        script->Source =
+            "local c = workspace:FindChild('NaNCube') "
+            "c.Position = Vector3.new(0/0, 0, 0)";
+        luaWorkspace->addChild(script);
+        LuauEngine engine;
+        engine.setWorkspace(luaWorkspace);
+        engine.setSystem(luaSystem.get());
+        engine.setGlobalInstance("workspace", luaWorkspace);
+        engine.execute(*script);
+        expect(positionUnchanged(cube), "Luau Position = NaN is rejected");
+    }
+    // Model のプロパティ代入(assignLocalCFrameProperty)と PivotTo の経路
+    {
+        auto luaSystem = std::make_shared<System>();
+        auto luaWorkspace = std::make_shared<Workspace>();
+        luaSystem->addChild(luaWorkspace);
+        auto model = std::make_shared<Model>();
+        model->Name = "NaNModel";
+        luaWorkspace->addChild(model);
+        auto child = std::make_shared<Cube>(start, Vector3(2, 2, 2), 0);
+        child->Name = "Child";
+        model->addChild(child);
+        const Vector3 modelStart = model->getWorldPosition();
+        const auto modelUnchanged = [&] {
+            const Vector3 p = model->getWorldPosition();
+            return p.x == modelStart.x && p.y == modelStart.y && p.z == modelStart.z &&
+                   positionUnchanged(child);
+        };
+        PropertyRegistry::loadApplicableProperty(model.get(), "Position", YAML::Load("[.nan, 0, 0]"));
+        expect(modelUnchanged(), "Model Position property = NaN is rejected (model and child unchanged)");
+        model->pivotTo(CFrame(Vector3(0, nan, 0), Quaternion()));
+        expect(modelUnchanged(), "Model::pivotTo rejects NaN position");
+
+        auto script = std::make_shared<Script>();
+        script->Name = "NaNModelScript";
+        script->Source =
+            "local m = workspace:FindChild('NaNModel') "
+            "m:PivotTo(CFrame.new(0/0, 0, 0)) "
+            "m.Position = Vector3.new(0, 0/0, 0)";
+        luaWorkspace->addChild(script);
+        LuauEngine engine;
+        engine.setWorkspace(luaWorkspace);
+        engine.setSystem(luaSystem.get());
+        engine.setGlobalInstance("workspace", luaWorkspace);
+        engine.execute(*script);
+        expect(modelUnchanged(), "Luau Model:PivotTo / Model.Position = NaN are rejected");
+    }
+    {
+        auto node = SceneLoader::parseNode(YAML::Load(
+            "{ClassName: Cube, Name: NaNScene, Properties: {Position: [.nan, 0, 0], Rotation: [0, 0, 0, 1]}}"));
+        auto spatial = std::dynamic_pointer_cast<Spatial>(node);
+        const Vector3 p = spatial ? spatial->getWorldPosition() : Vector3(nan, nan, nan);
+        expect(spatial && std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z),
+               "scene YAML .nan Position yields a finite position");
+    }
+    {
+        auto workspace = std::make_shared<Workspace>();
+        auto root = std::make_shared<Cube>(Vector3(0, 10, 0), Vector3(2, 2, 2), 0);
+        root->Anchored = true;
+        workspace->addChild(root);
+        auto other = std::make_shared<Cube>(Vector3(0, 13, 0), Vector3(2, 2, 2), 0);
+        workspace->addChild(other);
+        auto victim = std::make_shared<Cube>(Vector3(0, 20, 0), Vector3(2, 2, 2), 0);
+        workspace->addChild(victim);
+        workspace->initPhysics();
+        auto* physics = workspace->getPhysicsEngine();
+        if (!physics || !physics->isAvailable()) {
+            expect(false, "physics backend is available for NaN test");
+        } else if (physics->getBackendType() != PhysicsBackendType::Box3D) {
+            expect(true, "Box3D NaN gate (skipped: PhysX backend is deprecated)");
+        } else {
+            std::atomic<bool> done{false};
+            std::thread watchdog([&] {
+                for (int i = 0; i < 600 && !done.load(); ++i)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                if (!done.load()) {
+                    std::cout << "[SecurityRegression] FAIL: physics update hung after NaN input\n";
+                    std::cout.flush();
+                    std::_Exit(1);
+                }
+            });
+            physics->update(*workspace, 0.0f);
+            physics->setLinearVelocity(*victim, Vector3(nan, nan, nan));
+            physics->setAngularVelocity(*victim, Vector3(nan, 0, 0));
+            root->setWorldCFrame(CFrame(Vector3(nan, nan, nan), Quaternion()));
+            for (int i = 0; i < 120; ++i) physics->update(*workspace, 1.0f / 60.0f);
+            done = true;
+            watchdog.join();
+            const Vector3 p = other->getWorldPosition();
+            const Vector3 v = victim->getWorldPosition();
+            expect(true, "120 physics frames complete after NaN inputs");
+            expect(std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z),
+                   "neighbouring dynamic cube stays finite after NaN inputs");
+            expect(std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z),
+                   "NaN-velocity target cube stays finite");
+            const Vector3 r = root->getWorldPosition();
+            expect(r.x == 0.0f && r.y == 10.0f && r.z == 0.0f, "anchored cube ignores NaN setWorldCFrame");
+        }
+    }
+    {
+        auto workspace = std::make_shared<Workspace>();
+        auto cube = std::make_shared<Cube>(Vector3(0, 5, 0), Vector3(2, 2, 2), 0);
+        workspace->addChild(cube);
+        ReplicationManager replication(workspace, nullptr, nullptr);
+        ReplicationTestAccess::addClientObject(replication, 7, cube);
+        ReplicationTestAccess::clientStoreWorldTransforms(
+            replication, worldTransformsPayload({{7, Vector3(nan, 0, 0)}}));
+        expect(!ReplicationTestAccess::clientObjectHasTarget(replication, 7),
+               "WorldTransforms entry with NaN position is ignored");
+        ReplicationTestAccess::clientStoreWorldTransforms(
+            replication, worldTransformsPayload({{7, Vector3(nan, 0, 0)}, {7, Vector3(4, 5, 6)}}));
+        const Vector3 target = ReplicationTestAccess::clientObjectTarget(replication, 7);
+        expect(ReplicationTestAccess::clientObjectHasTarget(replication, 7) &&
+                   target.x == 4.0f && target.y == 5.0f && target.z == 6.0f,
+               "WorldTransforms parsing continues past a NaN entry");
+
+        ByteWriter batch;
+        batch.writeU8(1);
+        batch.writeU32(9);
+        batch.writeVector3(Vector3(1, 2, 3));
+        batch.writeQuat(Quaternion());
+        batch.writeVector3(Vector3());
+        batch.writeU32(0);
+        batch.writeF32(0.0f);
+        batch.writeU8(0);
+        replication.onGameMessage(static_cast<std::uint8_t>(MessageType::AvatarBatch),
+                                  batch.data.data(), batch.data.size(), 2);
+        expect(ReplicationTestAccess::latestPoseCount(replication) == 0,
+               "AvatarBatch is ignored when the local role is not Client");
+    }
+}
+} // namespace SecurityRegression
+
+int runSecurityRegression() {
+    namespace fs = std::filesystem;
+    SecurityRegression::g_failures = 0;
+    const fs::path original = fs::current_path();
+    const fs::path work = original / "build" / "security_regression";
+    std::error_code ec;
+    fs::remove_all(work, ec);
+    fs::create_directories(work, ec);
+
+    SecurityRegression::testTerrain(work);
+    SecurityRegression::testGlb(work);
+    SecurityRegression::testAssetImport(work);
+    SecurityRegression::testRuntimeFileSystem(work);
+    SecurityRegression::testAtomicSceneSave(work);
+    SecurityRegression::testPackager(work);
+    SecurityRegression::testNaN(work);
+
+    fs::current_path(original, ec);
+    fs::remove_all(work, ec);
+    std::cout << "[SecurityRegression] " << (SecurityRegression::g_failures == 0 ? "all passed" : "failures present")
+              << " (failures=" << SecurityRegression::g_failures << ")\n";
+    return SecurityRegression::g_failures == 0 ? 0 : 1;
+}
+
 struct RegressionEntry {
     std::string_view name;
     int (*runner)(int, char**);
@@ -15805,6 +16708,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--tool-respawn-regression", runToolRespawnRegression),
         REG("--inventory-tool-sync-regression", runInventoryToolSyncRegression),
         REG("--humanoid-part-ref-regression", runHumanoidPartRefRegression),
+        REG("--security-regression", runSecurityRegression),
         {"--physics-performance-guard", [](int argc, char** argv) {
             return dedicatedReturn(runPhysicsPerformanceGuard(argc, argv));
         }, false},
@@ -15828,6 +16732,8 @@ int main(int argc, char* argv[]) {
     // Program IPCテストが起動する子プロセス役。プラットフォーム初期化より前に処理する。
     if (argc > 1 && std::string_view(argv[1]) == "--ipc-echo-child")
         return runIpcEchoChild();
+    if (argc > 1 && std::string_view(argv[1]) == "--security-spam-child")
+        return SecurityProbe::spamChild();
     g_testExecutablePath = argv[0];
     getPlatform().setupConsoleUtf8();
     getPlatform().setupDllSearchPath();
@@ -15846,6 +16752,8 @@ int main(int argc, char* argv[]) {
 
     if (argc > 1 && std::string_view(argv[1]) == "--package-system-extension-smoke")
         return runSystemExtensionSmokePackaging(argc, argv);
+    if (argc > 1 && std::string_view(argv[1]) == "--security-probe")
+        return SecurityProbe::run(argc, argv);
 
     if (argc > 1) {
         const std::string_view requested(argv[1]);

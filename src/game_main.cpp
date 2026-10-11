@@ -97,6 +97,7 @@ struct NetworkLaunchArgs {
     uint16_t listenPort = 0;
     std::string stunServer;
     std::string rendezvousServer;
+    bool debugInjectNaNAvatarBatch = false; // 実機検証専用: HostがNaN座標のAvatarBatchを追加送信する
 };
 
 struct ConsoleChatQueue {
@@ -218,6 +219,8 @@ static NetworkLaunchArgs parseNetworkArgs(int argc, char* argv[]) {
             if (i + 1 < argc) { args.stunServer = argv[i + 1]; ++i; }
         } else if (arg == "--rendezvous") {
             if (i + 1 < argc) { args.rendezvousServer = argv[i + 1]; ++i; }
+        } else if (arg == "--debug-inject-nan-avatar-batch") {
+            args.debugInjectNaNAvatarBatch = true;
         }
     }
     return args;
@@ -622,6 +625,12 @@ int main(int argc, char* argv[]) {
     // 上の移行で旧Directionを持つLightingが現れうるため、Sunへの引き継ぎをここでも行う。
     for (const auto& ws : workspaces) SceneRuntime::migrateLegacyLightingDirection(*ws);
     ReplicationManager replication(workspace, user, system.get());
+    if (netArgs.debugInjectNaNAvatarBatch) {
+        if (netArgs.asHost || netArgs.asDirectHost)
+            replication.setDebugInjectNaNAvatarBatch(true);
+        else
+            RCBN_WARN("--debug-inject-nan-avatar-batch is ignored unless started as host");
+    }
     NetworkManager::get().onGameMessage = [&](uint8_t type, const uint8_t* payload, size_t len, PeerId senderId) {
         replication.onGameMessage(type, payload, len, senderId);
     };

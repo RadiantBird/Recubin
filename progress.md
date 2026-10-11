@@ -232,3 +232,57 @@
 - **Box3Dの`b3PrismaticJoint`の動作軸はjoint frameのX**(コメントはZ)。
 - **サブモジュール`temp_libs/box3d`は上流そのまま維持する方針**。独自APIを足すとmac/他環境のビルドで未定義になる。
 - **BallSocketの制限は公式API(cone+twist)の写像**であり、`spec.md`に明記した(以前は軸別と書かれて実装と乖離していた)。
+
+## 2026-10-11 脆弱性調査・クラッシュ証明・修正（NaN/不正入力/ファイル破損）
+
+### 1. 何をしたか
+- **調査→証明→修正の3段階**で実施。証明は `test_main.cpp` の `namespace SecurityProbe`（`--security-probe <name> <workDir>`、回帰レジストリ非登録・手動用に残置）。修正後の担保は `--security-regression`（`runSecurityRegression`、登録済み、作業dir `build/security_regression`）。
+- 修正（implementerエージェントに委譲→メインでレビュー・追加修正）:
+  - **M1 GLB**: `MeshCube::loadFromGLB` に `cgltf_validate` 追加、primitive単位でインデックス≥頂点数なら巻き戻して破棄。
+  - **F1 地形再生成**: `TerrainStreamer::workerLoop` の Regenerate で `remove_all(DataPath)` を廃止し、無名ns `removeRegionFiles` で `r_<int>_<int>.yaml` のみ削除（非再帰）。
+  - **F2 原子的保存**: 新規 `Util/AtomicFile`（`AtomicFile::writeReplacing`: 一意名tmp→rename1回、失敗時は元ファイル保持）。`SceneLoader::saveSceneResult`、`TerrainStreamer::flushRegionsToDisk`、`RuntimeFileSystem::write` で使用。
+  - **C1 .rcaetインポート**: `AssetImporter::instantiate` で `extractAll` 前に `validateParse`（ドライパース）、本番も `parseIntoGuarded` で例外捕捉。
+  - **F5 RuntimeFileSystem**: `write` はディレクトリ/ルートを拒否、`move` は事前removeを廃止しrename1回、`overwrite=false` で既存先なら失敗、ルートのmove禁止。
+  - **F3 Packager**: `..` で外に出る相対パスは `sub/filename` へ再配置、`reserveDestination`/`reserveScriptDirectory` でコピー先衝突を連番(`_N`, `dup_N/`)回避。
+  - **N1 NaN（3層）**: `Replication::onGameMessage` の AvatarBatch は Client時のみ処理＋非有限エントリ破棄、`clientStoreWorldTransforms` も破棄。`Spatial::setWorldCFrame/setCFrame/commitCFrame` と `assignLocalCFrameProperty`(Model/Tool分岐)、`Model::pivotTo` で非有限位置を拒否。`Box3DPhysicsBackend` に `rejectNonFinite`（SetTransform/SetTargetTransform/速度/力/トルク直前、ログはcontext毎3回まで）。
+  - **実機検証用**: 起動フラグ `--debug-inject-nan-avatar-batch`（`game_main.cpp` の `NetworkLaunchArgs`、`ReplicationManager::setDebugInjectNaNAvatarBatch`/`sendDebugNaNAvatarBatch`。Hostのみ、通常バッチ20回ごとにNaN版を追加送信）。`TestCases/NetworkTest/` に `assets/scenes/AvatarBatchNaN.yaml`、`run_avatar_batch_nan.ps1`、`AvatarBatchNaN_README.txt`。
+
+### 2. なぜそうしたか
+- **F1は案A（region名パターンのみ削除）**: 案B（マーカーファイル必須）は既存データに互換問題が出るため、ユーザー判断で案A。
+- **C1は展開前ドライパース**: 失敗時に展開済みファイルが残るのを避けるため（ユーザー判断）。代償として埋め込み前の元パスでGLB等を一度読みに行き、警告が出得る・インポートが重くなる。
+- **F2/AtomicFileは「remove(target)→再rename」フォールバック禁止**: AssetContainer::writeにはこのフォールバックがあるが、2回目失敗で元ファイルを失うため採用しなかった（AssetContainerは範囲外で未変更）。
+- **NaNの関所をSpatialに置いた**: 侵入口（ネットワーク/Luau `Vector3.new(0/0,..)`/YAML `.nan`/内部計算）がすべて位置setterを通るため。Box3D直前の関所は内部計算由来の速度・力用の多重防御。
+- **Packagerのスクリプト衝突は`dup_N/`サブディレクトリ**: `compileLuauInProc` のシグネチャを変えない規約のため（出力名を渡せない）。
+- **実機検証は起動フラグ方式**: 修正後はHostもNaNを生成できず、Luauに生送信APIもない。Luauデバッグ送信APIは悪用面が増えるため不採用（ユーザー選択）。
+
+### 3. どういう経緯か
+1. 「脆弱性を調査してクラッシュ証明→修正点を決める」→ Network(ByteReader/NAT)は堅牢と確認。候補: F1/M1/C1/F3/F2/F5/N1/P1/L1。
+2. 案Aでプローブ14件を実装・実行: F1/M1×3/C1/F5×4/F3×2 再現、N1は物理ステップでハング（60秒タイムアウト）、P1（子プロセス連続出力でpollが戻らない）は再現せず→除外。NaN原点のレイキャストは安全。
+3. ユーザー回答（F1案A、C1展開前検証、N1多層、F2含める、回帰登録）→implementerに委譲。レビューで `removeRegionFiles` の `filename().string()`（ANSIで表せない名前で例外→ワーカー死亡）を `AssetPath::toStored` に修正。
+4. 追加指示でModel経路（`assignLocalCFrameProperty`、`Model::pivotTo`）を塞ぎ、実機検証用フラグとシーンを作成。
+5. ps1がPowerShell 5.1で構文エラー→BOMなしUTF-8の日本語コメントが化けて`param`が壊れていた。ASCII化して解決。
+
+### 失敗・ハマりどころ
+- **プローブで `poll()` を子起動直後に呼ぶと0msで戻る**（子がまだ出力していない）。500ms待っても再現せず、P1は実害なしと判断。
+- **NaNハングの切り分け**: 最初はレイキャストを疑ったが、別プローブでNaNレイキャストは安全と判明。ハングは「Anchored体にNaN姿勢→数フレーム後のBox3Dステップ」。
+- **`.ps1` に日本語を書くとWindows PowerShell 5.1で壊れる**（BOMなしUTF-8）。ps1はASCIIのみ。
+- **`RecubinEngine.exe --help` を誤って実行**（GUI起動禁止方針に違反）→ `TestCases/NetworkTest/system_extensions.receipt` が生成されたので削除。起動系コマンドを確認目的で叩かない。
+- `Spatial.cpp`/`Box3DPhysicsBackend.cpp`/`Model.cpp` はCRLF。編集はPythonでCRLFを保って行った（Editツールだと混在の恐れ）。`test_main.cpp` はLF。
+- `--physics=physx` は「no longer supported」で即終了するため、PhysXでの回帰は実行不能。
+
+### 4. 未解決・保留
+- **AvatarBatch NaN の実機検証はユーザー実施待ち**（`run_avatar_batch_nan.ps1`、修正後のスクリプトは未起動確認）。
+- AvatarBatchのNaN破棄経路は回帰テストで直接検証できていない（Clientロールに実ネットワークが必要）。
+- 未証明・未対策の候補: L1（Luauから `workspace:Destroy()` / `Instance.new("Workspace"/"Terrain")`、同DataPathのTerrain二重ストリーマ）。
+- `AssetContainer::write` には「remove→再rename」フォールバックが残っており、F2と同種のリスクあり（範囲外で未修正）。
+- C1ドライパースの副作用（元パスでのアセット読み込み・警告ログ）。
+- `--audio-diagnostics-regression` の距離減衰5項目失敗は継続（今回と無関係、10/08から）。
+- 変更は全て未コミット。
+
+### 5. 暗黙仕様の発見
+- **位置setter（Spatial）は回転の正規化しか検査していなかった**。NaN位置は全経路から物理まで素通りし、Box3D（Release、assert無効）でハングする。
+- **MSVCの `std::filesystem::rename` は既存ファイルを置換する**。そのため旧 `RuntimeFileSystem::move(overwrite=false)` は上書き防止になっていなかった。
+- **cgltfは `cgltf_validate` を呼ばない限りaccessor/バッファ範囲・インデックス最大値を検証しない**。
+- **Terrain.DataPath は任意フォルダを指せる**（「Use Existing...」）。DataPath配下はregionファイル以外も存在しうる前提で扱う必要がある。
+- **Host側のリモートアバターは物理プロキシ**のため、Client→HostのAvatarBatch偽装は姿勢に効かない。実害経路は「悪意あるHost→全Client」。
+- ネットワークゲームではスクリプトが起動しない（game_main）ため、ネットワーク検証シーンでLuauによる状態表示はできない。

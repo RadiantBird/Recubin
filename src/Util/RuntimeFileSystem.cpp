@@ -1,6 +1,7 @@
 #include <Util/RuntimeFileSystem.hpp>
 #include <Util/AssetGuard.hpp>
 #include <Util/UUID.hpp>
+#include <Util/AtomicFile.hpp>
 #include <algorithm>
 #include <fstream>
 #include <cstdlib>
@@ -110,38 +111,10 @@ RuntimeFileResult RuntimeFileSystem::write(const std::string& path, const std::s
     std::error_code directoryError;
     fs::create_directories(resolved.parent_path(), directoryError);
     if (directoryError) return failure(directoryError.message());
-    fs::path temporary = resolved; temporary += ".tmp";
-    std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-    if (!output) return failure("write failed");
-    output.write(data.data(), static_cast<std::streamsize>(data.size()));
-    output.close();
-    if (!output) { std::error_code ignored; fs::remove(temporary, ignored); return failure("write failed"); }
-    fs::path backup = resolved;
-    backup += ".backup-" + std::to_string(std::hash<std::string>{}(resolved.string()));
-    std::error_code backupError;
-    const bool hadDestination = fs::exists(resolved, backupError);
-    if (backupError) { std::error_code ignored; fs::remove(temporary, ignored); return failure(backupError.message()); }
-    fs::remove(backup, backupError);
-    if (backupError) {
-        std::error_code ignored;
-        fs::remove(temporary, ignored);
-        return failure(backupError.message());
-    }
-    if (hadDestination) {
-        fs::rename(resolved, backup, backupError);
-        if (backupError) { std::error_code ignored; fs::remove(temporary, ignored); return failure(backupError.message()); }
-    }
-    std::error_code renameError;
-    fs::rename(temporary, resolved, renameError);
-    if (renameError) {
-        std::error_code restoreError;
-        if (hadDestination) fs::rename(backup, resolved, restoreError);
-        std::error_code cleanupError;
-        fs::remove(temporary, cleanupError);
-        if (restoreError) return failure("atomic replace failed; restore failed: " + restoreError.message());
-        return failure(renameError.message());
-    }
-    if (hadDestination) { std::error_code ignored; fs::remove(backup, ignored); }
+    std::error_code statusError;
+    if (resolved == m_root || fs::is_directory(resolved, statusError)) return failure("path is a directory");
+    std::string writeError;
+    if (!AtomicFile::writeReplacing(resolved, data, writeError)) return failure(writeError);
     return RuntimeFileResult{true};
 }
 
@@ -189,7 +162,18 @@ RuntimeFileResult RuntimeFileSystem::list(const std::string& path, std::vector<R
 
 RuntimeFileResult RuntimeFileSystem::createDirectory(const std::string& path) { std::string e; auto p=resolve(path,true,e); if(p.empty())return failure(e); std::error_code c; fs::create_directories(p,c); return c?failure(c.message()):RuntimeFileResult{true}; }
 RuntimeFileResult RuntimeFileSystem::copy(const std::string& source,const std::string& destination,bool overwrite){std::string e;auto a=resolve(source,false,e),b=resolve(destination,true,e);if(a.empty()||b.empty())return failure(e);std::error_code c;fs::copy_file(a,b,overwrite?fs::copy_options::overwrite_existing:fs::copy_options::none,c);return c?failure(c.message()):RuntimeFileResult{true};}
-RuntimeFileResult RuntimeFileSystem::move(const std::string& source,const std::string& destination,bool overwrite){std::string e;auto a=resolve(source,false,e),b=resolve(destination,true,e);if(a.empty()||b.empty())return failure(e);std::error_code c;if(overwrite){fs::remove(b,c);if(c)return failure(c.message());}fs::rename(a,b,c);return c?failure(c.message()):RuntimeFileResult{true};}
+RuntimeFileResult RuntimeFileSystem::move(const std::string& source, const std::string& destination, bool overwrite) {
+    std::string e;
+    auto a = resolve(source, false, e);
+    auto b = resolve(destination, true, e);
+    if (a.empty() || b.empty()) return failure(e);
+    if (a == m_root) return failure("cannot move portable root");
+    std::error_code c;
+    if (fs::is_directory(b, c)) return failure("destination is a directory");
+    if (!overwrite && fs::exists(b, c)) return failure("destination exists");
+    fs::rename(a, b, c);
+    return c ? failure(c.message()) : RuntimeFileResult{true};
+}
 RuntimeFileResult RuntimeFileSystem::remove(const std::string& path){std::string e;auto p=resolve(path,false,e);if(p.empty())return failure(e);if(p==m_root)return failure("cannot remove portable root");std::error_code c;if(fs::is_directory(p,c)&&!fs::is_empty(p,c))return failure("directory is not empty");fs::remove(p,c);return c?failure(c.message()):RuntimeFileResult{true};}
 RuntimeFileResult RuntimeFileSystem::removeTree(const std::string& path){std::string e;auto p=resolve(path,false,e);if(p.empty())return failure(e);const char* homeValue=std::getenv("HOME");const char* profileValue=std::getenv("USERPROFILE");const fs::path home=homeValue?fs::path(homeValue):(profileValue?fs::path(profileValue):fs::path{});if(p==m_root||(!home.empty()&&p==home)||p==p.root_path())return failure("cannot remove protected root");std::error_code c;fs::remove_all(p,c);return c?failure(c.message()):RuntimeFileResult{true};}
 

@@ -229,6 +229,42 @@ Result parseInto(const YAML::Node& asset, Instance& bag, Instance& materialBag,
     return ok();
 }
 
+// parseInto を例外安全にしたもの。パース中の例外は失敗結果へ変換する。
+Result parseIntoGuarded(const YAML::Node& asset, Instance& bag, Instance& materialBag,
+                        std::vector<std::string>& warnings) {
+    try {
+        return parseInto(asset, bag, materialBag, warnings);
+    } catch (const std::exception& e) {
+        return fail(std::string("Asset parse error: ") + e.what());
+    }
+}
+
+// AssetセクションのクローンへStorageId除去を適用する。
+YAML::Node cloneAssetForParse(const Loaded& loaded) {
+    YAML::Node asset = YAML::Clone(loaded.document.yaml["Asset"]);
+    for (auto root : asset["Roots"]) dropStorageIds(root);
+    if (asset["Materials"]) {
+        for (auto material : asset["Materials"]) dropStorageIds(material);
+    }
+    return asset;
+}
+
+// 切り離し状態のまま参照を解決するための一時コンテナ。Materialは本来と同じ
+// "MaterialService\<名前>" のパスで解決できるよう、同名の子コンテナに入れる。
+struct ParseBags {
+    std::shared_ptr<Instance> bag = std::make_shared<Instance>("__asset__");
+    std::shared_ptr<Instance> materialBag = std::make_shared<Instance>("MaterialService");
+    ParseBags() { bag->addChild(materialBag); }
+};
+
+// ファイル展開の前に、Asset が例外なくパースできることを検証する（一時インスタンスは破棄）。
+Result validateParse(const Loaded& loaded) {
+    const YAML::Node asset = cloneAssetForParse(loaded);
+    ParseBags bags;
+    std::vector<std::string> ignoredWarnings;
+    return parseIntoGuarded(asset, *bags.bag, *bags.materialBag, ignoredWarnings);
+}
+
 // 取り込み先に同名Materialがあれば既存を使い、無ければ追加対象にする。
 void matchMaterials(Instance& materialBag, Instance* materialService, Instance& bag,
                     Imported& out) {
@@ -292,28 +328,30 @@ Result load(const std::string& path, Loaded& out) {
 
 Result instantiate(const Loaded& loaded, const Options& options, Instance* materialService,
                    Imported& out) {
+    if (Result r = validateParse(loaded); !r) {
+        RCBN_ERROR("Asset import: " << r.message);
+        return r;
+    }
+
     Extraction extraction;
     if (Result r = extractAll(loaded, options, extraction); !r) {
         RCBN_ERROR("Asset import: " << r.message);
         return r;
     }
 
-    YAML::Node asset = YAML::Clone(loaded.document.yaml["Asset"]);
-    for (auto root : asset["Roots"]) dropStorageIds(root);
-    if (asset["Materials"]) {
-        for (auto material : asset["Materials"]) dropStorageIds(material);
-    }
+    YAML::Node asset = cloneAssetForParse(loaded);
     AssetDependencies::rewrite(asset, extraction.rewrites);
 
-    // 切り離し状態のまま参照を解決するための一時コンテナ。Materialは本来と同じ
-    // "MaterialService\<名前>" のパスで解決できるよう、同名の子コンテナに入れる。
-    auto bag = std::make_shared<Instance>("__asset__");
-    auto materialBag = std::make_shared<Instance>("MaterialService");
-    bag->addChild(materialBag);
+    ParseBags bags;
+    const auto& bag = bags.bag;
+    const auto& materialBag = bags.materialBag;
 
     Imported imported;
     imported.warnings = std::move(extraction.warnings);
-    if (Result r = parseInto(asset, *bag, *materialBag, imported.warnings); !r) return r;
+    if (Result r = parseIntoGuarded(asset, *bag, *materialBag, imported.warnings); !r) {
+        RCBN_ERROR("Asset import: " << r.message);
+        return r;
+    }
     SceneLoader::resolveConstraintRefs(bag.get());
     resolveLazyReferences(*bag);
     matchMaterials(*materialBag, materialService, *bag, imported);

@@ -1,0 +1,880 @@
+Root:
+  Properties:
+    MaxClonesPerFrame: 1000
+    MaxRestartsPerFrame: 100
+    ScriptLoopTimeoutSeconds: 2
+    BaseResolution:
+    - 1920
+    - 1080
+    UseNetwork: true
+  Children:
+  - ClassName: StarterCharacter
+    Name: StarterCharacter
+    Children:
+    - ClassName: Cube
+      Name: LeftArm
+      Properties:
+        Position:
+        - -1.5
+        - 0
+        - 0
+        Size:
+        - 1
+        - 2
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        LockFlags: []
+    - ClassName: Humanoid
+      Name: Humanoid
+      Properties:
+        WalkSpeed: 16
+        JumpPower: 50
+        ClimbSpeed: 16
+        JumpHeight: 6.3710494
+        MaxHealth: 100
+        RespawnTime: 5
+        Health: 100
+    - ClassName: Cube
+      Name: RightArm
+      Properties:
+        Position:
+        - 1.5
+        - 0
+        - 0
+        Size:
+        - 1
+        - 2
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        LockFlags: []
+    - ClassName: Cube
+      Name: Root
+      Properties:
+        Position:
+        - 0
+        - -0.411
+        - 0
+        Size:
+        - 2
+        - 4
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.13333334
+        - 0.52156866
+        - 0.6509804
+        - 0
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        LockFlags: []
+    - ClassName: Cube
+      Name: LeftLeg
+      Properties:
+        Position:
+        - -0.5
+        - -2
+        - 0
+        Size:
+        - 1
+        - 2
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0
+        - 0.14
+        - 0.32
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        LockFlags: []
+    - ClassName: Sphere
+      Name: Head
+      Properties:
+        Position:
+        - 0
+        - 1.625
+        - 0
+        Size:
+        - 1.25
+        - 1.25
+        - 1.25
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        LockFlags: []
+      Children:
+      - ClassName: Decal
+        Name: Decal_Front
+        Properties:
+          Face: 0
+          Texture: assets\image\hooo.png
+          UVCenter:
+          - 0.5
+          - 0.5
+          UVRadius: 0.15
+          Mode: 0
+    - ClassName: Cube
+      Name: RightLeg
+      Properties:
+        Position:
+        - 0.5
+        - -2
+        - 0
+        Size:
+        - 1
+        - 2
+        - 1
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0
+        - 0.14
+        - 0.32
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        LockFlags: []
+    - ClassName: MeshCube
+      Name: Hair
+      Properties:
+        Position:
+        - 0
+        - 0.509
+        - 0.151
+        Size:
+        - 4
+        - 4
+        - 4
+        Rotation:
+        - -9.099629e-07
+        - 1
+        - -9.099629e-07
+        - -4.371056e-08
+        Color:
+        - 0.3569231
+        - 0.3569231
+        - 0.3569231
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        MeshFile: assets\models\hair-Curuata.glb
+      Children:
+      - ClassName: Weld
+        Name: Weld
+        Properties:
+          Cube0: StarterCharacter\Hair
+          Cube1: StarterCharacter\Head
+    - ClassName: MeshCube
+      Name: Torso
+      Properties:
+        Position:
+        - 0
+        - 0
+        - 0
+        Size:
+        - 2
+        - 1.985
+        - 2
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.14509805
+        - 0.4862745
+        - 0.47058824
+        - 1
+        Anchored: false
+        CanCollide: false
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+        MeshFile: assets\models\GirlTorso.glb
+        LockFlags: []
+    - ClassName: LocalScript
+      Name: whoareyou
+    - ClassName: Motor6D
+      Name: RootJoint
+      Properties:
+        Part0: StarterCharacter\Root
+        Part1: StarterCharacter\Torso
+        C0:
+          Position:
+          - 0.0
+          - 0.411
+          - 0.0
+          Rotation:
+          - 0.0
+          - 0.0
+          - 0.0
+          - 1.0
+        C1:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Transform:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Frequency: 10
+        DampingRatio: 1
+    - ClassName: BallSocket
+      Name: RootJointRagdoll
+      Properties:
+        Cube0: StarterCharacter\Root
+        Cube1: StarterCharacter\Torso
+        Enabled: false
+    - ClassName: Motor6D
+      Name: Neck
+      Properties:
+        Part0: StarterCharacter\Torso
+        Part1: StarterCharacter\Head
+        C0:
+          Position:
+          - 0.0
+          - 1.625
+          - 0.0
+          Rotation:
+          - 0.0
+          - 0.0
+          - 0.0
+          - 1.0
+        C1:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Transform:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Frequency: 10
+        DampingRatio: 1
+    - ClassName: BallSocket
+      Name: NeckRagdoll
+      Properties:
+        Cube0: StarterCharacter\Torso
+        Cube1: StarterCharacter\Head
+        Enabled: false
+    - ClassName: Motor6D
+      Name: LeftShoulder
+      Properties:
+        Part0: StarterCharacter\Torso
+        Part1: StarterCharacter\LeftArm
+        C0:
+          Position:
+          - -1.5
+          - 0.0
+          - 0.0
+          Rotation:
+          - 0.0
+          - 0.0
+          - 0.0
+          - 1.0
+        C1:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Transform:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Frequency: 10
+        DampingRatio: 1
+    - ClassName: BallSocket
+      Name: LeftShoulderRagdoll
+      Properties:
+        Cube0: StarterCharacter\Torso
+        Cube1: StarterCharacter\LeftArm
+        Enabled: false
+    - ClassName: Motor6D
+      Name: RightShoulder
+      Properties:
+        Part0: StarterCharacter\Torso
+        Part1: StarterCharacter\RightArm
+        C0:
+          Position:
+          - 1.5
+          - 0.0
+          - 0.0
+          Rotation:
+          - 0.0
+          - 0.0
+          - 0.0
+          - 1.0
+        C1:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Transform:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Frequency: 10
+        DampingRatio: 1
+    - ClassName: BallSocket
+      Name: RightShoulderRagdoll
+      Properties:
+        Cube0: StarterCharacter\Torso
+        Cube1: StarterCharacter\RightArm
+        Enabled: false
+    - ClassName: Motor6D
+      Name: LeftHip
+      Properties:
+        Part0: StarterCharacter\Torso
+        Part1: StarterCharacter\LeftLeg
+        C0:
+          Position:
+          - -0.5
+          - -2.0
+          - 0.0
+          Rotation:
+          - 0.0
+          - 0.0
+          - 0.0
+          - 1.0
+        C1:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Transform:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Frequency: 10
+        DampingRatio: 1
+    - ClassName: BallSocket
+      Name: LeftHipRagdoll
+      Properties:
+        Cube0: StarterCharacter\Torso
+        Cube1: StarterCharacter\LeftLeg
+        Enabled: false
+    - ClassName: Motor6D
+      Name: RightHip
+      Properties:
+        Part0: StarterCharacter\Torso
+        Part1: StarterCharacter\RightLeg
+        C0:
+          Position:
+          - 0.5
+          - -2.0
+          - 0.0
+          Rotation:
+          - 0.0
+          - 0.0
+          - 0.0
+          - 1.0
+        C1:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Transform:
+          Position:
+          - 0
+          - 0
+          - 0
+          Rotation:
+          - 0
+          - 0
+          - 0
+          - 1
+        Frequency: 10
+        DampingRatio: 1
+    - ClassName: BallSocket
+      Name: RightHipRagdoll
+      Properties:
+        Cube0: StarterCharacter\Torso
+        Cube1: StarterCharacter\RightLeg
+        Enabled: false
+    - ClassName: Gyro
+      Name: RootGyro
+      Properties:
+        Part: StarterCharacter\Root
+        TargetRotation:
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        Frequency: 8
+        DampingRatio: 1
+        MaxTorque: 10000
+  - ClassName: Users
+    Name: Users
+    Children:
+    - ClassName: User
+      Name: User
+      Properties:
+        ControlMode: Free
+        Speed: 0.25
+        RotationSpeed: 1
+        MouseRotationSpeed: 0.15
+        CameraDistance: 10
+        ZoomSpeed: 0.1
+        MouseZoomSpeed: 1
+      Children:
+      - ClassName: Folder
+        Name: Inventory
+        Children:
+        - ClassName: Tool
+          Name: Tool
+          Properties:
+            Hand: Right
+            Handle: User\Inventory\Tool\Handle
+          Children:
+          - ClassName: Cylinder
+            Name: Handle
+            Properties:
+              Position:
+              - -2.3996103
+              - -5.454
+              - 15.990103
+              Size:
+              - 1
+              - 2
+              - 1
+              Rotation:
+              - 0
+              - 0
+              - 0
+              - 1
+              Color:
+              - 1
+              - 1
+              - 1
+              - 1
+              Anchored: false
+              CanCollide: true
+              CastShadow: true
+              Unlit: false
+              MassDensity: 1
+              MaterialType: 0
+              StaticFriction: 0.5
+              DynamicFriction: 0.5
+              Restitution: 0.1
+  - ClassName: Workspace
+    Name: Workspace
+    Properties:
+      Gravity:
+      - 0
+      - -196.20001
+      - 0
+      Wind:
+      - 0
+      - 0
+      - 0
+      PhysicsEnabled: true
+    Children:
+    - ClassName: Lighting
+      Name: Lighting
+      Properties:
+        Direction:
+        - 1
+        - -1
+        - -1
+        Brightness: 1
+        Color:
+        - 1
+        - 1
+        - 1
+        - 1
+    - ClassName: Cube
+      Name: Plate
+      Properties:
+        Position:
+        - 0
+        - 0
+        - 0
+        Size:
+        - 128
+        - 1
+        - 128
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.24
+        - 0.61
+        - 0.77
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: MarkerRed
+      Properties:
+        Position:
+        - 20
+        - 4
+        - 20
+        Size:
+        - 2
+        - 8
+        - 2
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.9
+        - 0.2
+        - 0.2
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: MarkerGreen
+      Properties:
+        Position:
+        - -20
+        - 4
+        - 20
+        Size:
+        - 2
+        - 8
+        - 2
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.2
+        - 0.8
+        - 0.3
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: MarkerBlue
+      Properties:
+        Position:
+        - 20
+        - 4
+        - -20
+        Size:
+        - 2
+        - 8
+        - 2
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.2
+        - 0.4
+        - 0.9
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: MarkerYellow
+      Properties:
+        Position:
+        - -20
+        - 4
+        - -20
+        Size:
+        - 2
+        - 8
+        - 2
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.95
+        - 0.85
+        - 0.2
+        - 1
+        Anchored: true
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: FallingBoxA
+      Properties:
+        Position:
+        - 6
+        - 12
+        - 0
+        Size:
+        - 2
+        - 2
+        - 2
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 1
+        - 0.5
+        - 0.1
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: FallingBoxB
+      Properties:
+        Position:
+        - 6
+        - 18
+        - 0.5
+        Size:
+        - 2
+        - 2
+        - 2
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.6
+        - 0.2
+        - 0.9
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1
+    - ClassName: Cube
+      Name: FallingBoxC
+      Properties:
+        Position:
+        - 6
+        - 24
+        - -0.5
+        Size:
+        - 2
+        - 2
+        - 2
+        Rotation:
+        - 0
+        - 0
+        - 0
+        - 1
+        Color:
+        - 0.1
+        - 0.9
+        - 0.9
+        - 1
+        Anchored: false
+        CanCollide: true
+        CastShadow: true
+        Unlit: false
+        MassDensity: 1
+        MaterialType: 0
+        StaticFriction: 0.5
+        DynamicFriction: 0.5
+        Restitution: 0.1

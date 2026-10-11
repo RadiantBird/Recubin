@@ -6,6 +6,7 @@
 #include <include/Util/Logger.hpp>
 #include <atomic>
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <unordered_set>
 #include <vector>
@@ -253,6 +254,11 @@ void Model::syncPivotsToCentroid(const std::vector<Model*>& models) {
 void Model::pivotTo(const CFrame& worldCFrame) {
     CFrame normalized = worldCFrame;
     if (!normalized.Rotation.tryNormalize()) return;
+    if (!std::isfinite(normalized.Position.x) || !std::isfinite(normalized.Position.y) ||
+        !std::isfinite(normalized.Position.z)) {
+        RCBN_ERROR("Rejected non-finite Position in Model::pivotTo for " << getFullPath());
+        return;
+    }
     const CFrame oldPivotWorld = getPivotCFrame();
     const CFrame delta = normalized * oldPivotWorld.inverse();
     std::vector<PivotPose> descendants;

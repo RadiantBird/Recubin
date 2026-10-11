@@ -9,6 +9,19 @@
 #include <vector>
 
 namespace {
+bool isFiniteVector3(const Vector3& v) {
+    return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
+}
+
+// Position が非有限なら RCBN_ERROR を出して true を返す(呼び出し側は代入を中止する)。
+bool rejectNonFinitePosition(Spatial& spatial, const Vector3& position, const char* operation) {
+    if (isFiniteVector3(position)) return false;
+    RCBN_ERROR("Rejected non-finite Position in " << operation << " for " << spatial.getClassName()
+               << " " << spatial.getFullPath() << ": [" << position.x << ","
+               << position.y << "," << position.z << "]");
+    return true;
+}
+
 // プロパティ(エディター/YAML)経由のローカルCFrame代入。Modelは子孫を
 // 一緒に動かす(ギズモと同じ挙動)。それ以外は従来のsetterに委ねる。
 bool isPlainModel(Instance* object) {
@@ -20,6 +33,7 @@ void assignLocalCFrameProperty(Spatial* spatial, const CFrame& local) {
         spatial->setCFrame(local);
         return;
     }
+    if (rejectNonFinitePosition(*spatial, local.Position, "Model CFrame property")) return;
     if (!spatial->IsA("Tool")) {
         // Modelのプロパティ代入はPivotToと同じ。原点が指定姿勢になるよう、
         // 子孫を含めて剛体的に移動する(物理ボディも同期される)。
@@ -178,6 +192,7 @@ Spatial* Spatial::getCoordinateParent() const {
 void Spatial::setWorldCFrame(const CFrame& worldCFrame) {
     CFrame normalized = worldCFrame;
     if (!normalized.Rotation.tryNormalize()) return;
+    if (rejectNonFinitePosition(*this, normalized.Position, "setWorldCFrame")) return;
     std::vector<DescendantPose> descendants;
     collectDescendantPoses(*this, descendants);
     assignWorldCFrame(*this, normalized);
@@ -189,6 +204,7 @@ void Spatial::setWorldCFrame(const CFrame& worldCFrame) {
 void Spatial::setCFrame(const CFrame& value) {
     CFrame normalized = value;
     if (!normalized.Rotation.tryNormalize()) return;
+    if (rejectNonFinitePosition(*this, normalized.Position, "setCFrame")) return;
     std::vector<DescendantPose> descendants;
     collectDescendantPoses(*this, descendants);
     if (!sameFrameExact(m_cframe, normalized)) notifyBoundsChanged();
@@ -201,6 +217,7 @@ void Spatial::setCFrame(const CFrame& value) {
 void Spatial::commitCFrame(const CFrame& value, SpatialUpdateOrigin origin) {
     CFrame normalized = value;
     if (!normalized.Rotation.tryNormalize()) return;
+    if (rejectNonFinitePosition(*this, normalized.Position, "commitCFrame")) return;
     std::vector<DescendantPose> descendants;
     if (origin == SpatialUpdateOrigin::Physics || origin == SpatialUpdateOrigin::Network)
         collectDescendantPoses(*this, descendants);
@@ -220,8 +237,7 @@ void Spatial::setPosition(const Vector3& value) {
 }
 
 void Spatial::setWorldPosition(const Vector3& worldPosition) {
-    if (!std::isfinite(worldPosition.x) || !std::isfinite(worldPosition.y) ||
-        !std::isfinite(worldPosition.z)) {
+    if (!isFiniteVector3(worldPosition)) {
         RCBN_ERROR("Rejected invalid WorldPosition for " << getClassName()
                    << " " << getFullPath() << ": [" << worldPosition.x
                    << "," << worldPosition.y << "," << worldPosition.z << "]");

@@ -502,6 +502,12 @@ bool MeshCube::loadFromGLB(const std::string& path) {
         activateFallback(path);
         return false;
     }
+    if (cgltf_validate(data) != cgltf_result_success) {
+        RCBN_WARN("MeshCube: GLBの検証に失敗しました: " << path);
+        cgltf_free(data);
+        activateFallback(path);
+        return false;
+    }
 
     std::vector<MeshVertex>   vertices;
     std::vector<unsigned int> indices;
@@ -582,6 +588,16 @@ bool MeshCube::loadFromGLB(const std::string& path) {
                 indices.reserve(indices.size() + indexCount);
                 std::vector<cgltf_uint> rawIndices(indexCount);
                 cgltf_accessor_unpack_indices(prim.indices, rawIndices.data(), sizeof(cgltf_uint), indexCount);
+                bool indexOutOfRange = false;
+                for (cgltf_size ii = 0; ii < indexCount; ++ii) {
+                    if (rawIndices[ii] >= vertexCount) { indexOutOfRange = true; break; }
+                }
+                if (indexOutOfRange) {
+                    RCBN_WARN("MeshCube: GLBのインデックスが頂点数を超えているためprimitiveを無視します: " << path);
+                    vertices.resize(baseIndex);
+                    normalMissing.resize(baseIndex);
+                    continue;
+                }
                 for (cgltf_size ii = 0; ii < indexCount; ++ii) {
                     indices.push_back(baseIndex + static_cast<unsigned int>(rawIndices[ii]));
                 }

@@ -26,7 +26,10 @@
 #include <cmath>
 #include <functional>
 #include <limits>
+#include <mutex>
 #include <queue>
+#include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <numbers>
 #include <thread>
@@ -428,6 +431,49 @@ CFrame fromB3Transform(b3Transform value) {
     return CFrame(fromB3Length(value.p), fromB3Quaternion(value.q));
 }
 
+// Box3Dへ書き込む直前の関所。NaN/Infを渡すと接触解決がハングやクラッシュを起こすため、
+// 非有限値は書き込みをスキップする。ログは同一contextにつき最初の数回だけ出す。
+constexpr int NON_FINITE_LOG_LIMIT = 3;
+
+void logNonFinite(const char* context) {
+    static std::mutex logMutex;
+    static std::unordered_map<std::string, int> counts;
+    std::lock_guard<std::mutex> lock(logMutex);
+    const int count = ++counts[context];
+    if (count > NON_FINITE_LOG_LIMIT) return;
+    RCBN_ERROR("Box3D: rejected non-finite value in " << context
+               << (count == NON_FINITE_LOG_LIMIT ? " (further reports suppressed)" : ""));
+}
+
+template <typename T>
+bool isFiniteXYZ(const T& value) {
+    return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+}
+
+bool isFiniteQuaternion(const Quaternion& value) {
+    return isFiniteXYZ(value) && std::isfinite(value.w);
+}
+
+// 非有限なら true(呼び出し側は書き込みをスキップする)。
+template <typename T>
+bool rejectNonFinite(const T& value, const char* context) {
+    if (isFiniteXYZ(value)) return false;
+    logNonFinite(context);
+    return true;
+}
+
+bool rejectNonFinite(const Quaternion& value, const char* context) {
+    if (isFiniteQuaternion(value)) return false;
+    logNonFinite(context);
+    return true;
+}
+
+bool rejectNonFinite(const CFrame& value, const char* context) {
+    if (isFiniteXYZ(value.Position) && isFiniteQuaternion(value.Rotation)) return false;
+    logNonFinite(context);
+    return true;
+}
+
 CFrame bodyWorldFrame(b3BodyId bodyId) {
     return CFrame(
         fromB3Position(b3Body_GetPosition(bodyId)),
@@ -742,6 +788,7 @@ void Box3DPhysicsBackend::setBodyWorldCFrame(
     BaseCube& cube, const CFrame& worldCFrame) {
     const b3BodyId id = bodyId(cube);
     if (B3_IS_NULL(id) || !b3Body_IsValid(id)) return;
+    if (rejectNonFinite(worldCFrame, "setBodyWorldCFrame")) return;
     b3Body_SetTransform(id, toB3Position(worldCFrame.Position),
                        toB3Quaternion(worldCFrame.Rotation));
     b3Body_SetLinearVelocity(id, b3Vec3_zero);
@@ -805,12 +852,14 @@ std::optional<float> Box3DPhysicsBackend::getBodyMass(
 void Box3DPhysicsBackend::setLinearVelocity(
     BaseCube& cube, const Vector3& velocity) {
     const b3BodyId id = bodyId(cube);
+    if (rejectNonFinite(velocity, "setLinearVelocity")) return;
     if (B3_IS_NON_NULL(id)) b3Body_SetLinearVelocity(id, toB3Length(velocity));
 }
 
 void Box3DPhysicsBackend::setAngularVelocity(
     BaseCube& cube, const Vector3& velocity) {
     const b3BodyId id = bodyId(cube);
+    if (rejectNonFinite(velocity, "setAngularVelocity")) return;
     if (B3_IS_NON_NULL(id)) b3Body_SetAngularVelocity(id, toB3Vector(velocity));
 }
 
@@ -1177,8 +1226,10 @@ void Box3DPhysicsBackend::recreateActor(const std::shared_ptr<BaseCube>& cube) {
         b3DestroyBody(replacement);
         return;
     }
-    b3Body_SetLinearVelocity(replacement, toB3Length(linear));
-    b3Body_SetAngularVelocity(replacement, toB3Vector(angular));
+    if (!rejectNonFinite(linear, "recreateActor linearVelocity"))
+        b3Body_SetLinearVelocity(replacement, toB3Length(linear));
+    if (!rejectNonFinite(angular, "recreateActor angularVelocity"))
+        b3Body_SetAngularVelocity(replacement, toB3Vector(angular));
     b3Body_SetLinearDamping(replacement, linearDamping);
     b3Body_SetAngularDamping(replacement, angularDamping);
     b3Body_SetGravityScale(replacement, gravityScale);
@@ -1420,6 +1471,7 @@ void Box3DPhysicsBackend::syncCubeWithBodyState(
             return;
         }
         const CFrame bodyTarget = cubeWorld * cube.m_compoundLocalOffset.inverse();
+        if (rejectNonFinite(bodyTarget, "setTargetTransform")) return;
         b3WorldTransform target = {
             toB3Position(bodyTarget.Position),
             toB3Quaternion(bodyTarget.Rotation),
@@ -1496,6 +1548,7 @@ void Box3DPhysicsBackend::moveWeldAssembly(
     const b3BodyId id = bodyId(*member);
     if (B3_IS_NULL(id)) return;
     const CFrame target = worldCFrame * member->m_compoundLocalOffset.inverse();
+    if (rejectNonFinite(target, "setAssemblyWorldCFrame")) return;
     b3Body_SetTransform(id, toB3Position(target.Position), toB3Quaternion(target.Rotation));
     b3Body_SetLinearVelocity(id, b3Vec3_zero);
     b3Body_SetAngularVelocity(id, b3Vec3_zero);
@@ -1512,6 +1565,7 @@ void Box3DPhysicsBackend::enqueueSetRotation(
     if (B3_IS_NULL(id)) return;
     const CFrame cubeWorld = cube->getWorldCFrame();
     const CFrame bodyWorld = cubeWorld * cube->m_compoundLocalOffset.inverse();
+    if (rejectNonFinite(bodyWorld, "enqueueSetRotation")) return;
     b3Body_SetTransform(
         id, toB3Position(bodyWorld.Position), toB3Quaternion(bodyWorld.Rotation));
 }
@@ -1621,6 +1675,7 @@ void Box3DPhysicsBackend::applyForces() {
             id, state.gravityEnabled && !state.maintainLinear ? 1.0f : 0.0f);
         for (const ResolvedForce& resolved : state.additiveForces) {
             const Vector3& value = resolved.worldValue;
+            if (rejectNonFinite(value, "Force value")) continue;
             if (resolved.force->Torque) {
                 if (state.maintainAngular) continue;
                 b3Body_ApplyTorque(
@@ -1632,7 +1687,8 @@ void Box3DPhysicsBackend::applyForces() {
                 b3Body_ApplyForceToCenter(id, toB3Length(value), true);
             }
         }
-        if (state.maintainLinear)
+        if (state.maintainLinear &&
+            !rejectNonFinite(state.linearTarget, "Force MaintainVelocity linear"))
             b3Body_SetLinearVelocity(id, toB3Length(state.linearTarget));
 
         if (state.maintainAngular) {
@@ -1651,10 +1707,11 @@ void Box3DPhysicsBackend::applyForces() {
                 targetAngularVelocity, currentAngularVelocity,
                 state.angularAxisMask, state.angularMaskFrame);
 
-            b3Body_SetAngularVelocity(
-                id,
-                targetAngularVelocity
-            );
+            if (!rejectNonFinite(targetAngularVelocity, "Force MaintainVelocity angular"))
+                b3Body_SetAngularVelocity(
+                    id,
+                    targetAngularVelocity
+                );
         }
 
         const float preStepAngularVelocityY =
@@ -1689,6 +1746,7 @@ void Box3DPhysicsBackend::applyForces() {
                 angularVelocity.y = toB3Vector(resolveForceVector(
                     *diagnostic.force, *diagnostic.owner,
                     diagnostic.force->Value)).y;
+                if (rejectNonFinite(angularVelocity, "Yaw force rig angular velocity")) continue;
                 b3Body_SetAngularVelocity(bodyIdValue, angularVelocity);
             }
         }
@@ -1732,7 +1790,8 @@ void Box3DPhysicsBackend::applyMaintainedVelocities() {
         // friction and constraints are allowed to solve normally,
         // then the requested maintained velocity is restored after
         // the solver has finished.
-        if (state.maintainLinear) {
+        if (state.maintainLinear &&
+            !rejectNonFinite(state.linearTarget, "Force MaintainVelocity linear restore")) {
             b3Body_SetLinearVelocity(
                 id,
                 toB3Length(state.linearTarget)
@@ -1804,17 +1863,21 @@ void Box3DPhysicsBackend::applyMaintainedVelocities() {
                     newPosition.x = pivot.x + rotated.x;
                     newPosition.y = pivot.y + rotated.y;
                     newPosition.z = pivot.z + rotated.z;
-                    b3Body_SetTransform(
-                        target, newPosition,
-                        b3NormalizeQuat(b3MulQuat(
-                            correction, b3Body_GetRotation(target))));
+                    const b3Quat newRotation = b3NormalizeQuat(b3MulQuat(
+                        correction, b3Body_GetRotation(target)));
+                    if (rejectNonFinite(newPosition, "Force angular correction position") ||
+                        rejectNonFinite(fromB3Quaternion(newRotation),
+                                        "Force angular correction rotation"))
+                        continue;
+                    b3Body_SetTransform(target, newPosition, newRotation);
                 }
             }
 
-            b3Body_SetAngularVelocity(
-                id,
-                targetAngularVelocity
-            );
+            if (!rejectNonFinite(targetAngularVelocity, "Force MaintainVelocity angular restore"))
+                b3Body_SetAngularVelocity(
+                    id,
+                    targetAngularVelocity
+                );
         }
     }
 }
@@ -2036,6 +2099,7 @@ void Box3DPhysicsBackend::applyGyroForces() {
             GyroAxis::Z,
             {0.0f, 0.0f, 1.0f});
 
+        if (rejectNonFinite(appliedTorque, "Gyro torque")) continue;
         if (b3LengthSquared(appliedTorque) > 0.0f) {
             b3Body_ApplyTorque(id, appliedTorque, true);
         }
@@ -2893,8 +2957,10 @@ void Box3DPhysicsBackend::rebuildAssembly(
     b3Body_SetAngularDamping(newBody, savedAngularDamping);
     b3Body_SetGravityScale(newBody, savedGravityScale);
     if (!anchored && velocityCaptured) {
-        b3Body_SetLinearVelocity(newBody, toB3Length(linearVelocity));
-        b3Body_SetAngularVelocity(newBody, toB3Vector(angularVelocity));
+        if (!rejectNonFinite(linearVelocity, "rebuild linearVelocity"))
+            b3Body_SetLinearVelocity(newBody, toB3Length(linearVelocity));
+        if (!rejectNonFinite(angularVelocity, "rebuild angularVelocity"))
+            b3Body_SetAngularVelocity(newBody, toB3Vector(angularVelocity));
     }
 
     std::vector<std::shared_ptr<Instance>> recreate;

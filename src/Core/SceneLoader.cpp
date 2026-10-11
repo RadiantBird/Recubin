@@ -73,6 +73,8 @@
 #include <Core/User.hpp>
 #include <Core/AudioService.hpp>
 #include <Util/Logger.hpp>
+#include <Util/AtomicFile.hpp>
+#include <Util/AssetPath.hpp>
 #include <iostream>
 #include <fstream>
 #include <memory>
@@ -754,26 +756,9 @@ bool SceneLoader::saveSceneResult(Instance* root, const std::string& filePath,
         RCBN_ERROR("Scene serialization failed for '" << filePath << "': " << serialized.message);
         return false;
     }
-#ifdef _WIN32
-    auto wstrTo = [](const std::string& str) -> std::wstring {
-        if (str.empty()) return std::wstring();
-        int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.data(), (int)str.size(), NULL, 0);
-        std::wstring result(size_needed, 0);
-        MultiByteToWideChar(CP_UTF8, 0, str.data(), (int)str.size(), result.data(), size_needed);
-        return result;
-    };
-    std::ofstream file(wstrTo(filePath), std::ios::binary | std::ios::trunc);
-#else
-    std::ofstream file(filePath, std::ios::binary | std::ios::trunc);
-#endif
-    if (!file) {
-        RCBN_ERROR("Failed to open scene for write: " << filePath);
-        return false;
-    }
-    file.write(serialized.yaml.data(), static_cast<std::streamsize>(serialized.yaml.size()));
-    file.flush();
-    if (!file) {
-        RCBN_ERROR("Failed to write scene: " << filePath);
+    std::string writeError;
+    if (!AtomicFile::writeReplacing(AssetPath::fromStored(filePath), serialized.yaml, writeError)) {
+        RCBN_ERROR("Failed to write scene: " << filePath << " (" << writeError << ")");
         return false;
     }
     return true;

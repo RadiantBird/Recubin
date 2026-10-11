@@ -146,6 +146,69 @@ static std::string compileLuauInProc(const fs::path& src, const fs::path& dstDir
     return AssetPath::toStored(outPath);
 }
 
+// candidate が base の内側(base 自身は含まない)にあるか。字句的な正規化のみで判定する。
+static bool isInsideDirectory(const fs::path& base, const fs::path& candidate) {
+    const fs::path relative = candidate.lexically_normal().lexically_relative(base.lexically_normal());
+    if (relative.empty() || relative == ".") return false;
+    return *relative.begin() != "..";
+}
+
+// コピー先(正規化・小文字化) -> 元パス の対応表。異なる元パスが同じコピー先になるのを防ぐ。
+using DestinationTable = std::unordered_map<std::string, std::string>;
+
+static std::string destinationKey(const fs::path& path) {
+    std::string key = AssetPath::toStored(path.lexically_normal());
+    std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+    return key;
+}
+
+static std::string sourceKey(const fs::path& source) {
+    return AssetPath::toStored(source.lexically_normal());
+}
+
+// 別の元パスが使用済みでなければ true。
+static bool isDestinationFree(const DestinationTable& used, const fs::path& dst, const std::string& source) {
+    const auto found = used.find(destinationKey(dst));
+    return found == used.end() || found->second == source;
+}
+
+// wanted が他の元パスと衝突するなら stem_1.ext, stem_2.ext ... (ディレクトリは name_1 ...) を選び、予約する。
+static fs::path reserveDestination(DestinationTable& used, const fs::path& wanted,
+                                   const fs::path& source, bool isDirectory) {
+    const std::string src = sourceKey(source);
+    fs::path chosen = wanted;
+    for (int i = 1; !isDestinationFree(used, chosen, src); ++i) {
+        const std::string suffix = "_" + std::to_string(i);
+        if (isDirectory) {
+            chosen = wanted.parent_path() / (wanted.filename().generic_string() + suffix);
+        } else {
+            chosen = wanted.parent_path() / (wanted.stem().generic_string() + suffix +
+                                             wanted.extension().generic_string());
+        }
+    }
+    used[destinationKey(chosen)] = src;
+    return chosen;
+}
+
+// スクリプトの出力先ディレクトリを選ぶ。出力(.luauc)とフォールバックのソースコピーの
+// どちらも他の元パスと衝突しない dstDir を返し、両方を予約する。
+static fs::path reserveScriptDirectory(DestinationTable& used, const fs::path& baseDir,
+                                       const fs::path& source) {
+    const std::string src = sourceKey(source);
+    const std::string stem = AssetPath::toStored(source.stem());
+    const fs::path filename = source.filename();
+    fs::path dstDir = baseDir;
+    for (int i = 1;
+         !isDestinationFree(used, dstDir / AssetPath::fromStored(stem + ".luauc"), src) ||
+         !isDestinationFree(used, dstDir / filename, src);
+         ++i) {
+        dstDir = baseDir / ("dup_" + std::to_string(i));
+    }
+    used[destinationKey(dstDir / AssetPath::fromStored(stem + ".luauc"))] = src;
+    used[destinationKey(dstDir / filename)] = src;
+    return dstDir;
+}
+
 // Walk YAML tree and collect file-referencing values for given keys.
 // out: vector of (yamlNodeRef-like info isn't trackable, so we collect string paths)
 // DataPath はディレクトリ参照（Terrainのチャンク保存先）のため、ファイルパスとは別に dirPaths に集める。
@@ -744,6 +807,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
 
     // Process each referenced file
     std::unordered_map<std::string, std::string> pathMap; // old -> new (relative to gameDir)
+    DestinationTable usedDestinations; // コピー先 -> 元パス（衝突回避用）
     for (const std::string& rawPath : rawPaths) {
         if (isAutosavePath(AssetPath::fromStored(rawPath))) {
             log("[WARN] Skipping editor autosave reference: " + rawPath);
@@ -762,7 +826,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
         }
 
         if (isScript(rawPath)) {
-            fs::path dstDir = gameDir / "assets/scripts";
+            fs::path dstDir = reserveScriptDirectory(usedDestinations, gameDir / "assets/scripts", src);
             std::string compiled = compileLuauInProc(src, dstDir, log);
             if (!compiled.empty()) {
                 fs::path rel = fs::relative(AssetPath::fromStored(compiled), gameDir, ec);
@@ -773,7 +837,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
                 // Fallback: copy source (compile failed)
                 fs::path dst = dstDir / src.filename();
                 if (copyFile(src, dst, log))
-                    pathMap[rawPath] = AssetPath::toStored(fs::path("assets/scripts") / src.filename());
+                    pathMap[rawPath] = AssetPath::toStored(fs::relative(dst, gameDir, ec));
             }
         } else {
             // Determine destination subdir from file extension
@@ -785,11 +849,15 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
             // are collected into the package's stable assets/anims namespace.
             if (isAnimationClip(rawPath)) {
                 dst = gameDir / "assets/anims" / src.filename();
-            } else if (isRel) {
+            } else if (isRel && isInsideDirectory(gameDir, gameDir / src)) {
                 dst = gameDir / src;
             } else {
+                if (isRel) {
+                    log("[WARN] Asset path escapes the package, relocating: " + rawPath);
+                }
                 dst = gameDir / sub / src.filename();
             }
+            dst = reserveDestination(usedDestinations, dst, src, false);
             if (copyFile(src, dst, log)) {
                 fs::path rel = fs::relative(dst, gameDir, ec);
                 const std::string storedRel = AssetPath::toStored(rel);
@@ -814,13 +882,16 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
         }
         fs::path dst;
         std::string newRel;
-        if (src.is_relative()) {
+        if (src.is_relative() && isInsideDirectory(gameDir, gameDir / src)) {
             dst = gameDir / src;   // 相対はそのままの位置に同梱
-            newRel = AssetPath::toStored(src);
         } else {
+            if (src.is_relative()) {
+                log("[WARN] Terrain data path escapes the package, relocating: " + rawDir);
+            }
             dst = gameDir / "terrain" / src.filename();
-            newRel = AssetPath::toStored(fs::path("terrain") / src.filename());
         }
+        dst = reserveDestination(usedDestinations, dst, src, true);
+        newRel = AssetPath::toStored(fs::relative(dst, gameDir, ec));
         std::error_code dirEc;
         fs::create_directories(dst.parent_path(), dirEc);
         if (!copyDirectoryWithoutAutosave(src, dst, log)) {

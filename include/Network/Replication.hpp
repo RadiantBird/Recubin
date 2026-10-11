@@ -69,6 +69,8 @@ public:
     Physics* getBoundPhysics() const { return m_physics; }
     std::uint64_t getWorkspaceGeneration() const { return m_workspaceGeneration; }
     bool hasFatalIdentityError() const { return m_fatalIdentityError; }
+    // 実機検証専用(--debug-inject-nan-avatar-batch)。Hostが約1秒ごとにNaN座標のAvatarBatchを追加送信する。
+    void setDebugInjectNaNAvatarBatch(bool enabled);
 
 private:
     friend struct ReplicationTestAccess;
@@ -179,9 +181,13 @@ private:
     bool m_predictionSceneReady = false;
 
     void bufferLocalInput(float dt); // Client: 毎フレーム、現在のlastMovementInputを履歴に積む
+    void sendDebugNaNAvatarBatch(const std::vector<std::pair<PeerId, CFrame>>& entries); // Host: 検証用NaN注入
 
     std::deque<BufferedInput> m_inputHistory;
     uint32_t m_nextSeq = 1;
+    bool m_debugInjectNaNAvatarBatch = false; // Host: 検証用にNaN座標のAvatarBatchを追加送信する
+    uint32_t m_debugInjectBatchCounter = 0;   // Host: 通常AvatarBatchの送信回数(注入間隔の計数用)
+    uint32_t m_debugInjectSentCount = 0;      // Host: 注入したNaN AvatarBatchの数(ログ用)
     bool m_pendingJumpLatch = false; // Client: 前回AvatarState送信以降にジャンプ要求があったか(20Hz間引きでタップを取りこぼさないためのラッチ)
     uint32_t m_standUpRequestSeq = 0; // Client: 離席要求を含む入力のseq。Host ACKまで再送する
 
