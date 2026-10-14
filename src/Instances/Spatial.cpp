@@ -120,7 +120,7 @@ const bool s_spatialRegistered = [] {
         if (isPlainModel(object)) cframe.set(object, value);
         else static_cast<Spatial*>(object)->setCFrame(std::get<CFrame>(value));
     };
-    cframe.noYaml().multiOnly();
+    cframe.noYaml();
     registerClass("Spatial", "Instance", {position, size, rotation, cframe});
     return true;
 }();

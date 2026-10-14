@@ -72,6 +72,18 @@ Play/Pause/Stop、Select/Move/Resize/Rotate（ギズモモード）、New Cube/N
 Collision Fit は独立した `Fit` 操作として表示する。
 既存のドッキング、各ツールのトグル挙動、キーボードショートカットは変更しない。
 
+GUIタブ（`renderToolbarGui()`）は画面GUIの編集用で、表示中だけ `GuiEditState::active` を立てて
+ビューポートを画面GUI専用の操作にする。並べるのは次の通りで、処理は `GuiToolbarActions` にまとめる
+（いずれも `CommandHistory` 経由で Undo 1回分）。
+
+- TextLabel／TextButton／ImageLabel／ImageButton の追加（Workspace直下の画面中央に追加して選択）
+- 基準解像度（`System.BaseResolution`）のプルダウン。16:9 と 4:3 のプリセット
+- 揃え（左・左右中央・右・上・上下中央・下）。1つ選択中は画面に、複数選択中は選択全体のAABBに揃える
+- 全画面化（Position を原点、Size を画面いっぱいにする）
+- 吸着 ON/OFF（`GuiEditState::snap`）
+
+揃えと全画面化は `Locked` の要素を対象にしない。
+
 大きなツールバー群の間には`drawToolbarMajorSeparator()`を置く。このhelperは左右10pxの余白と、
 58pxボタン行を基準に中央配置する40pxの暗線＋明線を一体として描画する。Snap内部は線を増やさず、
 Move／Rotate／Resize／Fitの間を12pxの余白で分ける。

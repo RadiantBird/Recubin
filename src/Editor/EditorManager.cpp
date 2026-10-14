@@ -12,6 +12,9 @@
 #include <Editor/Localization.hpp>
 #include <Instances/Cube.hpp>
 #include <Instances/System.hpp>
+#include <Instances/ScreenGuiObject.hpp>
+#include <Editor/GuiToolbarActions.hpp>
+#include <Core/SystemState.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Wedge.hpp>
@@ -296,6 +299,7 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
     propertiesPanel->m_decalPlace = &m_decalPlace;
     viewportPanel->m_decalPlace   = &m_decalPlace;
     viewportPanel->m_weldMode     = &m_weldMode;
+    viewportPanel->m_guiEdit      = &m_guiEdit;
 
     // メインビューポートをデフォルトでフォーカス状態に設定
     ViewportFocusManager::getInstance().onFocusViewport(viewportPanel.get());
@@ -609,6 +613,7 @@ void EditorManager::openSecondaryViewport(Workspace* ws) {
     panel->m_terrainBrush = &m_terrainBrush;
     panel->m_decalPlace = &m_decalPlace;
     panel->m_weldMode   = &m_weldMode;
+    panel->m_guiEdit    = &m_guiEdit;
     panel->title = std::string(Loc::t(Loc::LocKey::PanelViewport)) + ": " + ws->Name + "###SecVP_" + std::to_string(reinterpret_cast<std::uintptr_t>(panel.get()));
     panel->m_useOwnCamera = true;
     panel->initOwnCameraFrom(*m_user);
@@ -1364,6 +1369,10 @@ void EditorManager::renderToolbar() {
     ImGui::PopStyleVar();
 
     renderToolbarTabs();
+    // GUIタブ中だけビューポートで画面GUIを編集する（3Dのクリック操作は止める）
+    m_guiEdit.active = m_toolbarCategory == ToolbarCategory::Gui;
+    // GUIタブの編集中は Alt を吸着の一時オフに使うため、Alt のフリールック（マウスロック）を止める
+    if (m_user) m_user->setAltLookAllowed(!m_guiEdit.active || SystemState::get().isPlaying);
 
     switch (m_toolbarCategory) {
         case ToolbarCategory::Basic:     renderToolbarBasic();     break;
@@ -1371,6 +1380,7 @@ void EditorManager::renderToolbar() {
         case ToolbarCategory::Terrain:   renderToolbarTerrain();   break;
         case ToolbarCategory::Physics:   renderToolbarPhysics();   break;
         case ToolbarCategory::Character: renderToolbarCharacter(); break;
+        case ToolbarCategory::Gui:       renderToolbarGui();       break;
     }
 
     ImGui::End();
@@ -1397,6 +1407,7 @@ void EditorManager::renderToolbarTabs() {
     tabButton(Loc::LocKey::ToolbarTabTerrain,   ToolbarCategory::Terrain);
     tabButton(Loc::LocKey::ToolbarTabPhysics,   ToolbarCategory::Physics);
     tabButton(Loc::LocKey::ToolbarTabCharacter, ToolbarCategory::Character);
+    tabButton(Loc::LocKey::ToolbarTabGui,       ToolbarCategory::Gui);
 
     ImGui::NewLine();
 }
@@ -1855,6 +1866,96 @@ void EditorManager::renderToolbarCharacter() {
         m_history.execute(std::make_unique<AddInstanceCommand>(ws, model));
         markDirty();
     }
+}
+
+void EditorManager::renderToolbarGui() {
+    if (!m_workspace) return;
+    const float scale = m_uiLayoutScale;
+    const ImVec2 btnSz(78.0f * scale, 58.0f * scale);
+    const ImVec2 alignBtnSz(58.0f * scale, 58.0f * scale);
+    const auto& colors = editorThemeColors();
+    auto* workspace = static_cast<Workspace*>(m_workspace);
+
+    // ---- クイック追加: Workspace直下の画面中央へ追加して選択する ----
+    auto addButton = [&](const char* icon, const char* className) {
+        if (!drawIconButton(icon, className, btnSz)) return;
+        if (auto gui = GuiToolbarActions::addElement(className, *workspace, &m_history)) {
+            hierarchyPanel->selectedInstance = gui.get();
+            hierarchyPanel->selectedInstances.clear();
+            hierarchyPanel->selectedInstances.push_back(gui.get());
+            markDirty();
+        }
+    };
+    addButton(ICON_TEXT, "TextLabel");
+    ImGui::SameLine();
+    addButton(ICON_BUTTON, "TextButton");
+    ImGui::SameLine();
+    addButton(ICON_DECAL, "ImageLabel");
+    ImGui::SameLine();
+    addButton(ICON_DECAL, "ImageButton");
+
+    // ---- 基準解像度（System.BaseResolution） ----
+    drawToolbarMajorSeparator(scale);
+    System* system = (m_system && m_system->IsA("System")) ? static_cast<System*>(m_system) : nullptr;
+    ImGui::BeginGroup();
+    ImGui::TextUnformatted(Loc::t(Loc::LocKey::GuiResolutionLabel));
+    ImGui::BeginDisabled(system == nullptr);
+    const Vector2 current = GuiToolbarActions::baseResolution(*workspace);
+    const auto& presets = GuiToolbarActions::resolutionPresets();
+    char preview[64];
+    std::snprintf(preview, sizeof(preview), "%s  %d x %d", Loc::t(Loc::LocKey::GuiResolutionCustom),
+                  static_cast<int>(current.x), static_cast<int>(current.y));
+    for (const auto& preset : presets) {
+        if (preset.size == current) std::snprintf(preview, sizeof(preview), "%s", preset.label);
+    }
+    ImGui::SetNextItemWidth(170.0f * scale);
+    if (ImGui::BeginCombo("##gui_base_resolution", preview)) {
+        for (const auto& preset : presets) {
+            const bool selected = preset.size == current;
+            if (ImGui::Selectable(preset.label, selected) && !selected && system) {
+                if (GuiToolbarActions::setBaseResolution(*system, preset.size, &m_history)) markDirty();
+            }
+            if (selected) ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::EndDisabled();
+    ImGui::EndGroup();
+
+    // ---- 揃え・全画面化（Locked は対象外） ----
+    drawToolbarMajorSeparator(scale);
+    const std::vector<ScreenGuiObject*> targets = GuiToolbarActions::editableSelection(
+        hierarchyPanel->selectedInstances, hierarchyPanel->selectedInstance);
+    ImGui::BeginDisabled(targets.empty());
+    auto alignButton = [&](const char* icon, Loc::LocKey key, GuiToolbarActions::Align align) {
+        if (drawIconButton(icon, Loc::t(key), alignBtnSz) &&
+            GuiToolbarActions::align(targets, *workspace, align, &m_history))
+            markDirty();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("%s", Loc::t(Loc::LocKey::GuiAlignTooltip));
+        ImGui::SameLine();
+    };
+    alignButton(ICON_ALIGN_LEFT,   Loc::LocKey::GuiAlignLeft,    GuiToolbarActions::Align::Left);
+    alignButton(ICON_ALIGN_CENTER, Loc::LocKey::GuiAlignCenterX, GuiToolbarActions::Align::CenterX);
+    alignButton(ICON_ALIGN_RIGHT,  Loc::LocKey::GuiAlignRight,   GuiToolbarActions::Align::Right);
+    alignButton(nullptr,           Loc::LocKey::GuiAlignTop,     GuiToolbarActions::Align::Top);
+    alignButton(nullptr,           Loc::LocKey::GuiAlignCenterY, GuiToolbarActions::Align::CenterY);
+    alignButton(nullptr,           Loc::LocKey::GuiAlignBottom,  GuiToolbarActions::Align::Bottom);
+    if (drawIconButton(ICON_EXPAND, Loc::t(Loc::LocKey::GuiFitScreen), btnSz) &&
+        GuiToolbarActions::fitToScreen(targets, *workspace, &m_history))
+        markDirty();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("%s", Loc::t(Loc::LocKey::GuiFitScreenTooltip));
+    ImGui::EndDisabled();
+
+    // ---- 吸着 ON/OFF ----
+    drawToolbarMajorSeparator(scale);
+    ImGui::PushStyleColor(ImGuiCol_Button, m_guiEdit.snap ? colors.toolbarActive : colors.toolbarInactive);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colors.toolbarHover);
+    if (drawIconButton(ICON_MAGNET, Loc::t(Loc::LocKey::GuiSnapToggle), btnSz, m_guiEdit.snap))
+        m_guiEdit.snap = !m_guiEdit.snap;
+    ImGui::PopStyleColor(2);
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", Loc::t(Loc::LocKey::GuiSnapTooltip));
 }
 
 void EditorManager::cleanupOrphanedSelection() {

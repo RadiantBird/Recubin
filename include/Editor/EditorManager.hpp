@@ -58,7 +58,8 @@ enum class ToolbarCategory {
     Cubes,
     Terrain,
     Physics,
-    Character
+    Character,
+    Gui
 };
 
 // ===================================================
@@ -201,6 +202,7 @@ public:
     TerrainBrushState m_terrainBrush; // TerrainBrushState は PropertiesPanel.hpp で定義
     DecalPlaceState   m_decalPlace;   // DecalPlaceState は PropertiesPanel.hpp で定義
     WeldModeState     m_weldMode;
+    GuiEditState      m_guiEdit;
 
     template <typename T, typename... Args>
     void tryAddObjectButton(const char* icon, const std::string& label, const std::string& defaultName,
@@ -286,6 +288,7 @@ private:
     void renderToolbarTerrain();
     void renderToolbarPhysics();
     void renderToolbarCharacter();
+    void renderToolbarGui();
     void applyTheme();
     void applyClassicTheme();
     void applyFrutigerTheme();

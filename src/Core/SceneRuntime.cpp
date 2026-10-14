@@ -33,6 +33,7 @@ void copySystemScalars(const System& source, System& destination) {
     destination.MaxTasksPerFrame = source.MaxTasksPerFrame;
     destination.ScriptLoopTimeoutSeconds = source.ScriptLoopTimeoutSeconds;
     destination.BaseResolution = source.BaseResolution;
+    destination.UseFixedResolution = source.UseFixedResolution;
     destination.UseNetwork = source.UseNetwork;
     destination.NetworkInterpolationDelay = source.NetworkInterpolationDelay;
     destination.EnableIOAPI = source.EnableIOAPI;

@@ -567,8 +567,9 @@ bool User::processCameraRotation(bool viewportFocused, float deltaTime, bool bui
     // Alt トグル: ビューポートにフォーカスがあるとき、Alt 押下の立ち上がりで
     // フリールック(マウスを動かすだけでカメラが回る)を ON/OFF する
     const bool altDown = physicalAltDown;
-    if (altDown && !m_altKeyWasDown) m_altLookActive = !m_altLookActive;
+    if (altDown && !m_altKeyWasDown && m_altLookAllowed) m_altLookActive = !m_altLookActive;
     m_altKeyWasDown = altDown;
+    if (!m_altLookAllowed) m_altLookActive = false;
     // フォーカスを失ったらフリールックは解除（カーソルが隠れたままになるのを防ぐ）
     if (!viewportFocused) m_altLookActive = false;
 

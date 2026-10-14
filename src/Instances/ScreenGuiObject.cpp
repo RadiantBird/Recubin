@@ -12,6 +12,8 @@ static const bool s_screenGuiRegistered = []{
         std::move(systemFont),
         instanceRefField<&ScreenGuiObject::FontFile>("FontFile", "FontFile")
             .omitEmpty().noEditor(),
+        field<&ScreenGuiObject::Locked>("Locked")
+            .serializeIf([](const Instance* o) { return static_cast<const ScreenGuiObject*>(o)->Locked; }),
         sig  <&ScreenGuiObject::Hovered>("Hovered"),
     });
     return true;

@@ -5,9 +5,16 @@
 // GUI コンテンツのコンポーネント（HasA）。
 // TextLabel/TextButton が TextContent を、ImageLabel/ImageButton が ImageContent を保持し、
 // 描画・エディター・Luau は GuiObject::textContent()/imageContent() 経由で問い合わせる。
+// 要素矩形内での文字の揃え（既定は従来の描画と同じ「左寄せ・縦中央」）
+enum class TextXAlignment { Left = 0, Center = 1, Right = 2 };
+enum class TextYAlignment { Top = 0, Center = 1, Bottom = 2 };
+
 struct TextContent {
-    std::string Text;
-    Color4      TextColor = {0.f, 0.f, 0.f, 1.f};
+    std::string    Text;
+    Color4         TextColor = {0.f, 0.f, 0.f, 1.f};
+    TextXAlignment XAlignment = TextXAlignment::Left;
+    TextYAlignment YAlignment = TextYAlignment::Center;
+    bool           TextScaled = false;  // true: FontSizeを無視し、要素矩形いっぱいに拡大・縮小する
 };
 
 struct ImageContent {

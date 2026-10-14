@@ -96,6 +96,8 @@ struct GameGuiRenderContext {
 
     // セカンダリViewportがUser.GetMouseRay用のプライマリ矩形を上書きしないための指定。
     bool recordUserViewport = true;
+    // Pixel単位の画面GUIを縦横同率で拡大する（エディターの非固定解像度ビューポート用）
+    bool uniformPixelScale = false;
 };
 
 class Renderer {
@@ -336,7 +338,8 @@ class Renderer {
         std::weak_ptr<ChatService> m_chatService;
         RuntimeChatOverlay m_chatOverlay;
 
-        void renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH);
+        void renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH,
+                             bool uniformPixelScale = false);
         void renderWorldGui (Workspace& ws, User* user, const GameGuiRenderContext& context);
         void renderToolHotbar(User& user, float vpX, float vpY, float vpW, float vpH);
         static GameGuiRenderContext makeGameGuiRenderContext(

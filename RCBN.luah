@@ -451,6 +451,7 @@ export type ScreenGuiObject = GuiObject & {
     Position: Vector2,
     UseFontFile: boolean,
     Font: "Default" | "DotGothic16",
+    Locked: boolean, -- エディター用: ビューポートでクリック選択・ドラッグ移動できない
     FontFile: FontFile?,
 }
 
@@ -477,12 +478,18 @@ export type SignalEvent = Instance & {
 export type TextLabel = ScreenGuiObject & {
     Text: string,
     TextColor: Color4,
+    TextXAlignment: "Left" | "Center" | "Right", -- 既定 "Left"
+    TextYAlignment: "Top" | "Center" | "Bottom", -- 既定 "Center"
+    TextScaled: boolean, -- true: FontSizeを無視し要素矩形いっぱいに拡大・縮小
     FontSize: number, -- 0 = 既定サイズ
 }
 
 export type TextButton = GuiButton & {
     Text: string,
     TextColor: Color4,
+    TextXAlignment: "Left" | "Center" | "Right", -- 既定 "Left"
+    TextYAlignment: "Top" | "Center" | "Bottom", -- 既定 "Center"
+    TextScaled: boolean, -- true: FontSizeを無視し要素矩形いっぱいに拡大・縮小
     FontSize: number, -- 0 = 既定サイズ
 }
 

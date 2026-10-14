@@ -133,24 +133,31 @@ void ViewportPanel::onRender() {
     const ViewportLayout layout = renderLayoutAndScene();
     updateViewportFocus();
     updateOwnCameraInput();
-    const bool terrainBrushActive = updateTerrainBrush(layout);
-    const bool weldModeConsumedClick = updateWeldMode(layout);
-    {
-        FrameProfiler::Scope click("ui.viewportClick");
-        handleViewportClick(layout, terrainBrushActive, weldModeConsumedClick);
+    // ツールバーのGUIタブ中は画面GUIだけを編集し、3Dのクリック操作（ブラシ・Weld・選択・
+    // 矩形選択・ギズモ・自由ドラッグ・ピボット）を止める。GUIタブ以外ではGUIはクリックを素通りする
+    updateGuiEdit(layout);
+    if (isGuiEditMode()) {
+        drawFocusBorder();
+    } else {
+        const bool terrainBrushActive = updateTerrainBrush(layout);
+        const bool weldModeConsumedClick = updateWeldMode(layout);
+        {
+            FrameProfiler::Scope click("ui.viewportClick");
+            handleViewportClick(layout, terrainBrushActive, weldModeConsumedClick);
+        }
+        updateBoxSelection(layout);
+        drawFocusBorder();
+        {
+            FrameProfiler::Scope gizmo("ui.viewportGizmo");
+            updateGizmo(layout);
+        }
+        drawHoverHighlight(layout);
+        {
+            FrameProfiler::Scope freeDrag("ui.viewportFreeDrag");
+            updateFreeDrag(layout);
+        }
+        handlePivotShortcut(layout);
     }
-    updateBoxSelection(layout);
-    drawFocusBorder();
-    {
-        FrameProfiler::Scope gizmo("ui.viewportGizmo");
-        updateGizmo(layout);
-    }
-    drawHoverHighlight(layout);
-    {
-        FrameProfiler::Scope freeDrag("ui.viewportFreeDrag");
-        updateFreeDrag(layout);
-    }
-    handlePivotShortcut(layout);
     handleFocusShortcut();
 
     ImGuizmo::PopID();
@@ -169,16 +176,19 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
     // System.BaseResolution のアスペクト比を維持したレターボックスサイズを計算
     // (System が見つからない/不正な場合は既定 1920x1080 のアスペクトにフォールバック)
     float baseW = 1920.f, baseH = 1080.f;
+    bool useFixedResolution = true;
     if (workspace) {
         if (auto parent = workspace->Parent.lock(); parent && parent->IsA("System")) {
             auto* sys = static_cast<System*>(parent.get());
             if (sys->BaseResolution.x > 0.f) baseW = sys->BaseResolution.x;
             if (sys->BaseResolution.y > 0.f) baseH = sys->BaseResolution.y;
+            useFixedResolution = sys->UseFixedResolution;
         }
     }
+    // System.UseFixedResolution が false なら黒帯を付けず、パネルの実サイズをそのまま描画解像度にする
     float letterboxScale = (std::min)(avail.x / baseW, avail.y / baseH);
-    int w = (int)(baseW * letterboxScale);
-    int h = (int)(baseH * letterboxScale);
+    int w = useFixedResolution ? (int)(baseW * letterboxScale) : (int)avail.x;
+    int h = useFixedResolution ? (int)(baseH * letterboxScale) : (int)avail.y;
     if (w < 1) w = 1;
     if (h < 1) h = 1;
     resizeFBO(w, h);
@@ -237,7 +247,10 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
             camPos(), camForward(), camRight(), camUp(),
             static_cast<float>(w) / static_cast<float>(h),
             /*recordUserViewport=*/!m_useOwnCamera);
-        Renderer::instance->renderGameGui(*workspace, user, guiContext);
+        GameGuiRenderContext viewportGuiContext = guiContext;
+        // 黒帯なしでは縦横比がBaseResolutionと違うため、Pixel単位のGUIを縦横同率で拡大して歪ませない
+        viewportGuiContext.uniformPixelScale = !useFixedResolution;
+        Renderer::instance->renderGameGui(*workspace, user, viewportGuiContext);
     }
 
     // レターボックス外側の黒帯を最前面に重ね描きする（BillboardGui等の3D投影GUIは
@@ -259,6 +272,7 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
     layout.contentOrigin = contentOrigin;
     layout.width = w;
     layout.height = h;
+    layout.uniformGuiScale = !useFixedResolution;
     return layout;
 }
 

@@ -7,10 +7,17 @@ struct TerrainBrushState;  // PropertiesPanel.hpp で定義
 struct DecalPlaceState;    // PropertiesPanel.hpp で定義
 class CommandHistory;
 class BaseCube;
+class ScreenGuiObject;
 
 struct WeldModeState {
     bool active = false;
     std::weak_ptr<BaseCube> cube0;
+};
+
+// ツールバーのGUIタブの状態（EditorManagerが所有し、全ビューポートで共有する）
+struct GuiEditState {
+    bool active = false;  // true: 画面GUIだけを編集する（3Dのクリック操作を止める）。false: GUIはクリックを素通りする
+    bool snap   = true;   // ドラッグ時の吸着（Alt押下中は一時的に無効）
 };
 #include <include/GL/glew.h>
 #include <include/GLFW/glfw3.h>
@@ -24,6 +31,8 @@ struct WeldModeState {
 #include <Core/Terrain.hpp>
 #include <Core/TerrainStreamer.hpp>
 #include <Editor/CommandHistory.hpp>
+#include <Editor/GuiSnap.hpp>
+#include <Core/ScreenGuiLayout.hpp>
 #include <vector>
 
 // ===================================================
@@ -69,6 +78,7 @@ public:
     TerrainBrushState* m_terrainBrush = nullptr;
     DecalPlaceState*   m_decalPlace   = nullptr;
     WeldModeState*      m_weldMode     = nullptr;
+    GuiEditState*       m_guiEdit      = nullptr;
     double m_lastTerrainBrushTime = -1.0; // ブラシの連続適用を間引くための前回適用時刻
     std::vector<TerrainStreamer::VoxelDiffEntry> m_terrainBrushDiff;   // 現在のストロークで変更されたブロックの差分
     std::shared_ptr<Terrain> m_terrainBrushStrokeTarget;               // ストローク中のTerrainインスタンス（Undo用に保持）
@@ -85,6 +95,25 @@ public:
         Instance* target = nullptr;
     };
     HoverPickCache m_hoverPickCache;
+
+    // 画面GUI(ScreenGuiObject)のビューポート編集（選択・ドラッグ移動・吸着）
+    struct GuiDragEntry {
+        std::weak_ptr<Instance> target;
+        Vector2 beforePosition;
+    };
+    bool   m_guiDragArmed = false;   // GUI要素上の押下後、5px閾値待ち
+    bool   m_guiDragging  = false;
+    ImVec2 m_guiDragStart = {};
+    std::vector<GuiDragEntry> m_guiDragEntries;
+    ScreenGuiLayout::Rect m_guiDragStartBounds;  // ドラッグ開始時の選択GUI全体のAABB（画面座標）
+    GuiSnap::Result m_guiSnap;                   // 現在の吸着結果（ガイド線描画用）
+    // Shift 押下中に出るリサイズハンドルの操作（対象はプライマリ選択の1要素）
+    bool   m_guiResizing = false;
+    GuiSnap::ResizeHandle m_guiResizeHandle;
+    std::weak_ptr<Instance> m_guiResizeTarget;
+    ScreenGuiLayout::Rect m_guiResizeStartRect;  // リサイズ開始時の矩形（画面座標）
+    Vector2 m_guiResizeBeforePosition;
+    Vector2 m_guiResizeBeforeSize;
 
     // ギズモ / フリードラッグ undo 用状態
     bool m_wasUsingGizmo = false;
@@ -166,6 +195,7 @@ private:
         ImVec2 contentOrigin;
         int width = 1;
         int height = 1;
+        bool uniformGuiScale = false;  // 非固定解像度: Pixel単位の画面GUIを縦横同率で拡大する
     };
 
     ViewportLayout renderLayoutAndScene();
@@ -173,6 +203,23 @@ private:
     void updateOwnCameraInput();
     bool updateTerrainBrush(const ViewportLayout& layout);
     bool updateWeldMode(const ViewportLayout& layout);
+    // 画面GUIの選択・ドラッグ移動・選択枠（GUIタブ中のみ操作を受け付ける）
+    void updateGuiEdit(const ViewportLayout& layout);
+    bool isGuiEditMode() const;
+    ScreenGuiObject* findGuiAt(const ViewportLayout& layout, const ImVec2& point) const;
+    std::vector<ScreenGuiObject*> selectedScreenGuiObjects() const;
+    void selectGuiFromClick(ScreenGuiObject* hit);
+    void beginGuiDrag(const ViewportLayout& layout);
+    void updateGuiDrag(const ViewportLayout& layout);
+    void endGuiDrag();
+    ScreenGuiObject* guiResizeTarget() const;
+    bool findGuiResizeHandleAt(const ViewportLayout& layout, const ImVec2& point,
+                               GuiSnap::ResizeHandle& handle) const;
+    void beginGuiResize(const ViewportLayout& layout, const GuiSnap::ResizeHandle& handle);
+    void updateGuiResize(const ViewportLayout& layout);
+    void endGuiResize();
+    std::vector<ScreenGuiLayout::Rect> guiSnapTargets(const ViewportLayout& layout, const Vector2& scale) const;
+    void drawGuiOverlay(const ViewportLayout& layout, ScreenGuiObject* hovered) const;
     void handleViewportClick(const ViewportLayout& layout,
                              bool terrainBrushActive,
                              bool weldModeConsumedClick);

@@ -457,6 +457,19 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
   `GuiObject::textContent()`/`imageContent()` で問い合わせて分岐を一本化する
   （`Renderer_GUI.cpp`の`drawGuiContent`）。ボタン性は GuiButton 基底（Activated シグナル）
   が担う。クラス名・YAMLキー（Text/TextColor/Image）・Luauプロパティ名は変わらない。
+- 画面GUI（ScreenGuiObject）はエディター用の `Locked` を持つ（既定false、trueのときだけYAMLへ出力）。
+  Locked の要素はビューポートでクリックを素通りし、ドラッグ・ツールバーの揃え/全画面化の対象外になる。
+  Explorer/プロパティからは選択・編集できる。
+- ビューポートでの画面GUIの編集はツールバーのGUIタブ表示中だけ行い、その間は3Dのクリック操作と
+  Alt のフリールック（マウスロック）を止める（Alt は吸着の一時オフに使う）。Shift 押下中だけ
+  プライマリ選択のGUIにリサイズハンドルを出す。
+- System.UseFixedResolution（エディター用、既定true）が false なら、エディターのビューポートは黒帯なしで
+  パネルの実サイズを描画解像度にし、Pixel単位の画面GUIは縦横同率で拡大縮小する。ランタイムは変わらない。
+  GUIタブ以外では画面GUIはクリックを素通りする（全画面GUIがあっても3Dを編集できるようにするため）。
+- TextContent は TextXAlignment（Left/Center/Right、既定Left）・TextYAlignment（Top/Center/Bottom、
+  既定Center）・TextScaled（既定false）も持つ。既定値は従来の描画（左寄せ＋縦中央）と同じで、
+  既定値のときはYAMLへ出力しない。Luauでは文字列（`label.TextXAlignment = "Center"`）で読み書きする。
+  TextScaled は FontSize を無視して矩形いっぱいへ拡大・縮小する（BillboardGui子の縮小専用fitとは別）。
 - **SurfaceGuiの実際のベイク解像度は、SurfaceGui自身の`Size`比率ではなく、親BaseCubeの
   対象フェイスの物理サイズ比率に合わせて決まる**（`Renderer_GUI.cpp`の`computeSurfaceGuiLayout`）。
   例えば`Size=[200,100]`のSurfaceGuiを1x1x1の立方体に貼ると、実際のFBOは200x200になり、

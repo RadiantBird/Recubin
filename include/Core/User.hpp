@@ -84,6 +84,8 @@ public:
     std::shared_ptr<RCBNScriptSignal> ExitRequested;
 
     bool processCameraRotation(bool viewportFocused, float deltaTime, bool builtinInputEnabled = true);
+    // Alt トグルのフリールックを許可するか（エディターのGUIタブ中は Alt を吸着の一時オフに使うため止める）
+    void setAltLookAllowed(bool allowed) { m_altLookAllowed = allowed; }
     void processZoom(bool keyboardZoomEnabled, bool mouseZoomEnabled, float deltaTime);
     void processMovement(bool viewportFocused, Physics* physics, float deltaTime);
     void processHotkeys(Physics* physics);
@@ -332,6 +334,7 @@ private:
     double lastMouseY = 0.0;
     bool m_altLookActive = false;  // Alt トグルによるフリールック中か
     bool m_altKeyWasDown = false;  // Alt 押下の立ち上がり検出用
+    bool m_altLookAllowed = true;  // false の間は Alt でフリールックを開始しない（開始済みなら解除）
     bool m_externalDragActive = false;  // セカンダリビューポートの独立カメラがカーソルロック中か
     bool m_mouseLockEnabled = false;
     bool m_mouseCaptureApplied = false;

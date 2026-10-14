@@ -33,6 +33,10 @@ class System : public Instance {
 
         // ScreenGui(Norm::Pixel)の自動スケーリング基準解像度。Luauへは読み取り専用で公開。
         Vector2 BaseResolution = {1920.f, 1080.f};
+        // エディター用: trueならビューポートをBaseResolutionの縦横比で黒帯付き表示する。
+        // falseなら黒帯なしでパネル全体に描画し、Pixel単位の画面GUIは縦横同率で拡大縮小する。
+        // ランタイム(game_main)の描画には影響しない。Luauからは不可視。
+        bool UseFixedResolution = true;
 
         // trueの場合、LocalScript/Scriptが区別されて動作する(Client側ではLocalScriptのみ実行)。
         // falseの場合、区別されず、ネットワーク通信も一切行わない。

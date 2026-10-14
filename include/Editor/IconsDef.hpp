@@ -95,4 +95,9 @@
 #define ICON_QUATERNIONVALUE     "\xef\x8b\xb9"  // f2f9 fa-redo-alt
 #define ICON_OBJECTVALUE         "\xef\x83\xa8"  // f0e8 fa-sitemap
 
+#define ICON_ALIGN_LEFT          "\xef\x80\xb6"  // f036 fa-align-left
+#define ICON_ALIGN_CENTER        "\xef\x80\xb7"  // f037 fa-align-center
+#define ICON_ALIGN_RIGHT         "\xef\x80\xb8"  // f038 fa-align-right
+#define ICON_MAGNET              "\xef\x81\xb6"  // f076 fa-magnet
+#define ICON_EXPAND              "\xef\x81\xa5"  // f065 fa-expand
 #define ICON_WEDGE               "\xef\x95\x86"  // f546 fa-ruler-combined

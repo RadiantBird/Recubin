@@ -284,6 +284,25 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "Humanoid追加", "Add Humanoid" },
     { "リグビルダー", "Rig Builder" },
 
+    // ---- EditorManager: ツールバーのGUIタブ ----
+    { "GUI",          "GUI" },
+    { "基準解像度",   "Base Resolution" },
+    { "カスタム",     "Custom" },
+    { "左揃え",       "Align Left" },
+    { "左右中央",     "Center H" },
+    { "右揃え",       "Align Right" },
+    { "上揃え",       "Align Top" },
+    { "上下中央",     "Center V" },
+    { "下揃え",       "Align Bottom" },
+    { "1つ選択中は画面に、複数選択中は選択全体の範囲に揃えます（Lockedは対象外）",
+      "Aligns to the screen for one selection, or to the selection bounds for several (Locked is skipped)" },
+    { "全画面化",     "Fill Screen" },
+    { "選択中のGUIを画面いっぱいにします（Lockedは対象外）",
+      "Makes the selected GUI fill the screen (Locked is skipped)" },
+    { "吸着",         "Snap" },
+    { "ドラッグ時に他のGUIや画面の端・中央へ吸着します（Alt押下中は一時的に無効）",
+      "Snaps to other GUI and screen edges/centers while dragging (hold Alt to bypass)" },
+
     // ---- ViewportPanel: ギズモ軸モード切替 ----
     { "ワールド",            "World" },
     { "ローカル",            "Local" },

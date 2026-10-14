@@ -18,6 +18,7 @@
 | `BackgroundColor` | `Color4` | 背景色（アルファ = 不透明度） |
 | `ZIndex` | `int` | 描画順 |
 | `FontSize` | `float` | 論理文字サイズ。0 = 既定サイズ（TextLabel/TextButton のみ使用）。画面GUIの描画時だけ `System.BaseResolution` 基準の画面スケールを適用 |
+| `Locked` | `bool` | エディター用。`true` ならビューポートでのクリック選択・ドラッグ移動を受け付けず、クリックは背後の要素へ素通りする（Explorer/プロパティからは選択・編集可）。既定 `false`、`true` のときだけYAMLへ出力 |
 | `Hovered` | `shared_ptr<RCBNScriptSignal>` | マウスカーソルが要素内に入った瞬間に発火（Roblox の MouseEnter 相当） |
 | `m_wasHovered` | `bool` | ホバー判定のエッジ検出用（Luau 非公開） |
 

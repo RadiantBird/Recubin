@@ -354,3 +354,264 @@
 - **接触イベント（Seat着席など）は`Physics::update`末尾の`dispatchContactEvents`でまとめて配送**され、固定stepループ中には起きない。
 - 既定リグは股関節がRoot中心の1下、baseplateのStarterCharacterはRoot 2×4×1で股関節がRoot中心（リグごとに着席高さが違う）。
 - キャラ制御はPlay中、固定step(1/60)ごとに`Humanoid::stepControl`で進む。`User`は入力を渡すだけ（spec.md未記載）。
+
+## 2026-10-11 ネットワーク物理の演算主導権化・車輪Motorの車軸曲がり修正
+
+前セッション（641f0f6「Host権威+固定tick決定論」）の続き。コミットは 27fd630（主導権化）と 4c38fae（Motor/サブステップ）。
+
+### 1. 何をしたか
+**Clientの同期物体のstepごと駆動（主導権化の前段、27fd630に含む）**
+- `Physics`: `addPreStepCallback`（owner付きの固定stepごとのコールバック）を追加。
+- `ReplicationManager::clientStepWorldObjects`: 物理ボディを持つ同期物体へ、固定stepごとにそのstep後の時刻の補間姿勢をキネマティック目標として与える（Weld compoundはnative bodyごとに1回）。目標が4stud以上離れていれば瞬間移動（`driveKinematicBody`）。
+
+**演算主導権（Network Ownership）への切り替え（27fd630）**
+- `NetworkTypes.hpp`
+  - `AvatarState` を入力列から「Clientが演算した自キャラの姿勢」（Clientのtick・pos・quat・速度・walkCycle・接地・操作軸）に再定義した。
+  - `OwnedTransforms=12` / `Ownership=13` / `JointDrive=14` / `StandUpRequest=15` を追加した。
+  - `AvatarBatch` から `lastProcessedSeq` を削除した。
+- `NetworkManager.cpp`: ゲームメッセージの範囲を `StandUpRequest` まで広げた。
+- 新規 `SnapshotClock`（`include/Network`・`src/Network`）
+  - 相手のtickを追う補間時計。表示時刻とstep時刻を持つ。
+  - Clientは「Hostの時計」として1つ、Hostは「Clientごとの時計」として1つずつ使う。
+  - 旧 `clientNoteHostTick` / `m_renderTick` / `m_kinematicTick` を置き換えた。
+- `Replication.cpp/.hpp`
+  - **削除したもの**：入力の記録・再送・ジッターバッファ・補正の一式。
+    - `clientRecordInputStep` / `clientSendInputs`
+    - `PeerInputQueue` / `hostQueueInputs` / `hostConsumeInputStep` / `hostDrainInputSurplus`
+    - `reconcileLocalPose` / `m_lastProcessedSeq`
+  - **Host側に追加したもの**
+    - `hostReceiveAvatarState`
+    - `hostStepProxies`：Host上の他プレイヤーを、動的ボディのまま受信姿勢へ速度で追従させる。重力は切り、4stud超は瞬間移動する。着席・死亡・Ragdoll中は追従しない。
+    - `hostSimulateAvatars`：歩行表示に加え、着席中はClientの操作軸を `Seat.Throttle/Steer` へ書く。
+    - 主導権の処理：`collectMechanism` / `hostUpdateOwnership` / `hostAssignOwnership` / `hostReclaimOwnership` / `hostSendOwnership` / `hostSendJointDrives` / `hostReceiveOwnedTransforms` / `hostStepOwnedObjects`
+  - **Client側に追加したもの**：`clientSendAvatarState` / `clientSendOwnedTransforms` / `clientNotifyStandUp` / `clientApplyOwnership` / `clientApplyJointDrive`
+  - **その他**
+    - `onPreStep`：Client・Hostの役割で分けず、両方の処理を呼ぶ（対象が無い側は何もしない）。
+    - `translateLocalCharacter` を `translateCharacter(Instance&, ...)` に一般化した。
+    - `enablePhysicsProxy`：proxy内のGyroとForceを止め、`setTickControlled(false)` にする。
+    - `hostRescanWorld`：主導権を渡してAnchoredにした部品も同期対象に残す。
+    - `setSyncedWorldCFrame`：同期で部品を動かすとき、Attachmentのローカル姿勢を保つ。
+- `doc/Instances/Seat.md`：ネットワーク時の着席・降車・主導権の流れを記述した。
+
+**Motor車軸の曲がりの修正とPhysicsSubsteps（4c38fae）**
+- `Workspace.PhysicsSubsteps`（int、既定8、範囲1〜16）を追加した。YAML・Luau・エディターに対応し、Cloneはレジストリ経由で複製される。
+  - Box3D側は固定値の `SUB_STEPS=4` を廃止し、物理更新のたびに `Workspace` からクランプして `m_subSteps` に取る。
+- `Model.cpp`：`syncPivotToCentroid` / `syncPivotToPrimaryCube` で、部品に付いたAttachmentのローカル姿勢を戻すようにした（`movePivotKeepingCubeAttachments`）。
+- `Physics::reconcileConstraints`：関節の取り付け位置の比較（`sameFrame`）に許容誤差を入れた（位置1e-4、回転はdotで1e-7）。
+- `Box3DPhysicsBackend::createMotor` / `Motor.hpp` の `NativeJointFrames`
+  - 最初にnative jointを作ったときの支点と、Cube1から見た向きを、各Cubeのローカル座標で保持する。
+  - ボディだけが作り直されたとき（着席のWeld合成、Anchoredの切り替え）はこれを再利用する。
+  - Cube・Attachment・Axisが変わったときは使わない。
+  - Servoは、作り直し直後に今の角度から目標への速度を入れ直す。
+- `MOTOR_CONSTRAINT_HERTZ` に、関節の硬さの上限（15Hz×サブステップ数）についてのコメントを足した。
+- doc：`Workspace.md`（PhysicsSubsteps）、`Motor.md`（ボディの作り直しでは基準が変わらないこと）を更新した。
+- テスト
+  - `--network-avatar-regression` を全面的に作り直した。
+    - proxyの追従と向き、瞬間移動
+    - Seatの操作軸
+    - 機構の収集
+    - 主導権の付与と回収
+    - JointDrive
+    - 受信姿勢で動かした車を受け取っても車軸がずれないこと
+  - 新規 `--motor-axle-regression`
+    - YAMLでの読み込み
+    - サブステップ数ごとの傾き
+    - 運転中にjointが作り直されないこと
+    - 作り直しで傾きが取り込まれないこと
+
+### 2. なぜそうしたか
+- **入力再生をやめて主導権へ**
+  - Host権威＋入力再生では、Host・Clientどちらかのフレームが詰まると、入力バッファが空になるか溢れた。その結果、読み飛ばし・補正・ワープ・着席待ちが起きた。ローカル検証では3窓が1台で動くので頻発する。
+  - バッファ方針を2回変えても解消しなかったので、ユーザーの判断でRoblox方式に切り替えた。
+  - 主導権化すると、入力の遅れが自キャラに影響する経路がなくなる。
+- **Host proxyを動的ボディのまま速度で追従させた**：キネマティックにすると、Anchored（Box3Dではキネマティック）の物体との接触イベントが出ず、Touched（座席・キルブロック等）が壊れるため。
+- **着席はHost権威のまま、降車はClientが先に立つ**：着席の二重化を防ぎつつ、降車の応答を速くするため。Clientは以前からローカルで立っていたので、入力フラグを専用メッセージに置き換えた。
+- **Motorの駆動値の複製**：車のScriptはHostでしか動かない（Clientでは `LocalScript` 以外を実行しない）。そこで、Hostのスクリプトが設定した値を所有Clientへ送る（1往復分の遅れはRobloxと同じ）。
+- **車輪の関節（b3WheelJoint）への変更は不採用**
+  - 測定で改善しなかった（密度1・前進旋回で14.5°、revoluteは11.4°）。
+  - 軸を保つ拘束はrevoluteと同じ2×2の解き方で、同じ硬さの上限がかかる。
+  - 回転角を取得する関数がなく、Servoも実現できない。
+- **サブステップはWorkspaceのプロパティにした**（ユーザーの選択）：効いた唯一の候補だが計算量に比例するので、ゲームごとに上げられるようにした。
+- **車軸の曲がりは「関節の作り直し」を3段で止めた**
+  - 発生源（Modelのpivot同期による丸め誤差）を止めた。
+  - 比較に許容誤差を入れた（他の経路から誤差が入っても毎step作り直さない）。
+  - 正当な作り直し（着席・Anchoredの切り替え）でも、元の基準を使うようにした。
+  - 1つだけだと、残りの経路から再発するため。
+
+### 3. どういう経緯か
+1. 前セッションのコミット後、ユーザーが「車輪が回るのは根本対策を」「Clientが運転するとジッター。演算主導権の譲渡は？」と提案した。
+   - ①Clientのstepごとのキネマティック駆動 → ②Jointの変更 → ③主導権、の順で進める合意をした。
+2. ①を実装すると挙動は改善したが、「Wを押しながら乗ると、入れ直したとき一気に飛ぶ」「ジッターで乗れない」との報告があった。
+   - Hostのログで、入力バッファが溢れて約40stepずつ読み飛ばしていることが分かった。
+   - **1回目の修正（失敗）**：未着で待つ方式を「毎tick必ず進む」方式に変えた。
+     - Client側で重いフレームに物理stepが間引かれると、Hostの読み取り位置がClientより先へ進み、以降の入力をすべて読み飛ばす状態から戻れなくなった。Clientの補正が一度も出ないことで判明した。
+   - **2回目の修正（失敗）**：「何も届いていなければ3件溜まるまで待つ。抜けたseqは進める。余剰は1秒窓の最小値で少しずつ捨てる」方式にした。
+     - それでも溢れが連続し（約0.7秒ごとに約40件まとめて届く）、改善しなかった。
+3. ユーザーが「主導権の譲渡」を選び、計画を承認したので実装した（27fd630の主要部分）。
+4. 実機で「車輪の軸が違う」「降車時に車体が落ちる」「分解する」との報告があった。
+   - プローブで再現した：Anchoredの車を動かしてから解放すると、車体が沈んで走らない。
+   - 原因は、Replicationが `Spatial::setWorldCFrame` で部品を動かし、子のAttachmentが元の場所に取り残されていたこと。そのため主導権の切り替えでMotorを作り直したとき、支点が走行距離ぶんずれていた。
+   - `setSyncedWorldCFrame` で修正した。修正を外すとテストが失敗することも確認した。
+5. ジッターの解消が確認できたのでコミットした（27fd630）。
+6. Motorの制約破綻の根本対策に入った。
+   - 計画に沿って、候補（現状 / WheelJoint / サブステップ / 減衰比 / 慣性）をプローブで測定した。サブステップだけが効いた。
+   - ユーザーの選択で、`Workspace.PhysicsSubsteps` を実装した。
+7. 実機で「サブステップ16でも、しばらく運転すると車軸がめちゃくちゃになる」との報告があった。
+   - 作り直しで傾きが取り込まれることを、テストで再現した。
+   - 診断ログを入れて、**4つのMotorのjointが毎step作り直されている**ことが分かった。
+   - 原因を順にたどった：比較が完全一致 → Attachmentのローカル姿勢に1e-6の誤差 → 発生源は `Model::syncPivotToCentroid`。
+   - 3段の修正後、運転中の作り直しは0回になった。現状4サブステップでの傾きも、11.4°から4.2°に下がった。
+8. ユーザーが改善を確認し、コミットした（4c38fae）。
+
+**試して失敗した方法**
+- 入力バッファの「毎tick必ず進む」方式：Clientのstepが間引かれると永久に読み飛ばす。
+- 入力バッファの「空なら待つ＋抜けは進める＋余剰を捨てる」方式：ローカル3窓の詰まりに勝てない。
+- b3WheelJoint：軸の傾きは改善しない。Servoも使えない。
+- 減衰比を上げる（5、10）：悪化した。
+- 車輪の、軸に垂直な方向の慣性を大きくする：傾きは0.3°まで下がるが、車全体が曲がれなくなる（車輪の慣性が車の向きを変える回転にも効くため）。
+- サブステップを増やすだけ：jointが毎step作り直されている間は、16でも車軸が曲がったまま残る。
+
+### 4. 未解決・保留
+- **主導権まわりの制約**
+  - Clientの自キャラは、Hostが演算する物体（Client側ではキネマティック）を押せない。Host上のproxyは押せる。
+  - 降車の直後、Client側の車が補間の遅れの分だけ一瞬戻ることがある。
+  - 他プレイヤーの表示は約0.2秒遅れる（Hostの補間0.1秒＋Clientの補間0.1秒）。
+- **不正対策**：非有限値の拒否だけ。速度上限・瞬間移動の検証はしていない（リスポーン等と区別が要る）。
+- **使われなくなったAPI**：`Humanoid::setControlStepCallback` は、Replicationから使われなくなった（範囲外なので残した）。
+- **重複した処理**：Attachmentのローカル姿勢を保つ処理が3か所にある。整理は未実施。
+  - `Box3DPhysicsBackend` の `syncCubeWorldCFramePreservingAttachments`
+  - `Replication` の `setSyncedWorldCFrame`
+  - `Model` の `movePivotKeepingCubeAttachments`
+- **Anchoredの部品の丸め誤差**：Modelのpivot同期で、Anchoredの部品自身のワールド姿勢にも毎フレーム丸め誤差が乗っている可能性がある（未確認）。
+- **一時的なたわみ**：運転中の車輪のたわみは、密度1・既定8で約2.5°残る（止めれば戻る）。気になる場合はPhysicsSubstepsを12〜16にする。
+- **既定値変更の影響**：PhysicsSubstepsの既定を4から8にしたため、全シーンが少し硬くなり、ソルバーの計算は約2倍になる。baseplateでは差が測定誤差の範囲だった。大量の動的物体があるシーンでは未計測。
+- **baseplateの車の作りの問題**：車輪のAttachmentが、車体側と1stud食い違っている（z方向）。joint作成時に引き寄せられている。コンテンツ側の問題。
+- **継続中の既知事項**
+  - `--audio-diagnostics-regression` の失敗（10/08から、今回と無関係）
+  - `scripts/Recubin.luard` はコミット対象外
+
+### 5. 暗黙仕様の発見
+- **`Spatial::setWorldCFrame` は子孫のワールド姿勢を保つ**（子は一緒に動かない）。Attachmentも置いていかれるので、部品を動かすときはAttachmentのローカル姿勢を戻す必要がある。物理同期の `syncCubeWorldCFramePreservingAttachments` はこれをしている。
+- **`commitCFrame` の扱いは更新元で違う**：Physics・Networkが更新元のときは子孫のワールド姿勢を保ち、それ以外（Deserialization等）は子孫のローカル姿勢を保つ。
+- **`Physics::reconcileConstraints` は毎フレーム比較し、変化があれば関節を作り直す**：比較するのは、拘束ごとの「Cube・ボディ・Attachment・ローカル姿勢・Axis」の組。差があればnative jointを破棄して再登録する。Weld以外は、ボディが作り直されただけでも作り直す。
+- **`Box3DPhysicsBackend::createMotor` は、その時点の姿勢から関節を作る**：支点はAttachmentから、向きは「Cube0の向き×Axis」から作る。今回、2回目以降は最初の基準を使うように変えた。
+- **Anchored⇔非Anchoredの切り替え（`BaseCube::setAnchored` → `recreateActor`）では、付いている拘束がすべて削除される**（`removeCube`）。次の `reconcileConstraints` で作り直される。
+- **Scriptの実行場所**：`UseNetwork` が有効なとき、Clientは `LocalScript` だけを、プレイヤーでない専用Hostは `Script` だけを実行する（`skipScriptForNetworkContext`）。
+- **エディターのローカルサーバーのClientログ**は `%TEMP%\RecubinStudio\local-server-*\client-N.log` に出る（リポジトリ内ではない）。
+- **Box3Dの車輪の関節（b3WheelJoint）**
+  - 回転軸は関節の座標のZ、サスペンションの軸は関節の座標のXになる。
+  - 回転角を取得するAPIがない。
+
+## 2026-10-14 プロパティ欄の改善・TextLabel揃え/TextScaled・ビューポートでのGUI編集（GUIタブ/Locked/リサイズ/非固定解像度）
+
+### 1. 何をしたか
+**プロパティ欄（`PropertiesPanel.cpp`）**
+- 色スウォッチ：`drawColorSwatch` を追加し、Color4 行の先頭に実際の色を表示する。クリックで既存の Palette ポップアップを開く。複数選択で値が食い違うときは、先頭の色を表示してツールチップで混在を示す。
+- CFrame の統合入力を単一選択でも表示：`Spatial.cpp` の `cframe.multiOnly()` を外した（`noYaml` は維持）。
+- 数値欄の Undo/Dirty 漏れの修正：`mergeEditEdges` を追加した。Vec3・Color4 のドラッグ欄と CFrame の Rotation 欄の「編集開始」と「確定」を、行の最後で行う Undo 記録の判定に合流させる。単一選択・複数選択とも対象。
+
+**TextLabel / TextButton**
+- `GuiContent.hpp`：`TextContent` に以下を追加した。
+  - `XAlignment`（Left/Center/Right、既定 Left）
+  - `YAlignment`（Top/Center/Bottom、既定 Center）
+  - `TextScaled`
+- `GuiContentProps.hpp`：`textXAlignment` / `textYAlignment` / `textScaled` を追加した。既定値のときは `serializeIf` で YAML へ出力しない。`TextLabel.cpp` と `TextButton.cpp` で登録した。
+- `Renderer_GUI.cpp` の `drawGuiText`
+  - `TextContent` を受け取る形にした。
+  - 行ごとに横揃えして描画する。
+  - TextScaled は拡大・縮小の両方で枠いっぱいにする。
+  - BillboardGui 用の `fitToBounds`（縮小のみ）は残した。
+- `RCBN.luah`、`doc/Instances/TextLabel.md`・`TextButton.md`、`spec.md` を更新した。
+
+**画面GUIの矩形計算の共通化**
+- 新規 `Core/ScreenGuiLayout`：`pixelScale` / `computeRect` / `hasWorldGuiAncestor` / `collectScreenElements`。
+  - `Renderer_GUI.cpp` のインライン計算と static の `hasWorldGuiAncestor` を置き換えた。
+  - `pixelScale` に `uniform` 引数（縦横同率）がある。
+
+**ビューポートでの GUI 編集（新規 `Editor/ViewportGuiEdit.cpp`。ViewportPanel のメンバー関数）**
+- クリック選択（最前面）、Ctrl での追加・解除、5px の閾値を超えたらドラッグ移動。
+  - Undo：移動は `SetPropertyCommand` の `CompositeCommand` で1回分として記録する。
+  - 吸着：AABB の左・中央・右と上・中央・下を、他要素とビューポートの同じ線へ 6px 以内で吸着させる。計算は新規 `Editor/GuiSnap` の `snapRect`。
+  - 選択枠、ホバー枠、ガイド線を描く。
+- Shift 押下中だけ、プライマリ選択の要素に 8 つのリサイズハンドルを出す。
+  - 計算：`GuiSnap::resizeRect` / `snapLine` / `resizeHandles`。
+  - Undo：Position と Size をまとめて1回分として記録する。
+- `ViewportPanel::onRender`
+  - GUI タブ中（`isGuiEditMode`）は、3D の操作を全部止める（地形ブラシ、Weld、クリック選択、矩形選択、ギズモ、自由ドラッグ、ピボット）。
+  - GUI タブ以外では GUI はクリックを素通りし、選択枠だけを描く。
+- `Locked` の要素はクリックが素通りし、ドラッグ・リサイズ・揃えの対象外になる。
+
+**ツールバーの GUI タブ（`EditorManager::renderToolbarGui`、`ToolbarCategory::Gui`）**
+- ボタン：
+  - 4 種の追加（Workspace 直下の画面中央に置き、選択状態にする）
+  - 基準解像度のプルダウン（16:9 と 4:3）
+  - 揃え 6 方向（1 つなら画面に、複数なら選択範囲全体に揃える）
+  - 全画面化
+  - 吸着 ON/OFF（`GuiEditState::snap`）
+- 処理は新規 `Editor/GuiToolbarActions` にまとめた：`addElement` / `align` / `fitToScreen` / `setBaseResolution` / `editableSelection` / `resolutionPresets` / `baseResolution`。
+- `ViewportPanel.hpp` に `GuiEditState` を追加した。EditorManager が所有し、全ビューポートで共有する。
+- `Localization` に文言を追加した。`IconsDef.hpp` に揃え・磁石・拡大のアイコンを追加した。
+
+**Locked / Alt / 固定解像度**
+- `ScreenGuiObject.Locked`：エディター用。true のときだけ YAML へ出力する。`RCBN.luah` と doc にも追記した。
+- `User::setAltLookAllowed`：false の間は Alt のフリールック（マウスロック）を開始せず、開始済みなら解除する。EditorManager が「GUI タブ中かつ Play 中でない」ときに false にする。
+- `System.UseFixedResolution`：エディター用、既定 true、`luaHidden`、false のときだけ YAML へ出力する。`SceneRuntime::copySystemScalars` にもコピーを追加した。
+  - false のとき、`ViewportPanel::renderLayoutAndScene` は黒帯なしで、パネルの実サイズを描画解像度にする。
+  - Pixel 単位の GUI は、`GameGuiRenderContext::uniformPixelScale` と `ViewportLayout::uniformGuiScale` により縦横同率で拡大する。
+  - `Renderer::renderScreenGui` に既定値付きの引数 `uniformPixelScale` を追加した。
+
+**テスト（`test_main.cpp`）**
+- `--gui-text-layout-regression`：揃え・TextScaled の YAML・複製・Luau、矩形計算、吸着、CFrame の editable。
+- `--gui-toolbar-regression`：Locked、追加、揃え（Pixel/Scale、単一/複数）、全画面化、解像度、Undo。
+- `--gui-viewport-edit-regression`：リサイズ計算、縦横同率の拡大、UseFixedResolution、Alt フリールックの抑止。
+
+### 2. なぜそうしたか
+- **AABB フィットは「磁石のような吸着」にした**：ユーザーの説明は「ぶつかり、スライドすると中央で揃う」。押し返す衝突だと精密な配置を邪魔するので、Figma 型のスマートガイドにした。左辺と右辺の吸着で「ぶつかって隣接」が実現できる。
+- **矩形計算は Renderer の関数にせず `ScreenGuiLayout` に分けた**：エディターが GL を持つ Renderer に依存しないため。テストからも直接呼べる。
+- **揃えの既定値は Left/Center にした**：従来の描画と同じなので、既存シーンの見た目が変わらない。YAML にも差分が出ない。
+- **Locked は「クリック素通り」にした**（ユーザーの選択）：全画面の背景をロックすれば、手前の要素も奥の要素も触れる。BaseCube の Locked（最前面ならクリックを遮る）とは挙動が違う。
+- **Locked に `group("Editor")` を付けなかった**：見出しは後続のプロパティにも引き継がれる。ScreenGuiObject に付けると、派生クラスの Text などまで「Editor」の下に入ってしまう。
+- **縦横同率の拡大はエディターのビューポートだけにした**：ランタイム（`NullEditorManager`）はウィンドウ全体に、縦横別の倍率で描いている。エディター用のプロパティでランタイムの見た目を変えないため、`GameGuiRenderContext` で切り替える。
+- **GUI タブの揃え・全画面化は、非固定解像度でも BaseResolution の枠を基準にした**：ランタイムで表示される範囲に合わせるため。
+- **リサイズ対象はプライマリの1要素だけにした**：複数要素を同時にリサイズする仕様は決めておらず、精密な調整の用途を優先した。
+
+### 3. どういう経緯か
+1. 最初の指示は「プロパティ欄で色が見えない／CFrame に統合入力がない」と「TextLabel の揃え・フォント・Scaled／ドラッグ移動／AABB フィット」。
+   - 調べると、フォント設定は既存の Font / FontFile の UI で足りていた（ユーザーの確認により対象外）。
+   - CFrame の統合入力は実装済みだったが、`multiOnly` のため複数選択でしか表示されていなかった。
+2. 計画を承認してもらい、1〜4 の順で実装した。
+   - 途中で、Python の一括置換で `hasWorldGuiAncestor` を消すつもりが `drawGuiText` ごと消してしまった。diff で気づいて復元した。
+3. 報告時に「数値欄のドラッグが Undo に記録されていない疑い」を伝えた。ユーザーが「手動入力で Dirty にならない」と確認したので修正した（`mergeEditEdges`）。CFrame の Rotation 欄にも同じ漏れがあった。
+4. ユーザーから「全画面の GUI があると 3D を編集しにくい」として、GUI タブ・クイック追加・Locked の追加を依頼された。ボタンの種類とモードの挙動を質問で確定してから実装した。
+5. 実機テストで 3 点の報告があった。
+   - Alt が競合して吸着の一時オフが効かない。原因は `User::processCameraRotation` の Alt フリールックだった。
+   - リサイズがほしい。
+   - 黒帯が無駄。
+   
+   3 点とも対応した。固定解像度については、「解像度の出力＝描画解像度に使う」「縦横同率」「既定 true」を質問で確定した。
+
+**試して失敗した方法・ハマりどころ**
+- bash の heredoc で Python スクリプトを渡すと、クォートやエスケープが壊れた。文字列中の `'\n'` が実際の改行になったり、`"\xef..."` が化けたりした。スクラッチパッドにファイルとして書いて実行する方式（`editlib.py`）に切り替えた。
+- CRLF のファイル（`Localization.hpp`/`.cpp`、`spec.md`、`Spatial.cpp`）では、LF 前提の置換が一致しなかった。読み込み時に改行を正規化し、書き込み時に元へ戻すようにした。
+- テスト内で変数名を `far` にしたら、Windows のマクロと衝突してコンパイルエラーになった。
+- 吸着のテストで、期待値を「上辺どうし」と誤っていた。実装は正しく、中央線の方が近かった。
+
+### 4. 未解決・保留
+- **見た目と操作感はユーザーの実機確認待ち**：スウォッチ、揃え、ドラッグ、ガイド線、GUI タブのボタンの並び（ツールバーの幅に収まるか）、ハンドルの掴みやすさ、黒帯なしの表示。
+- **リサイズは単一要素のみ**。複数選択のリサイズ（グループの拡大縮小）は未対応。
+- **AnchorPoint / UDim2 / 親子の入れ子レイアウトは無い**：GUI はすべて Workspace のフラットなリストで、ビューポート基準。揃えやドラッグもこの前提で作っている。
+- **`PropertyTextInput` のヒントが `"x, y, z"` 固定**：CFrame（6 値）や Color4（4 値）でも同じ表示になる。直すには関数シグネチャの変更が要るので未対応。
+- **TextButton の `InvisibleButton`**：編集中もアクティブ項目になるため、`IsWindowHovered` に `AllowWhenBlockedByActiveItem` を付けて回避した。編集中にボタンの Activated が発火するかは未確認。
+- **`SystemFont::MPlus = 2` は C++ 側にだけあり、enum 名として登録されていない**（既存。今回は触っていない）。
+- **継続中の既知事項**
+  - `--audio-diagnostics-regression` の失敗（10/08 から、今回と無関係）
+  - `scripts/Recubin.luard` はコミット対象外
+
+### 5. 暗黙仕様の発見
+- **PropertiesPanel が行ごとに Undo を記録するとき、`IsItemActivated` / `IsItemDeactivatedAfterEdit` は最後のウィジェットしか見ない**。1 行に複数のウィジェットを置く型では、各ウィジェットの直後に `mergeEditEdges` で合流させる必要がある（漏れると Undo も Dirty も起きない）。
+- **シーンの Dirty は `CommandHistory` の execute/record（`m_onChange`）に連動する**。値を直接書き換えても Dirty にならない。
+- **`PropertyDesc.separator`（`group()`）は後続のプロパティにも引き継がれる**。基底クラスで付けると、派生クラスのプロパティも同じ見出しの下に入る。
+- **画面GUIはツリー構造に関係なく、Workspace のフラットなリスト（`getRenderScreenGuiObjects`）として描画される**。位置は親基準ではなくビューポート基準で、ZIndex の昇順に描く。
+- **ランタイム（`NullEditorManager`）は黒帯を付けず、ウィンドウ全体に Pixel の GUI を縦横別の倍率で描く**。エディターの固定解像度の表示と一致するのは、ウィンドウの縦横比が BaseResolution と同じときだけ。
+- **Alt は `User::processCameraRotation` で「押した瞬間にフリールックを切り替える」キー**。エディターで Alt を別の用途に使うときは、`setAltLookAllowed(false)` で止める必要がある。
+- **`std::variant` の `PropValue` は `==` で比較できない前提で扱われている**。既存は `propValuesEqual` を使っている。

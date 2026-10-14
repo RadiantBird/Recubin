@@ -23,10 +23,11 @@ private メソッドは次の責務に分かれる。
 
 | グループ | メソッド | 責務 |
 |---|---|---|
-| 表示 | `renderLayoutAndScene()` | FBO リサイズ、シーン描画、レターボックス、ゲーム GUI 合成 |
+| 表示 | `renderLayoutAndScene()` | FBO リサイズ、シーン描画、レターボックス（`System.UseFixedResolution` が false なら無し）、ゲーム GUI 合成 |
 | フォーカス／カメラ | `updateViewportFocus()`, `updateOwnCameraInput()` | ビューポートフォーカスと独立カメラ入力 |
 | クリックツール | `updateTerrainBrush()`, `updateWeldMode()`, `handleViewportClick()` | クリックの優先消費と Picker／Decal／通常選択 |
 | 選択表示／操作 | `updateBoxSelection()`, `updateGizmo()`, `drawHoverHighlight()` | 矩形選択、ギズモ、クリック候補の事前ハイライト |
+| 画面GUI | `updateGuiEdit()` ほか（`ViewportGuiEdit.cpp`） | GUIタブ中の画面GUIのクリック選択、ドラッグ移動、選択枠、吸着ガイド |
 | ドラッグ／キー | `updateFreeDrag()`, `moveFreeDragSelection()`, `handlePivotShortcut()`, `handleFocusShortcut()` | 自由移動、Undo 記録、Tab ピボット、F フォーカス |
 
 ## フレーム内の順序
@@ -36,14 +37,49 @@ private メソッドは次の責務に分かれる。
 1. ImGui ウィンドウとビューポート固有の ImGuizmo ID スコープを開始する。
 2. `renderLayoutAndScene()` で表示領域を決定し、シーン画像とゲーム GUI を描画する。
 3. フォーカスを更新し、セカンダリの場合は独立カメラ入力を反映する。
-4. Terrain ブラシ、Weld の順にクリックを処理する。
-5. 未消費のクリックを Picker、Decal、通常選択の順で処理する。
+4. 画面GUI（`updateGuiEdit()`）を処理する。GUIタブ中はここでクリックを扱い、5〜7の3D操作は
+   行わない（フォーカス枠とFフォーカスだけ行う）。GUIタブ以外では選択中GUIの枠だけを描く。
+5. Terrain ブラシ、Weld、Picker、Decal、通常選択の順にクリックを処理する。
 6. 矩形選択、フォーカス枠、ギズモ、クリック候補の実形状外枠を更新・描画する。
 7. 自由ドラッグとその Undo 記録、Tab ピボット、F フォーカスを処理する。
 8. ImGuizmo ID と ImGui ウィンドウのスコープを終了する。
 
 下位メソッドは ImGui の Begin/End や ImGuizmo の PushID/PopID を終了しない。
 早期 return は担当機能だけを打ち切り、スコープの後始末は常に `onRender()` が行う。
+
+## 固定解像度
+
+`System.UseFixedResolution` が true（既定）なら、`BaseResolution` の縦横比を保つ黒帯付きの領域に
+描画する。false なら黒帯を付けず、パネルの実サイズをそのまま描画解像度（FBO）にする。このとき
+縦横比が `BaseResolution` と一致しないため、`Norm::Pixel` の画面GUIは縦横同率で拡大縮小する
+（`ViewportLayout::uniformGuiScale`／`GameGuiRenderContext::uniformPixelScale`）。
+
+## 画面GUIの編集
+
+ツールバーのGUIタブ表示中（`GuiEditState::active`、Play中を除く）だけ、画面GUI
+（WorldGui配下を除く `ScreenGuiObject`）をビューポートで直接操作できる。このとき3Dの
+クリック操作（Terrainブラシ・Weld・選択・矩形選択・ギズモ・自由ドラッグ・Tabピボット）は止める。
+GUIタブ以外では画面GUIはクリックを素通りし、全画面GUIがあっても3Dを編集できる。
+
+- クリックで最前面（ZIndex最大）の要素を選択する。Ctrl+クリックで選択へ追加・解除する。
+  GUIの無い場所のクリックは選択を解除する。
+- `Locked` の要素はクリックを素通りし（背後の要素を選べる）、Explorerから選んでも
+  ドラッグ・リサイズでは動かない。
+- Shift を押している間だけ、プライマリ選択の要素に8つのリサイズハンドル（四隅と四辺の中点）を
+  出す。ハンドルのドラッグで動かす辺だけを移動し、反対側の辺は固定する（Position と Size を
+  まとめて Undo 1回分）。動かす辺も吸着の対象になる。Shift を離すとハンドルは消え、精密な移動の
+  邪魔をしない（リサイズ中は Shift を離しても続く）。計算は `GuiSnap::resizeRect`。
+- GUIタブ表示中（Play中を除く）は `User::setAltLookAllowed(false)` で Alt のフリールック
+  （マウスロック）を止め、Alt を吸着の一時オフだけに使う。
+- 選択済み要素を5px以上ドラッグすると、選択中のGUI全体の `Position` を動かす
+  （Pixel は BaseResolution 比率、Scale はビューポート比率で逆算）。離した時点で
+  `SetPropertyCommand` の `CompositeCommand` を Undo 1回分として記録する。
+- ドラッグ中は選択全体のAABBの左/中央/右・上/中央/下を、他のGUI要素とビューポートの
+  同じ線へ6px以内で吸着させ、ガイド線を描く（`GuiSnap`）。左辺⇔右辺でぴったり隣接し、
+  そのまま滑らせると中央線で揃う。押し返す衝突はしない。吸着はGUIタブの「吸着」で
+ON/OFFでき（`GuiEditState::snap`）、Alt押下中は一時的に無効になる。
+- 選択中のGUIには要素の矩形ぴったりの枠（プライマリは太線）、ホバー中の要素には薄い枠を描く。
+- 矩形計算は描画と共通の `ScreenGuiLayout`（`include/Core/ScreenGuiLayout.hpp`）を使う。
 
 ## ヘルパーモジュール
 

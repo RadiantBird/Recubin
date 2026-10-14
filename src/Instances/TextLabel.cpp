@@ -7,6 +7,9 @@ static const bool s_textLabelRegistered = []{
     registerClass("TextLabel", "ScreenGuiObject", {
         GuiContentProps::text     <&TextLabel::m_text>(),
         GuiContentProps::textColor<&TextLabel::m_text>(),
+        GuiContentProps::textXAlignment<&TextLabel::m_text>(),
+        GuiContentProps::textYAlignment<&TextLabel::m_text>(),
+        GuiContentProps::textScaled    <&TextLabel::m_text>(),
         field<&ScreenGuiObject::FontSize>("FontSize", 0, 200, 1),  // 0 = 既定サイズ
     });
     return true;

@@ -46,6 +46,9 @@
 #include <Instances/Program.hpp>
 #include <Instances/TextLabel.hpp>
 #include <Instances/TextButton.hpp>
+#include <Core/ScreenGuiLayout.hpp>
+#include <Editor/GuiSnap.hpp>
+#include <Editor/GuiToolbarActions.hpp>
 #include <Instances/ImageButton.hpp>
 #include <Instances/ScreenGuiObject.hpp>
 #include <Instances/SurfaceGui.hpp>
@@ -11187,6 +11190,370 @@ static int runGuiAutomationRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+// TextLabel/TextButton の揃え・TextScaled、画面GUIの矩形計算、ビューポートの吸着計算、
+// 単一選択インスペクタへの Spatial.CFrame 表示を確認する。
+static int runGuiTextLayoutRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[GuiTextLayout] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto saveYaml = [](const Instance* instance) {
+        YAML::Emitter out;
+        out << YAML::BeginMap;
+        PropertyRegistry::saveApplicableProperties(out, instance);
+        out << YAML::EndMap;
+        return std::string(out.c_str());
+    };
+
+    // 既定値は従来の描画（左寄せ・縦中央）で、YAMLへ出力しない
+    auto label = std::make_shared<TextLabel>();
+    expect(label->m_text.XAlignment == TextXAlignment::Left &&
+           label->m_text.YAlignment == TextYAlignment::Center && !label->m_text.TextScaled,
+           "TextLabel defaults to Left/Center without TextScaled");
+    const std::string defaultYaml = saveYaml(label.get());
+    expect(defaultYaml.find("TextXAlignment") == std::string::npos &&
+           defaultYaml.find("TextYAlignment") == std::string::npos &&
+           defaultYaml.find("TextScaled") == std::string::npos,
+           "default alignment and TextScaled are omitted from YAML");
+
+    for (const char* className : {"TextLabel", "TextButton"}) {
+        auto object = SceneLoader::createInstance(className);
+        TextContent* content = object ? static_cast<GuiObject*>(object.get())->textContent() : nullptr;
+        if (!content) {
+            expect(false, "text GUI class can be created headless");
+            continue;
+        }
+        content->XAlignment = TextXAlignment::Right;
+        content->YAlignment = TextYAlignment::Bottom;
+        content->TextScaled = true;
+        const std::string yaml = saveYaml(object.get());
+        expect(yaml.find("TextXAlignment: Right") != std::string::npos &&
+               yaml.find("TextYAlignment: Bottom") != std::string::npos &&
+               yaml.find("TextScaled: true") != std::string::npos,
+               "non-default alignment and TextScaled are saved as enum names");
+
+        auto loaded = SceneLoader::createInstance(className);
+        const YAML::Node node = YAML::Load(yaml);
+        for (const auto& entry : node)
+            PropertyRegistry::loadApplicableProperty(loaded.get(), entry.first.as<std::string>(), entry.second);
+        TextContent* loadedContent = static_cast<GuiObject*>(loaded.get())->textContent();
+        expect(loadedContent->XAlignment == TextXAlignment::Right &&
+               loadedContent->YAlignment == TextYAlignment::Bottom && loadedContent->TextScaled,
+               "alignment and TextScaled survive a YAML round trip");
+
+        auto cloned = object->clone();
+        TextContent* clonedContent = static_cast<GuiObject*>(cloned.get())->textContent();
+        expect(clonedContent->XAlignment == TextXAlignment::Right &&
+               clonedContent->YAlignment == TextYAlignment::Bottom && clonedContent->TextScaled,
+               "alignment and TextScaled are cloned");
+    }
+
+    // Luau からは文字列で読み書きする
+    {
+        auto system = std::make_shared<System>();
+        auto workspace = std::make_shared<Workspace>();
+        system->addChild(workspace);
+        auto luaLabel = std::make_shared<TextLabel>();
+        luaLabel->Name = "Label";
+        workspace->addChild(luaLabel);
+        auto script = std::make_shared<Script>();
+        script->Name = "AlignScript";
+        script->Source =
+            "local l = script.Parent "
+            "l.TextXAlignment = 'Center' "
+            "l.TextYAlignment = 'Top' "
+            "l.TextScaled = true "
+            "print('[GuiTextLayoutLua] ' .. l.TextXAlignment .. ',' .. l.TextYAlignment .. ',' .. tostring(l.TextScaled))";
+        luaLabel->addChild(script);
+
+        LuauEngine engine;
+        engine.setWorkspace(workspace);
+        engine.setSystem(system.get());
+        const auto oldLogHook = g_luauLogHook;
+        std::string printed;
+        g_luauLogHook = [&](const std::string& message) {
+            if (message.find("[GuiTextLayoutLua]") != std::string::npos) printed = message;
+        };
+        const bool started = engine.execute(*script);
+        g_luauLogHook = oldLogHook;
+        expect(started, "Luau alignment script runs");
+        expect(printed.find("Center,Top,true") != std::string::npos,
+               "Luau reads alignment back as enum names");
+        expect(luaLabel->m_text.XAlignment == TextXAlignment::Center &&
+               luaLabel->m_text.YAlignment == TextYAlignment::Top && luaLabel->m_text.TextScaled,
+               "Luau writes alignment and TextScaled");
+    }
+
+    // 画面GUIの矩形: Pixel は BaseResolution 比率、Scale はビューポート比率
+    {
+        auto system = std::make_shared<System>();
+        system->BaseResolution = Vector2(1920.0f, 1080.0f);
+        auto workspace = std::make_shared<Workspace>();
+        system->addChild(workspace);
+        const Vector2 scale = ScreenGuiLayout::pixelScale(*workspace, 960.0f, 540.0f);
+        expect(std::fabs(scale.x - 0.5f) < 1e-5f && std::fabs(scale.y - 0.5f) < 1e-5f,
+               "pixel scale follows System.BaseResolution");
+
+        auto pixel = std::make_shared<TextLabel>();
+        pixel->Position = Vector2(100.0f, 50.0f);
+        pixel->Size = Vector2(200.0f, 40.0f);
+        const ScreenGuiLayout::Rect pixelRect =
+            ScreenGuiLayout::computeRect(*pixel, 10.0f, 20.0f, 960.0f, 540.0f, scale);
+        expect(std::fabs(pixelRect.x - 60.0f) < 1e-4f && std::fabs(pixelRect.y - 45.0f) < 1e-4f &&
+               std::fabs(pixelRect.w - 100.0f) < 1e-4f && std::fabs(pixelRect.h - 20.0f) < 1e-4f,
+               "Pixel rect is scaled and offset by the viewport origin");
+
+        auto normalized = std::make_shared<TextLabel>();
+        normalized->NormType = Norm::Scale;
+        normalized->Position = Vector2(0.5f, 0.25f);
+        normalized->Size = Vector2(0.25f, 0.5f);
+        const ScreenGuiLayout::Rect scaleRect =
+            ScreenGuiLayout::computeRect(*normalized, 10.0f, 20.0f, 960.0f, 540.0f, scale);
+        expect(std::fabs(scaleRect.x - 490.0f) < 1e-4f && std::fabs(scaleRect.y - 155.0f) < 1e-4f &&
+               std::fabs(scaleRect.w - 240.0f) < 1e-4f && std::fabs(scaleRect.h - 270.0f) < 1e-4f,
+               "Scale rect uses viewport fractions");
+    }
+
+    // 吸着: 左辺⇔右辺で隣接、中央線で揃う、閾値外は吸着しない
+    {
+        const std::vector<ScreenGuiLayout::Rect> targets{{100.0f, 100.0f, 50.0f, 50.0f}};
+        const GuiSnap::Result adjacent = GuiSnap::snapRect({154.0f, 300.0f, 20.0f, 20.0f}, targets, 6.0f);
+        expect(adjacent.x.snapped && std::fabs(adjacent.x.delta + 4.0f) < 1e-4f &&
+               std::fabs(adjacent.x.guide - 150.0f) < 1e-4f && !adjacent.y.snapped,
+               "left edge snaps to the right edge of a neighbour");
+        const GuiSnap::Result centered = GuiSnap::snapRect({117.0f, 119.0f, 20.0f, 10.0f}, targets, 6.0f);
+        expect(centered.x.snapped && std::fabs(centered.x.delta + 2.0f) < 1e-4f &&
+               centered.y.snapped && std::fabs(centered.y.delta - 1.0f) < 1e-4f,
+               "centres snap to the neighbour centre lines");
+        const GuiSnap::Result distant = GuiSnap::snapRect({400.0f, 400.0f, 20.0f, 20.0f}, targets, 6.0f);
+        expect(!distant.x.snapped && !distant.y.snapped, "rectangles beyond the threshold do not snap");
+    }
+
+    // CFrame の統合入力欄は単一選択のインスペクタにも出る（YAMLには出さない）
+    {
+        const PropertyDesc* cframe = nullptr;
+        for (const auto& desc : PropertyRegistry::schemaFor("Spatial"))
+            if (desc.name == "CFrame") cframe = &desc;
+        expect(cframe && cframe->editable && cframe->multiEditable && !cframe->serialize,
+               "Spatial.CFrame is editable in the single-selection inspector and stays out of YAML");
+    }
+
+    std::cout << "[GuiTextLayout] failures=" << failures << " result="
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+// ツールバーのGUIタブの操作（追加・揃え・全画面化・基準解像度）と、画面GUIのLockedを確認する。
+static int runGuiToolbarRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[GuiToolbar] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto near = [](const Vector2& a, const Vector2& b) {
+        return std::fabs(a.x - b.x) < 1e-4f && std::fabs(a.y - b.y) < 1e-4f;
+    };
+
+    auto system = std::make_shared<System>();
+    system->BaseResolution = Vector2(1000.0f, 500.0f);
+    auto workspace = std::make_shared<Workspace>();
+    system->addChild(workspace);
+    CommandHistory history;
+
+    // Locked: 既定false、trueのときだけYAMLへ出力し、往復する
+    {
+        auto label = std::make_shared<TextLabel>();
+        YAML::Emitter out;
+        out << YAML::BeginMap;
+        PropertyRegistry::saveApplicableProperties(out, label.get());
+        out << YAML::EndMap;
+        expect(std::string(out.c_str()).find("Locked") == std::string::npos,
+               "unlocked GUI omits Locked from YAML");
+        label->Locked = true;
+        YAML::Emitter lockedOut;
+        lockedOut << YAML::BeginMap;
+        PropertyRegistry::saveApplicableProperties(lockedOut, label.get());
+        lockedOut << YAML::EndMap;
+        auto loaded = std::make_shared<TextLabel>();
+        for (const auto& entry : YAML::Load(lockedOut.c_str()))
+            PropertyRegistry::loadApplicableProperty(loaded.get(), entry.first.as<std::string>(), entry.second);
+        expect(loaded->Locked, "Locked survives a YAML round trip");
+        expect(label->clone() && static_cast<ScreenGuiObject*>(label->clone().get())->Locked,
+               "Locked is cloned");
+    }
+
+    // クイック追加: Workspace直下・画面中央・Undoで消える
+    auto added = GuiToolbarActions::addElement("TextLabel", *workspace, &history);
+    expect(added && added->Parent.lock() == workspace, "addElement parents the GUI to the Workspace");
+    expect(added && near(added->Position, Vector2(450.0f, 230.0f)),
+           "addElement centres the element in the base resolution");
+    expect(added && added->textContent() && added->textContent()->Text == "TextLabel",
+           "addElement gives text elements visible text");
+    history.undo();
+    expect(added && !added->Parent.lock(), "undo removes the added GUI");
+    expect(!GuiToolbarActions::addElement("Cube", *workspace, &history), "addElement rejects non-GUI classes");
+
+    auto a = std::make_shared<TextLabel>();
+    a->Name = "A";
+    a->Position = Vector2(100.0f, 100.0f);
+    a->Size = Vector2(100.0f, 40.0f);
+    auto b = std::make_shared<TextLabel>();
+    b->Name = "B";
+    b->NormType = Norm::Scale;
+    b->Position = Vector2(0.5f, 0.5f);
+    b->Size = Vector2(0.2f, 0.2f);  // 基準空間で 200x100、(500,250)
+    auto locked = std::make_shared<TextLabel>();
+    locked->Name = "Locked";
+    locked->Locked = true;
+    workspace->addChild(a);
+    workspace->addChild(b);
+    workspace->addChild(locked);
+
+    const std::vector<ScreenGuiObject*> editable = GuiToolbarActions::editableSelection(
+        {a.get(), b.get(), locked.get()}, a.get());
+    expect(editable.size() == 2, "editableSelection skips Locked GUI");
+
+    // 1つなら画面へ揃える（Pixel/Scale それぞれの単位系へ戻す）
+    GuiToolbarActions::align({a.get()}, *workspace, GuiToolbarActions::Align::Right, &history);
+    expect(near(a->Position, Vector2(900.0f, 100.0f)), "single Pixel element aligns to the screen's right edge");
+    GuiToolbarActions::align({b.get()}, *workspace, GuiToolbarActions::Align::CenterY, &history);
+    expect(near(b->Position, Vector2(0.5f, 0.4f)), "single Scale element centres vertically in Scale units");
+    history.undo();
+    history.undo();
+    expect(near(a->Position, Vector2(100.0f, 100.0f)) && near(b->Position, Vector2(0.5f, 0.5f)),
+           "align is undone one step at a time");
+
+    // 複数なら選択全体のAABBへ揃える
+    GuiToolbarActions::align(editable, *workspace, GuiToolbarActions::Align::Left, &history);
+    expect(near(a->Position, Vector2(100.0f, 100.0f)) && near(b->Position, Vector2(0.1f, 0.5f)),
+           "multiple elements align to the left edge of their bounds");
+    GuiToolbarActions::align(editable, *workspace, GuiToolbarActions::Align::Bottom, &history);
+    expect(near(a->Position, Vector2(100.0f, 310.0f)) && near(b->Position, Vector2(0.1f, 0.5f)),
+           "multiple elements align to the bottom edge of their bounds");
+    const bool unchanged = !GuiToolbarActions::align(editable, *workspace, GuiToolbarActions::Align::Bottom, &history);
+    expect(unchanged, "an alignment that changes nothing records no history");
+
+    // 全画面化
+    GuiToolbarActions::fitToScreen(editable, *workspace, &history);
+    expect(near(a->Position, Vector2(0.0f, 0.0f)) && near(a->Size, Vector2(1000.0f, 500.0f)),
+           "fitToScreen fills the base resolution for Pixel elements");
+    expect(near(b->Position, Vector2(0.0f, 0.0f)) && near(b->Size, Vector2(1.0f, 1.0f)),
+           "fitToScreen fills the screen for Scale elements");
+    history.undo();
+    expect(near(a->Size, Vector2(100.0f, 40.0f)) && near(b->Size, Vector2(0.2f, 0.2f)),
+           "fitToScreen is undone in one step");
+
+    // 基準解像度
+    GuiToolbarActions::setBaseResolution(*system, Vector2(1024.0f, 768.0f), &history);
+    expect(near(GuiToolbarActions::baseResolution(*workspace), Vector2(1024.0f, 768.0f)),
+           "setBaseResolution updates System.BaseResolution");
+    history.undo();
+    expect(near(system->BaseResolution, Vector2(1000.0f, 500.0f)), "setBaseResolution is undoable");
+    bool presetsValid = !GuiToolbarActions::resolutionPresets().empty();
+    for (const auto& preset : GuiToolbarActions::resolutionPresets()) {
+        const float aspect = preset.size.x / preset.size.y;
+        presetsValid = presetsValid && (std::fabs(aspect - 16.0f / 9.0f) < 1e-3f ||
+                                        std::fabs(aspect - 4.0f / 3.0f) < 1e-3f);
+    }
+    expect(presetsValid, "resolution presets are 16:9 or 4:3");
+
+    std::cout << "[GuiToolbar] failures=" << failures << " result="
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+// ビューポートでのGUIリサイズ計算、非固定解像度の縦横同率拡大、System.UseFixedResolution、
+// GUIタブ中のAltフリールック抑止を確認する。
+static int runGuiViewportEditRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[GuiViewportEdit] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto sameRect = [](const ScreenGuiLayout::Rect& r, float x, float y, float w, float h) {
+        return std::fabs(r.x - x) < 1e-4f && std::fabs(r.y - y) < 1e-4f &&
+               std::fabs(r.w - w) < 1e-4f && std::fabs(r.h - h) < 1e-4f;
+    };
+
+    // リサイズ: 動かす辺だけ動き、反対側は固定
+    {
+        const ScreenGuiLayout::Rect start{100.0f, 100.0f, 50.0f, 40.0f};
+        GuiSnap::Result snap;
+        const ScreenGuiLayout::Rect corner = GuiSnap::resizeRect(start, {1, 1}, 30.0f, 10.0f, {}, 0.0f, 1.0f, snap);
+        expect(sameRect(corner, 100.0f, 100.0f, 80.0f, 50.0f), "bottom-right handle grows width and height");
+        const ScreenGuiLayout::Rect left = GuiSnap::resizeRect(start, {-1, 0}, -20.0f, 99.0f, {}, 0.0f, 1.0f, snap);
+        expect(sameRect(left, 80.0f, 100.0f, 70.0f, 40.0f), "left handle keeps the right edge fixed and ignores Y");
+        const ScreenGuiLayout::Rect collapsed = GuiSnap::resizeRect(start, {1, -1}, -500.0f, 500.0f, {}, 0.0f, 1.0f, snap);
+        expect(sameRect(collapsed, 100.0f, 139.0f, 1.0f, 1.0f), "resizing past the opposite edge clamps to the minimum size");
+
+        const std::vector<ScreenGuiLayout::Rect> targets{{200.0f, 0.0f, 10.0f, 10.0f}};
+        const ScreenGuiLayout::Rect snapped = GuiSnap::resizeRect(start, {1, 0}, 47.0f, 0.0f, targets, 6.0f, 1.0f, snap);
+        expect(sameRect(snapped, 100.0f, 100.0f, 100.0f, 40.0f) && snap.x.snapped &&
+               std::fabs(snap.x.guide - 200.0f) < 1e-4f && !snap.y.snapped,
+               "the moved edge snaps to a neighbour line");
+        const GuiSnap::AxisSnap line = GuiSnap::snapLine(103.0f, targets, false, 6.0f);
+        expect(!line.snapped, "snapLine uses the requested axis only");
+        expect(GuiSnap::resizeHandles().size() == 8, "eight resize handles are offered");
+    }
+
+    // 非固定解像度: Pixel単位のGUIは縦横同率で拡大する
+    {
+        auto system = std::make_shared<System>();
+        system->BaseResolution = Vector2(1000.0f, 500.0f);
+        auto workspace = std::make_shared<Workspace>();
+        system->addChild(workspace);
+        const Vector2 perAxis = ScreenGuiLayout::pixelScale(*workspace, 2000.0f, 500.0f);
+        const Vector2 uniform = ScreenGuiLayout::pixelScale(*workspace, 2000.0f, 500.0f, true);
+        expect(std::fabs(perAxis.x - 2.0f) < 1e-5f && std::fabs(perAxis.y - 1.0f) < 1e-5f,
+               "fixed resolution keeps per-axis scaling");
+        expect(std::fabs(uniform.x - 1.0f) < 1e-5f && std::fabs(uniform.y - 1.0f) < 1e-5f,
+               "uniform scaling uses the smaller axis ratio for both axes");
+    }
+
+    // System.UseFixedResolution: 既定true、falseのときだけYAMLへ出力、Luauからは不可視
+    {
+        const PropertyDesc* desc = nullptr;
+        for (const auto& property : PropertyRegistry::schemaFor("System"))
+            if (property.name == "UseFixedResolution") desc = &property;
+        auto system = std::make_shared<System>();
+        expect(system->UseFixedResolution, "UseFixedResolution defaults to true");
+        expect(desc && desc->editable && desc->noLuaRead && desc->noLuaWrite,
+               "UseFixedResolution is editor-visible and hidden from Luau");
+        expect(desc && desc->serializeWhen && !desc->serializeWhen(system.get()),
+               "the default UseFixedResolution is omitted from YAML");
+        system->UseFixedResolution = false;
+        expect(desc && desc->serializeWhen && desc->serializeWhen(system.get()),
+               "a disabled UseFixedResolution is saved");
+    }
+
+    // GUIタブ中は Alt でフリールック（マウスロック）しない
+    {
+        auto backend = std::make_unique<FrameRateTestInputBackend>();
+        auto* input = backend.get();
+        auto user = std::make_shared<User>(std::move(backend));
+        user->setAltLookAllowed(false);
+        input->pressedKeys.insert(KeyCode::LeftAlt);
+        user->processCameraRotation(true, 1.0f / 60.0f, true);
+        expect(!input->mouseCaptured, "Alt does not capture the mouse while alt-look is disallowed");
+        input->pressedKeys.clear();
+        user->processCameraRotation(true, 1.0f / 60.0f, true);
+
+        user->setAltLookAllowed(true);
+        input->pressedKeys.insert(KeyCode::LeftAlt);
+        user->processCameraRotation(true, 1.0f / 60.0f, true);
+        expect(input->mouseCaptured, "Alt toggles free-look when allowed");
+        input->pressedKeys.clear();
+        user->setAltLookAllowed(false);
+        user->processCameraRotation(true, 1.0f / 60.0f, true);
+        expect(!input->mouseCaptured, "disallowing alt-look releases an active free-look");
+    }
+
+    std::cout << "[GuiViewportEdit] failures=" << failures << " result="
+              << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 static int runGuiVisibilityRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -17762,6 +18129,9 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--scene-hierarchy-grouping-regression", runSceneHierarchyGroupingRegression),
         REG("--gui-automation-regression", runGuiAutomationRegression),
         REG("--gui-visibility-regression", runGuiVisibilityRegression),
+        REG("--gui-text-layout-regression", runGuiTextLayoutRegression),
+        REG("--gui-toolbar-regression", runGuiToolbarRegression),
+        REG("--gui-viewport-edit-regression", runGuiViewportEditRegression),
         REG("--frame-profiler-regression", runFrameProfilerRegression),
         REG("--physics-migration-regression", runPhysicsMigrationRegression),
         REG("--motor-servo-regression", runMotorServoRegression),

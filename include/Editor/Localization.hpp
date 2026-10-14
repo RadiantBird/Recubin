@@ -119,6 +119,11 @@ enum class LocKey {
     ToolbarTabBasic, ToolbarTabCubes, ToolbarTabTerrain, ToolbarTabPhysics, ToolbarTabCharacter,
     NewScriptButton, AddHumanoidButton, RigBuilderButton,
 
+    // ---- EditorManager: ツールバーのGUIタブ ----
+    ToolbarTabGui, GuiResolutionLabel, GuiResolutionCustom,
+    GuiAlignLeft, GuiAlignCenterX, GuiAlignRight, GuiAlignTop, GuiAlignCenterY, GuiAlignBottom,
+    GuiAlignTooltip, GuiFitScreen, GuiFitScreenTooltip, GuiSnapToggle, GuiSnapTooltip,
+
     // ---- ViewportPanel: ギズモ軸モード切替 ----
     GizmoWorld, GizmoLocal, GizmoModeTooltip,
 

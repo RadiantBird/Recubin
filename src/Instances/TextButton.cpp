@@ -7,6 +7,9 @@ static const bool s_textButtonRegistered = []{
     registerClass("TextButton", "GuiButton", {
         GuiContentProps::text     <&TextButton::m_text>(),
         GuiContentProps::textColor<&TextButton::m_text>(),
+        GuiContentProps::textXAlignment<&TextButton::m_text>(),
+        GuiContentProps::textYAlignment<&TextButton::m_text>(),
+        GuiContentProps::textScaled    <&TextButton::m_text>(),
         field<&ScreenGuiObject::FontSize>("FontSize", 0, 200, 1),  // 0 = 既定サイズ
     });
     return true;

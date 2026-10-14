@@ -12,6 +12,9 @@
 |---|---|---|
 | `Text` | `string` | 表示文字列 |
 | `TextColor` | `Color4` | 文字色（既定は黒不透明） |
+| `TextXAlignment` | `TextXAlignment` | 横揃え `Left`/`Center`/`Right`（既定 `Left`、左右4pxの余白。複数行は行ごとに揃える） |
+| `TextYAlignment` | `TextYAlignment` | 縦揃え `Top`/`Center`/`Bottom`（既定 `Center`） |
+| `TextScaled` | `bool` | `true` なら `FontSize` を無視し、要素矩形に収まる最大サイズへ拡大・縮小する（既定 `false`） |
 | `FontSize` | `float` | 論理文字サイズ。画面GUIの描画時に `System.BaseResolution` 基準の画面スケールが適用される |
 
 ## メソッド

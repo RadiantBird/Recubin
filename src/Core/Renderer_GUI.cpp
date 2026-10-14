@@ -1,5 +1,6 @@
 #include "include/Core/Renderer.hpp"
 #include "include/Core/SystemState.hpp"
+#include "include/Core/ScreenGuiLayout.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Instances/ScreenGuiObject.hpp"
 #include "include/Instances/FontFile.hpp"
@@ -160,24 +161,16 @@ void Renderer::renderRuntimeChat(float vpX, float vpY, float vpW, float vpH) {
     if (auto service = m_chatService.lock()) m_chatOverlay.render(*service, vpX, vpY, vpW, vpH);
 }
 
-static bool hasWorldGuiAncestor(ScreenGuiObject* object) {
-    auto parent = object ? object->Parent.lock() : nullptr;
-    while (parent) {
-        if (parent->IsA("WorldGuiObject")) return true;
-        parent = parent->Parent.lock();
-    }
-    return false;
-}
-
 // ===================================================
 //  ScreenGui 1 要素の描画
 // ===================================================
-// テキストを要素矩形内の縦中央へ描画。FontSize>0 なら指定サイズ、0 なら既定サイズを使う。
+// テキストを要素矩形内へ TextXAlignment/TextYAlignment に従って描画する。
+// FontSize>0 なら指定サイズ、0 なら既定サイズを使う。
+// TextScaled なら FontSize を無視し、矩形いっぱいに収まる最大サイズへ拡大・縮小する。
 // BillboardGuiの子ではfitToBoundsを有効にし、指定サイズを上限として文字列全体を収める。
-static void drawGuiText(ImDrawList* dl, ScreenGuiObject* sgo,
+static void drawGuiText(ImDrawList* dl, ScreenGuiObject* sgo, const TextContent& content,
                         float px, float py, float sw, float sh,
-                        ImU32 col, const char* text,
-                        float textScaleY = 1.0f, bool fitToBounds = false)
+                        ImU32 col, float textScaleY = 1.0f, bool fitToBounds = false)
 {
     if (sw <= 0.0f || sh <= 0.0f) return;
 
@@ -185,7 +178,9 @@ static void drawGuiText(ImDrawList* dl, ScreenGuiObject* sgo,
         ? Renderer::instance->resolveGuiFont(sgo)
         : ImGui::GetFont();
 
-    float size = ((sgo->FontSize > 0.f) ? sgo->FontSize : ImGui::GetFontSize()) * textScaleY;
+    const char* text = content.Text.c_str();
+    float size = ((sgo->FontSize > 0.f && !content.TextScaled)
+        ? sgo->FontSize : ImGui::GetFontSize()) * textScaleY;
     if (size <= 0.0f) return;
 
     // 左右の余白はImGui論理ピクセル。極端に小さいWorldパネルでも負の描画領域にしない。
@@ -193,22 +188,35 @@ static void drawGuiText(ImDrawList* dl, ScreenGuiObject* sgo,
     const float availableWidth = (std::max)(0.0f, sw - paddingX * 2.0f);
     ImVec2 textSize = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
 
-    if (fitToBounds && textSize.x > 0.0f && textSize.y > 0.0f) {
-        const float fitScale = (std::min)({
-            1.0f,
-            availableWidth / textSize.x,
-            sh / textSize.y
-        });
+    if ((content.TextScaled || fitToBounds) && textSize.x > 0.0f && textSize.y > 0.0f) {
+        float fitScale = (std::min)(availableWidth / textSize.x, sh / textSize.y);
+        if (!content.TextScaled) fitScale = (std::min)(1.0f, fitScale);  // fitToBoundsは縮小のみ
         size *= (std::max)(0.0f, fitScale);
         if (size <= 0.0f) return;
         textSize = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
     }
 
-    const ImVec2 textPosition(
-        px + paddingX,
-        py + (std::max)(0.0f, (sh - textSize.y) * 0.5f));
+    float textY = py + (std::max)(0.0f, (sh - textSize.y) * 0.5f);
+    if (content.YAlignment == TextYAlignment::Top) textY = py;
+    else if (content.YAlignment == TextYAlignment::Bottom) textY = py + sh - textSize.y;
+
+    // ImGuiのAddTextは複数行を左にしか揃えないため、行ごとに幅を測って横位置を決める
     const ImVec4 textClipRect(px, py, px + sw, py + sh);
-    dl->AddText(font, size, textPosition, col, text, nullptr, 0.0f, &textClipRect);
+    const char* lineBegin = text;
+    const char* textEnd = text + content.Text.size();
+    float lineY = textY;
+    while (lineBegin <= textEnd) {
+        const char* lineEnd = std::find(lineBegin, textEnd, '\n');
+        const float lineWidth = font->CalcTextSizeA(size, FLT_MAX, 0.0f, lineBegin, lineEnd).x;
+        float lineX = px + paddingX;
+        if (content.XAlignment == TextXAlignment::Center) lineX = px + (sw - lineWidth) * 0.5f;
+        else if (content.XAlignment == TextXAlignment::Right) lineX = px + sw - paddingX - lineWidth;
+        if (lineEnd > lineBegin)
+            dl->AddText(font, size, ImVec2(lineX, lineY), col, lineBegin, lineEnd, 0.0f, &textClipRect);
+        lineY += size;
+        if (lineEnd == textEnd) break;
+        lineBegin = lineEnd + 1;
+    }
 }
 
 static ImU32 toImCol(const Color4& c) {
@@ -233,7 +241,7 @@ static void drawGuiContent(ImDrawList* dl, ScreenGuiObject* sgo,
                      ImVec2(0, 1), ImVec2(1, 0));  // 上下反転（テクスチャ原点補正）
     if (auto* txt = sgo->textContent(); txt && !txt->Text.empty() &&
         txt->TextColor.a > 0.001f)
-        drawGuiText(dl, sgo, px, py, sw, sh, toImCol(txt->TextColor), txt->Text.c_str(),
+        drawGuiText(dl, sgo, *txt, px, py, sw, sh, toImCol(txt->TextColor),
                     textScaleY, fitTextToBounds);
     if (onActivated && *onActivated && sgo->Active && sgo->IsA("GuiButton")) {
         // ID はインスタンスポインタ由来（同名インスタンスの ID 衝突防止）
@@ -247,14 +255,13 @@ static void drawGuiContent(ImDrawList* dl, ScreenGuiObject* sgo,
 
 static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
                                   float vpX, float vpY, float vpW, float vpH,
-                                  float scaleX, float scaleY,
+                                  const Vector2& scale,
     std::function<void(GuiButton*)>& onActivated) {
     if (!sgo->Visible) return;
 
-    float px = (sgo->NormType == Norm::Scale) ? sgo->Position.x * vpW + vpX : sgo->Position.x * scaleX + vpX;
-    float py = (sgo->NormType == Norm::Scale) ? sgo->Position.y * vpH + vpY : sgo->Position.y * scaleY + vpY;
-    float sw = (sgo->NormType == Norm::Scale) ? sgo->Size.x * vpW : sgo->Size.x * scaleX;
-    float sh = (sgo->NormType == Norm::Scale) ? sgo->Size.y * vpH : sgo->Size.y * scaleY;
+    const ScreenGuiLayout::Rect rect = ScreenGuiLayout::computeRect(*sgo, vpX, vpY, vpW, vpH, scale);
+    const float px = rect.x, py = rect.y, sw = rect.w, sh = rect.h;
+    const float scaleY = scale.y;
 
     ImVec2 tl(px, py);
     ImVec2 br(px + sw, py + sh);
@@ -487,31 +494,20 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
 // ===================================================
 //  renderScreenGui
 // ===================================================
-void Renderer::renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH) {
-    std::vector<ScreenGuiObject*> elements;
-    for (ScreenGuiObject* object : ws.getRenderScreenGuiObjects()) {
-        FrameProfiler::get().addCount("treeGuiNodes", 1);
-        if (!hasWorldGuiAncestor(object)) elements.push_back(object);
-    }
+void Renderer::renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH,
+                               bool uniformPixelScale) {
+    FrameProfiler::get().addCount("treeGuiNodes", static_cast<long long>(ws.getRenderScreenGuiObjects().size()));
+    // ZIndex 昇順（小 = 背面）
+    const std::vector<ScreenGuiObject*> elements = ScreenGuiLayout::collectScreenElements(ws);
     if (elements.empty()) return;
 
     // Norm::Pixel 要素のスケール係数: System.BaseResolution に対する現在のビューポート比率
     // System が見つからない/BaseResolutionが不正な場合は 1.0（従来どおりピクセル等倍）にフォールバック
-    float scaleX = 1.f, scaleY = 1.f;
-    if (auto parent = ws.Parent.lock(); parent && parent->IsA("System")) {
-        auto* sys = static_cast<System*>(parent.get());
-        if (sys->BaseResolution.x > 0.f) scaleX = vpW / sys->BaseResolution.x;
-        if (sys->BaseResolution.y > 0.f) scaleY = vpH / sys->BaseResolution.y;
-    }
-
-    // ZIndex 昇順（小 = 背面）
-    std::sort(elements.begin(), elements.end(), [](ScreenGuiObject* a, ScreenGuiObject* b) {
-        return a->ZIndex < b->ZIndex;
-    });
+    const Vector2 scale = ScreenGuiLayout::pixelScale(ws, vpW, vpH, uniformPixelScale);
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     for (auto* sgo : elements) {
-        drawScreenGuiElement(dl, sgo, vpX, vpY, vpW, vpH, scaleX, scaleY, m_onButtonActivated);
+        drawScreenGuiElement(dl, sgo, vpX, vpY, vpW, vpH, scale, m_onButtonActivated);
     }
 }
 
@@ -1067,7 +1063,8 @@ void Renderer::renderGameGui(
     }
     renderScreenGui(
         ws, context.viewportX, context.viewportY,
-        context.viewportWidth, context.viewportHeight);
+        context.viewportWidth, context.viewportHeight,
+        context.uniformPixelScale);
     renderWorldGui(ws, user, context);
     if (user) {
         renderToolHotbar(

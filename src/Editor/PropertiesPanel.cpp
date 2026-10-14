@@ -160,6 +160,26 @@ static bool drawRoundButton() {
     return clicked;
 }
 
+// 色の実物を見せるスウォッチ（後続のウィジェットは同じ行に並ぶ）。
+// tooltip が null なら ImGui 既定の色ツールチップを出す。クリックされたら true
+static bool drawColorSwatch(const Color4& color, const char* tooltip = nullptr) {
+    const float side = ImGui::GetFrameHeight();
+    ImGuiColorEditFlags flags = ImGuiColorEditFlags_AlphaPreviewHalf;
+    if (tooltip) flags |= ImGuiColorEditFlags_NoTooltip;
+    const bool clicked = ImGui::ColorButton(
+        "##color_swatch", ImVec4(color.r, color.g, color.b, color.a), flags, ImVec2(side, side));
+    if (tooltip && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", tooltip);
+    ImGui::SameLine();
+    return clicked;
+}
+
+// 1行に複数ウィジェットを置く型で、直前のウィジェットの編集開始/確定を
+// 行末の Undo 記録判定へ合流させる（行末の判定は最後のウィジェットしか見ないため）
+static void mergeEditEdges(bool& activated, bool& deactivatedAfterEdit) {
+    activated = activated || ImGui::IsItemActivated();
+    deactivatedAfterEdit = deactivatedAfterEdit || ImGui::IsItemDeactivatedAfterEdit();
+}
+
 static Vector3 roundVector3(const Vector3& value) {
     return Vector3(std::round(value.x), std::round(value.y), std::round(value.z));
 }
@@ -419,6 +439,7 @@ static void renderSchemaInspector(Instance* inst, const char* className,
             case PropType::Vec3: {
                 Vector3 v = std::get<Vector3>(cur);
                 if (ImGui::DragFloat3(("##" + label).c_str(), &v.x, d.step, d.lo, d.hi, "%.2f")) applyLive(inst, PropValue(v));
+                mergeEditEdges(itemActivated, itemDeactivatedAfterEdit);
                 const float input[3] = {v.x, v.y, v.z};
                 auto textResult = PropertyTextInput::draw(
                     "##vec3_text", input, 3);
@@ -441,11 +462,15 @@ static void renderSchemaInspector(Instance* inst, const char* className,
             }
             case PropType::Color4: {
                 Color4 v = std::get<Color4>(cur);
+                static PropValue paletteBefore;
+                // 実際の色を見せるスウォッチ。クリックでPaletteと同じポップアップを開く
+                const bool swatchClicked = drawColorSwatch(v);
                 float channels[4] = {v.r * 255.0f, v.g * 255.0f, v.b * 255.0f, v.a * 255.0f};
                 if (ImGui::DragFloat4(("##" + label).c_str(), channels, 1.0f, 0.0f, 255.0f, "%.0f")) {
                     applyLive(inst, PropValue(Color4(channels[0] / 255.0f, channels[1] / 255.0f,
                                                      channels[2] / 255.0f, channels[3] / 255.0f)));
                 }
+                mergeEditEdges(itemActivated, itemDeactivatedAfterEdit);
                 const float input[4] = {channels[0], channels[1], channels[2], channels[3]};
                 auto textResult = PropertyTextInput::draw(
                     "##color4_text", input, 4, false, 0.0f, 255.0f);
@@ -455,7 +480,10 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                                              textResult.values[2] / 255.0f, textResult.values[3] / 255.0f);
                     applyDiscrete(inst, PropValue(afterColor));
                 }
-                static PropValue paletteBefore;
+                if (swatchClicked) {
+                    paletteBefore = d.get(inst);
+                    ImGui::OpenPopup("ColorPalette");
+                }
                 if (ImGui::Button((std::string("Palette##") + label).c_str())) {
                     paletteBefore = d.get(inst);
                     ImGui::OpenPopup("ColorPalette");
@@ -491,6 +519,7 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                     v.Rotation = Quaternion::fromEuler(rotation);
                     applyLive(inst, PropValue(v));
                 }
+                mergeEditEdges(itemActivated, itemDeactivatedAfterEdit);
                 const float input[6] = {v.Position.x, v.Position.y, v.Position.z,
                                         rotation.x, rotation.y, rotation.z};
                 auto textResult = PropertyTextInput::draw(
@@ -883,6 +912,7 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                 Vector3 v = std::get<Vector3>(cur);
                 const char* fmt = mixed ? Loc::t(Loc::LocKey::MixedValue) : "%.2f";
                 if (ImGui::DragFloat3(("##" + name).c_str(), &v.x, d0->step, d0->lo, d0->hi, fmt)) applyLiveAll(PropValue(v));
+                mergeEditEdges(itemActivated, itemDeactivatedAfterEdit);
                 const float input[3] = {v.x, v.y, v.z};
                 auto textResult = PropertyTextInput::draw(
                     "##vec3_text", input, 3, mixed);
@@ -905,8 +935,13 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
             }
             case PropType::Color4: {
                 Color4 v = std::get<Color4>(cur);
+                static std::vector<PropValue> paletteBeforeValues;
+                // mixedのときは代表値（先頭）の色を出し、ツールチップで食い違いを示す
+                const bool swatchClicked = drawColorSwatch(
+                    v, mixed ? Loc::t(Loc::LocKey::MixedValue) : nullptr);
                 float channels[4] = {v.r * 255.0f, v.g * 255.0f, v.b * 255.0f, v.a * 255.0f};
                 bool changed = ImGui::DragFloat4(("##" + name).c_str(), channels, 1.0f, 0.0f, 255.0f, "%.0f");
+                mergeEditEdges(itemActivated, itemDeactivatedAfterEdit);
                 if (mixed) { ImGui::SameLine(); ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::MixedValue)); }
                 if (changed) applyLiveAll(PropValue(Color4(channels[0] / 255.0f, channels[1] / 255.0f,
                                                            channels[2] / 255.0f, channels[3] / 255.0f)));
@@ -922,8 +957,8 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                     recordCurrentValues();
                     recordedImmediately = true;
                 }
-                static std::vector<PropValue> paletteBeforeValues;
-                if (ImGui::Button((std::string("Palette##") + name).c_str()))
+                const bool paletteClicked = ImGui::Button((std::string("Palette##") + name).c_str());
+                if (swatchClicked || paletteClicked)
                 {
                     paletteBeforeValues = curVals;
                     ImGui::OpenPopup("ColorPalette");
@@ -970,6 +1005,7 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                     v.Rotation = Quaternion::fromEuler(rotation);
                     applyLiveAll(PropValue(v));
                 }
+                mergeEditEdges(itemActivated, itemDeactivatedAfterEdit);
                 const float input[6] = {v.Position.x, v.Position.y, v.Position.z,
                                         rotation.x, rotation.y, rotation.z};
                 auto textResult = PropertyTextInput::draw(

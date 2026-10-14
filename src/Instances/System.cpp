@@ -26,6 +26,9 @@ static const bool s_systemRegistered = []{
             {"Free", static_cast<int>(System::CameraMode::Free)},
             {"Program", static_cast<int>(System::CameraMode::Program)},
         }, true).luaReadOnly().group("Runtime"),
+        field<&System::UseFixedResolution>("UseFixedResolution")
+            .luaHidden().group("Editor")
+            .serializeIf([](const Instance* o) { return !static_cast<const System*>(o)->UseFixedResolution; }),
     });
     return true;
 }();

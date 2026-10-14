@@ -16,6 +16,7 @@
 | `MaxRestartsPerFrame` | `int` | 1フレームで許容するScript Restart回数の上限（既定100） |
 | `ScriptLoopTimeoutSeconds` | `float` | スクリプトループのタイムアウト秒数。0以下で無効（既定2.0） |
 | `BaseResolution` | `Vector2` | `ScreenGuiObject`(`Norm::Pixel`)の自動スケーリング基準解像度（既定 1920x1080）。Luauからは読み取り専用 |
+| `UseFixedResolution` | `bool` | エディター用（既定true）。trueならエディターのビューポートを `BaseResolution` の縦横比で黒帯付き表示する。falseなら黒帯なしでパネルの実サイズをそのまま描画解像度にし、`Norm::Pixel` の画面GUIは縦横同率（比率の小さい方）で拡大縮小する。ランタイム(game_main)には影響しない。Luauからは不可視、falseのときだけYAMLへ出力 |
 | `EnableIOAPI` | `bool` | Luau I/O APIの許可（既定false） |
 | `EnableIPCAPI` | `bool` | IPC APIスタブの許可（既定false） |
 | `EnableExternalFileAccess` | `bool` | ゲーム領域外ファイルアクセスの許可（既定false） |
@@ -24,7 +25,7 @@
 
 `MaxClonesPerFrame`/`MaxRestartsPerFrame`/`ScriptLoopTimeoutSeconds` は意図的にLuauへバインドしない（DispatchTable/SetterTableに非登録）。エディターからのみ編集可能。
 
-`BaseResolution` は `PropertyRegistry` 経由で登録され、YAML保存/エディター編集/Luau読み取りに対応する（`.luaReadOnly()` によりLuauからの書込のみ不可）。`Renderer::renderScreenGui` が現在のビューポート解像度との比率を計算し、`Norm::Pixel` の `Position`/`Size` にX,Y別々に乗算する（`doc/Core/Renderer.md` 参照）。
+`BaseResolution` は `PropertyRegistry` 経由で登録され、YAML保存/エディター編集/Luau読み取りに対応する（`.luaReadOnly()` によりLuauからの書込のみ不可）。`Renderer::renderScreenGui` が現在のビューポート解像度との比率を計算し、`Norm::Pixel` の `Position`/`Size` にX,Y別々に乗算する（`doc/Core/Renderer.md` 参照）。ただしエディターのビューポートで `UseFixedResolution` が false のときは、縦横の比率の小さい方を両軸に使う（`GameGuiRenderContext::uniformPixelScale`）。
 
 拡張フラグもYAMLとエディターの通常System inspectorで扱うが、Luauからは読み取り専用である。通常ランタイムでは有効な拡張の同意receiptが必要になり、Editor/`--editor-test`では警告receiptを省略する。
 

@@ -16,6 +16,7 @@ public:
     bool    UseFontFile      = false;
     SystemFont Font          = SystemFont::Default;
     std::string FontFile;            // FontFile の Workspace 相対参照
+    bool    Locked           = false; // エディター用: ビューポートでのクリック選択・ドラッグ移動を受け付けない
 
     // マウスカーソルが要素内に入った瞬間に発火する（Roblox の MouseEnter 相当）
     std::shared_ptr<RCBNScriptSignal> Hovered;
