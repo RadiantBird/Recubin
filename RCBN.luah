@@ -422,6 +422,9 @@ export type System = Instance & {
     NetworkRole: string,
     LocalPeerId: number,
     BaseResolution: Vector2, -- read only
+    LockAspectRatio: boolean, -- read only (RecubinEngine は BaseResolution の縦横比を黒帯で保つ)
+    AllowControlModeSwitch: boolean, -- read only (RecubinEngine で L キーの Free/Character 切り替えを許可)
+    AllowWorkspaceSwitch: boolean, -- read only (RecubinEngine で RequestWorkspaceSwitch を許可)
     UseNetwork: boolean,
     EnableIOAPI: boolean, -- read only
     EnableIPCAPI: boolean, -- read only

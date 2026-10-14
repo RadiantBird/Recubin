@@ -37,6 +37,13 @@ class System : public Instance {
         // falseなら黒帯なしでパネル全体に描画し、Pixel単位の画面GUIは縦横同率で拡大縮小する。
         // ランタイム(game_main)の描画には影響しない。Luauからは不可視。
         bool UseFixedResolution = true;
+        // ランタイム用: trueならウィンドウの縦横比に関わらず BaseResolution の縦横比を保ち、
+        // 余白を黒帯にする（RecubinEngine）。falseならウィンドウ全体に描画する。Luauからは読み取り専用。
+        bool LockAspectRatio = false;
+        // ランタイム用: L キーでの Free/Character 切り替えを許可するか（RecubinEngine）。Luauからは読み取り専用。
+        bool AllowControlModeSwitch = false;
+        // ランタイム用: User:RequestWorkspaceSwitch() による Workspace 切り替えを許可するか（RecubinEngine）。
+        bool AllowWorkspaceSwitch = false;
 
         // trueの場合、LocalScript/Scriptが区別されて動作する(Client側ではLocalScriptのみ実行)。
         // falseの場合、区別されず、ネットワーク通信も一切行わない。

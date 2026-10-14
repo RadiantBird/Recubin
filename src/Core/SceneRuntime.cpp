@@ -34,6 +34,9 @@ void copySystemScalars(const System& source, System& destination) {
     destination.ScriptLoopTimeoutSeconds = source.ScriptLoopTimeoutSeconds;
     destination.BaseResolution = source.BaseResolution;
     destination.UseFixedResolution = source.UseFixedResolution;
+    destination.LockAspectRatio = source.LockAspectRatio;
+    destination.AllowControlModeSwitch = source.AllowControlModeSwitch;
+    destination.AllowWorkspaceSwitch = source.AllowWorkspaceSwitch;
     destination.UseNetwork = source.UseNetwork;
     destination.NetworkInterpolationDelay = source.NetworkInterpolationDelay;
     destination.EnableIOAPI = source.EnableIOAPI;

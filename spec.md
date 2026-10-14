@@ -463,6 +463,11 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
 - ビューポートでの画面GUIの編集はツールバーのGUIタブ表示中だけ行い、その間は3Dのクリック操作と
   Alt のフリールック（マウスロック）を止める（Alt は吸着の一時オフに使う）。Shift 押下中だけ
   プライマリ選択のGUIにリサイズハンドルを出す。
+- System.AllowControlModeSwitch / AllowWorkspaceSwitch（ランタイム用、既定false）: RecubinEngine で L キーの
+  Free/Character 切り替え、User:RequestWorkspaceSwitch() による Workspace 切り替えを許可するか。既定ではどちらも禁止。
+- System.LockAspectRatio（ランタイム用、既定false）が true なら、RecubinEngine はウィンドウの縦横比に関わらず
+  BaseResolution の縦横比を保ち、余白を黒帯にする（3D・ゲームGUI・チャット・マウスのレイとも内側の矩形を使う）。
+  false なら従来どおりウィンドウ全体に描き、Pixel単位の画面GUIは縦横別の倍率で拡大する。
 - System.UseFixedResolution（エディター用、既定true）が false なら、エディターのビューポートは黒帯なしで
   パネルの実サイズを描画解像度にし、Pixel単位の画面GUIは縦横同率で拡大縮小する。ランタイムは変わらない。
   GUIタブ以外では画面GUIはクリックを素通りする（全画面GUIがあっても3Dを編集できるようにするため）。

@@ -379,6 +379,10 @@ class Renderer {
         GLuint m_postVAO = 0, m_postVBO = 0;
         GLuint m_postShader = 0;
         GLuint m_postFboA = 0, m_postTexA = 0;
+        // System.LockAspectRatio 用: 黒帯の内側のサイズで描くオフスクリーンFBO（ウィンドウへ転送する）
+        GLuint m_letterboxFbo = 0, m_letterboxColor = 0, m_letterboxDepth = 0;
+        int m_letterboxWidth = 0, m_letterboxHeight = 0;
+        void ensureLetterboxFBO(int width, int height);
         GLuint m_postFboB = 0, m_postTexB = 0;
         int    m_postFboWidth = 0, m_postFboHeight = 0;
 

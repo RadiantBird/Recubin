@@ -26,6 +26,15 @@ static const bool s_systemRegistered = []{
             {"Free", static_cast<int>(System::CameraMode::Free)},
             {"Program", static_cast<int>(System::CameraMode::Program)},
         }, true).luaReadOnly().group("Runtime"),
+        field<&System::LockAspectRatio>("LockAspectRatio")
+            .luaReadOnly()
+            .serializeIf([](const Instance* o) { return static_cast<const System*>(o)->LockAspectRatio; }),
+        field<&System::AllowControlModeSwitch>("AllowControlModeSwitch")
+            .luaReadOnly()
+            .serializeIf([](const Instance* o) { return static_cast<const System*>(o)->AllowControlModeSwitch; }),
+        field<&System::AllowWorkspaceSwitch>("AllowWorkspaceSwitch")
+            .luaReadOnly()
+            .serializeIf([](const Instance* o) { return static_cast<const System*>(o)->AllowWorkspaceSwitch; }),
         field<&System::UseFixedResolution>("UseFixedResolution")
             .luaHidden().group("Editor")
             .serializeIf([](const Instance* o) { return !static_cast<const System*>(o)->UseFixedResolution; }),

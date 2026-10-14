@@ -6,6 +6,7 @@
 #include <include/imgui/imgui_impl_glfw.h>
 #include <include/imgui/imgui_impl_opengl3.h>
 #include <Core/Renderer.hpp>
+#include <Core/ScreenGuiLayout.hpp>
 #include <Editor/SceneHierarchyPanel.hpp>
 #include <Editor/PropertiesPanel.hpp>
 #include <algorithm>
@@ -69,10 +70,18 @@ public:
         const float projectionAspect = framebufferWidth > 0 && framebufferHeight > 0
             ? static_cast<float>(framebufferWidth) / static_cast<float>(framebufferHeight)
             : (viewportSize.y > 0.0f ? viewportSize.x / viewportSize.y : 1.0f);
+        // System.LockAspectRatio: Renderer::render が3Dを黒帯の内側へ描くので、ゲームGUI・チャット・
+        // マウスのレイも同じ内側の矩形（論理座標）に合わせる
+        ScreenGuiLayout::Rect gameArea{viewportPos.x, viewportPos.y, viewportSize.x, viewportSize.y};
+        float gameAspect = projectionAspect;
+        if (ScreenGuiLayout::Rect locked; ScreenGuiLayout::lockedAspectArea(ws, gameArea, locked)) {
+            gameArea = locked;
+            gameAspect = locked.w / locked.h;
+        }
         const GameGuiRenderContext guiContext = Renderer::makeGameGuiRenderContext(
-            viewportPos.x, viewportPos.y, viewportSize.x, viewportSize.y,
+            gameArea.x, gameArea.y, gameArea.w, gameArea.h,
             user.cpos, user.forward, user.right, user.up,
-            projectionAspect, true);
+            gameAspect, true);
 
         // ゲーム GUI 描画用フルスクリーン透明ウィンドウ
         ImGui::SetNextWindowViewport(mainViewport->ID);
@@ -86,8 +95,7 @@ public:
 
         if (Renderer::instance) {
             Renderer::instance->renderGameGui(ws, &user, guiContext);
-            Renderer::instance->renderRuntimeChat(
-                viewportPos.x, viewportPos.y, viewportSize.x, viewportSize.y);
+            Renderer::instance->renderRuntimeChat(gameArea.x, gameArea.y, gameArea.w, gameArea.h);
         }
 
         ImGui::End();

@@ -698,7 +698,7 @@ int main(int argc, char* argv[]) {
     constexpr const char* BuildDate = __DATE__;
     constexpr const char* BuildTime = __TIME__;
     std::cout << "Hello world!\n"
-              << "Recubin Studio v0.999\n"
+              << "Recubin Studio v Delta_1.0\n"
               << "build: "
               << __DATE__ << ' ' << __TIME__ << '\n';
 #ifdef _WIN32

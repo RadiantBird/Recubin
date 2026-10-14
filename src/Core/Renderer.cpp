@@ -1,4 +1,5 @@
 #include <Core/Renderer.hpp>
+#include <Core/ScreenGuiLayout.hpp>
 #include <Core/Physics.hpp>
 #include <Core/FileLoader.hpp>
 #include <Util/Logger.hpp>
@@ -938,6 +939,9 @@ Renderer::~Renderer() {
     if (m_postTexA)   glDeleteTextures(1, &m_postTexA);
     if (m_postFboB)   glDeleteFramebuffers(1, &m_postFboB);
     if (m_postTexB)   glDeleteTextures(1, &m_postTexB);
+    if (m_letterboxFbo)   glDeleteFramebuffers(1, &m_letterboxFbo);
+    if (m_letterboxColor) glDeleteTextures(1, &m_letterboxColor);
+    if (m_letterboxDepth) glDeleteRenderbuffers(1, &m_letterboxDepth);
     if (m_selectionMaskFBO)   glDeleteFramebuffers(1, &m_selectionMaskFBO);
     if (m_selectionMaskTex)   glDeleteTextures(1, &m_selectionMaskTex);
     if (m_selectionMaskDepth) glDeleteRenderbuffers(1, &m_selectionMaskDepth);
@@ -1817,6 +1821,36 @@ void Renderer::initPostEffectRenderer() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
     glEnableVertexAttribArray(1);
     glBindVertexArray(0);
+}
+
+void Renderer::ensureLetterboxFBO(int width, int height) {
+    if (width == m_letterboxWidth && height == m_letterboxHeight && m_letterboxFbo) return;
+    if (m_letterboxFbo)   glDeleteFramebuffers(1, &m_letterboxFbo);
+    if (m_letterboxColor) glDeleteTextures(1, &m_letterboxColor);
+    if (m_letterboxDepth) glDeleteRenderbuffers(1, &m_letterboxDepth);
+
+    glGenTextures(1, &m_letterboxColor);
+    glBindTexture(GL_TEXTURE_2D, m_letterboxColor);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glGenRenderbuffers(1, &m_letterboxDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, m_letterboxDepth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+
+    glGenFramebuffers(1, &m_letterboxFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_letterboxFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_letterboxColor, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_letterboxDepth);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        RCBN_ERROR("Letterbox framebuffer is incomplete: " << width << "x" << height);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    m_letterboxWidth = width;
+    m_letterboxHeight = height;
 }
 
 void Renderer::ensurePostEffectFBOs(int width, int height) {
@@ -3638,8 +3672,36 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
         desc.width = width;
         desc.height = height > 0 ? height : 1;
 
+        // System.LockAspectRatio: 黒帯の内側のサイズでオフスクリーンへ描き、ウィンドウ中央へ転送する
+        // （描画パスは対象FBOの (0,0,w,h) 全体へ描く前提のため、ビューポートをずらさずFBOを分ける）
+        ScreenGuiLayout::Rect lockedArea;
+        const bool aspectLocked = width > 0 && height > 0 && ScreenGuiLayout::lockedAspectArea(
+            workspace, ScreenGuiLayout::Rect{0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)},
+            lockedArea);
+        if (aspectLocked) {
+            ensureLetterboxFBO(static_cast<int>(lockedArea.w), static_cast<int>(lockedArea.h));
+            desc.fbo = m_letterboxFbo;
+            desc.width = m_letterboxWidth;
+            desc.height = m_letterboxHeight;
+        }
+
         // Viewport描画を実行
         renderViewport(desc);
+
+        if (aspectLocked) {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glViewport(0, 0, width, height);
+            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            // lockedArea は上が原点、GLは下が原点なので Y を反転する（余白が奇数でもGUIとずれない）
+            const int x = static_cast<int>(lockedArea.x);
+            const int y = height - static_cast<int>(lockedArea.y) - desc.height;
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, m_letterboxFbo);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+            glBlitFramebuffer(0, 0, desc.width, desc.height, x, y, x + desc.width, y + desc.height,
+                              GL_COLOR_BUFFER_BIT, GL_NEAREST);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
     }
 
     if (editor) {

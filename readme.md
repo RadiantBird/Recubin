@@ -6,13 +6,13 @@
 ![logo](assets/image/Recubin.png)
 
 Recubinは、Luauスクリプティング、物理遊び、複数Workspaceを備えたC++製のローカルゲームエンジンです。
-Robloxに影響を受けつつ、「もっと自由にローカルで遊べたら」を形にしています。
+Robloxのアイデアを元に、自由な遊びと新しい体験の作成を重点を置いています。
 
 | プラットフォーム | 対応状況 |
 |---|---|
-| Windows | ✅ 対応 |
-| Linux | 🚧 対応予定 |
-| macOS | ⚠️ v1.0のみ |
+| Windows | 対応済み |
+| Linux | 対応予定 |
+| macOS | v1.0のみの予定 |
 
 [パッケージ](https://github.com/RadiantBird/Recubin/releases)はここからダウンロードできます！
 
@@ -20,6 +20,8 @@ Robloxに影響を受けつつ、「もっと自由にローカルで遊べた�
 
 Recubin is a local game engine inspired by Roblox, featuring Luau scripting, physics, and multiple Workspaces.
 [Download Recubin](https://github.com/RadiantBird/Recubin/releases) :DD
+
+---
 
 ## 目標
 - 誰でも簡単にゲームを開発し、ローカルで公開できるように。
@@ -131,12 +133,22 @@ end)
 
 ---
 あといろいろ…多分面白いものがたくさんあります。
+- IPC
+- IO
+- Luar Language
+- Secret Luau API(hint: the hat in the logo)
 
 ## あるかもしれない質問
 
-- Q. なんでUserのキャラクターはPlayerなの？
-- A. Userはあなたのことです。一方、Playerは道化(アバター)に過ぎません。
-つまり…あなたとアバターは異なる分身として表現されます。
+Q. なんでUserのキャラクターはPlayerなの？  
+
+A. Userはあなたのことです。一方、Playerは道化(アバター)に過ぎません。
+つまり…あなたとアバターは異なる分身として表現されます。  
+  
+
+Q. このエンジンを使ってゲームを作ってお金をもらってもいいんですか？  
+
+A. はい。もちろん、あなたのゲームはあなたのものですので、ご自由にアイデアを世界に共有してビジネスをしてください。
 
 ## v2.0について
 
@@ -144,11 +156,10 @@ v2.0では、さらに面白い要素、いろいろなインスタンス、
 機能改善などを予定しています。
 
 ## Macについて
-  Metalだけでも困難ですが、PhysXのサポートも薄く、
+  Metalだけでも困難ですが、
   将来的なVulkan移行、Mac対応ライブラリ痩せを考慮すると、
-  Mac対応は今後しないことを決めました。
+  Mac対応は今後しないことを予定しています。
   Mac版はとりあえずv1.0のパッケージは何とか出します。
-  プルリクエストとか経験がないんですけど、してくれるとうれしいかもです。
 
 ## 使用中の技術
 - C++
@@ -168,6 +179,7 @@ v2.0では、さらに面白い要素、いろいろなインスタンス、
 - recastnavigation
 - xatlas
 - enet
+- Rust(Luarコンパイラ)
 
 ## 使用予定の技術
 - DirectX(Windows最適化)

@@ -849,6 +849,8 @@ int main(int argc, char* argv[]) {
         const bool chatInput = renderer->isChatCapturingKeyboard() || ImGui::GetIO().WantTextInput;
         const bool uiInput = chatInput || debugInput;
         SystemState::get().viewportFocused = !uiInput;
+        // L キーでの Free/Character 切り替えは System.AllowControlModeSwitch で許可されたゲームだけ
+        user->allowControlModeSwitch = system->AllowControlModeSwitch;
         if (!navMeshBusy) {
             user->processInput(workspace->getPhysicsEngine(), deltaTime,
                                /*viewportFocused=*/!uiInput, /*viewportHovered=*/!uiInput,
@@ -857,8 +859,8 @@ int main(int argc, char* argv[]) {
         }
         if (user->consumeExitRequest()) break;
 
-        // ---- Pキー: Workspace切り替え ----
-        if (!navMeshBusy && user->consumeWorkspaceSwitchRequest()) {
+        // ---- Workspace切り替え（User:RequestWorkspaceSwitch）。System.AllowWorkspaceSwitch が false なら要求を捨てる ----
+        if (!navMeshBusy && user->consumeWorkspaceSwitchRequest() && system->AllowWorkspaceSwitch) {
             workspaces = SceneRuntime::collectWorkspaces(system);
             std::vector<Workspace*> ptrs;
             for (auto& ws : workspaces) ptrs.push_back(ws.get());

@@ -152,6 +152,9 @@ static std::string toProjectRelative(const std::string& absPath) {
 
 static bool propValuesEqual(const PropValue& left, const PropValue& right);
 
+// プロパティ名の列の幅（長い名前が見切れないよう、AllowWorkspaceSwitch 程度まで収まる幅）
+constexpr float PROPERTY_NAME_COLUMN_WIDTH = 210.0f;
+
 static bool drawRoundButton() {
     const bool clicked = ImGui::Button(Loc::t(Loc::LocKey::RoundButton));
     if (ImGui::IsItemHovered()) {
@@ -343,7 +346,7 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                            ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoBordersInBody |
                                ImGuiTableFlags_BordersInnerV))
         return;
-    ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 118.0f);
+    ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, PROPERTY_NAME_COLUMN_WIDTH);
     ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
     std::string activeCategory;
     bool categoryOpen = true;
@@ -698,7 +701,7 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                            ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoBordersInBody |
                                ImGuiTableFlags_BordersInnerV))
         return;
-    ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 118.0f);
+    ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, PROPERTY_NAME_COLUMN_WIDTH);
     ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
     std::string activeCategory;
     bool categoryOpen = true;
@@ -1392,7 +1395,7 @@ void PropertiesPanel::onRender() {
             ImGuiTableFlags_BordersInnerV);
     bool instanceOpen = instanceTable;
     if (instanceTable) {
-        ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 118.0f);
+        ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, PROPERTY_NAME_COLUMN_WIDTH);
         ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);

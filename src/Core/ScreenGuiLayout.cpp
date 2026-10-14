@@ -4,6 +4,7 @@
 #include "include/Instances/Workspace.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 namespace ScreenGuiLayout {
 
@@ -33,6 +34,26 @@ Rect computeRect(const ScreenGuiObject& object,
     rect.w = normalized ? object.Size.x * viewportWidth : object.Size.x * scale.x;
     rect.h = normalized ? object.Size.y * viewportHeight : object.Size.y * scale.y;
     return rect;
+}
+
+Rect letterbox(const Rect& area, const Vector2& aspect) {
+    if (area.w <= 0.0f || area.h <= 0.0f || aspect.x <= 0.0f || aspect.y <= 0.0f) return area;
+    const float scale = (std::min)(area.w / aspect.x, area.h / aspect.y);
+    Rect result;
+    result.w = (std::max)(1.0f, std::floor(aspect.x * scale));
+    result.h = (std::max)(1.0f, std::floor(aspect.y * scale));
+    result.x = area.x + std::floor((area.w - result.w) * 0.5f);
+    result.y = area.y + std::floor((area.h - result.h) * 0.5f);
+    return result;
+}
+
+bool lockedAspectArea(const Workspace& workspace, const Rect& area, Rect& out) {
+    auto parent = workspace.Parent.lock();
+    if (!parent || !parent->IsA("System")) return false;
+    const auto* system = static_cast<const System*>(parent.get());
+    if (!system->LockAspectRatio) return false;
+    out = letterbox(area, system->BaseResolution);
+    return true;
 }
 
 bool hasWorldGuiAncestor(const ScreenGuiObject& object) {

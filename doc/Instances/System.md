@@ -16,6 +16,9 @@
 | `MaxRestartsPerFrame` | `int` | 1フレームで許容するScript Restart回数の上限（既定100） |
 | `ScriptLoopTimeoutSeconds` | `float` | スクリプトループのタイムアウト秒数。0以下で無効（既定2.0） |
 | `BaseResolution` | `Vector2` | `ScreenGuiObject`(`Norm::Pixel`)の自動スケーリング基準解像度（既定 1920x1080）。Luauからは読み取り専用 |
+| `LockAspectRatio` | `bool` | ランタイム用（既定false）。trueなら RecubinEngine はウィンドウの縦横比に関わらず `BaseResolution` の縦横比を保ち、余白を黒帯にする。3Dは黒帯の内側のサイズのオフスクリーンFBOへ描いてウィンドウ中央へ転送し（`Renderer::render`）、ゲームGUI・チャット・マウスのレイも同じ内側の矩形を使う（`NullEditorManager::renderUI`、矩形は `ScreenGuiLayout::lockedAspectArea`）。エディターのビューポートには影響しない。Luauからは読み取り専用、trueのときだけYAMLへ出力 |
+| `AllowControlModeSwitch` | `bool` | ランタイム用（既定false）。trueなら RecubinEngine で L キーによる Free/Character の切り替えを許可する（`User::allowControlModeSwitch` へ毎フレーム反映）。エディターのPlayは従来どおり EditorManager が決める。Luauからは読み取り専用、trueのときだけYAMLへ出力 |
+| `AllowWorkspaceSwitch` | `bool` | ランタイム用（既定false）。trueなら RecubinEngine で `User:RequestWorkspaceSwitch()` による Workspace 切り替えを行う。falseなら要求を捨てる。Luauからは読み取り専用、trueのときだけYAMLへ出力 |
 | `UseFixedResolution` | `bool` | エディター用（既定true）。trueならエディターのビューポートを `BaseResolution` の縦横比で黒帯付き表示する。falseなら黒帯なしでパネルの実サイズをそのまま描画解像度にし、`Norm::Pixel` の画面GUIは縦横同率（比率の小さい方）で拡大縮小する。ランタイム(game_main)には影響しない。Luauからは不可視、falseのときだけYAMLへ出力 |
 | `EnableIOAPI` | `bool` | Luau I/O APIの許可（既定false） |
 | `EnableIPCAPI` | `bool` | IPC APIスタブの許可（既定false） |

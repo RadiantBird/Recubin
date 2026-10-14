@@ -30,6 +30,13 @@ Rect computeRect(const ScreenGuiObject& object,
                  float viewportWidth, float viewportHeight,
                  const Vector2& scale);
 
+// area の中央に、aspect（幅:高さ）を保って収まる最大の矩形（余白は黒帯にする領域）
+Rect letterbox(const Rect& area, const Vector2& aspect);
+
+// System.LockAspectRatio が有効なら、area を BaseResolution の縦横比で黒帯付きにした矩形を
+// out に入れて true を返す（ランタイムの描画とGUIで同じ矩形を使う）。無効なら false
+bool lockedAspectArea(const Workspace& workspace, const Rect& area, Rect& out);
+
 // WorldGui(SurfaceGui/BillboardGui)配下の要素か（画面GUIとしては描画しない）
 bool hasWorldGuiAncestor(const ScreenGuiObject& object);
 

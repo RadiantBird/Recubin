@@ -11548,6 +11548,49 @@ static int runGuiViewportEditRegression() {
                "a disabled UseFixedResolution is saved");
     }
 
+    // System.LockAspectRatio: ランタイムは BaseResolution の縦横比を黒帯で保つ
+    {
+        const ScreenGuiLayout::Rect pillar = ScreenGuiLayout::letterbox({0.0f, 0.0f, 960.0f, 540.0f}, Vector2(800.0f, 600.0f));
+        expect(sameRect(pillar, 120.0f, 0.0f, 720.0f, 540.0f), "a 4:3 base in a 16:9 window gets side bars");
+        const ScreenGuiLayout::Rect boxed = ScreenGuiLayout::letterbox({10.0f, 20.0f, 800.0f, 800.0f}, Vector2(1920.0f, 1080.0f));
+        expect(sameRect(boxed, 10.0f, 195.0f, 800.0f, 450.0f), "a 16:9 base in a square window gets top and bottom bars");
+
+        auto system = std::make_shared<System>();
+        system->BaseResolution = Vector2(800.0f, 600.0f);
+        auto workspace = std::make_shared<Workspace>();
+        system->addChild(workspace);
+        ScreenGuiLayout::Rect locked;
+        const ScreenGuiLayout::Rect window{0.0f, 0.0f, 960.0f, 540.0f};
+        expect(!system->LockAspectRatio && !ScreenGuiLayout::lockedAspectArea(*workspace, window, locked),
+               "LockAspectRatio defaults to false and keeps the full window");
+        system->LockAspectRatio = true;
+        expect(ScreenGuiLayout::lockedAspectArea(*workspace, window, locked) &&
+                   sameRect(locked, 120.0f, 0.0f, 720.0f, 540.0f),
+               "LockAspectRatio letterboxes the window to BaseResolution");
+
+        const PropertyDesc* desc = nullptr;
+        for (const auto& property : PropertyRegistry::schemaFor("System"))
+            if (property.name == "LockAspectRatio") desc = &property;
+        expect(desc && desc->editable && desc->noLuaWrite && !desc->noLuaRead && desc->serializeWhen &&
+                   desc->serializeWhen(system.get()),
+               "LockAspectRatio is editable, read-only from Luau and saved when enabled");
+        system->LockAspectRatio = false;
+        expect(desc && desc->serializeWhen && !desc->serializeWhen(system.get()),
+               "the default LockAspectRatio is omitted from YAML");
+
+        // ランタイムの L キー切り替え・Workspace 切り替えは既定で禁止
+        expect(!system->AllowControlModeSwitch && !system->AllowWorkspaceSwitch,
+               "runtime control-mode and workspace switching are disabled by default");
+        for (const char* name : {"AllowControlModeSwitch", "AllowWorkspaceSwitch"}) {
+            const PropertyDesc* switchDesc = nullptr;
+            for (const auto& property : PropertyRegistry::schemaFor("System"))
+                if (property.name == name) switchDesc = &property;
+            expect(switchDesc && switchDesc->editable && switchDesc->noLuaWrite &&
+                       switchDesc->serializeWhen && !switchDesc->serializeWhen(system.get()),
+                   "runtime switch permission is editable, read-only from Luau and omitted when false");
+        }
+    }
+
     // GUIタブ中は Alt でフリールック（マウスロック）しない
     {
         auto backend = std::make_unique<FrameRateTestInputBackend>();
