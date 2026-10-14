@@ -9,7 +9,7 @@
 
 // アセット(.rcaet)が参照する外部ファイル（画像・スクリプト・音・メッシュ・Terrainディレクトリ等）の
 // 検出と、取り込み時のパス書換。YAMLのキー名で走査するため、シーン/アセット双方の
-// ノードに同じ規則で使える（Packagerのキー集合に、Packagerが拾わないImage等を加えたもの）。
+// ノードに同じ規則で使える。Packager もこのキー集合でシーンのファイル参照を集める。
 namespace AssetDependencies {
 
 struct Dependency {

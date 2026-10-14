@@ -8,6 +8,8 @@ struct RuntimeLaunchArgs {
     std::optional<std::string> windowTitle;
     std::optional<std::string> uiAutomationScene;
     std::optional<std::string> uiAutomationSettings;
+    // 非表示ウィンドウで固定フレーム描画し、画面とインスタンスツリーをこのフォルダへ書き出して終了する
+    std::optional<std::string> selfCheckDir;
     bool editorTest = false;
     bool valid = true;
     std::string error;

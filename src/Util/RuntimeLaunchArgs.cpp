@@ -67,11 +67,21 @@ RuntimeLaunchArgs parseRuntimeLaunchArgs(int argc, char* argv[]) {
             } else {
                 args.uiAutomationSettings = std::move(value);
             }
+        } else if (argument == "--self-check") {
+            std::string value;
+            if (args.selfCheckDir.has_value()) {
+                setError(args, "--self-check may only be specified once");
+            } else if (!readValue(argc, argv, index, value)) {
+                setError(args, "--self-check requires a non-empty output directory");
+            } else {
+                args.selfCheckDir = std::move(value);
+            }
         } else if (argument.starts_with("--scene=") ||
                    argument.starts_with("--window-title=") ||
                    argument.starts_with("--editor-test=") ||
                    argument.starts_with("--ui-automation-scene=") ||
-                   argument.starts_with("--ui-automation-settings=")) {
+                   argument.starts_with("--ui-automation-settings=") ||
+                   argument.starts_with("--self-check=")) {
             setError(args, "launch options require separate values");
         }
     }

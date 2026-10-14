@@ -66,6 +66,8 @@ public:
     bool showRenderingDebug  = false;  // SurfaceMark等の描画デバッグ（Viewメニューで切替）
     bool m_isDraggingSelected = false; // 選択キューブ上でドラッグ開始したか
     bool m_isFreeDragArmed = false;    // 選択対象上の押下後、5px閾値待ち
+    // 移動/リサイズ/回転ツールで複数選択中の対象を押した: ドラッグせずに離したらこの1つだけを選択する
+    Instance* m_pendingSingleSelect = nullptr;
     ImVec2 m_freeDragStart = {};
 
     // ボックス選択ステート
@@ -229,6 +231,7 @@ private:
     void drawHoverHighlight(const ViewportLayout& layout);
     void updateFreeDrag(const ViewportLayout& layout);
     void moveFreeDragSelection(const ViewportLayout& layout);
+    void collapseToPendingSingleSelect();
     void handlePivotShortcut(const ViewportLayout& layout);
     void handleFocusShortcut();
 

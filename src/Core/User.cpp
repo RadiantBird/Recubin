@@ -966,6 +966,9 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     // Characterの水平速度を止める。Y速度とhoverのjump抑制状態は変更しない。
     if (m_lastProcessedControlMode == ControlMode::Character &&
         getControlMode() != ControlMode::Character && humanoid) {
+        // このフレームの processMovement が積んだ移動入力を外す。残すと次の固定stepの
+        // Humanoid::move が歩行速度を入れ直し、摩擦の無いホバー状態のまま滑り続ける
+        humanoid->clearControlInput();
         humanoid->stopCharacterMotion(physics);
     }
     m_lastProcessedControlMode = getControlMode();

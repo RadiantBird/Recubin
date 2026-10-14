@@ -70,6 +70,7 @@
 #include <Core/LuauEngine.hpp>
 #include <Core/FileLoader.hpp>
 #include <Core/Packager.hpp>
+#include <Core/SelfCheck.hpp>
 #include <Core/AssetContainer.hpp>
 #include <Core/AssetDependencies.hpp>
 #include <Core/AssetExporter.hpp>
@@ -9449,6 +9450,13 @@ int runAssetPathRegression() {
                               "out vec4 FragColor;\n"
                               "uniform sampler2D screenTexture;\n"
                               "void main() { FragColor = texture(screenTexture, TexCoord); }\n";
+        // ImageLabel.Image と Weather の環境音（以前は Packager が集めていなかったキー）
+        std::filesystem::create_directories(tempRoot / "assets/gui", ec);
+        std::ofstream guiImageFile(tempRoot / "assets/gui" / "label.png", std::ios::binary);
+        guiImageFile << "label-image";
+        std::filesystem::create_directories(tempRoot / "assets/ambient", ec);
+        std::ofstream ambientFile(tempRoot / "assets/ambient" / "rain.ogg", std::ios::binary);
+        ambientFile << "rain-ambient";
 #ifndef __APPLE__
         std::ofstream editorFile(tempRoot / "Recubin.exe", std::ios::binary);
         editorFile << "editor";
@@ -9480,6 +9488,14 @@ int runAssetPathRegression() {
                   << "      Properties:\n"
                   << "        Type: 7\n"
                   << "        FragmentShaderFile: assets/effects/wobble.frag\n"
+                  << "    - ClassName: ImageLabel\n"
+                  << "      Name: PackagedImage\n"
+                  << "      Properties:\n"
+                  << "        Image: assets/gui/label.png\n"
+                  << "    - ClassName: Weather\n"
+                  << "      Name: PackagedWeather\n"
+                  << "      Properties:\n"
+                  << "        RainAmbientPath: assets/ambient/rain.ogg\n"
                   << "    - ClassName: User\n"
                   << "      Properties:\n"
                   << "        CursorType: Type1\n"
@@ -9560,6 +9576,11 @@ int runAssetPathRegression() {
         expect(packaged && std::filesystem::exists(packageContentRoot / "assets/scripts/hello.luauc") &&
                    packagedScene.find("ContentPath: assets/scripts/hello.luauc") != std::string::npos,
                "packager transpiles a .luar script (Luar -> Luau) into assets/scripts/*.luauc");
+        expect(packaged && std::filesystem::exists(packageContentRoot / "assets/gui/label.png") &&
+                   std::filesystem::exists(packageContentRoot / "assets/ambient/rain.ogg") &&
+                   packagedScene.find("Image: assets/gui/label.png") != std::string::npos &&
+                   packagedScene.find("RainAmbientPath: assets/ambient/rain.ogg") != std::string::npos,
+               "packager copies ImageLabel.Image and Weather ambient sounds");
         expect(!std::filesystem::exists(packageContentRoot / ".autosave" / "hidden.bin") &&
                    !std::filesystem::exists(packageContentRoot / "terrain_data" / ".autosave" / "hidden.chunk") &&
                    std::filesystem::exists(packageContentRoot / "terrain_data" / "visible.chunk") &&
@@ -12366,6 +12387,476 @@ static int runSystemExtensionRegression() {
     return failures;
 }
 
+// ===================================================
+//  --package-integrity [work-dir]
+//  ほぼ全クラスと各種アセットを入れたシーンを生成してパッケージし、パッケージ前（元シーン）と
+//  パッケージ後の両方で RecubinEngine --self-check を実行して、インスタンスツリー・アセットの
+//  解決・ログ・画面を比較する。非表示ウィンドウを開くため、専用テスト一覧には入れない手動モード。
+//  リポジトリのルートで実行し、build/Release の RecubinEngine.exe を使う。
+// ===================================================
+namespace PackageIntegrity {
+
+namespace fs = std::filesystem;
+
+constexpr const char* GAME_NAME = "IntegrityCheck";
+constexpr const char* SCENE_PATH = "assets/scenes/IntegrityCheck.rcbn";
+constexpr const char* SCRIPT_MARKER = "[IntegrityScript] ran";
+constexpr double MAX_DIFFERING_RATIO = 0.01;  // 1% を超える画素が変わったら見た目の差とみなす
+constexpr double MIN_LUMINANCE_STDDEV = 4.0;  // これ未満は「何も描かれていない」画面とみなす
+
+// プロジェクト内のアセット（拡張子 → プロジェクト相対パス）
+struct AssetTable {
+    std::map<std::string, std::string> byExtension;
+    std::string font;
+    std::string text;
+};
+
+bool copyAsset(const fs::path& repo, const fs::path& project, const std::string& from, const std::string& to) {
+    std::error_code error;
+    fs::create_directories((project / to).parent_path(), error);
+    fs::copy_file(repo / from, project / to, fs::copy_options::overwrite_existing, error);
+    if (error) std::cerr << "[PackageIntegrity] cannot copy " << from << ": " << error.message() << '\n';
+    return !error;
+}
+
+bool writeFile(const fs::path& path, const std::string& text) {
+    std::error_code error;
+    fs::create_directories(path.parent_path(), error);
+    std::ofstream file(path, std::ios::binary);
+    file << text;
+    return static_cast<bool>(file);
+}
+
+// 元シーンの実行に要る shaders/ と assets/fonts/、テスト用アセットをプロジェクトへ用意する
+bool prepareProject(const fs::path& repo, const fs::path& project, AssetTable& assets) {
+    std::error_code error;
+    fs::create_directories(project / "assets", error);  // fs::copy はコピー先の親を作らない
+    fs::copy(repo / "shaders", project / "shaders",
+             fs::copy_options::recursive | fs::copy_options::overwrite_existing, error);
+    if (error) return false;
+    fs::copy(repo / "assets/fonts", project / "assets/fonts",
+             fs::copy_options::recursive | fs::copy_options::overwrite_existing, error);
+    if (error) return false;
+
+    bool ok = true;
+    ok &= copyAsset(repo, project, "assets/image/Recubin.png", "assets/image/recubin.png");
+    ok &= copyAsset(repo, project, "assets/image/bliss.jpg", "assets/image/bliss.jpg");
+    ok &= copyAsset(repo, project, "assets/models/newHead.glb", "assets/models/head.glb");
+    ok &= copyAsset(repo, project, "assets/anims/r6_walk.rcanim", "assets/anims/walk.rcanim");
+    ok &= copyAsset(repo, project, "assets/imported/SMG/external/shootpistol.mp3", "assets/sound/shoot.mp3");
+    ok &= writeFile(project / "assets/scripts/integrity.luau", std::string("print(\"") + SCRIPT_MARKER + "\")\n");
+    ok &= writeFile(project / "assets/text/notes.txt", "package integrity text file\n");
+    assets.byExtension = {
+        {".png", "assets/image/recubin.png"}, {".jpg", "assets/image/bliss.jpg"},
+        {".glb", "assets/models/head.glb"},   {".rcanim", "assets/anims/walk.rcanim"},
+        {".mp3", "assets/sound/shoot.mp3"},   {".luau", "assets/scripts/integrity.luau"},
+    };
+    assets.font = "assets/fonts/DotGothic16-Regular.ttf";
+    assets.text = "assets/text/notes.txt";
+    return ok;
+}
+
+// "*.png;*.jpg"（画像など）や "mp3,wav"（音声）のようなフィルターから、用意したアセットを1つ選ぶ
+std::string assetForFilter(const AssetTable& assets, std::string_view filter) {
+    std::size_t start = 0;
+    while (start < filter.size()) {
+        const std::size_t end = std::min(filter.find_first_of(";,", start), filter.size());
+        std::string pattern(filter.substr(start, end - start));
+        if (pattern.starts_with("*")) pattern.erase(0, 1);
+        if (!pattern.empty() && pattern.front() != '.') pattern.insert(pattern.begin(), '.');
+        std::transform(pattern.begin(), pattern.end(), pattern.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (auto it = assets.byExtension.find(pattern); it != assets.byExtension.end()) return it->second;
+        start = end + 1;
+    }
+    return {};
+}
+
+// フィルターの無い物理ファイル系（FileRef/FontFile/TextFile）はクラスで選ぶ
+std::string assetForClass(const AssetTable& assets, const std::string& className) {
+    if (className == "FontFile") return assets.font;
+    if (className == "TextFile") return assets.text;
+    if (className == "FileRef") return assets.byExtension.at(".png");
+    return {};  // Program は実行ファイルを指すため割り当てない
+}
+
+void writeProperty(Instance& instance, std::string_view name, const PropValue& value) {
+    for (const PropertyDesc* desc : PropertyRegistry::collectApplicableSchema(&instance)) {
+        if (desc && desc->name == name && desc->set) {
+            PropertyRegistry::writeValue(&instance, *desc, value);
+            return;
+        }
+    }
+}
+
+// プロパティごとに別名のファイルを作る。同じファイルを複数のプロパティで共有すると、
+// あるキーをPackagerが集め損ねても他のキー経由でコピーされ、欠落が見えなくなるため
+std::string uniqueAssetCopy(const fs::path& project, const std::string& source, const std::string& stem) {
+    static int counter = 0;
+    const fs::path from(source);
+    const std::string target = (from.parent_path() / (stem + "_" + std::to_string(++counter) + from.extension().string()))
+                                   .generic_string();
+    std::error_code error;
+    fs::copy_file(project / from, project / target, fs::copy_options::overwrite_existing, error);
+    if (error) {
+        std::cerr << "[PackageIntegrity] cannot copy " << source << ": " << error.message() << '\n';
+        return source;
+    }
+    return target;
+}
+
+// ファイル参照プロパティ（エディターでファイル選択になるもの）に、型の合うアセットを入れる
+void assignFileProperties(Instance& instance, const AssetTable& assets, const fs::path& project) {
+    for (const PropertyDesc* desc : PropertyRegistry::collectApplicableSchema(&instance)) {
+        if (!desc || desc->editorWidget != EditorWidget::FilePath || !desc->set) continue;
+        std::string path = assetForFilter(assets, desc->editorDialogFilter);
+        if (path.empty() && desc->editorDialogFilter.empty()) path = assetForClass(assets, instance.getClassName());
+        if (path.empty()) continue;
+        path = uniqueAssetCopy(project, path, instance.Name + "_" + std::string(desc->name));
+        PropertyRegistry::writeValue(&instance, *desc, PropValue(path));
+    }
+    for (const auto& [name, child] : instance.getChildren()) {
+        (void)name;
+        if (child) assignFileProperties(*child, assets, project);
+    }
+}
+
+std::shared_ptr<Instance> create(const std::string& className, const std::string& name) {
+    auto instance = SceneLoader::createInstance(className);
+    if (instance) instance->Name = name;
+    else std::cerr << "[PackageIntegrity] cannot create " << className << '\n';
+    return instance;
+}
+
+// 固定カメラ（RecubinEngine --self-check）から見える範囲に、ほぼ全クラスを並べたシーンを作る
+std::shared_ptr<System> buildScene(const AssetTable& assets, const fs::path& project,
+                                   std::vector<std::string>& createdClasses) {
+    auto system = std::make_shared<System>();
+    system->EnableIOAPI = false;
+    system->EnableIPCAPI = false;
+    system->EnableExternalFileAccess = false;
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "Workspace";
+    system->addChild(workspace);
+    auto materialService = create("MaterialService", "MaterialService");
+    if (materialService) {
+        system->addChild(materialService);
+        if (auto material = create("Material", "IntegrityMaterial")) materialService->addChild(material);
+    }
+
+    auto floor = std::make_shared<Cube>(Vector3(0.0f, -0.5f, 0.0f), Vector3(80.0f, 1.0f, 60.0f),
+                                        Cube::defaultTextureID);
+    floor->Name = "Floor";
+    floor->Anchored = true;
+    workspace->addChild(floor);
+
+    // 空間に置くクラス（Workspace直下・格子状に並べる）
+    const std::vector<std::string> spatialClasses = {
+        "Cube", "Cylinder", "TriangularPrism", "Wedge", "Truss", "Seat", "Sphere", "MeshCube",
+        "LiquidCube", "SpawnLocation", "Model", "Tool"};
+    // 親のCubeを要するクラス（Cubeを1つずつ作って子にする）
+    const std::vector<std::string> cubeChildClasses = {
+        "Decal", "Texture", "SurfaceMark", "SurfaceGui", "BillboardGui", "Attachment",
+        "ParticleEmitter", "PointLight", "SpotLight", "ProximityPrompt", "Highlight", "Canvas",
+        "Force", "Gyro", "Sound"};
+    // 位置を持たない／サービス的なクラス（Workspace直下）
+    const std::vector<std::string> plainClasses = {
+        "Skybox", "Lighting", "Sun", "Moon", "PostEffect", "Weather", "Terrain", "Folder", "Instance",
+        "Animation", "AppImage", "SignalEvent", "StarterCharacter", "FileRef", "FontFile", "TextFile",
+        "Program", "Script", "LocalScript", "ModuleScript", "IntValue", "BoolValue", "NumberValue",
+        "Vector3Value", "Color4Value", "CFrameValue", "QuaternionValue", "ObjectValue",
+        "Rope", "Rod", "Spring", "PrismaticConstraint", "BallSocket", "NoCollision", "Weld", "Motor",
+        "Motor6D"};
+    const std::vector<std::string> screenGuiClasses = {"TextLabel", "TextButton", "ImageLabel", "ImageButton"};
+
+    int slot = 0;
+    auto place = [&slot](Instance& instance) {
+        auto* spatial = dynamic_cast<Spatial*>(&instance);
+        if (!spatial) return;
+        const int column = slot % 9;
+        const int row = slot / 9;
+        ++slot;
+        spatial->setPosition(Vector3(-24.0f + 6.0f * static_cast<float>(column), 1.5f,
+                                     -8.0f + 7.0f * static_cast<float>(row)));
+        // 物理で動かないよう固定する（画面比較を決定的にする）
+        writeProperty(instance, "Anchored", PropValue(true));
+    };
+
+    for (const std::string& className : spatialClasses) {
+        auto instance = create(className, "Integrity" + className);
+        if (!instance) continue;
+        workspace->addChild(instance);
+        place(*instance);
+        createdClasses.push_back(className);
+    }
+    for (const std::string& className : cubeChildClasses) {
+        auto instance = create(className, "Integrity" + className);
+        if (!instance) continue;
+        auto host = std::make_shared<Cube>(Vector3(), Vector3(4.0f, 4.0f, 4.0f), Cube::defaultTextureID);
+        host->Name = "Host" + className;
+        workspace->addChild(host);
+        place(*host);
+        // 固定カメラは +Z 側から見るので、面に貼るものは見える Back 面（ローカル+Z）に貼る
+        if (className == "Decal" || className == "Texture" || className == "SurfaceGui")
+            writeProperty(*instance, "Face", PropValue(static_cast<int>(Face::Back)));
+        host->addChild(instance);
+        if (className == "SurfaceGui" || className == "BillboardGui") {
+            if (auto label = create("TextLabel", "Label")) {
+                if (TextContent* text = static_cast<GuiObject*>(label.get())->textContent()) text->Text = className;
+                instance->addChild(label);
+            }
+        }
+        createdClasses.push_back(className);
+    }
+    for (const std::string& className : plainClasses) {
+        auto instance = create(className, "Integrity" + className);
+        if (!instance) continue;
+        // 既定の PostEffect（CRT）は画面全体を歪めて目視確認しにくくするので、存在だけ確かめる
+        if (className == "PostEffect") writeProperty(*instance, "Enabled", PropValue(false));
+        workspace->addChild(instance);
+        createdClasses.push_back(className);
+    }
+    int guiIndex = 0;
+    for (const std::string& className : screenGuiClasses) {
+        auto instance = create(className, "Integrity" + className);
+        if (!instance) continue;
+        auto* gui = static_cast<ScreenGuiObject*>(instance.get());
+        gui->Position = Vector2(40.0f + 300.0f * static_cast<float>(guiIndex++), 860.0f);
+        gui->Size = Vector2(260.0f, 160.0f);
+        if (TextContent* text = gui->textContent()) text->Text = className;
+        workspace->addChild(instance);
+        createdClasses.push_back(className);
+    }
+
+    // Humanoid・Motor6D を含むリグ（NPC）
+    auto npc = std::make_shared<Model>();
+    npc->Name = "IntegrityNpc";
+    CharacterRig::buildDefaultRigParts(npc, Vector3(20.0f, 3.0f, 6.0f));
+    workspace->addChild(npc);
+    createdClasses.push_back("Humanoid");
+
+    assignFileProperties(*system, assets, project);
+    // Skybox の6面はファイル選択プロパティではないので個別に入れる
+    for (const auto& [name, child] : workspace->getChildren()) {
+        (void)name;
+        if (!child || child->getClassName() != "Skybox") continue;
+        YAML::Node faces(YAML::NodeType::Sequence);
+        for (int i = 0; i < 6; ++i)
+            faces.push_back(uniqueAssetCopy(project, assets.byExtension.at(".png"), "Skybox_face"));
+        child->setProperty("SkyboxPaths", faces);
+    }
+    return system;
+}
+
+// 子プロセスを cwd で実行し、標準出力・標準エラーを log へ書く
+int runProcess(const fs::path& cwd, const std::string& commandLine, const fs::path& log) {
+    const fs::path previous = fs::current_path();
+    fs::current_path(cwd);
+    const std::string command = "\"" + commandLine + " > \"" + log.string() + "\" 2>&1\"";
+    const int result = std::system(command.c_str());
+    fs::current_path(previous);
+    return result;
+}
+
+std::string readText(const fs::path& path) {
+    std::ifstream file(path, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+}
+
+std::vector<std::string> splitLines(const std::string& text) {
+    std::vector<std::string> lines;
+    std::istringstream stream(text);
+    std::string line;
+    while (std::getline(stream, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        lines.push_back(line);
+    }
+    return lines;
+}
+
+// 片方にだけある行（多重集合の差）
+std::vector<std::string> onlyIn(const std::vector<std::string>& a, const std::vector<std::string>& b) {
+    std::map<std::string, int> counts;
+    for (const auto& line : b) ++counts[line];
+    std::vector<std::string> result;
+    for (const auto& line : a) {
+        if (counts[line] > 0) --counts[line];
+        else result.push_back(line);
+    }
+    return result;
+}
+
+std::vector<std::string> problemLines(const std::string& log) {
+    std::vector<std::string> result;
+    for (const auto& line : splitLines(log)) {
+        if (line.find("RCBN_ERROR") != std::string::npos || line.find("RCBN_WARN") != std::string::npos ||
+            line.find("Error") != std::string::npos || line.find("[ERROR]") != std::string::npos)
+            result.push_back(line);
+    }
+    return result;
+}
+
+std::size_t countOccurrences(const std::string& text, const std::string& needle) {
+    std::size_t count = 0;
+    for (std::size_t at = text.find(needle); at != std::string::npos; at = text.find(needle, at + 1)) ++count;
+    return count;
+}
+
+} // namespace PackageIntegrity
+
+static int runPackageIntegrity(int argc, char* argv[]) {
+    using namespace PackageIntegrity;
+    // 異常終了しても途中経過が残るよう、出力を逐次書き出す
+    std::cout << std::unitbuf;
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[PackageIntegrity] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    auto printLines = [](const char* title, const std::vector<std::string>& lines, std::size_t limit = 40) {
+        if (lines.empty()) return;
+        std::cout << "[PackageIntegrity]   " << title << " (" << lines.size() << ")\n";
+        for (std::size_t i = 0; i < lines.size() && i < limit; ++i) std::cout << "      " << lines[i] << '\n';
+        if (lines.size() > limit) std::cout << "      ...\n";
+    };
+
+    const fs::path repo = fs::current_path();
+    const fs::path work = argc >= 3 ? fs::absolute(argv[2]) : fs::temp_directory_path() / "recubin_package_integrity";
+    const fs::path project = work / "project";
+    const fs::path packageRoot = work / "package";
+    const fs::path sourceOut = work / "source";
+    const fs::path packagedOut = work / "packaged";
+#ifdef _WIN32
+    const fs::path engine = repo / "build/Release/RecubinEngine.exe";
+#else
+    const fs::path engine = repo / "build-mac/RecubinEngine";
+#endif
+    std::error_code error;
+    fs::remove_all(work, error);
+    fs::create_directories(work, error);
+    std::cout << "[PackageIntegrity] work dir: " << work.string() << '\n';
+    if (!fs::is_regular_file(engine)) {
+        expect(false, "RecubinEngine is built: " + engine.string());
+        return 1;
+    }
+
+    // Sound の生成には AudioService が要る
+    auto audioService = std::make_unique<AudioService>();
+    audioService->initialize();
+
+    // 1. プロジェクトとシーンを作る
+    AssetTable assets;
+    const bool prepared = prepareProject(repo, project, assets);
+    expect(prepared, "project assets are prepared");
+    if (!prepared) return 1;
+    std::vector<std::string> createdClasses;
+    // 生成はリポジトリをCWDにしたまま行う。プロジェクト相対のアセットがここでは解決できないので、
+    // 読み込み失敗の警告が出るが、GLの無いこのプロセスでテクスチャ/メッシュをアップロードさせない
+    // ための意図的な順序（プロジェクトをCWDにすると GLB 等の読み込みで落ちる）
+    auto system = buildScene(assets, project, createdClasses);
+    std::cout << "[PackageIntegrity] classes in scene: " << createdClasses.size() << '\n';
+    fs::create_directories(project / "assets/scenes", error);
+    fs::current_path(project);
+    const bool saved = SceneLoader::saveSceneResult(system.get(), SCENE_PATH);
+    fs::current_path(repo);
+    expect(saved, "integrity scene is saved");
+    if (!saved) return 1;
+
+    // 2. パッケージする（Packager は shaders/ と assets/fonts をCWDから探すので、プロジェクトで実行する）
+    Packager::Config config;
+    config.gameName = GAME_NAME;
+    config.outputDir = packageRoot.string();
+    config.scenePath = (project / SCENE_PATH).string();
+    config.engineExePath = engine.string();
+    std::vector<std::string> packagerLog;
+    fs::current_path(project);
+    const bool packaged = Packager::package(config, [&packagerLog](const std::string& message) {
+        packagerLog.push_back(message);
+    });
+    fs::current_path(repo);
+    expect(packaged, "Packager succeeds");
+    std::vector<std::string> packagerWarnings;
+    for (const auto& line : packagerLog) {
+        if (line.find("WARN") != std::string::npos || line.find("Warn") != std::string::npos ||
+            line.find("missing") != std::string::npos || line.find("Missing") != std::string::npos)
+            packagerWarnings.push_back(line);
+    }
+    printLines("packager warnings", packagerWarnings);
+    if (!packaged) return 1;
+    const fs::path gameDir = packageRoot / GAME_NAME;
+
+    // 3. パッケージ前（元シーン）とパッケージ後で自己チェックを実行する
+    const int sourceExit = runProcess(project,
+        "\"" + engine.string() + "\" --scene " + SCENE_PATH + " --self-check \"" + sourceOut.string() + "\"",
+        work / "source.log");
+    const int packagedExit = runProcess(gameDir,
+        "\"" + (gameDir / "RecubinEngine.exe").string() + "\" --self-check \"" + packagedOut.string() + "\"",
+        work / "packaged.log");
+    expect(sourceExit == 0, "source scene self-check exits cleanly (exit " + std::to_string(sourceExit) + ")");
+    expect(packagedExit == 0, "packaged game self-check exits cleanly (exit " + std::to_string(packagedExit) + ")");
+
+    // 4. インスタンスツリー（欠損・プロパティ・アセット内容）
+    const std::string sourceTree = readText(sourceOut / "tree.yaml");
+    const std::string packagedTree = readText(packagedOut / "tree.yaml");
+    expect(!sourceTree.empty() && !packagedTree.empty(), "both runs write an instance tree");
+    const auto sourceLines = splitLines(sourceTree);
+    const auto packagedLines = splitLines(packagedTree);
+    const auto lostInPackage = onlyIn(sourceLines, packagedLines);
+    const auto addedInPackage = onlyIn(packagedLines, sourceLines);
+    expect(lostInPackage.empty() && addedInPackage.empty(), "instance tree matches after packaging");
+    printLines("only before packaging", lostInPackage);
+    printLines("only after packaging", addedInPackage);
+    std::vector<std::string> missingAssets;
+    for (const auto& line : packagedLines)
+        if (line.find("missing:") != std::string::npos) missingAssets.push_back(line);
+    expect(missingAssets.empty(), "every referenced asset resolves in the packaged game");
+    printLines("unresolved assets after packaging", missingAssets);
+    std::vector<std::string> missingSourceAssets;
+    for (const auto& line : sourceLines)
+        if (line.find("missing:") != std::string::npos) missingSourceAssets.push_back(line);
+    expect(missingSourceAssets.empty(), "every referenced asset resolves in the source project");
+    printLines("unresolved assets before packaging", missingSourceAssets);
+    for (const std::string& className : createdClasses) {
+        if (sourceTree.find("ClassName: " + className + "\n") == std::string::npos)
+            expect(false, "source tree contains " + className);
+    }
+
+    // 5. ログ（スクリプトの実行・パッケージ後にだけ出る警告/エラー）
+    const std::string sourceLog = readText(work / "source.log");
+    const std::string packagedLog = readText(work / "packaged.log");
+    const std::size_t sourceMarkers = countOccurrences(sourceLog, SCRIPT_MARKER);
+    const std::size_t packagedMarkers = countOccurrences(packagedLog, SCRIPT_MARKER);
+    expect(sourceMarkers > 0 && sourceMarkers == packagedMarkers,
+           "scripts run the same number of times (" + std::to_string(sourceMarkers) + " / " +
+               std::to_string(packagedMarkers) + ")");
+    const auto packagedOnlyProblems = onlyIn(problemLines(packagedLog), problemLines(sourceLog));
+    expect(packagedOnlyProblems.empty(), "no new warnings or errors after packaging");
+    printLines("warnings/errors only after packaging", packagedOnlyProblems);
+    printLines("warnings/errors in both runs (for reference)", problemLines(sourceLog), 20);
+
+    // 6. 画面
+    SelfCheck::Image sourceImage, packagedImage;
+    const bool sourceImageOk = SelfCheck::readRawImage((sourceOut / "render.rgba").string(), sourceImage);
+    const bool packagedImageOk = SelfCheck::readRawImage((packagedOut / "render.rgba").string(), packagedImage);
+    expect(sourceImageOk && packagedImageOk, "both runs capture the screen");
+    if (sourceImageOk && packagedImageOk) {
+        const double sourceDeviation = SelfCheck::luminanceStdDev(sourceImage);
+        const double packagedDeviation = SelfCheck::luminanceStdDev(packagedImage);
+        expect(sourceDeviation > MIN_LUMINANCE_STDDEV && packagedDeviation > MIN_LUMINANCE_STDDEV,
+               "screens are not blank (luminance stddev " + std::to_string(sourceDeviation) + " / " +
+                   std::to_string(packagedDeviation) + ")");
+        const SelfCheck::ImageDiff diff = SelfCheck::compare(sourceImage, packagedImage);
+        expect(diff.sizeMatches, "screen sizes match");
+        expect(diff.differingRatio <= MAX_DIFFERING_RATIO,
+               "packaged screen matches the source (differing " + std::to_string(diff.differingRatio * 100.0) +
+                   "%, mean abs " + std::to_string(diff.meanAbsolute) + ")");
+    }
+    std::cout << "[PackageIntegrity] screens: " << (sourceOut / "render.png").string() << " / "
+              << (packagedOut / "render.png").string() << '\n';
+    std::cout << "[PackageIntegrity] failures=" << failures << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
 static int runSystemExtensionSmokePackaging(int argc, char* argv[]) {
     if (argc < 3) {
         std::cerr << "usage: RecubinTest --package-system-extension-smoke <output-dir>\n";
@@ -14701,6 +15192,75 @@ int runMotor6DGyroRegression() {
 
     std::cout << "[Motor6DGyroRegression] failures=" << failures
               << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+// 歩行中に L キーで Free へ切り替えたとき、キャラクターが滑り続けないことを確認する。
+// 同じフレームの processMovement が積んだ移動入力が次の固定stepで速度を戻していた。
+int runFreeCameraStopRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[FreeCameraStop] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto workspace = std::make_shared<Workspace>();
+    workspace->Name = "FreeCameraStopWorkspace";
+    auto floor = std::make_shared<Cube>(Vector3(0.0f, -0.5f, 0.0f), Vector3(400.0f, 1.0f, 400.0f),
+                                        Cube::defaultTextureID);
+    floor->Name = "Floor";
+    floor->Anchored = true;
+    auto character = std::make_shared<Model>();
+    character->Name = "Character";
+    CharacterRig::buildDefaultRigParts(character, Vector3(0.0f, 3.0f, 0.0f));
+    auto humanoid = std::dynamic_pointer_cast<Humanoid>(character->getChildren().at("Humanoid"));
+    auto root = std::dynamic_pointer_cast<BaseCube>(character->getChildren().at("Root"));
+    workspace->addChild(floor);
+    workspace->addChild(character);
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    if (!physics || !humanoid || !root) {
+        expect(false, "character scene initializes");
+        return 1;
+    }
+
+    auto backend = std::make_unique<FrameRateTestInputBackend>();
+    auto* input = backend.get();
+    auto user = std::make_shared<User>(std::move(backend));
+    user->character = character;
+    user->humanoid = humanoid;
+    user->setControlMode(User::ControlMode::Character);
+
+    constexpr float dt = 1.0f / 60.0f;
+    auto frame = [&]() {
+        user->processInput(physics, dt, true, true, true, false);
+        physics->update(*workspace, dt);
+    };
+
+    // 着地してから W で歩く
+    for (int i = 0; i < 60; ++i) frame();
+    input->pressedKeys.insert(KeyCode::W);
+    for (int i = 0; i < 60; ++i) frame();
+    const Vector3 walkingVelocity = physics->getLinearVelocity(*root);
+    expect(Vector3(walkingVelocity.x, 0.0f, walkingVelocity.z).lengthSquared() > 1.0f,
+           "the character walks while W is held");
+
+    // W を押したまま L で Free へ
+    input->pressedKeys.insert(KeyCode::L);
+    frame();
+    expect(user->getControlMode() == User::ControlMode::Free, "L switches to Free");
+    input->pressedKeys.clear();
+
+    const Vector3 stopped = root->getWorldPosition();
+    for (int i = 0; i < 60; ++i) frame();
+    const Vector3 after = root->getWorldPosition();
+    const float drift = Vector3(after.x - stopped.x, 0.0f, after.z - stopped.z).length();
+    const Vector3 velocity = physics->getLinearVelocity(*root);
+    std::cout << "[FreeCameraStop] drift=" << drift << '\n';
+    expect(drift < 0.2f, "the character does not keep moving after switching to Free");
+    expect(Vector3(velocity.x, 0.0f, velocity.z).lengthSquared() < 0.01f,
+           "the character has no horizontal velocity in Free");
+
     return failures == 0 ? 0 : 1;
 }
 
@@ -18122,6 +18682,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--motor6d-gyro-regression", runMotor6DGyroRegression),
         REG("--ragdoll-motor-recovery-regression", runRagdollMotorRecoveryRegression),
         REG("--character-hover-regression", runCharacterHoverRegression),
+        REG("--free-camera-stop-regression", runFreeCameraStopRegression),
         REG("--default-camera-mode-regression", runDefaultCameraModeRegression),
         REG("--scene-load-transaction-regression", runSceneLoadTransactionRegression),
         REG("--system-extension-regression", runSystemExtensionRegression),
@@ -18232,6 +18793,8 @@ int main(int argc, char* argv[]) {
             static_cast<int>(physicsArguments.size()), physicsArguments.data()))
         return -1;
 
+    if (argc > 1 && std::string_view(argv[1]) == "--package-integrity")
+        return runPackageIntegrity(argc, argv);
     if (argc > 1 && std::string_view(argv[1]) == "--package-system-extension-smoke")
         return runSystemExtensionSmokePackaging(argc, argv);
     if (argc > 1 && std::string_view(argv[1]) == "--security-probe")

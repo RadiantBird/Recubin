@@ -3653,6 +3653,7 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
     FrameProfiler::get().endSection("render");
     endGpuFrame();
 
+    if (m_beforeSwap) m_beforeSwap(window);
     FrameProfiler::get().beginSection("swap");
     glfwSwapBuffers(window);
     FrameProfiler::get().endSection("swap");

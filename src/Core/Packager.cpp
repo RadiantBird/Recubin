@@ -1,4 +1,5 @@
 #include <Core/Packager.hpp>
+#include <Core/AssetDependencies.hpp>
 #include <Util/AssetPath.hpp>
 #include <Util/LuauCompile.hpp>
 #include <Core/LuarCompiler.hpp>
@@ -209,6 +210,14 @@ static fs::path reserveScriptDirectory(DestinationTable& used, const fs::path& b
     return dstDir;
 }
 
+// ファイル参照のキーは AssetDependencies と共有する（Image や Weather の環境音などを集め損ねないため）
+static bool hasKey(const std::vector<std::string_view>& keys, const std::string& key) {
+    return std::find(keys.begin(), keys.end(), key) != keys.end();
+}
+static bool isFileKey(const std::string& key) { return hasKey(AssetDependencies::fileKeys(), key); }
+static bool isSequenceKey(const std::string& key) { return hasKey(AssetDependencies::sequenceKeys(), key); }
+static bool isDirectoryKey(const std::string& key) { return hasKey(AssetDependencies::directoryKeys(), key); }
+
 // Walk YAML tree and collect file-referencing values for given keys.
 // out: vector of (yamlNodeRef-like info isn't trackable, so we collect string paths)
 // DataPath はディレクトリ参照（Terrainのチャンク保存先）のため、ファイルパスとは別に dirPaths に集める。
@@ -216,10 +225,10 @@ static void collectPaths(const YAML::Node& node, std::vector<std::string>& paths
     if (node.IsMap()) {
         for (auto it = node.begin(); it != node.end(); ++it) {
             std::string key = it->first.as<std::string>();
-            if ((key == "ContentPath" || key == "Texture" || key == "FacePath" || key == "MeshFile" || key == "IconPath" || key == "FragmentShaderFile") && it->second.IsScalar()) {
+            if (isFileKey(key) && it->second.IsScalar()) {
                 std::string v = it->second.as<std::string>();
                 if (!v.empty()) paths.push_back(v);
-            } else if (key == "SkyboxPaths" && it->second.IsSequence()) {
+            } else if (isSequenceKey(key) && it->second.IsSequence()) {
                 const YAML::Node skyboxPaths = it->second;
                 for (const auto& elem : skyboxPaths) {
                     if (elem.IsScalar()) {
@@ -227,7 +236,7 @@ static void collectPaths(const YAML::Node& node, std::vector<std::string>& paths
                         if (!v.empty()) paths.push_back(v);
                     }
                 }
-            } else if (key == "DataPath" && it->second.IsScalar()) {
+            } else if (isDirectoryKey(key) && it->second.IsScalar()) {
                 std::string v = it->second.as<std::string>();
                 if (!v.empty()) dirPaths.push_back(v);
             } else {
@@ -248,12 +257,12 @@ static void rewritePaths(YAML::Node node,
     if (node.IsMap()) {
         for (auto it = node.begin(); it != node.end(); ++it) {
             std::string key = it->first.as<std::string>();
-            if ((key == "ContentPath" || key == "Texture" || key == "FacePath" || key == "MeshFile" || key == "IconPath" || key == "FragmentShaderFile" || key == "DataPath") && it->second.IsScalar()) {
+            if ((isFileKey(key) || isDirectoryKey(key)) && it->second.IsScalar()) {
                 std::string v = it->second.as<std::string>();
                 auto found = pathMap.find(v);
                 it->second = found != pathMap.end()
                     ? found->second : AssetPath::normalize(v);
-            } else if (key == "SkyboxPaths" && it->second.IsSequence()) {
+            } else if (isSequenceKey(key) && it->second.IsSequence()) {
                 YAML::Node seq = it->second;
                 for (std::size_t i = 0; i < seq.size(); ++i) {
                     if (seq[i].IsScalar()) {

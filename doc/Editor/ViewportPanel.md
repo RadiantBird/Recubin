@@ -122,11 +122,16 @@ Locked Cube 自身とその子孫を収集しない。
 空白だけでは選択されない。Select／Moveの表面ドラッグは5px閾値後に開始し、Modelは子孫Cubeの
 ワールドAABBを使って配置・衝突フィットする。
 
-Select／Move／Resize／Rotateの全ツールで、Ctrl+クリックはクリック対象を複数選択へ追加し、
-選択済みなら解除する。非SelectツールでもShiftの併用は不要で、修飾キーなしのクリックは
-既存のギズモ操作や表面ドラッグを維持する。Move／Resize／Rotateで何にもヒットしない空間を
-修飾キーなしでクリックした場合は選択を解除する。未選択対象やLocked対象へのヒットは空間と
-みなさず、既存選択を維持する。
+Select／Move／Resize／Rotateの全ツールで、クリックによる選択は同じ規則に従う
+（Move／Resize／Rotateではギズモのハンドル上の通常クリックだけはギズモ操作に任せる）。
+
+- 修飾キーなしのクリックは、クリック対象だけを選択する。
+- Ctrl+クリックはクリック対象を複数選択へ追加し、選択済みなら解除する。
+- 複数選択中の対象を押した場合は、表面ドラッグに備えて複数選択を保つ。ドラッグせずに離したら、
+  その1つだけの選択にする（`m_pendingSingleSelect`／`collapseToPendingSingleSelect`）。
+- 何にもヒットしない空間、または最前面がLocked Cubeの位置を修飾キーなしでクリックすると、
+  選択を全解除する。
+- 表面ドラッグはSelect／Moveだけ、矩形選択はSelectだけで行う（ギズモ操作と競合するため）。
 
 Editor選択・未選択候補ホバー・Weld候補ホバーは、Renderer所有の同一Selection Maskへ可視geometryを描画し、
 screen-space outlineとして合成する。選択はcyan 2px、通常ホバーは白半透明1.5px、Weld候補は緑3pxであり、

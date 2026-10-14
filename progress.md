@@ -615,3 +615,92 @@
 - **ランタイム（`NullEditorManager`）は黒帯を付けず、ウィンドウ全体に Pixel の GUI を縦横別の倍率で描く**。エディターの固定解像度の表示と一致するのは、ウィンドウの縦横比が BaseResolution と同じときだけ。
 - **Alt は `User::processCameraRotation` で「押した瞬間にフリールックを切り替える」キー**。エディターで Alt を別の用途に使うときは、`setAltLookAllowed(false)` で止める必要がある。
 - **`std::variant` の `PropValue` は `==` で比較できない前提で扱われている**。既存は `propValuesEqual` を使っている。
+
+## 2026-10-14 Lキーでキャラが滑るバグ・クリック選択の統一・パッケージ整合性チェックとPackagerのアセット欠落修正
+
+前のエントリ（GUI 編集ツール。7901b12）の後、同じセッションで続けた作業。
+
+### 1. 何をしたか
+**L キーで Free に切り替えるとキャラクターが滑り続けるバグ（`User.cpp` の `processInput`）**
+- Character から別のモードへ切り替わったフレームでは、`stopCharacterMotion` の前に `humanoid->clearControlInput()` を呼ぶようにした。
+- テスト：`--free-camera-stop-regression` を追加した。W で歩き、W を押したまま L で Free にして、その後 1 秒間の移動量を確かめる。修正前は 3.74stud、修正後は 0.0007stud。
+
+**クリック選択の統一（`ViewportPanel.cpp` の `handleViewportClick` / `updateFreeDrag`）**
+- 選択・移動・リサイズ・回転の 4 つのツールで、選択ツールのクリック処理を共通に使うようにした。ギズモ系ツールでも、ギズモのハンドル上の通常クリックだけはギズモの操作に任せる。
+- 規則：
+  - 通常クリック：その 1 つだけを選択する。
+  - Ctrl+クリック：選択に追加・解除する。
+  - 複数選択中に、そのうちの 1 つを押す：ドラッグすればグループのまま動く。ドラッグせずに離すと、その 1 つだけの選択になる（`m_pendingSingleSelect` / `collapseToPendingSingleSelect`）。
+  - 空の空間、または Locked の Cube をクリック：選択を全解除する。
+  - 表面ドラッグは選択・移動ツールだけ、矩形選択は選択ツールだけ。
+- `doc/Editor/ViewportPanel.md` の選択規則の説明を書き直した。
+
+**パッケージ整合性チェック**
+- 新規 `Core/SelfCheck`
+  - `describeTree`：シーンと同じ YAML の形で書き出す。ファイル参照は中身の sha256 に置き換え、スクリプトは `script:present`、読めないものは `missing:` にする。
+  - `writeRawImage` / `readRawImage` / `compare` / `luminanceStdDev`：画面の保存と比較。
+- `RecubinEngine.exe --self-check <dir>`（`game_main.cpp`、`RuntimeLaunchArgs`）
+  - 非表示ウィンドウ（960×540）で起動し、固定カメラ（Program モード ＋ `setCameraCFrame`）・固定 dt で 30 フレーム進める。
+  - 書き出すもの：`tree.yaml`（ロード直後のツリー）、`render.png`、`render.rgba`。アルファは 255 で埋める。
+  - 拡張機能の同意ダイアログが必要なシーンでは、エラーで終了する。
+- `Renderer::m_beforeSwap`：画面を入れ替える直前に呼ぶコールバック。バックバッファの読み出しに使う。
+- `RecubinTest --package-integrity [work]`（手動モード。`--list-regressions` には入れない）
+  - 69 クラスと各種アセットを入れたシーンを生成する。
+    - ファイル選択になるプロパティには、拡張子フィルターに合うアセットを、プロパティごとに別名でコピーして割り当てる。
+    - フィルターの書式は 2 種類あり、どちらも読む：`*.png;*.jpg` と `mp3,wav`。
+  - Packager でパッケージする。
+  - 元のシーンとパッケージ版の両方で `--self-check` を実行し、次を比べる：ツリー、アセットの解決、スクリプトの実行回数、パッケージ版にだけ出る警告、画面（何も描かれていないか、差分が 1% を超えるか）。
+
+**Packager のアセット欠落の修正（`Packager.cpp` の `collectPaths` / `rewritePaths`）**
+- 手書きのキー一覧をやめ、`AssetDependencies::fileKeys` / `sequenceKeys` / `directoryKeys` を使うようにした。これで次のファイルがパッケージに入るようになった。
+  - ImageLabel / ImageButton の `Image`
+  - Weather の `ClearAmbientPath` / `RainAmbientPath` / `SnowAmbientPath`
+- `AssetDependencies.hpp` のコメントを、実際の挙動に合わせて書き換えた。
+- `--asset-path-regression` に、ImageLabel.Image と Weather の環境音がコピーされることの確認を追加した。
+
+### 2. なぜそうしたか
+- **L キーのバグ**：入力の処理順が「移動入力を積む → ホットキーでモード切り替え」だった。モードを切り替えた同じフレームで、`processMovement` が積んだ移動入力が残る。残った入力で次の固定 step の `Humanoid::move` が歩行速度を入れ直し、Free 中はホバーで摩擦がないので滑り続けた。そこで、速度を止める前に入力を外すことにした。
+- **選択で「1 つに絞る」のを離した時点にした理由**：押した瞬間に絞ると、グループのドラッグができなくなる。Figma と同じ方式。選択ツールにも適用するかはユーザーに確認し、「1 つに絞る」に統一した。
+- **整合性チェックを専用テスト一覧に入れなかった理由**：非表示ウィンドウを開くため（ユーザーの選択）。全件実行は GUI を起動しない方針。
+- **プロパティごとに別名のファイルを割り当てた理由**：同じファイルを共有すると、あるキーを Packager が集め損ねても、他のキー経由でコピーされて欠落が見えない。最初の試走はそのせいで全部通ってしまった。
+- **Packager の修正方法**：キー一覧を直接書き足すのではなく、`AssetDependencies` の一覧を共有することにした。`--asset-regression` が、ファイル選択になるプロパティはすべて `AssetDependencies` の一覧に入っていることをすでに確認しているので、今後プロパティを増やしたときも漏れに気づける。
+- **PNG のアルファを 255 で埋めた理由**：半透明の描画でバックバッファのアルファも書き換わる。VSCode の画像プレビューはそれを市松模様で表示していた。実際のウィンドウでは不透明なので、保存側で埋めた（ユーザーの判断）。
+
+### 3. どういう経緯か
+1. パッケージ版のテスト中に、ユーザーが「歩行中に L を押すと滑り続ける」と報告した。原因を調べて、再現テストが失敗することを確認してから修正した。
+2. ユーザーから「ギズモ系ツールで複数選択の操作に Ctrl が要るのが面倒」と要望があった。まずギズモ系ツールだけを変更したが、ユーザーの指示で 4 つのツールの挙動を統一した。
+3. ユーザーから「アセット破損のチェックがない」と依頼があった。構成（RecubinTest で生成・パッケージし、RecubinEngine の `--self-check` で比べる）と、見つけた不具合は報告だけにすることを確認してから実装した。
+   - 試走で、Packager が `Image` と Weather の環境音を集めていないことを検出した。ユーザーの指示で修正した。
+4. ユーザーが「ハイライトに市松模様がある」と報告した。実機のスクリーンショット（ユーザーが許可）と PNG のアルファを確認し、描画のバグではなく保存した PNG のアルファが原因だと特定した。表示ソフトの違いで、VSCode だけ市松模様が出ていた。アルファを 255 で埋めた。
+
+**試して失敗した方法・ハマりどころ**
+- **PNG が上下逆になった**：`PngWriter` は、`glReadPixels` と同じ下から上の並びを受け取る仕様だった。自分で上下反転していたのが原因。
+- **`fs::copy` が失敗した**：コピー先の親フォルダを作らない。その結果、アセットの表が空のまま `.at()` で例外が出て、0xC0000409 で落ちた。出力がバッファに溜まったまま失われて原因が見えなかったので、`std::unitbuf` で逐次出力して特定した。
+- **シーン生成をプロジェクトのフォルダで行うと落ちる**：アセットが実際に読み込まれ、GL のない RecubinTest で GLB 等を処理するため。生成はリポジトリ直下で行う。読み込み失敗の警告が出るのは意図どおり。
+- **`loadApplicableProperty` で Decal の Face に `"Back"` を読ませると落ちる**：Face は数値の enum（`yamlEnumAsString=false`）なので、YAML の例外が出て terminate する。`writeProperty` で数値を入れる。
+- **heredoc で Python を渡すと壊れる**：`'\n'` が実際の改行になる問題が再発した。置換が一致しないまま「成功」と表示されたこともあり、diff で確認しないと見逃す。
+- **最初のスクリーンショットがずれた**：DPI スケーリングの影響。`SetProcessDPIAware` ＋ `GetClientRect` / `ClientToScreen` で撮り直した。カメラは、一時プロジェクトのスクリプトで Program モードにして固定した。
+
+### 4. 未解決・保留
+- **クリック選択の統一は実機未確認**：ImGui の実フレームが要るため、自動テストがない。
+- **`SurfaceGui bake retained an invalid ImGui texture`**：元のシーンでも毎回出る警告（`Renderer_GUI.cpp:472`）。潜在的な不具合の可能性があり、未調査。
+- **`--package-integrity` で対象外のもの**：
+  - Program（実行ファイル）
+  - PostEffect のカスタムシェーダー（PostEffect は無効にして、存在だけ確認している）
+  - Terrain の DataPath
+  - Users / PathfindingService
+- **整合性チェックの画面には限界がある**：生成シーンの配置で Cube どうしが重なり、Decal などは一部しか見えない。目視の確認には向くが、網羅的ではない。
+- **継続中の既知事項**：
+  - `--audio-diagnostics-regression` の失敗（10/08 から）
+  - `scripts/Recubin.luard` はコミット対象外
+
+### 5. 暗黙仕様の発見
+- **`User::processInput` の処理順**：移動入力を積む `processMovement` → ホットキー（L）でのモード切り替え。モードを切り替えたフレームでは、積んだ入力が次の固定 step に残る。
+- **Free 中のキャラクターはホバーで浮いていて摩擦がない**：速度が残ると止まらない。
+- **ランタイムのエディター役は `NullEditorManager`**：`Renderer::render` の最後で `glfwSwapBuffers` を呼ぶので、バックバッファの読み出しは swap の前（`m_beforeSwap`）で行う必要がある。
+- **`PngWriter::writeRgba8` は下から上の並びを受け取る**（GuiAutomation もそのまま渡している）。
+- **バックバッファのアルファは半透明の描画で書き換わる**：ウィンドウ表示では無視されるが、読み出した画像では半透明になる。
+- **Packager は CWD を基準に動く**：`shaders/` と `assets/fonts/` を CWD から探し、シーン内の相対パスも CWD 基準で解決する。RecubinEngine も CWD 基準で、`--scene` 指定時は `startup.yaml` のある場所へ移動しない。
+- **音声のフィルターだけ書式が違う**：`AUDIO_EXTENSION` のフィルターは `mp3,wav,ogg,flac`（カンマ区切り、`*.` なし）。他は `*.png;*.jpg`。
+- **Decal の Face は YAML に数値で保存する**（`yamlEnumAsString=false`）。SurfaceGui などは文字列で、クラスごとに不統一。
+- **GL のない RecubinTest でアセットのパスが解決できると、読み込み・アップロードで落ちる**：パスが解決できないと警告だけで済む。

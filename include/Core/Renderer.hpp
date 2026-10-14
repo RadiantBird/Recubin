@@ -335,6 +335,8 @@ class Renderer {
 
         // GUI 描画
         std::function<void(GuiButton*)> m_onButtonActivated;
+        // 画面を入れ替える直前に呼ぶ（バックバッファの読み出し用。RecubinEngine の --self-check）
+        std::function<void(GLFWwindow*)> m_beforeSwap;
         std::weak_ptr<ChatService> m_chatService;
         RuntimeChatOverlay m_chatOverlay;
 

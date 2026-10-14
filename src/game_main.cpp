@@ -42,6 +42,8 @@
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
 #include <Util/RuntimeLaunchArgs.hpp>
+#include <Util/PngWriter.hpp>
+#include <Core/SelfCheck.hpp>
 #include <Util/RuntimeFileSystem.hpp>
 #include <Util/SystemExtensionPermissions.hpp>
 #include <Util/YamlLoadResult.hpp>
@@ -249,6 +251,59 @@ static bool parseServerAddress(const std::string& value,
     return true;
 }
 
+// ===================================================
+//  --self-check: パッケージ前後の比較用に、画面とインスタンスツリーを書き出す
+// ===================================================
+constexpr int SELF_CHECK_WIDTH = 960;
+constexpr int SELF_CHECK_HEIGHT = 540;
+constexpr int SELF_CHECK_FRAMES = 30;
+
+// 原点付近を斜め上から見下ろす固定カメラ（RecubinTest --package-integrity の配置に合わせる）
+static CFrame selfCheckCamera() {
+    return CFrame(Vector3(0.0f, 14.0f, 34.0f), Quaternion::fromEuler(Vector3(-18.0f, 0.0f, 0.0f)));
+}
+
+static bool writeSelfCheckTree(const std::string& outputDir, Instance& root) {
+    std::error_code error;
+    std::filesystem::create_directories(std::filesystem::u8path(outputDir), error);
+    std::ofstream file(std::filesystem::u8path(outputDir) / "tree.yaml", std::ios::binary);
+    if (!file) {
+        RCBN_ERROR("Self-check: cannot write tree.yaml to " << outputDir);
+        return false;
+    }
+    file << SelfCheck::describeTree(root);
+    return static_cast<bool>(file);
+}
+
+// 画面を入れ替える前のバックバッファを読み出し、PNG（目視用）と生RGBA（比較用）で保存する
+static bool writeSelfCheckImage(const std::string& outputDir, GLFWwindow* window) {
+    SelfCheck::Image image;
+    glfwGetFramebufferSize(window, &image.width, &image.height);
+    if (image.width <= 0 || image.height <= 0) {
+        RCBN_ERROR("Self-check: framebuffer has no size");
+        return false;
+    }
+    image.rgba.resize(static_cast<std::size_t>(image.width) * static_cast<std::size_t>(image.height) * 4);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    glReadBuffer(GL_BACK);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, image.width, image.height, GL_RGBA, GL_UNSIGNED_BYTE, image.rgba.data());
+    // 半透明の描画でバックバッファのアルファも書き換わるが、画面表示では使われないので不透明にする
+    for (std::size_t i = 3; i < image.rgba.size(); i += 4) image.rgba[i] = 255;
+
+    // PngWriter は glReadPixels と同じ下から上の並びを受け取る
+    std::string pngError;
+    const bool pngOk = PngWriter::writeRgba8(outputDir + "/render.png", image.width, image.height,
+                                             image.rgba, &pngError);
+    const bool rawOk = SelfCheck::writeRawImage(outputDir + "/render.rgba", image);
+    if (!pngOk || !rawOk) {
+        RCBN_ERROR("Self-check: cannot write render output: " << pngError);
+        return false;
+    }
+    std::cout << "[SelfCheck] captured " << image.width << "x" << image.height << std::endl;
+    return true;
+}
+
 static GameConfig loadStartup() {
     GameConfig cfg;
     const YamlLoadResult loaded = loadYamlFile("startup.yaml");
@@ -408,10 +463,15 @@ int main(int argc, char* argv[]) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-    GLFWwindow* window = glfwCreateWindow(1280, 720, cfg.gameName.c_str(), nullptr, nullptr);
+    // --self-check: 非表示ウィンドウ・固定サイズで描画し、結果を書き出して終了する
+    const bool selfCheck = runtimeArgs.selfCheckDir.has_value();
+    if (selfCheck) glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    GLFWwindow* window = selfCheck
+        ? glfwCreateWindow(SELF_CHECK_WIDTH, SELF_CHECK_HEIGHT, cfg.gameName.c_str(), nullptr, nullptr)
+        : glfwCreateWindow(1280, 720, cfg.gameName.c_str(), nullptr, nullptr);
     if (!window) { glfwTerminate(); return -1; }
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1);
+    glfwSwapInterval(selfCheck ? 0 : 1);
     glewExperimental = GL_TRUE; // Core Profileで必要
     if (glewInit() != GLEW_OK) return -1;
 
@@ -441,6 +501,8 @@ int main(int argc, char* argv[]) {
     }
     auto workspaces = bound.workspaces;
     auto workspace  = bound.workspace;
+    // ロード直後（スクリプト実行・物理更新の前）のツリーを書き出す
+    if (selfCheck && !writeSelfCheckTree(*runtimeArgs.selfCheckDir, *system)) return -1;
 
     auto runtimeFs = std::make_shared<RuntimeFileSystem>(
         system->EnableExternalFileAccess);
@@ -463,6 +525,11 @@ int main(int argc, char* argv[]) {
             if (!SystemExtensionConsent::write(applicationRoot, permissions))
                 RCBN_WARN("System extension receipt could not be written; it will be retried.");
         } else if (SystemExtensionConsent::shouldWarn(applicationRoot, permissions)) {
+            // 非表示ウィンドウでは同意ダイアログに応答できず止まるため、自己チェックは失敗にする
+            if (selfCheck) {
+                RCBN_ERROR("Self-check cannot answer the system extension consent dialog");
+                return -1;
+            }
             bool continueRuntime = false;
             bool quitRuntime = false;
             while (!continueRuntime && !quitRuntime && !glfwWindowShouldClose(window)) {
@@ -689,11 +756,25 @@ int main(int argc, char* argv[]) {
     double lastFrame = glfwGetTime();
     int networkExitCode = 0;
 
+    // --self-check: 固定カメラ・固定dtで SELF_CHECK_FRAMES フレーム進め、最後のフレームを読み出す
+    int selfCheckFrame = 0;
+    bool selfCheckCaptured = false;
+    bool selfCheckCaptureOk = false;
+    if (selfCheck) {
+        user->setControlMode(User::ControlMode::Program);
+        renderer->m_beforeSwap = [&](GLFWwindow* target) {
+            if (selfCheckFrame + 1 < SELF_CHECK_FRAMES || selfCheckCaptured) return;
+            selfCheckCaptured = true;
+            selfCheckCaptureOk = writeSelfCheckImage(*runtimeArgs.selfCheckDir, target);
+        };
+    }
+
     // ---- メインループ（常にプレイ状態） ----
     while (!glfwWindowShouldClose(window)) {
         double now = glfwGetTime();
         float deltaTime = static_cast<float>(std::max(0.0, now - lastFrame));
         lastFrame       = now;
+        if (selfCheck) deltaTime = 1.0f / 60.0f;  // 実行時間に左右されない固定dt
         SystemState::get().deltaTime = deltaTime;
         syncCharacterWorkspace();
 
@@ -812,8 +893,14 @@ int main(int argc, char* argv[]) {
             ParticleEmitter::updateAll(workspace->getRenderParticleEmitters(), deltaTime);
         }
 
+        if (selfCheck) user->setCameraCFrame(selfCheckCamera());
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         renderer->render(*user, window, *workspace);
+        if (selfCheck && selfCheckCaptured) {
+            if (!selfCheckCaptureOk) networkExitCode = -1;
+            break;
+        }
+        if (selfCheck) ++selfCheckFrame;
 
         audioService->updateSounds(user->cpos, user->right);
         FrameProfiler::get().endFrame();

@@ -565,28 +565,18 @@ void ViewportPanel::handleViewportClick(
             m_isBoxSelectArmed    = false;
         }
         else {
-            // Step 1: 現在の選択単位の移動境界にヒットしたか判定
-            bool hitSelected = false;
-            if (selectedInstance && *selectedInstance &&
-                    (*selectedInstance)->IsA("Spatial") &&
-                    !ViewportSceneQueries::isLockedBaseCube(*selectedInstance)) {
-                const ViewportSceneQueries::MovementBounds bounds =
-                    ViewportSceneQueries::computeMovementBounds(**selectedInstance);
-                if (bounds.valid) {
-                    hitSelected = ViewportGeometry::raycastObb(
-                        ray, CFrame(bounds.center, bounds.rotation), bounds.size).hit;
-                }
-            }
             m_isDraggingSelected = false;
             m_isFreeDragArmed = false;
+            m_pendingSingleSelect = nullptr;
 
-            // Step 2: Selectモード、または任意のツールでCtrl+クリックの場合は、
-            // 現在のPrimaryへのヒットも含めてクリック単位を問い合わせる。
+            // 選択・移動・リサイズ・回転のどのツールでも同じ規則でクリック単位を問い合わせる。
+            // ただしギズモのハンドル上の通常クリックはギズモ操作に任せる。
             bool shiftHeld = ImGui::GetIO().KeyShift;
             bool ctrlHeld = ImGui::GetIO().KeyCtrl;
             bool clickFoundSomething = false;
             bool clickHitLockedObject = false;
-            if ((selectOnly || ctrlHeld) && selectedInstance) {
+            const bool clickOnGizmo = isGizmoMode() && ImGuizmo::IsOver();
+            if ((selectOnly || ctrlHeld || (isGizmoMode() && !clickOnGizmo)) && selectedInstance) {
                 const ViewportSceneQueries::SelectionRayHit selectionHit =
                     ViewportSceneQueries::findSelectionTarget(*workspace, ray);
                 Instance* nearest = selectionHit.hit ? selectionHit.target : nullptr;
@@ -636,15 +626,19 @@ void ViewportPanel::handleViewportClick(
                         const bool alreadySelected = selectedInstances &&
                             std::find(selectedInstances->begin(), selectedInstances->end(), nearest)
                                 != selectedInstances->end();
+                        // 選択済み対象からのplain dragは複数選択を維持する。
+                        // ドラッグせずに離したら、その1つだけの選択にする（updateFreeDrag）。
+                        if (alreadySelected && hasMultiSelection()) m_pendingSingleSelect = nearest;
                         *selectedInstance = nearest;
 
-                        // 選択済み対象からのplain dragは複数選択を維持する。
                         if (selectedInstances && !alreadySelected) {
                             selectedInstances->clear();
                             selectedInstances->push_back(nearest);
                         }
 
-                        if (surfaceDrag && isSelectMode() && !shiftHeld && nearest->IsA("Spatial")) {
+                        // Moveモードも同じ5px閾値を経て表面ドラッグへ移る。
+                        if (surfaceDrag && (isSelectMode() || isMoveMode()) && !shiftHeld &&
+                                nearest->IsA("Spatial")) {
                             m_isFreeDragArmed = true;
                             m_freeDragStart = ImGui::GetMousePos();
                         }
@@ -658,23 +652,6 @@ void ViewportPanel::handleViewportClick(
                 }
 
                 clickFoundSomething = hitSomething;
-            } else if (surfaceDrag && isMoveMode() && hitSelected && !ctrlHeld && !shiftHeld) {
-                // Moveモードも同じ5px閾値を経て表面ドラッグへ移る。
-                m_isFreeDragArmed = true;
-                m_freeDragStart = ImGui::GetMousePos();
-            } else if ((isMoveMode() || isResizeMode() || isRotateMode()) &&
-                       !hitSelected && !ctrlHeld && !shiftHeld && !ImGuizmo::IsOver() &&
-                       selectedInstance) {
-                // 非Selectツールでも本当に空の空間をplain clickした場合は選択解除する。
-                // 未選択対象やLocked対象へのヒットは空間として扱わず、既存選択を維持する。
-                const ViewportSceneQueries::SelectionRayHit selectionHit =
-                    ViewportSceneQueries::findSelectionTarget(*workspace, ray);
-                if (!selectionHit.hit) {
-                    *selectedInstance = nullptr;
-                    if (selectedInstances) {
-                        selectedInstances->clear();
-                    }
-                }
             }
 
             // ボックス選択 arm: Selectモードのみ、何にもヒットしなかった場合、または
@@ -1232,6 +1209,9 @@ void ViewportPanel::updateFreeDrag(const ViewportLayout& layout) {
 
     // ボタンを離したらリセット
     if (!ImGui::IsMouseDown(0)) {
+        // 複数選択中の対象をドラッグせずにクリックしただけなら、その1つだけの選択にする
+        if (m_pendingSingleSelect && !wasDragging && !m_isDraggingSelected) collapseToPendingSingleSelect();
+        m_pendingSingleSelect = nullptr;
         m_isDraggingSelected = false;
         m_isFreeDragArmed = false;
     } else if (m_isFreeDragArmed && !m_isDraggingSelected) {
@@ -1282,6 +1262,19 @@ void ViewportPanel::updateFreeDrag(const ViewportLayout& layout) {
     m_wasDraggingSelected = m_isDraggingSelected;
 
     moveFreeDragSelection(layout);
+}
+
+void ViewportPanel::collapseToPendingSingleSelect() {
+    Instance* target = m_pendingSingleSelect;
+    m_pendingSingleSelect = nullptr;
+    if (!target || !selectedInstance) return;
+    // 押してから離すまでに選択が変わっていたら（Explorer操作・削除など）何もしない
+    if (!selectedInstances ||
+        std::find(selectedInstances->begin(), selectedInstances->end(), target) == selectedInstances->end())
+        return;
+    *selectedInstance = target;
+    selectedInstances->clear();
+    selectedInstances->push_back(target);
 }
 
 void ViewportPanel::moveFreeDragSelection(const ViewportLayout& layout) {
