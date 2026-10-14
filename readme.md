@@ -6,12 +6,12 @@
 ![logo](assets/image/Recubin.png)
 
 Recubinは、Luauスクリプティング、物理遊び、複数Workspaceを備えたC++製のローカルゲームエンジンです。
-Robloxのアイデアを元に、自由な遊びと新しい体験の作成を重点を置いています。
+Robloxのアイデアを元に、自由な遊びと新しい体験の作成を重点に置いています。
 
 | プラットフォーム | 対応状況 |
 |---|---|
 | Windows | 対応済み |
-| Linux | 対応予定 |
+| Linux | 対応予定(対応時期は未定) |
 | macOS | v1.0のみの予定 |
 
 [パッケージ](https://github.com/RadiantBird/Recubin/releases)はここからダウンロードできます！
@@ -173,7 +173,7 @@ v2.0では、さらに面白い要素、いろいろなインスタンス、
 - Signalsmith Stretch & Signalsmith Linear
 - PhysX(deprecated)
 - Box3D
-- Windows bat
+- Windows bat(deprecated)
 - Python
 - font-awesome
 - recastnavigation
