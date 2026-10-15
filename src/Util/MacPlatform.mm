@@ -154,6 +154,93 @@ private:
     std::optional<int> m_exitCode;
 };
 
+class MacPipedProcess final : public IPipedProcess {
+public:
+    MacPipedProcess(pid_t processId, int stdinWriteFd, int stdoutReadFd)
+        : m_processId(processId), m_stdinWriteFd(stdinWriteFd), m_stdoutReadFd(stdoutReadFd) {}
+
+    ~MacPipedProcess() override {
+        closeStdin();
+        if (m_stdoutReadFd >= 0) {
+            close(m_stdoutReadFd);
+            m_stdoutReadFd = -1;
+        }
+    }
+
+    bool isRunning() override {
+        refreshExitCode();
+        return !m_exitCode.has_value();
+    }
+
+    std::optional<int> exitCode() override {
+        refreshExitCode();
+        return m_exitCode;
+    }
+
+    bool write(const std::string& data) override {
+        if (m_stdinWriteFd < 0) return false;
+        size_t written = 0;
+        while (written < data.size()) {
+            const ssize_t count =
+                ::write(m_stdinWriteFd, data.data() + written, data.size() - written);
+            if (count > 0) {
+                written += static_cast<size_t>(count);
+                continue;
+            }
+            if (count < 0 && errno == EINTR) continue;
+            return false;
+        }
+        return true;
+    }
+
+    bool readAvailable(std::string& out) override {
+        if (m_stdoutReadFd < 0) return false;
+        char buffer[4096];
+        for (;;) {
+            const ssize_t count = ::read(m_stdoutReadFd, buffer, sizeof(buffer));
+            if (count > 0) {
+                out.append(buffer, static_cast<size_t>(count));
+                continue;
+            }
+            if (count == 0) return false;
+            if (errno == EINTR) continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) return true;
+            return false;
+        }
+    }
+
+    void closeStdin() override {
+        if (m_stdinWriteFd >= 0) {
+            close(m_stdinWriteFd);
+            m_stdinWriteFd = -1;
+        }
+    }
+
+    bool terminate() override {
+        if (!isRunning()) return true;
+        return kill(m_processId, SIGKILL) == 0 || errno == ESRCH;
+    }
+
+private:
+    void refreshExitCode() {
+        if (m_processId <= 0 || m_exitCode.has_value()) return;
+        int status = 0;
+        const pid_t result = waitpid(m_processId, &status, WNOHANG);
+        if (result != m_processId) return;
+
+        if (WIFEXITED(status)) {
+            m_exitCode = WEXITSTATUS(status);
+        } else if (WIFSIGNALED(status)) {
+            m_exitCode = 128 + WTERMSIG(status);
+        }
+    }
+
+    pid_t m_processId = -1;
+    int m_stdinWriteFd = -1;
+    int m_stdoutReadFd = -1;
+    std::optional<int> m_exitCode;
+};
+
 } // namespace
 
 std::string MacPlatform::openFileDialog(const std::vector<FileFilter>& filters) {
@@ -266,10 +353,98 @@ void MacPlatform::freeDynamicLibrary(void* handle) {
     if (handle) dlclose(handle);
 }
 
-// Program IPCはWindowsを先行実装。macOSは未対応(nullptr)を返す。
 std::unique_ptr<IPipedProcess> MacPlatform::launchPipedProcess(
-    const ChildProcessLaunchOptions&) {
-    return nullptr;
+    const ChildProcessLaunchOptions& options) {
+    if (options.executable.empty() ||
+        (options.outputLogPath.has_value() && options.outputLogPath->empty())) {
+        return nullptr;
+    }
+
+    int stdinPipe[2] = {-1, -1};
+    int stdoutPipe[2] = {-1, -1};
+    if (pipe(stdinPipe) != 0) return nullptr;
+    if (pipe(stdoutPipe) != 0) {
+        close(stdinPipe[0]);
+        close(stdinPipe[1]);
+        return nullptr;
+    }
+
+    posix_spawn_file_actions_t actions;
+    if (posix_spawn_file_actions_init(&actions) != 0) {
+        close(stdinPipe[0]);
+        close(stdinPipe[1]);
+        close(stdoutPipe[0]);
+        close(stdoutPipe[1]);
+        return nullptr;
+    }
+
+    bool actionsValid =
+        posix_spawn_file_actions_adddup2(&actions, stdinPipe[0], STDIN_FILENO) == 0;
+    if (actionsValid) {
+        actionsValid = posix_spawn_file_actions_adddup2(
+            &actions, stdoutPipe[1], STDOUT_FILENO) == 0;
+    }
+    const char* outputPath = options.outputLogPath.has_value()
+        ? options.outputLogPath->c_str() : "/dev/null";
+    const int outputFlags = options.outputLogPath.has_value()
+        ? O_WRONLY | O_CREAT | O_TRUNC : O_WRONLY;
+    if (actionsValid) {
+        actionsValid = posix_spawn_file_actions_addopen(
+            &actions, STDERR_FILENO, outputPath, outputFlags, 0644) == 0;
+    }
+    if (actionsValid && !options.workingDirectory.empty()) {
+        actionsValid = posix_spawn_file_actions_addchdir_np(
+            &actions, options.workingDirectory.c_str()) == 0;
+    }
+    // 子プロセスが親側に使う側のfd(書き込み側のstdin, 読み取り側のstdout)を
+    // 継承してしまわないよう、子のfdテーブルから明示的に閉じる。
+    if (actionsValid) {
+        actionsValid = posix_spawn_file_actions_addclose(&actions, stdinPipe[1]) == 0;
+    }
+    if (actionsValid) {
+        actionsValid = posix_spawn_file_actions_addclose(&actions, stdoutPipe[0]) == 0;
+    }
+    if (actionsValid) {
+        actionsValid = posix_spawn_file_actions_addclose(&actions, stdinPipe[0]) == 0;
+    }
+    if (actionsValid) {
+        actionsValid = posix_spawn_file_actions_addclose(&actions, stdoutPipe[1]) == 0;
+    }
+
+    std::vector<std::string> argumentStorage;
+    argumentStorage.reserve(options.arguments.size() + 1);
+    argumentStorage.push_back(options.executable);
+    argumentStorage.insert(
+        argumentStorage.end(), options.arguments.begin(), options.arguments.end());
+
+    std::vector<char*> arguments;
+    arguments.reserve(argumentStorage.size() + 1);
+    for (std::string& argument : argumentStorage) arguments.push_back(argument.data());
+    arguments.push_back(nullptr);
+
+    pid_t processId = -1;
+    const int spawnResult = actionsValid
+        ? posix_spawn(&processId, options.executable.c_str(), &actions, nullptr,
+                      arguments.data(), environ)
+        : EINVAL;
+    posix_spawn_file_actions_destroy(&actions);
+
+    // 親側で、子に渡した側のfdは不要なので閉じる。
+    close(stdinPipe[0]);
+    close(stdoutPipe[1]);
+
+    if (spawnResult != 0) {
+        close(stdinPipe[1]);
+        close(stdoutPipe[0]);
+        return nullptr;
+    }
+
+    const int currentFlags = fcntl(stdoutPipe[0], F_GETFL, 0);
+    if (currentFlags >= 0) {
+        fcntl(stdoutPipe[0], F_SETFL, currentFlags | O_NONBLOCK);
+    }
+
+    return std::make_unique<MacPipedProcess>(processId, stdinPipe[1], stdoutPipe[0]);
 }
 
 std::unique_ptr<IChildProcess> MacPlatform::launchChildProcess(

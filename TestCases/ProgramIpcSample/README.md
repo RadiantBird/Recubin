@@ -41,6 +41,19 @@ exit code = 9
 
 exe を作り直すときは `build.bat` を実行する（自動で `vcvars64.bat` を探す）。
 
+## Mac で実行する
+
+1. `./build.sh` を実行して `assets/echo_server_mac` をビルドする（clang++ が必要）。
+2. ビルド後は `ProgramIpcSample.rcbn` ではなく `ProgramIpcSample.mac.rcbn` を使う。
+
+ヘッドレスでも確認できる（リポジトリのルートで実行）:
+
+```text
+./build-mac/RecubinTest TestCases/ProgramIpcSample/ProgramIpcSample.mac.rcbn
+```
+
+期待される出力は上記「実行」セクションの Windows 版と同じ。
+
 ## 仕組み
 
 ```text
@@ -81,6 +94,6 @@ Luau (Program)                          echo_server.exe
 ## 注意
 
 - `System.EnableIPCAPI` が `false` だと `Start` などはエラーになる（このシーンは `true`）。
-- 対応OSはWindowsのみ。
+- 標準対応はWindows。Mac版は `build.sh` / `ProgramIpcSample.mac.rcbn` で動作確認済み。
 - 子が標準入力を読まずに大量に書かせると詰まる。大きなデータを送る使い方には向かない（1メッセージ1MiBまで）。
 - Packager での配布（exe の同梱）はこのサンプルでは検証していない。

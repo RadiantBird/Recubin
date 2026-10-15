@@ -268,7 +268,7 @@ def build_outputs_are_up_to_date(config: str) -> bool:
 
     oldest_output = min(path.stat().st_mtime_ns for path in output_paths)
     input_suffixes = {
-        ".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx",
+        ".c", ".cc", ".cpp", ".cxx", ".m", ".mm", ".h", ".hh", ".hpp", ".hxx",
         ".inl", ".cmake", ".lib", ".a",
     }
     input_names = {"CMakeLists.txt", "CMakePresets.json"}
