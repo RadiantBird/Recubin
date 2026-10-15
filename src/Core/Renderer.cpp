@@ -769,6 +769,9 @@ void Renderer::init(GLFWwindow* window) {
     // 環境キューブマップ専用のユニット。sampler2Dと同じユニットを指すとdraw時にGL_INVALID_OPERATION
     // になるため、既定値(0)のままにせず必ず専用ユニットを割り当てる。
     glUniform1i(glGetUniformLocation(shaderProgram, "uEnvSpecular"), ENV_SPECULAR_UNIT);
+    // Decal配列テクスチャ専用のユニット。他のsamplerと同じユニットを指すとdraw時にGL_INVALID_OPERATION
+    // になるため、既定値(0)のままにせず必ず専用ユニットを割り当てる(uEnvSpecularと同じ理由)。
+    glUniform1i(glGetUniformLocation(shaderProgram, "uDecalTexArray"), DECAL_ARRAY_UNIT);
     // Materialの画像マップ用ユニット(BaseColor/Roughness/Metallic/Normal)。
     static constexpr const char* MATERIAL_MAP_SAMPLERS[4] = {
         "uMatBaseColorMap", "uMatRoughnessMap", "uMatMetallicMap", "uMatNormalMap"};
@@ -867,6 +870,18 @@ void Renderer::init(GLFWwindow* window) {
         surfaceMarkFBO = surfaceMarkDepthTex = 0;
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    glGenTextures(1, &m_decalArrayTexture);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, m_decalArrayTexture);
+    // glTexStorage3DはGL4.2拡張のため、4.1 Core契約のMacで未定義の可能性がある。
+    // glTexImage3D(GL3.0コア)で確保する。
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, DECAL_ARRAY_SIZE, DECAL_ARRAY_SIZE,
+                 DECAL_ARRAY_MAX_LAYERS, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     createWhiteTexture();
     createMeshFallbackTexture();
@@ -3795,6 +3810,89 @@ void Renderer::bindMaterialMapsFor(const MaterialInstance* materialPtr) {
     glUniform4f(m_uMatMapFlagsLoc, flags[0], flags[1], flags[2], flags[3]);
     if (m_uMatMapParamsLoc != -1)
         glUniform2f(m_uMatMapParamsLoc, material->TextureScale, material->NormalStrength);
+}
+
+namespace {
+// MeshCube用Decal配列テクスチャへ格納する際、元テクスチャの縦横比を保ったまま
+// DECAL_ARRAY_SIZE角の正方形へ双線形リサイズし、余白を透明でパディングする(レターボックス)。
+std::vector<unsigned char> resizeDecalLetterboxRGBA(
+        const unsigned char* src, int srcW, int srcH, int dstSize) {
+    std::vector<unsigned char> dst(static_cast<size_t>(dstSize) * dstSize * 4, 0);
+    if (srcW <= 0 || srcH <= 0) return dst;
+    const float scale = std::min(static_cast<float>(dstSize) / srcW,
+                                  static_cast<float>(dstSize) / srcH);
+    const int destW = std::max(1, static_cast<int>(std::round(srcW * scale)));
+    const int destH = std::max(1, static_cast<int>(std::round(srcH * scale)));
+    const int offsetX = (dstSize - destW) / 2;
+    const int offsetY = (dstSize - destH) / 2;
+    for (int y = 0; y < destH; ++y) {
+        const float srcY = (y + 0.5f) / scale - 0.5f;
+        const int y0 = std::clamp(static_cast<int>(std::floor(srcY)), 0, srcH - 1);
+        const int y1 = std::clamp(y0 + 1, 0, srcH - 1);
+        const float fy = std::clamp(srcY - y0, 0.0f, 1.0f);
+        for (int x = 0; x < destW; ++x) {
+            const float srcX = (x + 0.5f) / scale - 0.5f;
+            const int x0 = std::clamp(static_cast<int>(std::floor(srcX)), 0, srcW - 1);
+            const int x1 = std::clamp(x0 + 1, 0, srcW - 1);
+            const float fx = std::clamp(srcX - x0, 0.0f, 1.0f);
+            for (int c = 0; c < 4; ++c) {
+                const float p00 = src[(y0 * srcW + x0) * 4 + c];
+                const float p10 = src[(y0 * srcW + x1) * 4 + c];
+                const float p01 = src[(y1 * srcW + x0) * 4 + c];
+                const float p11 = src[(y1 * srcW + x1) * 4 + c];
+                const float top = p00 + (p10 - p00) * fx;
+                const float bottom = p01 + (p11 - p01) * fx;
+                const float value = top + (bottom - top) * fy;
+                const int dstIndex = ((offsetY + y) * dstSize + (offsetX + x)) * 4 + c;
+                dst[dstIndex] = static_cast<unsigned char>(std::clamp(value, 0.0f, 255.0f));
+            }
+        }
+    }
+    return dst;
+}
+}
+
+int Renderer::decalArrayLayerFor(unsigned int textureID) {
+    if (textureID == 0 || m_decalArrayTexture == 0) return -1;
+    auto cached = m_decalArrayLayerCache.find(textureID);
+    if (cached != m_decalArrayLayerCache.end()) return cached->second;
+
+    if (m_decalArrayNextLayer >= DECAL_ARRAY_MAX_LAYERS) {
+        RCBN_WARN("Decal texture array is full (" << DECAL_ARRAY_MAX_LAYERS
+                  << " layers); reusing layer 0 for texture " << textureID);
+        m_decalArrayLayerCache[textureID] = 0;
+        return 0;
+    }
+
+    GLint savedTex2D = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &savedTex2D);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    GLint srcW = 0, srcH = 0;
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &srcW);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &srcH);
+    std::vector<unsigned char> srcPixels(static_cast<size_t>(std::max(srcW, 0)) *
+                                          static_cast<size_t>(std::max(srcH, 0)) * 4);
+    GLint savedPackAlignment = 4;
+    glGetIntegerv(GL_PACK_ALIGNMENT, &savedPackAlignment);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    if (srcW > 0 && srcH > 0) {
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, srcPixels.data());
+    }
+    glPixelStorei(GL_PACK_ALIGNMENT, savedPackAlignment);
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(savedTex2D));
+
+    const int layer = m_decalArrayNextLayer++;
+    if (srcW > 0 && srcH > 0) {
+        std::vector<unsigned char> resized =
+            resizeDecalLetterboxRGBA(srcPixels.data(), srcW, srcH, DECAL_ARRAY_SIZE);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, m_decalArrayTexture);
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, layer,
+                         DECAL_ARRAY_SIZE, DECAL_ARRAY_SIZE, 1,
+                         GL_RGBA, GL_UNSIGNED_BYTE, resized.data());
+        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    }
+    m_decalArrayLayerCache[textureID] = layer;
+    return layer;
 }
 
 unsigned int Renderer::loadTexture(const char* path) {

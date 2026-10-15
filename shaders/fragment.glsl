@@ -67,7 +67,8 @@ uniform float       uEnvMaxLod;  // キューブマップの最大mipレベル(r
 
 // ---- MeshCube用UV空間Decal合成。uDecalCountはMeshCube描画時のみ>0で、他クラス描画時は常に0のためループがno-op ----
 #define MAX_DECALS 8
-uniform sampler2D uDecalTex[MAX_DECALS];
+uniform sampler2DArray uDecalTexArray;
+uniform int uDecalLayer[MAX_DECALS];
 uniform vec2      uDecalCenter[MAX_DECALS];
 uniform float     uDecalRadius[MAX_DECALS];
 uniform vec4      uDecalColor[MAX_DECALS];
@@ -334,7 +335,7 @@ if (useTriplanar > 0.5) {
             float mask = 1.0 - smoothstep(edge * 0.85, edge, dist);
             if (mask > 0.0) {
                 vec2 localUV = d / edge * 0.5 + 0.5;
-                vec4 dcol = texture(uDecalTex[i], localUV);
+                vec4 dcol = texture(uDecalTexArray, vec3(localUV, float(uDecalLayer[i])));
                 float a = dcol.a * uDecalColor[i].a * mask;
                 baseColor = mix(baseColor, dcol.rgb * uDecalColor[i].rgb, a);
             }
@@ -365,7 +366,7 @@ if (useTriplanar > 0.5) {
                 else                         localUV = vec2(tz, ty);            // Left
 
                 if (localUV.x >= 0.0 && localUV.x <= 1.0 && localUV.y >= 0.0 && localUV.y <= 1.0) {
-                    vec4 dcol = texture(uDecalTex[i], localUV);
+                    vec4 dcol = texture(uDecalTexArray, vec3(localUV, float(uDecalLayer[i])));
                     float a = dcol.a * uDecalColor[i].a * mask;
                     baseColor = mix(baseColor, dcol.rgb * uDecalColor[i].rgb, a);
                 }

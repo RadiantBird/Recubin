@@ -212,7 +212,7 @@ namespace {
     // shaderProgram が変わった時だけ全ロケーションを引き直す（文字列連結はミス時のみ）。
     const int kMaxDecalUniforms = 8;
     unsigned int s_decalUniformProgram = 0;
-    int s_decalTexLoc[kMaxDecalUniforms];
+    int s_decalLayerLoc[kMaxDecalUniforms];
     int s_decalCenterLoc[kMaxDecalUniforms];
     int s_decalRadiusLoc[kMaxDecalUniforms];
     int s_decalColorLoc[kMaxDecalUniforms];
@@ -224,7 +224,7 @@ namespace {
         s_decalUniformProgram = shaderProgram;
         for (int i = 0; i < kMaxDecalUniforms; ++i) {
             std::string idx = std::to_string(i);
-            s_decalTexLoc[i]    = glGetUniformLocation(shaderProgram, ("uDecalTex[" + idx + "]").c_str());
+            s_decalLayerLoc[i]  = glGetUniformLocation(shaderProgram, ("uDecalLayer[" + idx + "]").c_str());
             s_decalCenterLoc[i] = glGetUniformLocation(shaderProgram, ("uDecalCenter[" + idx + "]").c_str());
             s_decalRadiusLoc[i] = glGetUniformLocation(shaderProgram, ("uDecalRadius[" + idx + "]").c_str());
             s_decalColorLoc[i]  = glGetUniformLocation(shaderProgram, ("uDecalColor[" + idx + "]").c_str());
@@ -286,18 +286,21 @@ void MeshCube::draw(int modelLoc, int shaderProgram) {
 
     std::vector<UVDecalDesc> uvDecals = collectUVDecals(kMaxDecalUniforms);
     ensureDecalUniformLocations(static_cast<unsigned int>(shaderProgram));
+    if (Renderer::instance) {
+        glActiveTexture(GL_TEXTURE0 + Renderer::DECAL_ARRAY_UNIT);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, Renderer::instance->m_decalArrayTexture);
+    }
     for (size_t i = 0; i < uvDecals.size(); ++i) {
         const UVDecalDesc& d = uvDecals[i];
-        glActiveTexture(GL_TEXTURE2 + static_cast<GLenum>(i));
-        glBindTexture(GL_TEXTURE_2D, d.textureID);
 
-        int texLoc    = s_decalTexLoc[i];
+        const int layer = Renderer::instance ? Renderer::instance->decalArrayLayerFor(d.textureID) : -1;
+        int layerLoc = s_decalLayerLoc[i];
         int centerLoc = s_decalCenterLoc[i];
         int radiusLoc = s_decalRadiusLoc[i];
         int colorLocD = s_decalColorLoc[i];
         int modeLoc   = s_decalModeLoc[i];
         int faceLoc   = s_decalFaceLoc[i];
-        if (texLoc    != -1) glUniform1i(texLoc, 2 + static_cast<int>(i));
+        if (layerLoc  != -1) glUniform1i(layerLoc, std::max(layer, 0));
         if (centerLoc != -1) glUniform2f(centerLoc, d.center.x, d.center.y);
         if (radiusLoc != -1) glUniform1f(radiusLoc, d.radius);
         if (colorLocD != -1) glUniform4f(colorLocD, d.color.r, d.color.g, d.color.b, d.color.a);

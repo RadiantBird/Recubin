@@ -220,6 +220,18 @@ class Renderer {
         };
         std::map<std::string, TextureCacheEntry> textureCache;
 
+        // ---- MeshCube用Decal配列テクスチャ: macOSのOpenGL実装でのフラグメントシェーダー
+        //      サンプラー上限(16個)を回避するため、uDecalTex[8]をsampler2DArray 1個に集約する ----
+        static constexpr int DECAL_ARRAY_SIZE = 256;
+        static constexpr int DECAL_ARRAY_MAX_LAYERS = 64;
+        static constexpr int DECAL_ARRAY_UNIT = 9;
+        unsigned int m_decalArrayTexture = 0;
+        std::unordered_map<unsigned int, int> m_decalArrayLayerCache;
+        int m_decalArrayNextLayer = 0;
+        // 実際のGL_TEXTURE_2DテクスチャID(Decal::TextureID)を配列テクスチャのレイヤー番号へ
+        // 変換・キャッシュする。未登録のIDなら配列テクスチャへ転送してレイヤーを割り当てる。
+        int decalArrayLayerFor(unsigned int textureID);
+
         // ---- PBRの環境反射（Renderer_Environment.cpp） ----
         // Skyboxの6面から焼いた、mipがroughnessに対応するキューブマップ。Skyboxが無い/
         // テクスチャ未読込のときは手続き的な空のグラデーションを使う。メインシェーダーでは
