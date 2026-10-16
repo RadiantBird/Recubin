@@ -293,7 +293,10 @@ class Renderer {
         // 制約ビジュアライザ（Rope/Rod）
         GLuint m_lineVAO    = 0;
         GLuint m_lineVBO    = 0;
-        GLuint m_lineShader = 0;
+        ShdcProgram m_lineProgram; // shaders/sokol/line.glsl
+        // 補助線プログラムを使い、view/projection を送る。色は setLineColor で送る（送るまでは前回の色が残る）。
+        void useLineProgram(const Matrix4& view, const Matrix4& projection);
+        void setLineColor(const Color4& color);
         void initLineRenderer();
         void renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection, const Vector3& cameraPosition);
 
@@ -309,7 +312,7 @@ class Renderer {
         // ビューポートの数だけ複数回呼ばれるため、ここで状態を進めると多重更新になる）。
         GLuint m_particleVAO    = 0;
         GLuint m_particleVBO    = 0;
-        GLuint m_particleShader = 0;
+        ShdcProgram m_particleProgram; // shaders/sokol/particle.glsl
         void initParticleRenderer();
         void renderParticles(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                               const Vector3& cameraRight, const Vector3& cameraUp);
@@ -319,14 +322,14 @@ class Renderer {
         // ノイズ計算自体は焼き込み時にCPU側で完結しており、シェーダーは色・サンプル・しきい値のみ。
         GLuint m_cloudVAO      = 0;
         GLuint m_cloudVBO      = 0;
-        GLuint m_cloudShader   = 0;
+        ShdcProgram m_cloudProgram;   // shaders/sokol/cloud.glsl
         GLuint m_cloudNoiseTex = 0;
         void initCloudRenderer();
         void renderClouds(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                            const Vector3& cameraPosition);
 
         // 雷柱（Weatherが落雷時に中点変位法で生成したジグザグ頂点列を描画するだけ。
-        // ジオメトリ生成自体はWeather::attemptStrike()側で行う）。既存のm_lineShaderを流用し
+        // ジオメトリ生成自体はWeather::attemptStrike()側で行う）。既存のm_lineProgramを流用し
         // 新規GLリソースは追加しない。
         void renderLightning(Workspace& workspace, const Matrix4& view, const Matrix4& projection, const Vector3& cameraPosition);
 

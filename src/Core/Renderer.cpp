@@ -15,6 +15,9 @@
 #include <shaders/selection.h>
 #include <shaders/postprocess.h>
 #include <shaders/depth.h>
+#include <shaders/line.h>
+#include <shaders/particle.h>
+#include <shaders/cloud.h>
 #include <Editor/IEditorManager.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
@@ -159,7 +162,7 @@ static void buildSegmentRibbons(const std::vector<float>& segmentEndpoints,
 
 // 連結ポリライン(フラットな(x,y,z)*N配列)を、カメラ向きのリボン三角形(GL_TRIANGLES用フラット頂点配列)に
 // 変換する。ワールド空間の全幅(width)を使う。各頂点で前後セグメント方向を平均した接線を使うため、
-// ジョイント部に隙間ができない。m_lineShaderのaPosレイアウト(position-only vec3)にそのまま渡せる。
+// ジョイント部に隙間ができない。m_lineProgramのaPosレイアウト(position-only vec3)にそのまま渡せる。
 static void buildRibbonStrip(const std::vector<float>& points, float width,
                               const Vector3& cameraPos, std::vector<float>& outVerts) {
     size_t n = points.size() / 3;
@@ -916,15 +919,15 @@ Renderer::~Renderer() {
 
     if (m_lineVBO)    glDeleteBuffers(1, &m_lineVBO);
     if (m_lineVAO)    glDeleteVertexArrays(1, &m_lineVAO);
-    if (m_lineShader) glDeleteProgram(m_lineShader);
+    m_lineProgram.destroy();
 
     if (m_particleVBO)    glDeleteBuffers(1, &m_particleVBO);
     if (m_particleVAO)    glDeleteVertexArrays(1, &m_particleVAO);
-    if (m_particleShader) glDeleteProgram(m_particleShader);
+    m_particleProgram.destroy();
 
     if (m_cloudVBO)      glDeleteBuffers(1, &m_cloudVBO);
     if (m_cloudVAO)      glDeleteVertexArrays(1, &m_cloudVAO);
-    if (m_cloudShader)   glDeleteProgram(m_cloudShader);
+    m_cloudProgram.destroy();
     if (m_cloudNoiseTex) glDeleteTextures(1, &m_cloudNoiseTex);
 
     if (m_postVBO)    glDeleteBuffers(1, &m_postVBO);
@@ -954,37 +957,7 @@ Renderer::~Renderer() {
 //  制約ビジュアライザ
 // ===================================================
 void Renderer::initLineRenderer() {
-    const char* vs = R"(
-#version 330 core
-layout(location = 0) in vec3 aPos;
-uniform mat4 view;
-uniform mat4 projection;
-void main() {
-    gl_Position = projection * view * vec4(aPos, 1.0);
-}
-)";
-    const char* fs = R"(
-#version 330 core
-out vec4 FragColor;
-uniform vec4 lineColor;
-void main() {
-    FragColor = lineColor;
-}
-)";
-    auto compile = [](const char* src, GLenum type) -> GLuint {
-        GLuint sh = glCreateShader(type);
-        glShaderSource(sh, 1, &src, nullptr);
-        glCompileShader(sh);
-        return sh;
-    };
-    GLuint v = compile(vs, GL_VERTEX_SHADER);
-    GLuint f = compile(fs, GL_FRAGMENT_SHADER);
-    m_lineShader = glCreateProgram();
-    glAttachShader(m_lineShader, v);
-    glAttachShader(m_lineShader, f);
-    glLinkProgram(m_lineShader);
-    glDeleteShader(v);
-    glDeleteShader(f);
+    m_lineProgram.create(*line_draw_shader_desc(SG_BACKEND_GLCORE), "line");
 
     glGenVertexArrays(1, &m_lineVAO);
     glGenBuffers(1, &m_lineVBO);
@@ -995,44 +968,28 @@ void main() {
     glBindVertexArray(0);
 }
 
+void Renderer::useLineProgram(const Matrix4& view, const Matrix4& projection) {
+    m_lineProgram.use();
+    line_vs_params_t params = {};
+    std::memcpy(params.view, view.m, sizeof(params.view));
+    std::memcpy(params.projection, projection.m, sizeof(params.projection));
+    m_lineProgram.applyUniforms(UB_line_vs_params, params);
+}
+
+void Renderer::setLineColor(const Color4& color) {
+    line_fs_params_t params = {};
+    params.lineColor[0] = color.r;
+    params.lineColor[1] = color.g;
+    params.lineColor[2] = color.b;
+    params.lineColor[3] = color.a;
+    m_lineProgram.applyUniforms(UB_line_fs_params, params);
+}
+
 // ===================================================
 //  パーティクル（ビルボード・テクスチャなし単色頂点）
 // ===================================================
 void Renderer::initParticleRenderer() {
-    const char* vs = R"(
-#version 330 core
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec4 aColor;
-uniform mat4 view;
-uniform mat4 projection;
-out vec4 vColor;
-void main() {
-    vColor = aColor;
-    gl_Position = projection * view * vec4(aPos, 1.0);
-}
-)";
-    const char* fs = R"(
-#version 330 core
-in vec4 vColor;
-out vec4 FragColor;
-void main() {
-    FragColor = vColor;
-}
-)";
-    auto compile = [](const char* src, GLenum type) -> GLuint {
-        GLuint sh = glCreateShader(type);
-        glShaderSource(sh, 1, &src, nullptr);
-        glCompileShader(sh);
-        return sh;
-    };
-    GLuint v = compile(vs, GL_VERTEX_SHADER);
-    GLuint f = compile(fs, GL_FRAGMENT_SHADER);
-    m_particleShader = glCreateProgram();
-    glAttachShader(m_particleShader, v);
-    glAttachShader(m_particleShader, f);
-    glLinkProgram(m_particleShader);
-    glDeleteShader(v);
-    glDeleteShader(f);
+    m_particleProgram.create(*particle_draw_shader_desc(SG_BACKEND_GLCORE), "particle");
 
     glGenVertexArrays(1, &m_particleVAO);
     glGenBuffers(1, &m_particleVBO);
@@ -1050,47 +1007,7 @@ void main() {
 //  雲（Weather）
 // ===================================================
 void Renderer::initCloudRenderer() {
-    const char* vs = R"(
-#version 330 core
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec2 aUV;
-uniform mat4 view;
-uniform mat4 projection;
-out vec2 vUV;
-void main() {
-    vUV = aUV;
-    gl_Position = projection * view * vec4(aPos, 1.0);
-}
-)";
-    const char* fs = R"(
-#version 330 core
-in vec2 vUV;
-out vec4 FragColor;
-uniform sampler2D cloudTex;
-uniform vec2  windOffset;
-uniform float cloudCover;
-uniform float cloudDensity;
-uniform vec4  cloudColor;
-void main() {
-    float n = texture(cloudTex, vUV - windOffset).r;
-    float alpha = smoothstep(1.0 - cloudCover, 1.0, n) * cloudDensity * cloudColor.a;
-    FragColor = vec4(cloudColor.rgb, alpha);
-}
-)";
-    auto compile = [](const char* src, GLenum type) -> GLuint {
-        GLuint sh = glCreateShader(type);
-        glShaderSource(sh, 1, &src, nullptr);
-        glCompileShader(sh);
-        return sh;
-    };
-    GLuint v = compile(vs, GL_VERTEX_SHADER);
-    GLuint f = compile(fs, GL_FRAGMENT_SHADER);
-    m_cloudShader = glCreateProgram();
-    glAttachShader(m_cloudShader, v);
-    glAttachShader(m_cloudShader, f);
-    glLinkProgram(m_cloudShader);
-    glDeleteShader(v);
-    glDeleteShader(f);
+    m_cloudProgram.create(*cloud_draw_shader_desc(SG_BACKEND_GLCORE), "cloud");
 
     glGenVertexArrays(1, &m_cloudVAO);
     glGenBuffers(1, &m_cloudVBO);
@@ -1141,7 +1058,7 @@ void main() {
 
 void Renderer::renderClouds(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                              const Vector3& cameraPosition) {
-    if (!m_cloudShader || !m_cloudNoiseTex) return;
+    if (!m_cloudProgram.isValid() || !m_cloudNoiseTex) return;
 
     Weather* weather = workspace.getRenderWeathers().empty()
         ? nullptr : workspace.getRenderWeathers().front();
@@ -1165,19 +1082,22 @@ void Renderer::renderClouds(Workspace& workspace, const Matrix4& view, const Mat
 
     Vector2 scroll = weather->getCloudScrollOffset();
 
-    glUseProgram(m_cloudShader);
-    glUniformMatrix4fv(glGetUniformLocation(m_cloudShader, "view"),       1, GL_FALSE, view.m);
-    glUniformMatrix4fv(glGetUniformLocation(m_cloudShader, "projection"), 1, GL_FALSE, projection.m);
-    glUniform2f(glGetUniformLocation(m_cloudShader, "windOffset"), scroll.x, scroll.y);
-    glUniform1f(glGetUniformLocation(m_cloudShader, "cloudCover"), weather->CloudCover);
-    glUniform1f(glGetUniformLocation(m_cloudShader, "cloudDensity"), weather->CloudDensity);
-    glUniform4f(glGetUniformLocation(m_cloudShader, "cloudColor"),
-                weather->CloudColor.r, weather->CloudColor.g,
-                weather->CloudColor.b, weather->CloudColor.a);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, m_cloudNoiseTex);
-    glUniform1i(glGetUniformLocation(m_cloudShader, "cloudTex"), 0);
+    m_cloudProgram.use();
+    cloud_vs_params_t cloudVs = {};
+    std::memcpy(cloudVs.view, view.m, sizeof(cloudVs.view));
+    std::memcpy(cloudVs.projection, projection.m, sizeof(cloudVs.projection));
+    m_cloudProgram.applyUniforms(UB_cloud_vs_params, cloudVs);
+    cloud_fs_params_t cloudFs = {};
+    cloudFs.cloudColor[0] = weather->CloudColor.r;
+    cloudFs.cloudColor[1] = weather->CloudColor.g;
+    cloudFs.cloudColor[2] = weather->CloudColor.b;
+    cloudFs.cloudColor[3] = weather->CloudColor.a;
+    cloudFs.windOffset[0] = scroll.x;
+    cloudFs.windOffset[1] = scroll.y;
+    cloudFs.cloudCover = weather->CloudCover;
+    cloudFs.cloudDensity = weather->CloudDensity;
+    m_cloudProgram.applyUniforms(UB_cloud_fs_params, cloudFs);
+    m_cloudProgram.bindTexture(VIEW_cloud_cloudTex, GL_TEXTURE_2D, m_cloudNoiseTex);
 
     glBindVertexArray(m_cloudVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_cloudVBO);
@@ -1193,7 +1113,7 @@ void Renderer::renderClouds(Workspace& workspace, const Matrix4& view, const Mat
 
 void Renderer::renderLightning(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                                 const Vector3& cameraPosition) {
-    if (!m_lineShader) return;
+    if (!m_lineProgram.isValid()) return;
 
     Weather* weather = workspace.getRenderWeathers().empty()
         ? nullptr : workspace.getRenderWeathers().front();
@@ -1212,10 +1132,8 @@ void Renderer::renderLightning(Workspace& workspace, const Matrix4& view, const 
     buildRibbonStrip(verts, kLightningWidth, cameraPosition, ribbon);
     if (ribbon.empty()) return;
 
-    glUseProgram(m_lineShader);
-    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"),       1, GL_FALSE, view.m);
-    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
-    glUniform4f(glGetUniformLocation(m_lineShader, "lineColor"), 0.9f, 0.95f, 1.0f, alpha);
+    useLineProgram(view, projection);
+    setLineColor(Color4(0.9f, 0.95f, 1.0f, alpha));
 
     glBindVertexArray(m_lineVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
@@ -1227,14 +1145,11 @@ void Renderer::renderLightning(Workspace& workspace, const Matrix4& view, const 
 
 void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                                   const Vector3& cameraPosition) {
-    if (!m_lineShader) return;
+    if (!m_lineProgram.isValid()) return;
 
-    glUseProgram(m_lineShader);
-    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"),       1, GL_FALSE, view.m);
-    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
+    useLineProgram(view, projection);
     glBindVertexArray(m_lineVAO);
 
-    int colorLoc = glGetUniformLocation(m_lineShader, "lineColor");
 
     auto uploadAndDraw = [&](const std::vector<float>& verts, float width) {
         std::vector<float> ribbon;
@@ -1270,7 +1185,7 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
                     Vector3 p = p0 * (mt * mt) + ctrl * (2.0f * mt * t) + p1 * (t * t);
                     verts.push_back(p.x); verts.push_back(p.y); verts.push_back(p.z);
                 }
-                glUniform4f(colorLoc, rope->Color.r, rope->Color.g, rope->Color.b, rope->Color.a);
+                setLineColor(rope->Color);
                 uploadAndDraw(verts, rope->LineWidth);
             }
         } else if (inst->getClassName() == "Spring") {
@@ -1285,7 +1200,7 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
                 std::vector<float> verts;
                 constexpr int SEGMENTS_PER_COIL = 12;
                 SpringHelix::build(p0, p1, spring->Radius, spring->Coils, SEGMENTS_PER_COIL, verts);
-                glUniform4f(colorLoc, spring->Color.r, spring->Color.g, spring->Color.b, spring->Color.a);
+                setLineColor(spring->Color);
                 uploadAndDraw(verts, spring->Thickness);
             }
         } else if (inst->getClassName() == "Rod") {
@@ -1301,7 +1216,7 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
                     p0.x, p0.y, p0.z,
                     p1.x, p1.y, p1.z
                 };
-                glUniform4f(colorLoc, rod->Color.r, rod->Color.g, rod->Color.b, rod->Color.a);
+                setLineColor(rod->Color);
                 uploadAndDraw(verts, rod->LineWidth);
             }
         }
@@ -1322,14 +1237,11 @@ void Renderer::renderConstraints(Workspace& workspace, const Matrix4& view, cons
 // ===================================================
 void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                                    const Vector3& cameraPosition) {
-    if (!m_lineShader) return;
+    if (!m_lineProgram.isValid()) return;
 
-    glUseProgram(m_lineShader);
-    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"),       1, GL_FALSE, view.m);
-    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
+    useLineProgram(view, projection);
     glBindVertexArray(m_lineVAO);
 
-    int colorLoc = glGetUniformLocation(m_lineShader, "lineColor");
 
     const Color4 WELD_COLOR   {0.25f, 1.0f,  0.4f,  1.0f};
     const Color4 MOTOR_COLOR  {1.0f,  0.85f, 0.2f,  1.0f};
@@ -1348,7 +1260,7 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
         glBufferData(GL_ARRAY_BUFFER, (GLsizei)(ribbon.size() * sizeof(float)), ribbon.data(), GL_DYNAMIC_DRAW);
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(ribbon.size() / 3));
     };
-    auto setColor = [&](const Color4& c) { glUniform4f(colorLoc, c.r, c.g, c.b, c.a); };
+    auto setColor = [&](const Color4& c) { setLineColor(c); };
     auto drawSegment = [&](const Vector3& a, const Vector3& b) {
         uploadAndDraw({a.x, a.y, a.z, b.x, b.y, b.z});
     };
@@ -1569,7 +1481,7 @@ void Renderer::renderPhysicsDebug(Workspace& workspace, const Matrix4& view, con
 // ===================================================
 void Renderer::renderParticles(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                                 const Vector3& cameraRight, const Vector3& cameraUp) {
-    if (!m_particleShader) return;
+    if (!m_particleProgram.isValid()) return;
 
     const auto& emitters = workspace.getRenderParticleEmitters();
     if (emitters.empty()) return;
@@ -1611,9 +1523,11 @@ void Renderer::renderParticles(Workspace& workspace, const Matrix4& view, const 
     }
     if (verts.empty()) return;
 
-    glUseProgram(m_particleShader);
-    glUniformMatrix4fv(glGetUniformLocation(m_particleShader, "view"),       1, GL_FALSE, view.m);
-    glUniformMatrix4fv(glGetUniformLocation(m_particleShader, "projection"), 1, GL_FALSE, projection.m);
+    m_particleProgram.use();
+    particle_vs_params_t particleVs = {};
+    std::memcpy(particleVs.view, view.m, sizeof(particleVs.view));
+    std::memcpy(particleVs.projection, projection.m, sizeof(particleVs.projection));
+    m_particleProgram.applyUniforms(UB_particle_vs_params, particleVs);
 
     glBindVertexArray(m_particleVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_particleVBO);
@@ -1633,12 +1547,10 @@ void Renderer::renderParticles(Workspace& workspace, const Matrix4& view, const 
 void Renderer::renderBrushMarker(const Matrix4& view, const Matrix4& projection,
                                  const Vector3& center, float radius,
                                  const Vector3& cameraPosition, const Vector3& normal) {
-    if (!m_lineShader || radius <= 0.0f) return;
+    if (!m_lineProgram.isValid() || radius <= 0.0f) return;
 
-    glUseProgram(m_lineShader);
-    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"),       1, GL_FALSE, view.m);
-    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
-    glUniform4f(glGetUniformLocation(m_lineShader, "lineColor"), 1.0f, 0.85f, 0.2f, 1.0f);
+    useLineProgram(view, projection);
+    setLineColor(Color4(1.0f, 0.85f, 0.2f, 1.0f));
 
     // 法線を正規化（ゼロベクトル対策としてワールドUpにフォールバック）
     Vector3 n = normal.normalize();
@@ -2202,7 +2114,7 @@ void Renderer::drawBaseCubeHighlight(BaseCube* target, const Color4& fillColor,
     }
 
     // ---- 外側の縁取り（硬いエッジを画面空間幅リボン化） ----
-    if (outlineColor.a > 0.001f && outlineThickness > 0.001f && m_lineShader) {
+    if (outlineColor.a > 0.001f && outlineThickness > 0.001f && m_lineProgram.isValid()) {
         const std::vector<float>& localEdges = target->getHighlightEdgeVerts();
         if (!localEdges.empty()) {
             CFrame wcf = target->getWorldCFrame();
@@ -2218,10 +2130,8 @@ void Renderer::drawBaseCubeHighlight(BaseCube* target, const Color4& fillColor,
             buildSegmentRibbons(worldSegs, cameraPosition, fovYDegrees, viewportHeightPx, outlineThickness, ribbonVerts);
 
             if (!ribbonVerts.empty()) {
-                glUseProgram(m_lineShader);
-                glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"),       1, GL_FALSE, view.m);
-                glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
-                glUniform4f(glGetUniformLocation(m_lineShader, "lineColor"), outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a);
+                useLineProgram(view, projection);
+                setLineColor(Color4(outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a));
                 glBindVertexArray(m_lineVAO);
                 glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
                 glBufferData(GL_ARRAY_BUFFER, (GLsizei)(ribbonVerts.size() * sizeof(float)), ribbonVerts.data(), GL_DYNAMIC_DRAW);
@@ -2241,7 +2151,7 @@ void Renderer::drawDecalFaceHighlight(Decal* decal, const Color4& outlineColor,
                                       const Matrix4& projection, const Vector3& cameraPosition,
                                       float fovYDegrees, int viewportHeightPx) {
     if (!decal || outlineColor.a <= 0.001f || outlineThickness <= 0.001f ||
-        !m_lineShader || !m_lineVAO || !m_lineVBO) {
+        !m_lineProgram.isValid() || !m_lineVAO || !m_lineVBO) {
         return;
     }
 
@@ -2292,11 +2202,8 @@ void Renderer::drawDecalFaceHighlight(Decal* decal, const Color4& outlineColor,
     if (ribbonVerts.empty()) return;
 
     glDisable(GL_DEPTH_TEST);
-    glUseProgram(m_lineShader);
-    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"), 1, GL_FALSE, view.m);
-    glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
-    glUniform4f(glGetUniformLocation(m_lineShader, "lineColor"), outlineColor.r,
-                outlineColor.g, outlineColor.b, outlineColor.a);
+    useLineProgram(view, projection);
+    setLineColor(Color4(outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a));
     glBindVertexArray(m_lineVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
     glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(ribbonVerts.size() * sizeof(float)),
@@ -3464,11 +3371,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     }
 
     // SurfaceMark rendering debug is deliberately independent of physics debug.
-    if (desc.renderRenderingDebug && m_lineShader) {
-        glUseProgram(m_lineShader);
-        glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "view"), 1, GL_FALSE, view.m);
-        glUniformMatrix4fv(glGetUniformLocation(m_lineShader, "projection"), 1, GL_FALSE, projection.m);
-        glUniform4f(glGetUniformLocation(m_lineShader, "lineColor"), 1.0f, 0.35f, 0.1f, 0.95f);
+    if (desc.renderRenderingDebug && m_lineProgram.isValid()) {
+        useLineProgram(view, projection);
+        setLineColor(Color4(1.0f, 0.35f, 0.1f, 0.95f));
         std::vector<float> segs;
         for (SurfaceMark* mark : surfaceMarks) {
             CFrame cf = mark->getWorldCFrame();
