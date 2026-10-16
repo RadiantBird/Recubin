@@ -75,16 +75,18 @@
 // ===================================================
 
 void Renderer::createWhiteTexture() {
-    glGenTextures(1, &whiteTexture);
-    glBindTexture(GL_TEXTURE_2D, whiteTexture);
-    unsigned char white[] = { 255, 255, 255, 0 };
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, white);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    const unsigned char white[] = { 255, 255, 255, 0 };
+    GfxTextures::Desc desc;
+    desc.width = 1;
+    desc.height = 1;
+    desc.pixels = white;
+    desc.filter = GfxTextures::Filter::Nearest;
+    desc.label = "white";
+    whiteTexture = GfxTextures::create(desc);
 }
 
 void Renderer::createMeshFallbackTexture() {
-    if (m_meshFallbackTexture != 0) return;
+    if (m_meshFallbackTexture) return;
 
     // Missing/invalid mesh indicator. Kept entirely in engine memory so the
     // fallback remains available even when all project assets are unavailable.
@@ -92,13 +94,14 @@ void Renderer::createMeshFallbackTexture() {
         255,   0, 255, 255,     0,   0,   0, 255,
           0,   0,   0, 255,   255,   0, 255, 255,
     };
-    glGenTextures(1, &m_meshFallbackTexture);
-    glBindTexture(GL_TEXTURE_2D, m_meshFallbackTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    GfxTextures::Desc desc;
+    desc.width = 2;
+    desc.height = 2;
+    desc.pixels = pixels;
+    desc.filter = GfxTextures::Filter::Nearest;
+    desc.wrap = GfxTextures::Wrap::Repeat;
+    desc.label = "mesh fallback";
+    m_meshFallbackTexture = GfxTextures::create(desc);
 }
 
 Renderer* Renderer::instance = nullptr;
@@ -651,7 +654,7 @@ void Renderer::init(GLFWwindow* window) {
     glVertexAttrib1f(4, 1.0f); // MeshCube以外がattrib4を使わない場合のデフォルトMatAlpha=1
 
     // 標準キューブ頂点を VBO へ
-    Cube testCube({0,0,0}, {1,1,1}, 0);
+    Cube testCube({0,0,0}, {1,1,1}, TextureHandle{});
     glBindVertexArray(VAO);
     std::vector<Vertex> standardVertices = createCubeVertices(1.0f);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
@@ -754,17 +757,8 @@ void Renderer::init(GLFWwindow* window) {
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    glGenTextures(1, &m_decalArrayTexture);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, m_decalArrayTexture);
-    // glTexStorage3DはGL4.2拡張のため、4.1 Core契約のMacで未定義の可能性がある。
-    // glTexImage3D(GL3.0コア)で確保する。
-    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, DECAL_ARRAY_SIZE, DECAL_ARRAY_SIZE,
-                 DECAL_ARRAY_MAX_LAYERS, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    m_decalArrayPixels.assign(static_cast<size_t>(DECAL_ARRAY_SIZE) * DECAL_ARRAY_SIZE * 4 * DECAL_ARRAY_MAX_LAYERS, 0);
+    rebuildDecalArrayTexture();
 
     createWhiteTexture();
     createMeshFallbackTexture();
@@ -815,7 +809,7 @@ Renderer::~Renderer() {
     if (surfaceMarkFBO) glDeleteFramebuffers(1, &surfaceMarkFBO);
     if (surfaceMarkDepthTex) glDeleteTextures(1, &surfaceMarkDepthTex);
     m_depthProgram.destroy();
-    if (m_meshFallbackTexture) glDeleteTextures(1, &m_meshFallbackTexture);
+    GfxTextures::destroy(m_meshFallbackTexture);
 
     if (m_lineVBO)    glDeleteBuffers(1, &m_lineVBO);
     if (m_lineVAO)    glDeleteVertexArrays(1, &m_lineVAO);
@@ -828,7 +822,7 @@ Renderer::~Renderer() {
     if (m_cloudVBO)      glDeleteBuffers(1, &m_cloudVBO);
     if (m_cloudVAO)      glDeleteVertexArrays(1, &m_cloudVAO);
     m_cloudProgram.destroy();
-    if (m_cloudNoiseTex) glDeleteTextures(1, &m_cloudNoiseTex);
+    GfxTextures::destroy(m_cloudNoiseTex);
 
     if (m_postVBO)    glDeleteBuffers(1, &m_postVBO);
     if (m_postVAO)    glDeleteVertexArrays(1, &m_postVAO);
@@ -946,14 +940,15 @@ void Renderer::initCloudRenderer() {
             pixels[y * CLOUD_TEX_SIZE + x] = static_cast<unsigned char>(std::clamp(n01c, 0.0f, 1.0f) * 255.0f);
         }
     }
-    glGenTextures(1, &m_cloudNoiseTex);
-    glBindTexture(GL_TEXTURE_2D, m_cloudNoiseTex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, CLOUD_TEX_SIZE, CLOUD_TEX_SIZE, 0, GL_RED, GL_UNSIGNED_BYTE, pixels.data());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    GfxTextures::Desc cloudDesc;
+    cloudDesc.width = CLOUD_TEX_SIZE;
+    cloudDesc.height = CLOUD_TEX_SIZE;
+    cloudDesc.format = GfxTextures::Format::R8;
+    cloudDesc.pixels = pixels.data();
+    cloudDesc.filter = GfxTextures::Filter::Linear;
+    cloudDesc.wrap = GfxTextures::Wrap::Repeat;
+    cloudDesc.label = "cloud noise";
+    m_cloudNoiseTex = GfxTextures::create(cloudDesc);
 }
 
 void Renderer::renderClouds(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
@@ -997,7 +992,7 @@ void Renderer::renderClouds(Workspace& workspace, const Matrix4& view, const Mat
     cloudFs.cloudCover = weather->CloudCover;
     cloudFs.cloudDensity = weather->CloudDensity;
     m_cloudProgram.applyUniforms(UB_cloud_fs_params, cloudFs);
-    m_cloudProgram.bindTexture(VIEW_cloud_cloudTex, GL_TEXTURE_2D, m_cloudNoiseTex);
+    m_cloudProgram.bindTexture(VIEW_cloud_cloudTex, GL_TEXTURE_2D, m_cloudNoiseTex.glName());
 
     glBindVertexArray(m_cloudVAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_cloudVBO);
@@ -2001,7 +1996,7 @@ void Renderer::drawBaseCubeHighlight(BaseCube* target, const Color4& fillColor,
     glDisable(GL_DEPTH_TEST);                       // 深度無効化：壁越しに見せる
     m_main.setUnlit(1.0f); // フラット単色描画を保証（メインパスの残り値に依存しない）
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, whiteTexture);
+    glBindTexture(GL_TEXTURE_2D, whiteTexture.glName());
 
     // ---- 単色塗り ----
     if (fillColor.a > 0.001f) {
@@ -3004,7 +2999,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             m_main.setUvScale(1.0f, 1.0f);
             m_main.setSurfaceGui(0.0f);
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, Cube::defaultTextureID);
+            glBindTexture(GL_TEXTURE_2D, Cube::defaultTextureID.glName());
             m_main.setInstanced(1.0f);
             for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
                 const auto& batch = m_instBatches[shapeIdx].main;
@@ -3174,7 +3169,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             m_main.setSurfaceMarkProjection(markVP);
             m_main.setSurfaceMarkSize(Vector3(mark->Size.x, mark->Size.y, mark->Size.z));
             m_main.setSurfaceMarkTint(Color4(mark->Color.r, mark->Color.g, mark->Color.b, mark->Color.a));
-            glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, mark->TextureID);
+            glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, mark->TextureID.glName());
             glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, surfaceMarkDepthTex);
             glActiveTexture(GL_TEXTURE0);
             for (BaseCube* cube : candidates) {
@@ -3491,17 +3486,17 @@ void Renderer::bindMaterialMapsFor(const MaterialInstance* materialPtr) {
         if (signature != entry.signature) {
             entry.signature = std::move(signature);
             for (int slot = 0; slot < MaterialInstance::MAP_SLOT_COUNT; ++slot) {
-                entry.textures[slot] = paths[slot].empty() ? 0u : loadTexture(paths[slot].c_str());
+                entry.textures[slot] = paths[slot].empty() ? TextureHandle{} : loadTexture(paths[slot].c_str());
             }
         }
     }
 
     float flags[4];
     for (int slot = 0; slot < 4; ++slot) {
-        flags[slot] = entry.textures[slot] != 0 ? 1.0f : 0.0f;
-        if (entry.textures[slot] == 0) continue;
+        flags[slot] = entry.textures[slot] ? 1.0f : 0.0f;
+        if (!entry.textures[slot]) continue;
         glActiveTexture(GL_TEXTURE0 + MATERIAL_MAP_UNIT_BASE + slot);
-        glBindTexture(GL_TEXTURE_2D, entry.textures[slot]);
+        glBindTexture(GL_TEXTURE_2D, entry.textures[slot].glName());
     }
     glActiveTexture(GL_TEXTURE0);
     m_main.setMatMapFlags(flags[0], flags[1], flags[2], flags[3]);
@@ -3548,21 +3543,35 @@ std::vector<unsigned char> resizeDecalLetterboxRGBA(
 }
 }
 
-int Renderer::decalArrayLayerFor(unsigned int textureID) {
-    if (textureID == 0 || m_decalArrayTexture == 0) return -1;
-    auto cached = m_decalArrayLayerCache.find(textureID);
+void Renderer::rebuildDecalArrayTexture() {
+    GfxTextures::destroy(m_decalArrayTexture);
+    GfxTextures::Desc desc;
+    desc.width = DECAL_ARRAY_SIZE;
+    desc.height = DECAL_ARRAY_SIZE;
+    desc.arrayLayers = DECAL_ARRAY_MAX_LAYERS;
+    desc.pixels = m_decalArrayPixels.data();
+    desc.filter = GfxTextures::Filter::Linear;
+    desc.wrap = GfxTextures::Wrap::ClampToEdge;
+    desc.label = "decal array";
+    m_decalArrayTexture = GfxTextures::create(desc);
+}
+
+int Renderer::decalArrayLayerFor(TextureHandle texture) {
+    if (!texture || !m_decalArrayTexture) return -1;
+    auto cached = m_decalArrayLayerCache.find(texture);
     if (cached != m_decalArrayLayerCache.end()) return cached->second;
 
     if (m_decalArrayNextLayer >= DECAL_ARRAY_MAX_LAYERS) {
         RCBN_WARN("Decal texture array is full (" << DECAL_ARRAY_MAX_LAYERS
-                  << " layers); reusing layer 0 for texture " << textureID);
-        m_decalArrayLayerCache[textureID] = 0;
+                  << " layers); reusing layer 0 for texture " << texture.id());
+        m_decalArrayLayerCache[texture] = 0;
         return 0;
     }
 
     GLint savedTex2D = 0;
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &savedTex2D);
-    glBindTexture(GL_TEXTURE_2D, textureID);
+    // 元画素の読み出しは生 GL（sokol に読み出し API が無いため。段階 5 で置き換える）。
+    glBindTexture(GL_TEXTURE_2D, texture.glName());
     GLint srcW = 0, srcH = 0;
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &srcW);
     glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &srcH);
@@ -3581,17 +3590,16 @@ int Renderer::decalArrayLayerFor(unsigned int textureID) {
     if (srcW > 0 && srcH > 0) {
         std::vector<unsigned char> resized =
             resizeDecalLetterboxRGBA(srcPixels.data(), srcW, srcH, DECAL_ARRAY_SIZE);
-        glBindTexture(GL_TEXTURE_2D_ARRAY, m_decalArrayTexture);
-        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, layer,
-                         DECAL_ARRAY_SIZE, DECAL_ARRAY_SIZE, 1,
-                         GL_RGBA, GL_UNSIGNED_BYTE, resized.data());
-        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+        const size_t layerBytes = static_cast<size_t>(DECAL_ARRAY_SIZE) * DECAL_ARRAY_SIZE * 4;
+        std::memcpy(m_decalArrayPixels.data() + layerBytes * static_cast<size_t>(layer), resized.data(),
+                    std::min(layerBytes, resized.size()));
+        rebuildDecalArrayTexture();
     }
-    m_decalArrayLayerCache[textureID] = layer;
+    m_decalArrayLayerCache[texture] = layer;
     return layer;
 }
 
-unsigned int Renderer::loadTexture(const char* path) {
+TextureHandle Renderer::loadTexture(const char* path) {
     std::string pathStr(path);
     const std::string normalizedPath = AssetPath::normalize(pathStr);
     auto cachedTexture = textureCache.find(normalizedPath);
@@ -3605,17 +3613,17 @@ unsigned int Renderer::loadTexture(const char* path) {
             if (!fileInfoError && cachedTexture->second.hasFileMetadata &&
                 (cachedTexture->second.lastWriteTime != lastWriteTime ||
                  cachedTexture->second.fileSize != fileSize)) {
-                if (!AssetGuard::allow(pathStr)) return 0;
-                glDeleteTextures(1, &cachedTexture->second.textureID);
+                if (!AssetGuard::allow(pathStr)) return {};
+                GfxTextures::destroy(cachedTexture->second.texture);
                 textureCache.erase(cachedTexture);
             } else {
-                return cachedTexture->second.textureID;
+                return cachedTexture->second.texture;
             }
         } else {
-            return cachedTexture->second.textureID;
+            return cachedTexture->second.texture;
         }
     }
-    if (!AssetGuard::allow(pathStr)) return 0;
+    if (!AssetGuard::allow(pathStr)) return {};
 
     std::error_code fileInfoError;
     const auto lastWriteTime = std::filesystem::last_write_time(
@@ -3641,33 +3649,37 @@ unsigned int Renderer::loadTexture(const char* path) {
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    unsigned int textureID = 0;
     if (!data) {
         RCBN_WARN("Failed to load texture: " << path);
-        return 0;
+        return {};
     }
 
-    glGenTextures(1, &textureID);
-    glBindTexture(GL_TEXTURE_2D, textureID);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-    std::cout << "Success: " << path << " (" << nrChannels << "ch)" << std::endl;
+    const TextureHandle texture = createFileTexture(data, width, height, normalizedPath.c_str());
+    if (texture) std::cout << "Success: " << path << " (" << nrChannels << "ch)" << std::endl;
     if (svgPixels.empty()) stbi_image_free(data);
+    if (!texture) return {};
 
-    glBindTexture(GL_TEXTURE_2D, 0);  // texture state をクリアして後の描画に影響しないようにする
     textureCache[normalizedPath] = {
-        textureID, lastWriteTime, fileSize, hasFileMetadata
+        texture, lastWriteTime, fileSize, hasFileMetadata
     };
-    return textureID;
+    return texture;
+}
+
+// 画像ファイル由来のテクスチャ（CPU で作った mip 付き、線形補間、繰り返し）。
+TextureHandle Renderer::createFileTexture(const unsigned char* rgba, int width, int height, const char* label) {
+    GfxTextures::Desc desc;
+    desc.width = width;
+    desc.height = height;
+    desc.pixels = rgba;
+    desc.generateMipmaps = true;
+    desc.filter = GfxTextures::Filter::LinearMipmap;
+    desc.wrap = GfxTextures::Wrap::Repeat;
+    desc.label = label;
+    return GfxTextures::create(desc);
 }
 
 // GLB等のメモリ上のバイト列からテクスチャを読み込む(パスキーが無いためキャッシュはしない)
-unsigned int Renderer::loadTextureFromMemory(const unsigned char* data, size_t size) {
+TextureHandle Renderer::loadTextureFromMemory(const unsigned char* data, size_t size) {
     int width, height, nrChannels;
     unsigned char* pixels = stbi_load_from_memory(data, static_cast<int>(size), &width, &height, &nrChannels, 4);
 
@@ -3676,22 +3688,12 @@ unsigned int Renderer::loadTextureFromMemory(const unsigned char* data, size_t s
 
     if (!pixels) {
         RCBN_WARN("Failed to load texture from memory");
-        return 0;
+        return {};
     }
 
-    unsigned int textureID = 0;
-    glGenTextures(1, &textureID);
-    glBindTexture(GL_TEXTURE_2D, textureID);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
+    const TextureHandle texture = createFileTexture(pixels, width, height, "embedded image");
     stbi_image_free(pixels);
-    glBindTexture(GL_TEXTURE_2D, 0);  // texture state をクリアして後の描画に影響しないようにする
-    return textureID;
+    return texture;
 }
 
 // ---------------------------------------------------
@@ -3716,7 +3718,7 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection, Wor
     m_main.setPbrMaterial(0.0f, 0.0f, 0.0f, 0.0f);  // 地形はPBR対象外
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, whiteTexture);
+    glBindTexture(GL_TEXTURE_2D, whiteTexture.glName());
 
     for (Terrain* terrain : workspace->getRenderTerrains()) {
         if (!terrain || !terrain->Enabled || !terrain->streamer) continue;

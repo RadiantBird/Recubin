@@ -6,6 +6,7 @@
 #include <include/Instances/Named.hpp>
 #include <include/Instances/Texture.hpp>
 #include <vector>
+#include <include/Core/GfxTexture.hpp>
 
 class MainShaderState;
 
@@ -25,13 +26,13 @@ class Cube : public Named<Cube, BaseCube> {
     public:
         static constexpr const char* ClassName = "Cube";
 
-        static unsigned int defaultTextureID;
+        static TextureHandle defaultTextureID;
         static unsigned int s_VAO;
         static unsigned int s_EBO;
         static std::vector<float> s_HighlightEdgeVerts;
 
         // コンストラクタ
-        Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex);
+        Cube(Vector3 Pos, Vector3 Sz, TextureHandle defaultTex);
 
         // メソッドの宣言
         void draw(MainShaderState& shader);

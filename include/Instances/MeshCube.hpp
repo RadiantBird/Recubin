@@ -7,12 +7,13 @@
 #include <Util/Color4.hpp>
 #include <vector>
 #include <string>
+#include <include/Core/GfxTexture.hpp>
 
 class MainShaderState;
 
 // MeshCube描画用: UV空間の中心座標+半径でブレンドするDecal記述子
 struct UVDecalDesc {
-    unsigned int textureID;
+    TextureHandle textureID;
     Vector2      center;
     float        radius;
     Color4       color;
@@ -91,7 +92,7 @@ private:
     unsigned int m_VBO = 0;
     unsigned int m_EBO = 0;
     unsigned int m_indexCount = 0;
-    unsigned int m_textureID = 0;
+    TextureHandle m_textureID;
     bool m_fallbackActive = false;
 
     std::vector<MeshVertex>   m_cpuVertices;

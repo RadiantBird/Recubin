@@ -581,11 +581,11 @@ BaseCube::~BaseCube() {
     // backend body の所有権と逆引き情報は、登録元の Physics が一元的に破棄する。
     if (m_physicsOwner) m_physicsOwner->onCubeDestroyed(*this);
 }
-unsigned int BaseCube::getDecalTexture(Face face, unsigned int fallback) const {
+TextureHandle BaseCube::getDecalTexture(Face face, TextureHandle fallback) const {
     for (auto const& [name, child] : children) {
         if (child->IsA("Decal")) {
             Decal* d = static_cast<Decal*>(child.get());
-            if (d->face == face && d->TextureID != 0) {
+            if (d->face == face && d->TextureID) {
                 return d->TextureID;
             }
         }
@@ -595,7 +595,7 @@ unsigned int BaseCube::getDecalTexture(Face face, unsigned int fallback) const {
         for (auto const& [name, child] : materialInstance->children) {
             if (child->IsA("Decal")) {
                 Decal* d = static_cast<Decal*>(child.get());
-                if (d->face == face && d->TextureID != 0) {
+                if (d->face == face && d->TextureID) {
                     return d->TextureID;
                 }
             }

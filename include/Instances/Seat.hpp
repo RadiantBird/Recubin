@@ -3,6 +3,7 @@
 #include <include/Instances/Cube.hpp>
 #include <include/Instances/Named.hpp>
 #include <memory>
+#include <include/Core/GfxTexture.hpp>
 
 class Humanoid; // 前方宣言のみ(occupant追跡はweak_ptrで十分)
 
@@ -16,7 +17,7 @@ public:
     float Steer    = 0.0f; // Lua読取専用。エンジンが着席中のHumanoidから毎フレーム書き込む
     float Throttle = 0.0f; // 同上
 
-    Seat(Vector3 Pos, Vector3 Sz, unsigned int textureID);
+    Seat(Vector3 Pos, Vector3 Sz, TextureHandle textureID);
 
     bool isOccupied() const { return !m_occupant.expired(); }
     void setOccupant(std::shared_ptr<Humanoid> h) { m_occupant = h; }

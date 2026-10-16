@@ -6,6 +6,7 @@
 #include <Math/Vector2.hpp>
 #include <Math/Vector3.hpp>
 #include <vector>
+#include <include/Core/GfxTexture.hpp>
 
 // Cubeの面に貼る、ドット単位でペイントできる動的テクスチャ。
 // CPU側RGBA8ピクセルバッファを保持し、変更時のみglTexSubImage2DでGLテクスチャへアップロードする。
@@ -23,7 +24,7 @@ public:
     // GPU/CPUリソース（非プロパティ）
     // m_pixels はRGBA8、行0=面の下端（GLテクスチャ規約）
     std::vector<unsigned char> m_pixels;
-    unsigned int m_texID = 0;
+    TextureHandle m_texID;
     int  m_texW = 0, m_texH = 0;  // 確保済みGLテクスチャの実サイズ
     bool m_dirty = false;
     // バッファを塗った時点の背景色(RGBA8)。BackgroundColor変更の検知に使う

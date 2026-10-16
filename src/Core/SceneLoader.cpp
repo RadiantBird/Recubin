@@ -433,9 +433,9 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "Material")  return std::make_shared<MaterialInstance>();
     if (className == "Script")    return std::make_shared<Script>("");
     if (className == "Model")     return std::make_shared<Model>();
-    if (className == "Decal")     return std::make_shared<Decal>(0, Face::Front);
+    if (className == "Decal")     return std::make_shared<Decal>(TextureHandle{}, Face::Front);
     if (className == "SurfaceMark") return std::make_shared<SurfaceMark>();
-    if (className == "Texture")   return std::make_shared<Texture>(0, Face::Front);
+    if (className == "Texture")   return std::make_shared<Texture>(TextureHandle{}, Face::Front);
     if (className == "Canvas")    return std::make_shared<Canvas>();
     if (className == "Highlight") return std::make_shared<Highlight>();
     if (className == "SignalEvent") return std::make_shared<SignalEvent>();

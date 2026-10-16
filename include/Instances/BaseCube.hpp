@@ -98,7 +98,7 @@ public:
 
     // 子デカールから指定方向のテクスチャIDを取得するヘルパー
     // 該当するデカールがなければ fallback を返す
-    unsigned int getDecalTexture(Face face, unsigned int fallback) const;
+    TextureHandle getDecalTexture(Face face, TextureHandle fallback) const;
 
     // 参照中のMaterialが面へ投影するDecal/Textureを子に持つか。
     // 持つ個体は面ごとの描画が必要なので、インスタンス描画の対象外にする。

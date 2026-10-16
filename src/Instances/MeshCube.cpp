@@ -97,7 +97,7 @@ void MeshCube::releaseMeshBuffers() {
 
 void MeshCube::releaseGPU() {
     releaseMeshBuffers();
-    if (m_textureID) { glDeleteTextures(1, &m_textureID); m_textureID = 0; }
+    GfxTextures::destroy(m_textureID);
 }
 
 void MeshCube::uploadToGPU() {
@@ -155,7 +155,7 @@ std::vector<UVDecalDesc> MeshCube::collectUVDecals(int maxCount) const {
         if (static_cast<int>(out.size()) >= maxCount) break;
         if (!child->IsA("Decal")) continue;
         Decal* d = static_cast<Decal*>(child.get());
-        if (d->TextureID == 0) continue;
+        if (!d->TextureID) continue;
         UVDecalDesc desc;
         desc.textureID = d->TextureID;
         desc.center    = d->UVCenter;
@@ -232,19 +232,19 @@ void MeshCube::draw(MainShaderState& shader) {
     shader.setInstanced(0.0f);
 
     glActiveTexture(GL_TEXTURE0);
-    unsigned int tex = 0;
+    TextureHandle tex;
     if (m_fallbackActive && Renderer::instance) {
         tex = Renderer::instance->getMeshFallbackTexture();
     } else {
-        tex = (m_textureID != 0) ? m_textureID
-                                 : (Renderer::instance ? Renderer::instance->whiteTexture : 0);
+        tex = m_textureID ? m_textureID
+                          : (Renderer::instance ? Renderer::instance->whiteTexture : TextureHandle{});
     }
-    glBindTexture(GL_TEXTURE_2D, tex);
+    glBindTexture(GL_TEXTURE_2D, tex.glName());
 
     std::vector<UVDecalDesc> uvDecals = collectUVDecals(MainShaderState::MAX_DECALS);
     if (Renderer::instance) {
         glActiveTexture(GL_TEXTURE0 + Renderer::DECAL_ARRAY_UNIT);
-        glBindTexture(GL_TEXTURE_2D_ARRAY, Renderer::instance->m_decalArrayTexture);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, Renderer::instance->m_decalArrayTexture.glName());
     }
     for (size_t i = 0; i < uvDecals.size(); ++i) {
         const UVDecalDesc& d = uvDecals[i];
@@ -454,7 +454,7 @@ bool MeshCube::loadFromGLB(const std::string& path) {
     std::vector<MeshVertex>   vertices;
     std::vector<unsigned int> indices;
     std::vector<char>         normalMissing; // vertices と同期。NORMAL属性が無く算出が必要な頂点はtrue
-    unsigned int loadedTexture = 0;
+    TextureHandle loadedTexture;
     bool needNormals = false; // NORMAL属性の無い頂点が1つでもあればtrue
 
     for (cgltf_size ni = 0; ni < data->nodes_count; ++ni) {
@@ -550,7 +550,7 @@ bool MeshCube::loadFromGLB(const std::string& path) {
             }
 
             // 最初に見つかった埋め込みテクスチャのみ使用する(複数マテリアルは対象外)
-            if (loadedTexture == 0 && prim.material && prim.material->has_pbr_metallic_roughness) {
+            if (!loadedTexture && prim.material && prim.material->has_pbr_metallic_roughness) {
                 const cgltf_texture* tex = prim.material->pbr_metallic_roughness.base_color_texture.texture;
                 if (tex && tex->image && tex->image->buffer_view) {
                     const cgltf_buffer_view* bv = tex->image->buffer_view;
@@ -567,7 +567,7 @@ bool MeshCube::loadFromGLB(const std::string& path) {
 
     if (vertices.empty() || indices.empty()) {
         RCBN_WARN("MeshCube: GLBに有効なメッシュがありません: " << path);
-        if (loadedTexture) glDeleteTextures(1, &loadedTexture);
+        GfxTextures::destroy(loadedTexture);
         activateFallback(path);
         return false;
     }

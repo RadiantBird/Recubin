@@ -397,11 +397,11 @@ struct SetDecalModeCommand : Command {
 struct SetDecalTextureCommand : Command {
     std::shared_ptr<Decal> m_target;
     std::string   m_beforePath, m_afterPath;
-    unsigned int  m_beforeID,   m_afterID;
+    TextureHandle m_beforeID,   m_afterID;
 
     SetDecalTextureCommand(std::shared_ptr<Decal> target,
-                           std::string beforePath, unsigned int beforeID,
-                           std::string afterPath,  unsigned int afterID);
+                           std::string beforePath, TextureHandle beforeID,
+                           std::string afterPath,  TextureHandle afterID);
     void execute() override; void undo() override;
 };
 
@@ -430,11 +430,11 @@ struct SetTextureFaceCommand : Command {
 struct SetTextureTextureCommand : Command {
     std::shared_ptr<Texture> m_target;
     std::string  m_beforePath, m_afterPath;
-    unsigned int m_beforeID,   m_afterID;
+    TextureHandle m_beforeID,  m_afterID;
 
     SetTextureTextureCommand(std::shared_ptr<Texture> target,
-                             std::string beforePath, unsigned int beforeID,
-                             std::string afterPath,  unsigned int afterID);
+                             std::string beforePath, TextureHandle beforeID,
+                             std::string afterPath,  TextureHandle afterID);
     void execute() override; void undo() override;
 };
 

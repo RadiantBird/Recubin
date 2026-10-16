@@ -1657,8 +1657,8 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
         }
         if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryEffects))) {
             if (AudioService::instance) makeGroup("Sound", [&] { return std::make_shared<Sound>(*AudioService::instance); });
-            makeGroup("Decal", [&] { return std::make_shared<Decal>(0, Face::Front); });
-            makeGroup("Texture", [&] { return std::make_shared<Texture>(0, Face::Front); });
+            makeGroup("Decal", [&] { return std::make_shared<Decal>(TextureHandle{}, Face::Front); });
+            makeGroup("Texture", [&] { return std::make_shared<Texture>(TextureHandle{}, Face::Front); });
             makeGroup("SurfaceMark", [&] { return std::make_shared<SurfaceMark>(Vector3(), Vector3(4, 4, 4)); });
             makeGroup("PostEffect", [&] { return std::make_shared<PostEffect>(); });
             makeGroup("ParticleEmitter", [&] { return std::make_shared<ParticleEmitter>(); });

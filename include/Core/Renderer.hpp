@@ -10,6 +10,7 @@
 #include <include/Core/Terrain.hpp>
 #include <include/Core/ShdcProgram.hpp>
 #include <include/Core/MainShaderState.hpp>
+#include <include/Core/GfxTexture.hpp>
 #include <include/Instances/Cube.hpp>
 #include <include/Instances/Workspace.hpp>
 
@@ -122,7 +123,7 @@ class Renderer {
         static constexpr int MATERIAL_MAP_UNIT_BASE = MainShaderState::MATERIAL_MAP_UNIT_BASE;
         struct MaterialMapEntry {
             std::string  signature;                        // 解決済みパスの連結
-            unsigned int textures[4] = {0, 0, 0, 0};
+            TextureHandle textures[4];
             double       nextCheck = 0.0;
         };
         std::unordered_map<const MaterialInstance*, MaterialMapEntry> m_materialMapCache;
@@ -170,7 +171,7 @@ class Renderer {
         std::vector<unsigned int> indices = {};
 
         struct TextureCacheEntry {
-            unsigned int textureID = 0;
+            TextureHandle texture;
             std::filesystem::file_time_type lastWriteTime{};
             uintmax_t fileSize = 0;
             bool hasFileMetadata = false;
@@ -182,12 +183,16 @@ class Renderer {
         static constexpr int DECAL_ARRAY_SIZE = 256;
         static constexpr int DECAL_ARRAY_MAX_LAYERS = 64;
         static constexpr int DECAL_ARRAY_UNIT = MainShaderState::DECAL_ARRAY_UNIT;
-        unsigned int m_decalArrayTexture = 0;
-        std::unordered_map<unsigned int, int> m_decalArrayLayerCache;
+        TextureHandle m_decalArrayTexture;
+        // 配列テクスチャの CPU 側の写し（全レイヤー）。レイヤーを足すたびに配列テクスチャを丸ごと作り直す
+        // （sokol には部分更新が無いため）。
+        std::vector<unsigned char> m_decalArrayPixels;
+        std::unordered_map<TextureHandle, int> m_decalArrayLayerCache;
         int m_decalArrayNextLayer = 0;
         // 実際のGL_TEXTURE_2DテクスチャID(Decal::TextureID)を配列テクスチャのレイヤー番号へ
         // 変換・キャッシュする。未登録のIDなら配列テクスチャへ転送してレイヤーを割り当てる。
-        int decalArrayLayerFor(unsigned int textureID);
+        int decalArrayLayerFor(TextureHandle texture);
+        void rebuildDecalArrayTexture();
 
         // ---- PBRの環境反射（Renderer_Environment.cpp） ----
         // Skyboxの6面から焼いた、mipがroughnessに対応するキューブマップ。Skyboxが無い/
@@ -225,9 +230,9 @@ class Renderer {
         // sourceFbo の深度を m_skyDepthTex へコピーする。成功したら真。失敗したら以後は遮蔽なしにする。
         bool updateSkySceneDepth(unsigned int sourceFbo, int width, int height);
 
-        unsigned int whiteTexture;
+        TextureHandle whiteTexture;
         void createWhiteTexture();
-        unsigned int getMeshFallbackTexture() const { return m_meshFallbackTexture; }
+        TextureHandle getMeshFallbackTexture() const { return m_meshFallbackTexture; }
 
         std::string loadShaderSource(const char* filePath);
 
@@ -246,8 +251,9 @@ class Renderer {
 
         void renderImGui(User &user, GLFWwindow* window, Workspace &workspace);
 
-        unsigned int loadTexture(const char* path);
-        unsigned int loadTextureFromMemory(const unsigned char* data, size_t size);
+        TextureHandle loadTexture(const char* path);
+        TextureHandle loadTextureFromMemory(const unsigned char* data, size_t size);
+        TextureHandle createFileTexture(const unsigned char* rgba, int width, int height, const char* label);
 
         // 制約ビジュアライザ（Rope/Rod）
         GLuint m_lineVAO    = 0;
@@ -282,7 +288,7 @@ class Renderer {
         GLuint m_cloudVAO      = 0;
         GLuint m_cloudVBO      = 0;
         ShdcProgram m_cloudProgram;   // shaders/sokol/cloud.glsl
-        GLuint m_cloudNoiseTex = 0;
+        TextureHandle m_cloudNoiseTex;
         void initCloudRenderer();
         void renderClouds(Workspace& workspace, const Matrix4& view, const Matrix4& projection,
                            const Vector3& cameraPosition);
@@ -371,7 +377,7 @@ class Renderer {
                                           const Matrix4& view, const Matrix4& projection);
 
     private:
-        unsigned int m_meshFallbackTexture = 0;
+        TextureHandle m_meshFallbackTexture;
         void createMeshFallbackTexture();
 
         static constexpr std::size_t GPU_QUERY_FRAME_COUNT = 4;

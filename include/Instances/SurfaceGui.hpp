@@ -3,6 +3,7 @@
 #include <Instances/Named.hpp>
 #include <Instances/Decal.hpp>
 #include <cstdint>
+#include <include/Core/GfxTexture.hpp>
 
 class SurfaceGui : public Named<SurfaceGui, WorldGuiObject> {
 public:
@@ -12,7 +13,7 @@ public:
 
     // FBO ベイク用リソース（Renderer が管理）
     unsigned int m_fboID = 0;
-    unsigned int m_texID = 0;
+    TextureHandle m_texID; // ベイク先（FBO の色）
     int          m_texW  = 0;
     int          m_texH  = 0;
 

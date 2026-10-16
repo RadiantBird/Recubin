@@ -3,6 +3,7 @@
 #include <Util/Color4.hpp>
 #include <Math/Vector2.hpp>
 #include <string>
+#include <include/Core/GfxTexture.hpp>
 
 enum class Face {
     Front = 0,
@@ -22,7 +23,7 @@ enum class DecalMode {
 
 class Decal : public Instance {
 public:
-    unsigned int TextureID = 0;
+    TextureHandle TextureID;
     Face         face      = Face::Front;
     std::string  texturePath;
     Color4       Color;
@@ -32,7 +33,7 @@ public:
     // MeshCube配下でのみ意味を持つ貼り付けモード(Face配置のプリミティブでは無視される)
     DecalMode    Mode = DecalMode::UV;
 
-    Decal(unsigned int textureID = 0, Face targetFace = Face::Front);
+    Decal(TextureHandle textureID = {}, Face targetFace = Face::Front);
     virtual ~Decal();
 
     virtual std::string getClassName() override;

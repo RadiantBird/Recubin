@@ -10,7 +10,7 @@ static const bool s_sphereRegistered = [] {
     return true;
 }();
 
-unsigned int Sphere::defaultTextureID = 0;
+TextureHandle Sphere::defaultTextureID;
 unsigned int Sphere::s_VAO = 0;
 unsigned int Sphere::s_VBO = 0;
 unsigned int Sphere::s_EBO = 0;
@@ -131,7 +131,7 @@ void Sphere::draw(MainShaderState& shader) {
     glActiveTexture(GL_TEXTURE0);
     for (int i = 0; i < 6; ++i) {
         Face f = static_cast<Face>(i);
-        glBindTexture(GL_TEXTURE_2D, getDecalTexture(f, defaultTextureID));
+        glBindTexture(GL_TEXTURE_2D, getDecalTexture(f, defaultTextureID).glName());
         glDrawElements(GL_TRIANGLES, s_FaceIndexCount, GL_UNSIGNED_INT, (void*)(uintptr_t)(i * s_FaceIndexCount * sizeof(unsigned int)));
     }
 }

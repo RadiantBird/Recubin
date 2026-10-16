@@ -17,7 +17,7 @@ constexpr const char* RECUBIN_WELCOME_LOGO_PATH = "assets/image/rcbnstudio.png";
 WelcomePanel::WelcomePanel() : EditorPanel("###Welcome") {}
 
 WelcomePanel::~WelcomePanel() {
-    if (m_logoTexture != 0) glDeleteTextures(1, &m_logoTexture);
+    GfxTextures::destroy(m_logoTexture);
 }
 
 void WelcomePanel::loadLogo() {
@@ -37,15 +37,14 @@ void WelcomePanel::loadLogo() {
         return;
     }
 
-    glGenTextures(1, &m_logoTexture);
-    glBindTexture(GL_TEXTURE_2D, m_logoTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_logoWidth, m_logoHeight,
-        0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    GfxTextures::Desc desc;
+    desc.width = m_logoWidth;
+    desc.height = m_logoHeight;
+    desc.pixels = pixels;
+    desc.filter = GfxTextures::Filter::Linear;
+    desc.wrap = GfxTextures::Wrap::ClampToEdge;
+    desc.label = "welcome logo";
+    m_logoTexture = GfxTextures::create(desc);
     stbi_image_free(pixels);
 }
 
@@ -78,7 +77,7 @@ void WelcomePanel::onRender() {
     loadLogo();
 
     const ImVec2 available = ImGui::GetContentRegionAvail();
-    const float logoWidth = m_logoTexture != 0
+    const float logoWidth = m_logoTexture
         ? std::min(500.0f, std::max(0.0f, available.x)) : 0.0f;
     const float logoHeight = logoWidth * static_cast<float>(m_logoHeight) /
         static_cast<float>(m_logoWidth == 0 ? 1 : m_logoWidth);
@@ -100,9 +99,9 @@ void WelcomePanel::onRender() {
         ImGui::GetCursorPosY() + std::max(0.0f, (available.y - groupHeight) * 0.5f)));
 
     ImGui::BeginGroup();
-    if (m_logoTexture != 0) {
+    if (m_logoTexture) {
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (groupWidth - logoWidth) * 0.5f);
-        ImGui::Image(static_cast<ImTextureID>(m_logoTexture),
+        ImGui::Image(static_cast<ImTextureID>(m_logoTexture.glName()),
             ImVec2(logoWidth, logoHeight), ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
     }
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (groupWidth - cardWidth) * 0.5f);

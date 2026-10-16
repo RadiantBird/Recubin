@@ -21,7 +21,7 @@ static const bool s_canvasRegistered = []{
 Canvas::Canvas() : Named<Canvas, Instance>("Canvas") {}
 
 Canvas::~Canvas() {
-    if (m_texID) glDeleteTextures(1, &m_texID);
+    GfxTextures::destroy(m_texID);
 }
 
 bool Canvas::IsA(std::string name) {
@@ -96,23 +96,21 @@ void Canvas::ensureBuffer() {
 void Canvas::ensureGPU() {
     ensureBuffer();
 
-    if (m_texID == 0 || m_texW != Width || m_texH != Height) {
-        if (m_texID) glDeleteTextures(1, &m_texID);
-        glGenTextures(1, &m_texID);
-        glBindTexture(GL_TEXTURE_2D, m_texID);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, Width, Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    if (!m_texID || m_texW != Width || m_texH != Height) m_dirty = true;
+
+    // sokol の画像は部分更新できないので、内容が変わったら画素ごと作り直す。
+    if (m_dirty) {
+        GfxTextures::destroy(m_texID);
+        GfxTextures::Desc desc;
+        desc.width = Width;
+        desc.height = Height;
+        desc.pixels = m_pixels.data();
+        desc.filter = GfxTextures::Filter::Nearest;
+        desc.wrap = GfxTextures::Wrap::ClampToEdge;
+        desc.label = "Canvas";
+        m_texID = GfxTextures::create(desc);
         m_texW = Width;
         m_texH = Height;
-        m_dirty = true;
-    }
-
-    if (m_dirty) {
-        glBindTexture(GL_TEXTURE_2D, m_texID);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, Width, Height, GL_RGBA, GL_UNSIGNED_BYTE, m_pixels.data());
         m_dirty = false;
     }
 }

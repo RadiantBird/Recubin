@@ -43,7 +43,7 @@ bool SurfaceMark::IsA(std::string className) {
 
 void SurfaceMark::setTexturePath(const std::string& path) {
     texturePath = path;
-    TextureID = 0;
+    TextureID = TextureHandle{};
     if (Renderer::instance && !texturePath.empty())
         TextureID = Renderer::instance->loadTexture(texturePath.c_str());
 }

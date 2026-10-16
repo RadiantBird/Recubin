@@ -11,7 +11,7 @@ static const bool s_wedgeRegistered = [] {
     return true;
 }();
 
-unsigned int Wedge::defaultTextureID = 0;
+TextureHandle Wedge::defaultTextureID;
 unsigned int Wedge::s_VAO = 0;
 unsigned int Wedge::s_VBO = 0;
 unsigned int Wedge::s_EBO = 0;
@@ -135,7 +135,7 @@ void Wedge::draw(MainShaderState& shader) {
     glActiveTexture(GL_TEXTURE0);
 
     auto drawRegion = [&](Face face, int count, int off) {
-        glBindTexture(GL_TEXTURE_2D, getDecalTexture(face, defaultTextureID));
+        glBindTexture(GL_TEXTURE_2D, getDecalTexture(face, defaultTextureID).glName());
         glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT,
                        (void*)(uintptr_t)(off * sizeof(unsigned int)));
     };

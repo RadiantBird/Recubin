@@ -4,6 +4,7 @@
 #include <string>
 #include <include/imgui/imgui.h>
 #include <GL/glew.h>
+#include <include/Core/GfxTexture.hpp>
 
 // ===================================================
 //  WelcomePanel  — 起動時に表示する「ようこそ」タブ
@@ -22,7 +23,7 @@ public:
 
 private:
     void loadLogo();
-    GLuint m_logoTexture = 0;
+    TextureHandle m_logoTexture;
     int m_logoWidth = 0;
     int m_logoHeight = 0;
     bool m_logoLoadAttempted = false;

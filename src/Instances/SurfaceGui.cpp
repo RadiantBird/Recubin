@@ -73,7 +73,7 @@ bool SurfaceGui::hasRenderableDirectChild() {
 
 bool SurfaceGui::contributesBakedVisualOverride() {
     if (!Visible) return false;
-    if (m_texID == 0) return false;
+    if (!m_texID) return false;
     return hasRenderableOwnContent() || hasRenderableDirectChild();
 }
 
@@ -133,11 +133,11 @@ std::uint64_t SurfaceGui::computeRenderContentSignature(float defaultFontSize) {
         }
 
         ImageContent* image = child->imageContent();
-        const bool drawsImage = image && image->textureID != 0;
+        const bool drawsImage = image && image->textureID;
         hashByte(hash, drawsImage ? 1 : 0);
         if (drawsImage) {
             hashString(hash, image->path);
-            hashUint64(hash, image->textureID);
+            hashUint64(hash, image->textureID.id());
         }
     }
     return hash;
@@ -145,7 +145,7 @@ std::uint64_t SurfaceGui::computeRenderContentSignature(float defaultFontSize) {
 
 SurfaceGui::~SurfaceGui() {
     if (m_fboID) glDeleteFramebuffers(1, &m_fboID);
-    if (m_texID) glDeleteTextures(1, &m_texID);
+    GfxTextures::destroy(m_texID);
 }
 
 bool SurfaceGui::IsA(std::string name) {

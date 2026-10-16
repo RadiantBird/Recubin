@@ -84,6 +84,15 @@ static constexpr const char* CURSOR_SIZE_NAMES[10] = {
     "CursorType1Size", "CursorType2Size", "CursorType3Size", "CursorType4Size", "CursorType5Size",
     "CursorType6Size", "CursorType7Size", "CursorType8Size", "CursorType9Size", "CursorType10Size"};
 
+// ── Getter: texture handle as number (0 = no texture) ───────────────────────
+template<typename T, auto M>
+auto getter_texture() {
+    return [](lua_State* L, Instance* obj) -> int {
+        lua_pushnumber(L, static_cast<lua_Number>((static_cast<T*>(obj)->*M).id()));
+        return 1;
+    };
+}
+
 // ── Getter: numeric field (float / int / unsigned / enum) ────────────────────
 template<typename T, auto M>
 auto getter_number() {
@@ -439,7 +448,7 @@ void LuauEngine::InitDispatchTable_World() {
     DispatchTable["Workspace"]["Raycast"]        = getter_closure(workspace_raycast_closure, "Raycast");
     PropertyRegistry::applyToDispatch("Workspace", DispatchTable, SetterTable);
 
-    DispatchTable["Decal"]["TextureID"]   = getter_number<Decal, &Decal::TextureID>();
+    DispatchTable["Decal"]["TextureID"]   = getter_texture<Decal, &Decal::TextureID>();
     // TexturePath は読み取りのみ（書込はテクスチャ再読込が必要で、パス問題と同様に未対応）
     DispatchTable["Decal"]["TexturePath"] = getter_string<Decal, &Decal::texturePath>();
     PropertyRegistry::applyToDispatch("Decal", DispatchTable, SetterTable);
@@ -459,7 +468,7 @@ void LuauEngine::InitDispatchTable_World() {
     PropertyRegistry::applyToDispatch("Weather", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("SurfaceMark", DispatchTable, SetterTable);
 
-    DispatchTable["SurfaceMark"]["TextureID"] = getter_number<SurfaceMark, &SurfaceMark::TextureID>();
+    DispatchTable["SurfaceMark"]["TextureID"] = getter_texture<SurfaceMark, &SurfaceMark::TextureID>();
     DispatchTable["SurfaceMark"]["FilterInstances"] = [](lua_State* L, Instance* obj) {
         auto* mark = static_cast<SurfaceMark*>(obj);
         lua_newtable(L);

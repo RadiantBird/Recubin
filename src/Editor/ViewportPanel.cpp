@@ -549,7 +549,7 @@ void ViewportPanel::handleViewportClick(
             MeshHitResult hitResult = mc->raycastLocal(localOri, localDir);
             if (hitResult.hit && m_history) {
                 auto mcSp = std::static_pointer_cast<Instance>(mc->shared_from_this());
-                auto decal = std::make_shared<Decal>(0, Face::Front);
+                auto decal = std::make_shared<Decal>(TextureHandle{}, Face::Front);
                 decal->UVCenter = hitResult.uv;
 
                 std::string name = "Decal";

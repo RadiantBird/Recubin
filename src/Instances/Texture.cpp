@@ -31,7 +31,7 @@ static const bool s_textureRegistered = []{
     return true;
 }();
 
-Texture::Texture(unsigned int textureID, Face targetFace)
+Texture::Texture(TextureHandle textureID, Face targetFace)
     : Instance("Texture_" + std::string(faceNames[(int)targetFace])), TextureID(textureID), face(targetFace) {}
 
 Texture::~Texture() {}

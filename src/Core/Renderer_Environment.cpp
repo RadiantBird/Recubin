@@ -67,10 +67,10 @@ std::size_t skyboxSignature(Skybox& skybox) {
     for (const auto& [name, child] : skybox.getChildren()) {
         if (!child->IsA("Decal")) continue;
         const auto* decal = static_cast<const Decal*>(child.get());
-        if (decal->TextureID == 0) continue;
+        if (!decal->TextureID) continue;
         anyTexture = true;
         std::size_t h = hashCombine(0, static_cast<std::size_t>(decal->face));
-        h = hashCombine(h, decal->TextureID);
+        h = hashCombine(h, decal->TextureID.id());
         for (float channel : { decal->Color.r, decal->Color.g, decal->Color.b, decal->Color.a })
             h = hashCombine(h, static_cast<std::size_t>(std::lround(channel * 255.0f)));
         sum += h;

@@ -138,7 +138,7 @@ void Renderer::renderCelestialBodies(Workspace& workspace, const Vector3& camera
     m_main.setUseTextureTint(0.0f);
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, whiteTexture);
+    glBindTexture(GL_TEXTURE_2D, whiteTexture.glName());
     glBindVertexArray(Sphere::s_VAO);
 
     for (CelestialBody* body : bodies) {

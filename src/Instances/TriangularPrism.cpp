@@ -10,7 +10,7 @@ static const bool s_triangularPrismRegistered = [] {
     return true;
 }();
 
-unsigned int TriangularPrism::defaultTextureID = 0;
+TextureHandle TriangularPrism::defaultTextureID;
 unsigned int TriangularPrism::s_VAO = 0;
 unsigned int TriangularPrism::s_VBO = 0;
 unsigned int TriangularPrism::s_EBO = 0;
@@ -151,11 +151,11 @@ void TriangularPrism::draw(MainShaderState& shader) {
 
     glActiveTexture(GL_TEXTURE0);
 
-    unsigned int topTex   = getDecalTexture(Face::Top,    defaultTextureID);
-    unsigned int botTex   = getDecalTexture(Face::Bottom, defaultTextureID);
-    unsigned int frontTex = getDecalTexture(Face::Front,  defaultTextureID);
-    unsigned int backTex  = getDecalTexture(Face::Back,   defaultTextureID);
-    unsigned int rightTex = getDecalTexture(Face::Right,  defaultTextureID);
+    unsigned int topTex   = getDecalTexture(Face::Top,    defaultTextureID).glName();
+    unsigned int botTex   = getDecalTexture(Face::Bottom, defaultTextureID).glName();
+    unsigned int frontTex = getDecalTexture(Face::Front,  defaultTextureID).glName();
+    unsigned int backTex  = getDecalTexture(Face::Back,   defaultTextureID).glName();
+    unsigned int rightTex = getDecalTexture(Face::Right,  defaultTextureID).glName();
 
     auto draw = [](int count, int off) {
         glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT,

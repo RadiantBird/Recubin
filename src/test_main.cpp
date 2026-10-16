@@ -733,10 +733,10 @@ int runMotorServoRegression() {
 
     auto workspace = std::make_shared<Workspace>();
     workspace->Name = "MotorServoWorkspace";
-    auto anchor = std::make_shared<Cube>(Vector3(0, 100, 0), Vector3(2, 2, 2), 0);
+    auto anchor = std::make_shared<Cube>(Vector3(0, 100, 0), Vector3(2, 2, 2), TextureHandle{});
     anchor->Name = "ServoAnchor";
     anchor->Anchored = true;
-    auto rotor = std::make_shared<Cube>(Vector3(4, 100, 0), Vector3(4, 1, 1), 0);
+    auto rotor = std::make_shared<Cube>(Vector3(4, 100, 0), Vector3(4, 1, 1), TextureHandle{});
     rotor->Name = "ServoRotor";
     workspace->addChild(anchor);
     workspace->addChild(rotor);
@@ -1052,7 +1052,7 @@ int runSpringPrismaticRegression() {
     auto workspace = std::make_shared<Workspace>();
     workspace->Name = "SpringPrismaticWorkspace";
     auto makeCube = [&](const char* name, const Vector3& position, bool anchored) {
-        auto cube = std::make_shared<Cube>(position, Vector3(2, 2, 2), 0);
+        auto cube = std::make_shared<Cube>(position, Vector3(2, 2, 2), TextureHandle{});
         cube->Name = name;
         cube->Anchored = anchored;
         workspace->addChild(cube);
@@ -1204,7 +1204,7 @@ int runSpringPrismaticRegression() {
         auto ws = std::make_shared<Workspace>();
         ws->Name = "BallerProbe" + std::to_string(withRider);
         auto mk = [&](const char* n, Vector3 pos, Vector3 size, bool anchored) {
-            auto c = std::make_shared<Cube>(pos, size, 0);
+            auto c = std::make_shared<Cube>(pos, size, TextureHandle{});
             c->Name = n; c->Anchored = anchored; ws->addChild(c); return c;
         };
         auto floorCube = mk("Floor", {0, -1, 0}, {200, 2, 200}, true);
@@ -1642,7 +1642,7 @@ int runStarterWeldRenameRegression() {
 
     auto system = std::make_shared<System>();
     auto starter = std::make_shared<StarterCharacter>();
-    auto hair = std::make_shared<Cube>(Vector3{}, Vector3(1, 1, 1), 0);
+    auto hair = std::make_shared<Cube>(Vector3{}, Vector3(1, 1, 1), TextureHandle{});
     auto head = std::make_shared<Sphere>(Vector3{}, Vector3(1, 1, 1));
     hair->Name = "Hair";
     head->Name = "Head";
@@ -1657,7 +1657,7 @@ int runStarterWeldRenameRegression() {
     hair->renameTo("HairTemporary");
     head->renameTo("HeadTemporary");
     auto hairCollision = std::make_shared<Cube>(
-        Vector3{}, Vector3(1, 1, 1), 0);
+        Vector3{}, Vector3(1, 1, 1), TextureHandle{});
     auto headCollision = std::make_shared<Sphere>(
         Vector3{}, Vector3(1, 1, 1));
     hairCollision->Name = "Hair";
@@ -1796,7 +1796,7 @@ int runStarterAccessoryWeldRegression() {
         expect(false, "default StarterCharacter contains Head");
         return 1;
     }
-    auto templateHair = std::make_shared<Cube>(Vector3{}, Vector3(1.5f, 0.8f, 1.4f), 0);
+    auto templateHair = std::make_shared<Cube>(Vector3{}, Vector3(1.5f, 0.8f, 1.4f), TextureHandle{});
     templateHair->Name = "Hair";
     templateHair->Anchored = true;
     templateHair->CanCollide = false;
@@ -1809,7 +1809,7 @@ int runStarterAccessoryWeldRegression() {
     templateWeld->Name = "HairWeld";
     templateHead->addChild(templateWeld);
 
-    auto templateGlasses = std::make_shared<Cube>(Vector3{}, Vector3(1.7f, 0.3f, 0.3f), 0);
+    auto templateGlasses = std::make_shared<Cube>(Vector3{}, Vector3(1.7f, 0.3f, 0.3f), TextureHandle{});
     templateGlasses->Name = "Glasses";
     templateGlasses->Anchored = true;
     templateGlasses->CanCollide = false;
@@ -2719,7 +2719,7 @@ int runShadowModeRegression() {
         std::cout << "[ShadowMode] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
         if (!condition) ++failures;
     };
-    auto cube = std::make_shared<Cube>(Vector3{}, Vector3(1, 1, 1), 0);
+    auto cube = std::make_shared<Cube>(Vector3{}, Vector3(1, 1, 1), TextureHandle{});
     expect(cube->ShadowMode == ShadowMode::Normal, "default mode is Normal");
     cube->Color.a = 0.0f;
     cube->CastShadow = true;
@@ -3177,7 +3177,7 @@ CharacterCollisionFilterProbeResult runCharacterCollisionFilterProbe() {
         parts.model = std::make_shared<Model>();
         parts.model->Name = name;
         parts.root = std::make_shared<Cube>(
-            Vector3(x, 2, 0), Vector3(2, 2, 2), 0);
+            Vector3(x, 2, 0), Vector3(2, 2, 2), TextureHandle{});
         parts.root->Name = "Root";
         parts.root->Anchored = anchored;
         parts.humanoid = std::make_shared<Humanoid>();
@@ -7340,7 +7340,7 @@ int runPhysicsRollbackRegression() {
            "removed pending Cube is not resurrected when physics resumes");
 
     auto saveRoot = std::make_shared<Instance>("SaveRoot");
-    auto locked = std::make_shared<Cube>(Vector3(), Vector3(1, 1, 1), 0);
+    auto locked = std::make_shared<Cube>(Vector3(), Vector3(1, 1, 1), TextureHandle{});
     locked->Name = "LockedCube";
     locked->LockFlags = PhysicsLockFlags::LinearX |
         PhysicsLockFlags::AngularY | PhysicsLockFlags::AngularZ;
@@ -9906,12 +9906,12 @@ static int runSurfaceMarkRegression() {
     expect(child->intersectsSphere(Vector3(8, 0, 2), 0.1f),
            "SurfaceMark projection volume follows rotation");
     auto filterWorkspace = std::make_shared<Workspace>();
-    auto exactCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); exactCube->Name = "Exact";
+    auto exactCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), TextureHandle{}); exactCube->Name = "Exact";
     auto modelFilter = std::make_shared<Model>(); modelFilter->Name = "ModelFilter";
-    auto modelCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); modelCube->Name = "ModelCube";
+    auto modelCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), TextureHandle{}); modelCube->Name = "ModelCube";
     auto folderFilter = std::make_shared<Folder>(); folderFilter->Name = "FolderFilter";
-    auto folderCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); folderCube->Name = "FolderCube";
-    auto unrelatedCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0); unrelatedCube->Name = "Unrelated";
+    auto folderCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), TextureHandle{}); folderCube->Name = "FolderCube";
+    auto unrelatedCube = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), TextureHandle{}); unrelatedCube->Name = "Unrelated";
     auto filterMark = std::make_shared<SurfaceMark>(); filterMark->Name = "FilterMark";
     modelFilter->addChild(modelCube); filterWorkspace->addChild(exactCube);
     folderFilter->addChild(folderCube);
@@ -9935,7 +9935,7 @@ static int runSurfaceMarkRegression() {
            filterMark->allowsSurfaceTarget(*unrelatedCube),
            "SurfaceMark Exclude filter rejects exact and descendant targets");
     {
-        auto expiring = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), 0);
+        auto expiring = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(1, 1, 1), TextureHandle{});
         filterMark->setFilterInstances({expiring});
         expiring.reset();
         expect(filterMark->allowsSurfaceTarget(*unrelatedCube), "Expired SurfaceMark filter references are ignored");
@@ -10217,7 +10217,7 @@ static int runAnimationClipRegression() {
         legacyAnimation->Name = "LegacyTracksAnimation";
         legacyAnimation->Length = 1.0f;
         legacyAnimation->addOrReplaceKey("LeftArm", 0.0f, CFrame(), EasingType::Linear);
-        auto followingCube = std::make_shared<Cube>(Vector3(3.0f, 2.0f, 1.0f), Vector3(1.0f, 1.0f, 1.0f), 0);
+        auto followingCube = std::make_shared<Cube>(Vector3(3.0f, 2.0f, 1.0f), Vector3(1.0f, 1.0f, 1.0f), TextureHandle{});
         followingCube->Name = "FollowingChild";
         legacySceneRoot->addChild(legacyAnimation);
         legacySceneRoot->addChild(followingCube);
@@ -11666,7 +11666,7 @@ static int runGuiVisibilityRegression() {
            "SurfaceGui detects its visible direct child without a render scratch allocation");
     expect(!surface->contributesBakedVisualOverride(),
            "SurfaceGui without a baked texture does not block primitive instancing");
-    surface->m_texID = 1;
+    surface->m_texID = TextureHandle(1u);
     expect(surface->contributesBakedVisualOverride(),
            "visible baked SurfaceGui content contributes a cube face override");
     surface->Visible = false;
@@ -11710,11 +11710,11 @@ static int runGuiVisibilityRegression() {
     auto clonedSurface = std::static_pointer_cast<SurfaceGui>(surface->clone());
     expect(!clonedSurface->m_hasBakedContentSignature &&
                clonedSurface->m_bakedContentSignature == 0 &&
-               clonedSurface->m_fboID == 0 && clonedSurface->m_texID == 0,
+               clonedSurface->m_fboID == 0 && !clonedSurface->m_texID,
            "SurfaceGui clone does not inherit runtime bake cache state");
 
     // 1はpredicate検査専用の疑似ID。デストラクタからGLへ渡さない。
-    surface->m_texID = 0;
+    surface->m_texID = TextureHandle{};
 
     surfaceLabel->FontSize = 0.0f;
     const std::uint64_t defaultFontSignature =
@@ -14205,11 +14205,11 @@ static int runSpatialCoordinateAssertions() {
     auto luauWorkspace = std::make_shared<Workspace>();
     luauWorkspace->Gravity = {};
     luauWorkspace->initPhysics();
-    auto directCube = std::make_shared<Cube>(Vector3(3, 2, -1), Vector3(2, 2, 2), 0);
+    auto directCube = std::make_shared<Cube>(Vector3(3, 2, -1), Vector3(2, 2, 2), TextureHandle{});
     directCube->Anchored = true;
     auto transformedParent = std::make_shared<Model>(Vector3(10, 4, -6));
     transformedParent->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 37));
-    auto nestedCube = std::make_shared<Cube>(Vector3(1, 2, 3), Vector3(2, 2, 2), 0);
+    auto nestedCube = std::make_shared<Cube>(Vector3(1, 2, 3), Vector3(2, 2, 2), TextureHandle{});
     nestedCube->Anchored = true;
     luauWorkspace->addChild(directCube);
     luauWorkspace->addChild(transformedParent);
@@ -14241,7 +14241,7 @@ static int runSpatialCoordinateAssertions() {
         Vector3(4, 2, -3), Vector3(1, 1, 1));
     auto pivotFolder = std::make_shared<Folder>();
     auto pivotChild = std::make_shared<Cube>(
-        Vector3(2, 1, 5), Vector3(1, 1, 1), 0);
+        Vector3(2, 1, 5), Vector3(1, 1, 1), TextureHandle{});
     pivotChild->setRotation(Quaternion::fromAxisAngle(Vector3(1, 0, 0), 17));
     pivotModel->addChild(pivotFolder);
     pivotFolder->addChild(pivotChild);
@@ -14267,8 +14267,8 @@ static int runSpatialCoordinateAssertions() {
            "Model.PivotTo preserves descendant relative world poses");
 
     auto weldedPivotModel = std::make_shared<Model>(Vector3(0, 0, 0));
-    auto weldedA = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(2, 2, 2), 0);
-    auto weldedB = std::make_shared<Cube>(Vector3(4, 0, 0), Vector3(2, 2, 2), 0);
+    auto weldedA = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(2, 2, 2), TextureHandle{});
+    auto weldedB = std::make_shared<Cube>(Vector3(4, 0, 0), Vector3(2, 2, 2), TextureHandle{});
     weldedA->Anchored = true;
     weldedB->Anchored = true;
     auto weldedAssembly = std::make_shared<Weld>(weldedA, weldedB);
@@ -14291,7 +14291,7 @@ static int runSpatialCoordinateAssertions() {
 
     auto attachmentPivotModel = std::make_shared<Model>(Vector3(1, 2, 3));
     auto attachmentRoot = std::make_shared<Cube>(Vector3(2, 1, -4),
-        Vector3(2, 2, 2), 0);
+        Vector3(2, 2, 2), TextureHandle{});
     attachmentRoot->Anchored = true;
     auto attachmentParent = std::make_shared<Attachment>(Vector3(0.75f, 0.0f, 0.25f));
     auto attachmentChild = std::make_shared<Attachment>(Vector3(0.0f, 1.0f, -0.5f));
@@ -14327,13 +14327,13 @@ static int runSpatialCoordinateAssertions() {
     // PrimaryCube: 設定するとModelの原点/Pivotがその座標になり、子のワールド姿勢は変わらない
     auto primaryModel = std::make_shared<Model>(Vector3(0, 0, 0));
     primaryModel->Name = "PrimaryModel";
-    auto primaryA = std::make_shared<Cube>(Vector3(-16, 1, 6), Vector3(4, 1, 4), 0);
+    auto primaryA = std::make_shared<Cube>(Vector3(-16, 1, 6), Vector3(4, 1, 4), TextureHandle{});
     primaryA->Name = "PrimaryA";
     primaryA->Anchored = true;
-    auto primaryB = std::make_shared<Cube>(Vector3(-15.8f, 2.5f, 6.06f), Vector3(1, 1, 1), 0);
+    auto primaryB = std::make_shared<Cube>(Vector3(-15.8f, 2.5f, 6.06f), Vector3(1, 1, 1), TextureHandle{});
     primaryB->Name = "PrimaryB";
     primaryB->Anchored = true;
-    auto outsideCube = std::make_shared<Cube>(Vector3(50, 1, 50), Vector3(1, 1, 1), 0);
+    auto outsideCube = std::make_shared<Cube>(Vector3(50, 1, 50), Vector3(1, 1, 1), TextureHandle{});
     outsideCube->Name = "PrimaryOutside";
     outsideCube->Anchored = true;
     primaryModel->addChild(primaryA);
@@ -14376,11 +14376,11 @@ static int runSpatialCoordinateAssertions() {
     // Attachment: 回転した親のModel子Cubeへ追加しても親の原点に置かれ、localは単位になる
     auto attachModel = std::make_shared<Model>(Vector3(30, 5, -8));
     attachModel->Name = "AttachModel";
-    auto attachCube = std::make_shared<Cube>(Vector3(2, 1, 3), Vector3(2, 2, 2), 0);
+    auto attachCube = std::make_shared<Cube>(Vector3(2, 1, 3), Vector3(2, 2, 2), TextureHandle{});
     attachCube->Name = "AttachCube";
     attachCube->setRotation(Quaternion::fromAxisAngle(Vector3(0, 1, 0), 40));
     attachCube->Anchored = true;
-    auto attachOther = std::make_shared<Cube>(Vector3(8, 1, 3), Vector3(2, 2, 2), 0);
+    auto attachOther = std::make_shared<Cube>(Vector3(8, 1, 3), Vector3(2, 2, 2), TextureHandle{});
     attachOther->Name = "AttachOther";
     attachOther->Anchored = true;
     attachModel->addChild(attachCube);
@@ -14474,9 +14474,9 @@ static int runWeldAssemblyAssertions() {
     auto workspace = std::make_shared<Workspace>();
     workspace->Gravity = {};
     workspace->initPhysics();
-    auto root = std::make_shared<Cube>(Vector3(0, 4, 0), Vector3(2, 2, 2), 0);
-    auto member = std::make_shared<Cube>(Vector3(3, 4, 0), Vector3(1, 1, 1), 0);
-    auto anchored = std::make_shared<Cube>(Vector3(0, 4, 3), Vector3(1, 1, 1), 0);
+    auto root = std::make_shared<Cube>(Vector3(0, 4, 0), Vector3(2, 2, 2), TextureHandle{});
+    auto member = std::make_shared<Cube>(Vector3(3, 4, 0), Vector3(1, 1, 1), TextureHandle{});
+    auto anchored = std::make_shared<Cube>(Vector3(0, 4, 3), Vector3(1, 1, 1), TextureHandle{});
     root->Anchored = true;
     workspace->addChild(root); workspace->addChild(member); workspace->addChild(anchored);
     auto weld = std::make_shared<Weld>(root, member);
@@ -14513,8 +14513,8 @@ static int runDriftSoakAssertions() {
     auto workspace = std::make_shared<Workspace>();
     workspace->Gravity = {};
     workspace->initPhysics();
-    auto root = std::make_shared<Cube>(Vector3(0, 3, 0), Vector3(2, 2, 2), 0);
-    auto member = std::make_shared<Cube>(Vector3(2, 3, 0), Vector3(1, 1, 1), 0);
+    auto root = std::make_shared<Cube>(Vector3(0, 3, 0), Vector3(2, 2, 2), TextureHandle{});
+    auto member = std::make_shared<Cube>(Vector3(2, 3, 0), Vector3(1, 1, 1), TextureHandle{});
     root->Anchored = true;
     workspace->addChild(root); workspace->addChild(member);
     auto weld = std::make_shared<Weld>(root, member);
@@ -16609,26 +16609,26 @@ static int runMaterialServiceRegression() {
 
     // フェーズ②: Materialの子Decalは参照元の面へ投影され、直下のDecalが優先される。
     cube->setProperty("Material", YAML::Node(std::string("MaterialService\\Brick")));
-    expect(!cube->hasMaterialFaceVisuals() && cube->getDecalTexture(Face::Top, 1u) == 1u,
+    expect(!cube->hasMaterialFaceVisuals() && cube->getDecalTexture(Face::Top, TextureHandle(1u)) == TextureHandle(1u),
            "Material without Decal children projects nothing");
-    brick->addChild(std::make_shared<Decal>(7u, Face::Top));
+    brick->addChild(std::make_shared<Decal>(TextureHandle(7u), Face::Top));
     expect(cube->hasMaterialFaceVisuals(),
            "Material with a Decal child opts out of plain instancing");
-    expect(cube->getDecalTexture(Face::Top, 1u) == 7u &&
-               cube->getDecalTexture(Face::Front, 1u) == 1u,
+    expect(cube->getDecalTexture(Face::Top, TextureHandle(1u)) == TextureHandle(7u) &&
+               cube->getDecalTexture(Face::Front, TextureHandle(1u)) == TextureHandle(1u),
            "Material Decal projects only onto its own face");
-    auto directDecal = std::make_shared<Decal>(9u, Face::Top);
+    auto directDecal = std::make_shared<Decal>(TextureHandle(9u), Face::Top);
     cube->addChild(directDecal);
-    expect(cube->getDecalTexture(Face::Top, 1u) == 9u,
+    expect(cube->getDecalTexture(Face::Top, TextureHandle(1u)) == TextureHandle(9u),
            "a Decal directly under the cube wins over the Material Decal");
     cube->removeChild(directDecal->Name);
-    expect(cube->getDecalTexture(Face::Top, 1u) == 7u,
+    expect(cube->getDecalTexture(Face::Top, TextureHandle(1u)) == TextureHandle(7u),
            "removing the direct Decal restores the Material Decal");
 
     cube->setProperty("Material", YAML::Node(std::string()));
     expect(!cube->getMaterialInstance() && cube->getMaterialPath().empty(),
            "empty path clears the Material reference");
-    expect(!cube->hasMaterialFaceVisuals() && cube->getDecalTexture(Face::Top, 1u) == 1u,
+    expect(!cube->hasMaterialFaceVisuals() && cube->getDecalTexture(Face::Top, TextureHandle(1u)) == TextureHandle(1u),
            "clearing the Material removes its projected faces");
 
     return failures == 0 ? 0 : 1;
@@ -17142,7 +17142,7 @@ static int runAssetRegression() {
         toolWorkspace->addChild(deepFolder);
         auto gun = std::make_shared<Tool>("Gun");
         deepFolder->addChild(gun);
-        auto gunHandle = std::make_shared<Cube>(Vector3(1, 2, 3), Vector3(1, 1, 1), 0);
+        auto gunHandle = std::make_shared<Cube>(Vector3(1, 2, 3), Vector3(1, 1, 1), TextureHandle{});
         gunHandle->Name = "Handle";
         gun->addChild(gunHandle);
         gun->setHandleReference(gunHandle);
@@ -17234,9 +17234,9 @@ static int runAssetRegression() {
     auto robot = std::make_shared<Model>();
     robot->Name = "Robot";
     folder->addChild(robot);
-    auto body = std::make_shared<Cube>(Vector3(1, 5, 2), Vector3(2, 2, 2), 0);
+    auto body = std::make_shared<Cube>(Vector3(1, 5, 2), Vector3(2, 2, 2), TextureHandle{});
     body->Name = "Body";
-    auto arm = std::make_shared<Cube>(Vector3(4, 5, 2), Vector3(1, 1, 3), 0);
+    auto arm = std::make_shared<Cube>(Vector3(4, 5, 2), Vector3(1, 1, 3), TextureHandle{});
     arm->Name = "Arm";
     robot->addChild(body);
     robot->addChild(arm);
@@ -17245,7 +17245,7 @@ static int runAssetRegression() {
     joint->Name = "Joint";
     robot->addChild(joint);
     robot->setPrimaryCube(body);
-    auto outside = std::make_shared<Cube>(Vector3(20, 5, 2), Vector3(1, 1, 1), 0);
+    auto outside = std::make_shared<Cube>(Vector3(20, 5, 2), Vector3(1, 1, 1), TextureHandle{});
     outside->Name = "Outside";
     workspace->addChild(outside);
     auto external = std::make_shared<Weld>(body, outside);
@@ -17643,7 +17643,7 @@ static int runCloneClassRegression() {
 
         auto model = std::make_shared<Model>();
         model->Name = "Rig";
-        auto part = std::make_shared<Cube>(Vector3(3, 4, 5), Vector3(2, 2, 2), 0);
+        auto part = std::make_shared<Cube>(Vector3(3, 4, 5), Vector3(2, 2, 2), TextureHandle{});
         part->Name = "Part";
         model->addChild(part);
         model->setPrimaryCube(part);
@@ -17760,7 +17760,7 @@ static int runAudioDiagnosticsRegression() {
 
         auto workspace = std::make_shared<Workspace>();
         // 100 stud = 5 m の位置（距離減衰は 1 / (1 + 5 * 0.1) = 1 / 1.5）
-        auto holder = std::make_shared<Cube>(Vector3(100, 0, 0), Vector3(1, 1, 1), 0);
+        auto holder = std::make_shared<Cube>(Vector3(100, 0, 0), Vector3(1, 1, 1), TextureHandle{});
         workspace->addChild(holder);
         auto sound = std::make_shared<Sound>(audio);
         sound->Name = "Gun";
@@ -18146,11 +18146,11 @@ int networkNaN(const fs::path&) {
     say("ByteReader::readVector3 accepts NaN=" + std::to_string(r.readVector3(received)));
 
     auto workspace = std::make_shared<Workspace>();
-    auto root = std::make_shared<Cube>(Vector3(0, 10, 0), Vector3(2, 2, 2), 0);
+    auto root = std::make_shared<Cube>(Vector3(0, 10, 0), Vector3(2, 2, 2), TextureHandle{});
     root->Name = "Root";
     root->Anchored = true;
     workspace->addChild(root);
-    auto other = std::make_shared<Cube>(Vector3(0, 13, 0), Vector3(2, 2, 2), 0);
+    auto other = std::make_shared<Cube>(Vector3(0, 13, 0), Vector3(2, 2, 2), TextureHandle{});
     other->Name = "Other";
     workspace->addChild(other);
     workspace->initPhysics();
@@ -18175,7 +18175,7 @@ int networkNaN(const fs::path&) {
 
 int raycastNaN(const fs::path&) {
     auto workspace = std::make_shared<Workspace>();
-    auto floor = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(20, 1, 20), 0);
+    auto floor = std::make_shared<Cube>(Vector3(0, 0, 0), Vector3(20, 1, 20), TextureHandle{});
     floor->Anchored = true;
     workspace->addChild(floor);
     workspace->initPhysics();
@@ -18487,7 +18487,7 @@ void testAtomicSceneSave(const fs::path& work) {
     auto system = std::make_shared<System>();
     auto workspace = std::make_shared<Workspace>();
     system->addChild(workspace);
-    workspace->addChild(std::make_shared<Cube>(Vector3(1, 2, 3), Vector3(2, 2, 2), 0));
+    workspace->addChild(std::make_shared<Cube>(Vector3(1, 2, 3), Vector3(2, 2, 2), TextureHandle{}));
     const fs::path scenePath = dir / "scene.rcbn";
     writeText(scenePath, "ORIGINAL");
     bool heldResult = true;
@@ -18580,7 +18580,7 @@ void testNaN(const fs::path&) {
         return p.x == start.x && p.y == start.y && p.z == start.z;
     };
     {
-        auto cube = std::make_shared<Cube>(start, Vector3(2, 2, 2), 0);
+        auto cube = std::make_shared<Cube>(start, Vector3(2, 2, 2), TextureHandle{});
         cube->setWorldCFrame(CFrame(Vector3(nan, 0, 0), Quaternion()));
         expect(positionUnchanged(cube), "setWorldCFrame rejects NaN position");
         cube->setCFrame(CFrame(Vector3(0, nan, 0), Quaternion()));
@@ -18592,7 +18592,7 @@ void testNaN(const fs::path&) {
         auto luaSystem = std::make_shared<System>();
         auto luaWorkspace = std::make_shared<Workspace>();
         luaSystem->addChild(luaWorkspace);
-        auto cube = std::make_shared<Cube>(start, Vector3(2, 2, 2), 0);
+        auto cube = std::make_shared<Cube>(start, Vector3(2, 2, 2), TextureHandle{});
         cube->Name = "NaNCube";
         luaWorkspace->addChild(cube);
         auto script = std::make_shared<Script>();
@@ -18616,7 +18616,7 @@ void testNaN(const fs::path&) {
         auto model = std::make_shared<Model>();
         model->Name = "NaNModel";
         luaWorkspace->addChild(model);
-        auto child = std::make_shared<Cube>(start, Vector3(2, 2, 2), 0);
+        auto child = std::make_shared<Cube>(start, Vector3(2, 2, 2), TextureHandle{});
         child->Name = "Child";
         model->addChild(child);
         const Vector3 modelStart = model->getWorldPosition();
@@ -18654,12 +18654,12 @@ void testNaN(const fs::path&) {
     }
     {
         auto workspace = std::make_shared<Workspace>();
-        auto root = std::make_shared<Cube>(Vector3(0, 10, 0), Vector3(2, 2, 2), 0);
+        auto root = std::make_shared<Cube>(Vector3(0, 10, 0), Vector3(2, 2, 2), TextureHandle{});
         root->Anchored = true;
         workspace->addChild(root);
-        auto other = std::make_shared<Cube>(Vector3(0, 13, 0), Vector3(2, 2, 2), 0);
+        auto other = std::make_shared<Cube>(Vector3(0, 13, 0), Vector3(2, 2, 2), TextureHandle{});
         workspace->addChild(other);
-        auto victim = std::make_shared<Cube>(Vector3(0, 20, 0), Vector3(2, 2, 2), 0);
+        auto victim = std::make_shared<Cube>(Vector3(0, 20, 0), Vector3(2, 2, 2), TextureHandle{});
         workspace->addChild(victim);
         workspace->initPhysics();
         auto* physics = workspace->getPhysicsEngine();
@@ -18698,7 +18698,7 @@ void testNaN(const fs::path&) {
     }
     {
         auto workspace = std::make_shared<Workspace>();
-        auto cube = std::make_shared<Cube>(Vector3(0, 5, 0), Vector3(2, 2, 2), 0);
+        auto cube = std::make_shared<Cube>(Vector3(0, 5, 0), Vector3(2, 2, 2), TextureHandle{});
         workspace->addChild(cube);
         ReplicationManager replication(workspace, nullptr, nullptr);
         ReplicationTestAccess::addClientObject(replication, 7, cube);

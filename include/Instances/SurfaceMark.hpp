@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <include/Core/GfxTexture.hpp>
 
 class BaseCube;
 
@@ -13,7 +14,7 @@ enum class SurfaceMarkFilterMode { Exclude = 0, Include = 1 };
 // 3D空間から投影方向へ画像を投影する、独立したSpatialインスタンス。
 class SurfaceMark : public Spatial {
 public:
-    unsigned int TextureID = 0;
+    TextureHandle TextureID;
     std::string texturePath;
     Color4 Color;
     SurfaceMarkFilterMode FilterMode = SurfaceMarkFilterMode::Exclude;

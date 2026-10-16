@@ -3054,9 +3054,9 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "LocalScript",      [] { return std::make_shared<LocalScript>(""); } },
         { "ModuleScript",     [] { return std::make_shared<ModuleScript>(""); } },
         { "Model",            [] { return std::make_shared<Model>(); } },
-        { "Decal",            [] { return std::make_shared<Decal>(0, Face::Front); } },
+        { "Decal",            [] { return std::make_shared<Decal>(TextureHandle{}, Face::Front); } },
         { "SurfaceMark",      [] { return std::make_shared<SurfaceMark>(); } },
-        { "Texture",          [] { return std::make_shared<Texture>(0, Face::Front); } },
+        { "Texture",          [] { return std::make_shared<Texture>(TextureHandle{}, Face::Front); } },
         { "Canvas",           [] { return std::make_shared<Canvas>(); } },
         { "Sound",            [] () -> std::shared_ptr<Instance> {
               return AudioService::instance ? std::make_shared<Sound>(*AudioService::instance) : nullptr;

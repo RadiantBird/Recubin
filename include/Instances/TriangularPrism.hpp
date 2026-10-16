@@ -3,6 +3,7 @@
 #include <include/Instances/BaseCube.hpp>
 #include <include/Instances/Named.hpp>
 #include <vector>
+#include <include/Core/GfxTexture.hpp>
 
 class MainShaderState;
 
@@ -10,7 +11,7 @@ class TriangularPrism : public Named<TriangularPrism, BaseCube> {
 public:
     static constexpr const char* ClassName = "TriangularPrism";
 
-    static unsigned int defaultTextureID;
+    static TextureHandle defaultTextureID;
     static unsigned int s_VAO;
     static unsigned int s_VBO;
     static unsigned int s_EBO;

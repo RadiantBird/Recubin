@@ -11,7 +11,7 @@ static const bool s_cylinderRegistered = [] {
     return true;
 }();
 
-unsigned int Cylinder::defaultTextureID = 0;
+TextureHandle Cylinder::defaultTextureID;
 unsigned int Cylinder::s_VAO = 0;
 unsigned int Cylinder::s_VBO = 0;
 unsigned int Cylinder::s_EBO = 0;
@@ -139,24 +139,24 @@ void Cylinder::draw(MainShaderState& shader) {
     glActiveTexture(GL_TEXTURE0);
 
     // Top cap
-    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Top, defaultTextureID));
+    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Top, defaultTextureID).glName());
     glDrawElements(GL_TRIANGLES, CYL_TOP_COUNT, GL_UNSIGNED_INT, (void*)(uintptr_t)(CYL_TOP_OFF * sizeof(unsigned int)));
 
     // Bottom cap
-    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Bottom, defaultTextureID));
+    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Bottom, defaultTextureID).glName());
     glDrawElements(GL_TRIANGLES, CYL_BOT_COUNT, GL_UNSIGNED_INT, (void*)(uintptr_t)(CYL_BOT_OFF * sizeof(unsigned int)));
 
     // Sides: Right(0), Back(1), Left(2), Front(3)
-    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Right, defaultTextureID));
+    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Right, defaultTextureID).glName());
     glDrawElements(GL_TRIANGLES, CYL_QUAD_COUNT, GL_UNSIGNED_INT, (void*)(uintptr_t)(CYL_SIDE_OFF_0 * sizeof(unsigned int)));
 
-    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Back, defaultTextureID));
+    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Back, defaultTextureID).glName());
     glDrawElements(GL_TRIANGLES, CYL_QUAD_COUNT, GL_UNSIGNED_INT, (void*)(uintptr_t)(CYL_SIDE_OFF_1 * sizeof(unsigned int)));
 
-    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Left, defaultTextureID));
+    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Left, defaultTextureID).glName());
     glDrawElements(GL_TRIANGLES, CYL_QUAD_COUNT, GL_UNSIGNED_INT, (void*)(uintptr_t)(CYL_SIDE_OFF_2 * sizeof(unsigned int)));
 
-    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Front, defaultTextureID));
+    glBindTexture(GL_TEXTURE_2D, getDecalTexture(Face::Front, defaultTextureID).glName());
     glDrawElements(GL_TRIANGLES, CYL_QUAD_COUNT, GL_UNSIGNED_INT, (void*)(uintptr_t)(CYL_SIDE_OFF_3 * sizeof(unsigned int)));
 }
 

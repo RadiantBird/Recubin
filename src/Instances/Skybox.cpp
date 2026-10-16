@@ -8,7 +8,7 @@ static const bool s_skyboxRegistered = [] {
     return true;
 }();
 
-Skybox::Skybox() : Named<Skybox, Cube>(Vector3(0,0,0), Vector3(5000.0f, 5000.0f, 5000.0f), 0) {
+Skybox::Skybox() : Named<Skybox, Cube>(Vector3(0,0,0), Vector3(5000.0f, 5000.0f, 5000.0f), TextureHandle{}) {
     Name = "Skybox";
     Anchored = true;
     CanCollide = false;
@@ -58,7 +58,7 @@ void Skybox::setSkyboxPath(int faceIndex, const std::string& path) {
                 if (!path.empty() && Renderer::instance) {
                     decal->TextureID = Renderer::instance->loadTexture(path.c_str());
                 } else {
-                    decal->TextureID = 0;
+                    decal->TextureID = TextureHandle{};
                 }
                 break;
             }

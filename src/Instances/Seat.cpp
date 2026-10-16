@@ -28,7 +28,7 @@ bool Seat::isTouchSitEnabled() {
     return g_touchSitEnabled;
 }
 
-Seat::Seat(Vector3 Pos, Vector3 Sz, unsigned int textureID)
+Seat::Seat(Vector3 Pos, Vector3 Sz, TextureHandle textureID)
     : Named<Seat, Cube>(Pos, Sz, textureID) {
     setNativeTouchObserved(true);
 }

@@ -81,13 +81,13 @@ SetDecalFaceCommand::SetDecalFaceCommand(std::shared_ptr<Decal> t,Face b,Face a)
 void SetDecalFaceCommand::execute(){if(m_target)m_target->setFace(m_after);} void SetDecalFaceCommand::undo(){if(m_target)m_target->setFace(m_before);}
 SetDecalModeCommand::SetDecalModeCommand(std::shared_ptr<Decal> t,DecalMode b,DecalMode a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetDecalModeCommand::execute(){if(m_target)m_target->setMode(m_after);} void SetDecalModeCommand::undo(){if(m_target)m_target->setMode(m_before);}
-SetDecalTextureCommand::SetDecalTextureCommand(std::shared_ptr<Decal> t,std::string bp,unsigned int bi,std::string ap,unsigned int ai):m_target(std::move(t)),m_beforePath(std::move(bp)),m_afterPath(std::move(ap)),m_beforeID(bi),m_afterID(ai){}
+SetDecalTextureCommand::SetDecalTextureCommand(std::shared_ptr<Decal> t,std::string bp,TextureHandle bi,std::string ap,TextureHandle ai):m_target(std::move(t)),m_beforePath(std::move(bp)),m_afterPath(std::move(ap)),m_beforeID(bi),m_afterID(ai){}
 void SetDecalTextureCommand::execute(){if(m_target){m_target->texturePath=m_afterPath;m_target->TextureID=m_afterID;}} void SetDecalTextureCommand::undo(){if(m_target){m_target->texturePath=m_beforePath;m_target->TextureID=m_beforeID;}}
 SetDecalUVCommand::SetDecalUVCommand(std::shared_ptr<Decal> t,Vector2 bc,float br,Vector2 ac,float ar):m_target(std::move(t)),m_beforeCenter(bc),m_afterCenter(ac),m_beforeRadius(br),m_afterRadius(ar){}
 void SetDecalUVCommand::execute(){if(m_target){m_target->setUVCenter(m_afterCenter);m_target->setUVRadius(m_afterRadius);}} void SetDecalUVCommand::undo(){if(m_target){m_target->setUVCenter(m_beforeCenter);m_target->setUVRadius(m_beforeRadius);}}
 SetTextureFaceCommand::SetTextureFaceCommand(std::shared_ptr<Texture> t,Face b,Face a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetTextureFaceCommand::execute(){if(m_target)m_target->setFace(m_after);} void SetTextureFaceCommand::undo(){if(m_target)m_target->setFace(m_before);}
-SetTextureTextureCommand::SetTextureTextureCommand(std::shared_ptr<Texture> t,std::string bp,unsigned int bi,std::string ap,unsigned int ai):m_target(std::move(t)),m_beforePath(std::move(bp)),m_afterPath(std::move(ap)),m_beforeID(bi),m_afterID(ai){}
+SetTextureTextureCommand::SetTextureTextureCommand(std::shared_ptr<Texture> t,std::string bp,TextureHandle bi,std::string ap,TextureHandle ai):m_target(std::move(t)),m_beforePath(std::move(bp)),m_afterPath(std::move(ap)),m_beforeID(bi),m_afterID(ai){}
 void SetTextureTextureCommand::execute(){if(m_target){m_target->texturePath=m_afterPath;m_target->TextureID=m_afterID;}} void SetTextureTextureCommand::undo(){if(m_target){m_target->texturePath=m_beforePath;m_target->TextureID=m_beforeID;}}
 SetTextureColorCommand::SetTextureColorCommand(std::shared_ptr<Texture> t,Color4 b,Color4 a):m_target(std::move(t)),m_before(b),m_after(a){}
 void SetTextureColorCommand::execute(){if(m_target)m_target->Color=m_after;} void SetTextureColorCommand::undo(){if(m_target)m_target->Color=m_before;}

@@ -54,7 +54,7 @@ static const bool s_decalRegistered = []{
     return true;
 }();
 
-Decal::Decal(unsigned int textureID, Face targetFace) 
+Decal::Decal(TextureHandle textureID, Face targetFace) 
     : Instance("Decal_" + std::string(faceNames[(int)targetFace])), TextureID(textureID), face(targetFace) {}
 
 Decal::~Decal() {}

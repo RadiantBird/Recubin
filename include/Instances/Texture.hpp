@@ -2,17 +2,18 @@
 #include <include/Instances/Decal.hpp>
 #include <Util/Color4.hpp>
 #include <string>
+#include <include/Core/GfxTexture.hpp>
 
 class Texture : public Instance {
 public:
-    unsigned int TextureID     = 0;
+    TextureHandle TextureID;
     Face         face          = Face::Front;
     std::string  texturePath;
     Color4       Color;
     float        StudsPerTileU = 1.0f;
     float        StudsPerTileV = 1.0f;
 
-    Texture(unsigned int textureID = 0, Face targetFace = Face::Front);
+    Texture(TextureHandle textureID = {}, Face targetFace = Face::Front);
     virtual ~Texture();
 
     virtual std::string getClassName() override;

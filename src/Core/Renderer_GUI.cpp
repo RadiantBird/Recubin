@@ -236,8 +236,8 @@ static void drawGuiContent(ImDrawList* dl, ScreenGuiObject* sgo,
     ImVec2 tl(px, py), br(px + sw, py + sh);
     if (sgo->BackgroundColor.a > 0.001f)
         dl->AddRectFilled(tl, br, toImCol(sgo->BackgroundColor));
-    if (auto* img = sgo->imageContent(); img && img->textureID != 0)
-        dl->AddImage((ImTextureID)(uintptr_t)img->textureID, tl, br,
+    if (auto* img = sgo->imageContent(); img && img->textureID)
+        dl->AddImage((ImTextureID)(uintptr_t)img->textureID.glName(), tl, br,
                      ImVec2(0, 1), ImVec2(1, 0));  // 上下反転（テクスチャ原点補正）
     if (auto* txt = sgo->textContent(); txt && !txt->Text.empty() &&
         txt->TextColor.a > 0.001f)
@@ -345,7 +345,7 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
         sg->computeRenderContentSignature(ImGui::GetFontSize());
     const bool canReuse =
         sg->m_fboID != 0 &&
-        sg->m_texID != 0 &&
+        sg->m_texID &&
         sg->m_texW == w &&
         sg->m_texH == h &&
         sg->m_hasBakedContentSignature &&
@@ -369,23 +369,25 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     glGetFloatv(GL_COLOR_CLEAR_VALUE, prevClearColor);
 
     // FBO / テクスチャの作成・リサイズ
-    if (sg->m_fboID == 0 || sg->m_texID == 0 ||
+    if (sg->m_fboID == 0 || !sg->m_texID ||
         sg->m_texW != w || sg->m_texH != h) {
         if (sg->m_fboID) { glDeleteFramebuffers(1, &sg->m_fboID); sg->m_fboID = 0; }
-        if (sg->m_texID) { glDeleteTextures(1,    &sg->m_texID);  sg->m_texID = 0; }
+        GfxTextures::destroy(sg->m_texID);
         sg->m_hasBakedContentSignature = false;
 
-        glGenTextures(1, &sg->m_texID);
-        glBindTexture(GL_TEXTURE_2D, sg->m_texID);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        // 色は sokol の描画先テクスチャ。FBO は段階 3b まで生 GL のまま、その GL 名を付ける。
+        GfxTextures::Desc bakeDesc;
+        bakeDesc.width = w;
+        bakeDesc.height = h;
+        bakeDesc.renderTarget = true;
+        bakeDesc.filter = GfxTextures::Filter::Linear;
+        bakeDesc.label = "SurfaceGui bake";
+        sg->m_texID = GfxTextures::create(bakeDesc);
 
         glGenFramebuffers(1, &sg->m_fboID);
         glBindFramebuffer(GL_FRAMEBUFFER, sg->m_fboID);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                               GL_TEXTURE_2D, sg->m_texID, 0);
+                               GL_TEXTURE_2D, sg->m_texID.glName(), 0);
 
         sg->m_texW = w; sg->m_texH = h;
     }

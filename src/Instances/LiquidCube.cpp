@@ -40,7 +40,7 @@ void LiquidCube::draw(MainShaderState& shader) {
     shader.setUvScale(1.0f, 1.0f);
     shader.setSurfaceGui(0.0f);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, Cube::defaultTextureID);
+    glBindTexture(GL_TEXTURE_2D, Cube::defaultTextureID.glName());
     shader.flush();
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 }

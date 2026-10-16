@@ -32,7 +32,7 @@ bool GuiObject::hasRenderableOwnContent() {
         text->TextColor.a > GUI_ALPHA_EPSILON) {
         return true;
     }
-    if (auto* image = imageContent(); image && image->textureID != 0) {
+    if (auto* image = imageContent(); image && image->textureID) {
         return true;
     }
     return false;

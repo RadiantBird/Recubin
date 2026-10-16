@@ -12,7 +12,7 @@ static const bool s_cubeRegistered = [] {
     return true;
 }();
 
-unsigned int Cube::defaultTextureID = 0;
+TextureHandle Cube::defaultTextureID;
 unsigned int Cube::s_VAO = 0;
 unsigned int Cube::s_EBO = 0;
 std::vector<float> Cube::s_HighlightEdgeVerts;
@@ -69,7 +69,7 @@ std::vector<Vertex> createCubeVertices(float size) {
 }
 
 // Cubeコンストラクタの実装
-Cube::Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex)
+Cube::Cube(Vector3 Pos, Vector3 Sz, TextureHandle defaultTex)
     : Named<Cube, BaseCube>(Pos, Sz)
 {
     // faceTextures は廃止
@@ -79,7 +79,7 @@ namespace {
 
 // 6面ぶんの描画スロット。直下の子とMaterialの子の収集結果をまとめる。
 struct FaceSlots {
-    unsigned int textures[6];
+    TextureHandle textures[6];
     Decal*       decals[6];
     Texture*     texInsts[6];
     bool         surfaceGui[6];
@@ -124,7 +124,7 @@ void Cube::draw(MainShaderState& shader) {
         slots.surfaceGui[i] = false;
         slots.claimed[i]    = false;
     }
-    unsigned int (&activeTextures)[6] = slots.textures;
+    TextureHandle (&activeTextures)[6] = slots.textures;
     Decal*       (&activeDecals)[6]   = slots.decals;
     Texture*     (&activeTexInst)[6]  = slots.texInsts;
     bool         (&activeSurfaceGui)[6] = slots.surfaceGui;
@@ -147,7 +147,7 @@ void Cube::draw(MainShaderState& shader) {
             auto* cv = static_cast<Canvas*>(child.get());
             cv->ensureGPU();
             int idx = static_cast<int>(cv->face);
-            if (idx >= 0 && idx < 6 && cv->m_texID != 0 && !activeDecals[idx]) {
+            if (idx >= 0 && idx < 6 && cv->m_texID && !activeDecals[idx]) {
                 activeTextures[idx]   = cv->m_texID;
                 activeSurfaceGui[idx] = true;  // 同じ isSurfaceGui=1 ブレンド経路を再利用
                 slots.claimed[idx]    = true;
@@ -173,7 +173,7 @@ void Cube::draw(MainShaderState& shader) {
         shader.setTextureTintColor(Color4(1.0f, 1.0f, 1.0f, 1.0f));
         shader.setUseTextureTint(0.0f);
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, defaultTextureID);
+        glBindTexture(GL_TEXTURE_2D, defaultTextureID.glName());
         shader.flush();
         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
         return;
@@ -220,9 +220,9 @@ void Cube::draw(MainShaderState& shader) {
         }
 
         glActiveTexture(GL_TEXTURE0);
-        unsigned int tex = activeTextures[i];
-        if (tex == 0) tex = defaultTextureID;
-        glBindTexture(GL_TEXTURE_2D, tex);
+        TextureHandle tex = activeTextures[i];
+        if (!tex) tex = defaultTextureID;
+        glBindTexture(GL_TEXTURE_2D, tex.glName());
         shader.flush();
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(uintptr_t)(i * 6 * sizeof(unsigned int)));
     }
