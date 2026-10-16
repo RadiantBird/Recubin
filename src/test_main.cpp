@@ -13515,6 +13515,19 @@ static int runPropertySchemaRegression() {
                    clone->Type == PostEffectKind::Custom &&
                    clone->FragmentShaderFile == "assets/effects/wobble.frag",
                "Custom PostEffect survives YAML and schema-driven clone");
+
+        // プロパティ表の名前 "Custom" は PostEffectKind::Custom の値を指す（エディターのドロップダウンと Luau が使う）。
+        int customEnumValue = -1;
+        for (const auto& [enumName, enumValue] : (*postEffectType)->enumNames) {
+            if (enumName == "Custom") customEnumValue = enumValue;
+        }
+        expect(customEnumValue == static_cast<int>(PostEffectKind::Custom),
+               "PostEffect Type name Custom maps to PostEffectKind::Custom");
+
+        // 以前の表で保存された Type: 7 は Custom として読み込む。
+        auto legacy = std::make_shared<PostEffect>();
+        legacy->setProperty("Type", YAML::Load("7"));
+        expect(legacy->Type == PostEffectKind::Custom, "legacy PostEffect Type 7 loads as Custom");
     }
 
     for (const auto& [expectedClass, constraint] : constraints) {
