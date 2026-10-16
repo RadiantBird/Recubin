@@ -42,6 +42,11 @@ assets/scenes/.navcache/pathfinder_Workspace.navcache
 test_security/
 .DS_Store
 
+# 副産物
+
+textfiles/
+system_extensions.receipt
+
 # TypeScript版はプロトタイプだったのでわざわざgit管理しない
 luar/
 

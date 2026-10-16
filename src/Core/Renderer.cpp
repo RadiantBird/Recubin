@@ -2,6 +2,7 @@
 #include <Core/ScreenGuiLayout.hpp>
 #include <Core/Physics.hpp>
 #include <Core/FileLoader.hpp>
+#include <Core/SvgRaster.hpp>
 #include <Util/Logger.hpp>
 #include <Util/FrameProfiler.hpp>
 #include <Util/ThreadPool.hpp>
@@ -3930,7 +3931,17 @@ unsigned int Renderer::loadTexture(const char* path) {
     const bool hasFileMetadata = hasLastWriteTime && !fileInfoError;
 
     int width, height, nrChannels;
-    unsigned char* data = stbi_load(normalizedPath.c_str(), &width, &height, &nrChannels, 4);
+    unsigned char* data = nullptr;
+    std::vector<unsigned char> svgPixels;
+    const std::filesystem::path assetFsPath = AssetPath::fromStored(normalizedPath);
+    if (SvgRaster::isSvgPath(assetFsPath)) {
+        if (SvgRaster::rasterizeFile(assetFsPath, svgPixels, width, height)) {
+            data = svgPixels.data();
+            nrChannels = 4;
+        }
+    } else {
+        data = stbi_load(normalizedPath.c_str(), &width, &height, &nrChannels, 4);
+    }
 
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -3951,7 +3962,7 @@ unsigned int Renderer::loadTexture(const char* path) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     std::cout << "Success: " << path << " (" << nrChannels << "ch)" << std::endl;
-    stbi_image_free(data);
+    if (svgPixels.empty()) stbi_image_free(data);
 
     glBindTexture(GL_TEXTURE_2D, 0);  // texture state をクリアして後の描画に影響しないようにする
     textureCache[normalizedPath] = {

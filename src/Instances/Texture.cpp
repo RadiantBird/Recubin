@@ -22,7 +22,7 @@ static const bool s_textureRegistered = []{
             },
             [](Instance* instance, const PropValue& value) {
                 static_cast<Texture*>(instance)->setTexturePath(std::get<std::string>(value));
-            }).omitEmpty().filePath("Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"),
+            }).omitEmpty().filePath("Image (*.png;*.jpg;*.bmp;*.tga;*.svg)", "*.png;*.jpg;*.bmp;*.tga;*.svg"),
         face,
         field<&Texture::Color>("Color"),
         field<&Texture::StudsPerTileU>("StudsPerTileU"),

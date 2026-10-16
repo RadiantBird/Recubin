@@ -1919,7 +1919,7 @@ void PropertiesPanel::onRender() {
                 sb->skyboxPaths[i].empty() ? "(none)" : sb->skyboxPaths[i].c_str());
             std::string btnId = locId(Loc::LocKey::Browse, "##skybox") + std::to_string(i);
             if (ImGui::Button(btnId.c_str())) {
-                std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"}});
+                std::string path = getPlatform().openFileDialog({{"Image (*.png;*.jpg;*.bmp;*.tga;*.svg)", "*.png;*.jpg;*.bmp;*.tga;*.svg"}});
                 if (!path.empty()) {
                     std::string oldPath = sb->skyboxPaths[i];
                     sb->setSkyboxPath(i, path);

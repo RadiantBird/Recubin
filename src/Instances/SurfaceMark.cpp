@@ -19,7 +19,7 @@ const bool s_surfaceMarkRegistered = [] {
                [](Instance* object, const PropValue& value) {
                    static_cast<SurfaceMark*>(object)->setTexturePath(std::get<std::string>(value));
                }).yaml("Texture").omitEmpty()
-                 .filePath("Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga")
+                 .filePath("Image (*.png;*.jpg;*.bmp;*.tga;*.svg)", "*.png;*.jpg;*.bmp;*.tga;*.svg")
                  .luaReadOnly()
     });
     return true;

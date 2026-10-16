@@ -68,7 +68,7 @@ void ContentBrowserPanel::drawDirectory(const fs::path& path) {
         std::string icon = "       ";
         if (ext == ".yaml" || ext == ".yml")                       icon = "[SCN]  ";
         else if (ext == ".png"  || ext == ".jpg" || ext == ".jpeg"
-              || ext == ".bmp")                                     icon = "[IMG]  ";
+              || ext == ".bmp" || ext == ".svg")                                   icon = "[IMG]  ";
         else if (ext == ".lua"  || ext == ".luau")                  icon = "[LUA]  ";
         else if (ext == ".glsl")                                    icon = "[GLSL] ";
         else if (ext == ".rcaet")                                   icon = "[AST]  ";

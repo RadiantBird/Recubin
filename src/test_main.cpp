@@ -89,6 +89,7 @@
 #include <Core/NullInputBackend.hpp>
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
+#include <Core/SvgRaster.hpp>
 #include <Core/Terrain.hpp>
 #include <Core/TerrainStreamer.hpp>
 #include <Core/User.hpp>
@@ -13916,6 +13917,43 @@ static int runPropertySchemaRegression() {
         faceCommand.undo();
         expect(texture->face == Face::Front && texture->Name == "Texture_Front",
                "generic property command undo restores Texture Face through its custom setter");
+    }
+
+    {
+        namespace fs = std::filesystem;
+        const fs::path svgDir = fs::temp_directory_path() / "recubin_svg_test";
+        std::error_code svgEc;
+        fs::create_directories(svgDir, svgEc);
+        const fs::path goodSvg = svgDir / "top_red.svg";
+        const fs::path badSvg = svgDir / "broken.svg";
+        {
+            std::ofstream out(goodSvg, std::ios::binary);
+            out << "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"50\" "
+                   "viewBox=\"0 0 100 50\"><rect x=\"0\" y=\"0\" width=\"100\" height=\"25\" "
+                   "fill=\"#ff0000\"/></svg>";
+            std::ofstream bad(badSvg, std::ios::binary);
+            bad << "not an svg";
+        }
+        std::vector<unsigned char> svgPixels;
+        int svgW = 0, svgH = 0;
+        const bool svgOk = SvgRaster::rasterizeFile(goodSvg, svgPixels, svgW, svgH);
+        expect(svgOk && svgW == 512 && svgH == 256 && svgPixels.size() == 512u * 256u * 4u,
+               "SvgRaster scales a small SVG so its long edge is 512px keeping aspect");
+        if (svgOk && svgW == 512 && svgH == 256) {
+            const size_t topRowOffset = (static_cast<size_t>(svgH - 1) * svgW + svgW / 2) * 4;
+            const size_t bottomRowOffset = (static_cast<size_t>(0) * svgW + svgW / 2) * 4;
+            expect(svgPixels[topRowOffset] == 255 && svgPixels[topRowOffset + 3] == 255,
+                   "SvgRaster output is bottom-up so the SVG top is the last row (red, opaque)");
+            expect(svgPixels[bottomRowOffset + 3] == 0,
+                   "SvgRaster leaves uncovered area transparent");
+        }
+        expect(!SvgRaster::rasterizeFile(badSvg, svgPixels, svgW, svgH),
+               "SvgRaster rejects content that is not a valid SVG image");
+        expect(!SvgRaster::rasterizeFile(svgDir / "missing.svg", svgPixels, svgW, svgH),
+               "SvgRaster rejects a missing file");
+        expect(SvgRaster::isSvgPath("a/B.SVG") && !SvgRaster::isSvgPath("a/b.png"),
+               "SvgRaster::isSvgPath matches .svg case-insensitively");
+        fs::remove_all(svgDir, svgEc);
     }
 
     auto workspace = std::make_shared<Workspace>();

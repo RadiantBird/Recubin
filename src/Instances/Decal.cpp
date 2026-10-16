@@ -32,7 +32,7 @@ static const bool s_decalRegistered = []{
             },
             [](Instance* instance, const PropValue& value) {
                 static_cast<Decal*>(instance)->setTexturePath(std::get<std::string>(value));
-            }).omitEmpty().filePath("Image (*.png;*.jpg;*.bmp;*.tga)", "*.png;*.jpg;*.bmp;*.tga"),
+            }).omitEmpty().filePath("Image (*.png;*.jpg;*.bmp;*.tga;*.svg)", "*.png;*.jpg;*.bmp;*.tga;*.svg"),
         face,
         field<&Decal::Color>("Color"),
         custom("UVCenter", PropType::Vec2,
