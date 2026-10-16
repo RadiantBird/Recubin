@@ -1,6 +1,7 @@
 #include <Core/Renderer.hpp>
-#include <Core/FileLoader.hpp>
 #include <Util/Logger.hpp>
+#include <sokol/sokol_gfx.h>
+#include <shaders/env_prefilter.h>
 #include <Instances/Skybox.hpp>
 #include <Instances/Decal.hpp>
 #include <include/Math/CFrame.hpp>
@@ -218,15 +219,11 @@ void prefilterCubemap(Renderer& renderer, GLuint sourceTexture, GLuint targetTex
     }
     setCubemapSampling(targetTexture, ENV_PREFILTER_MIPS);
 
-    glUseProgram(renderer.m_envPrefilterShader);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, sourceTexture);
-    glUniform1i(glGetUniformLocation(renderer.m_envPrefilterShader, "uSrc"), 0);
-    glUniform1f(glGetUniformLocation(renderer.m_envPrefilterShader, "uSrcSize"),
-                static_cast<float>(ENV_SOURCE_SIZE));
-    const GLint roughnessLoc = glGetUniformLocation(renderer.m_envPrefilterShader, "uRoughness");
-    const GLint faceLoc = glGetUniformLocation(renderer.m_envPrefilterShader, "uFace");
-    const GLint sizeLoc = glGetUniformLocation(renderer.m_envPrefilterShader, "uSize");
+    const ShdcProgram& program = renderer.m_envPrefilterProgram;
+    program.use();
+    program.bindTexture(VIEW_env_uSrc, GL_TEXTURE_CUBE_MAP, sourceTexture);
+    env_prefilter_fs_params_t params = {};
+    params.uSrcSize = static_cast<float>(ENV_SOURCE_SIZE);
 
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_BLEND);
@@ -235,12 +232,13 @@ void prefilterCubemap(Renderer& renderer, GLuint sourceTexture, GLuint targetTex
     for (int mip = 0; mip < ENV_PREFILTER_MIPS; ++mip) {
         const int size = ENV_PREFILTER_SIZE >> mip;
         glViewport(0, 0, size, size);
-        glUniform1f(roughnessLoc, static_cast<float>(mip) / static_cast<float>(ENV_PREFILTER_MIPS - 1));
-        glUniform1f(sizeLoc, static_cast<float>(size));
+        params.uRoughness = static_cast<float>(mip) / static_cast<float>(ENV_PREFILTER_MIPS - 1);
+        params.uSize = static_cast<float>(size);
         for (int face = 0; face < 6; ++face) {
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                    GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, targetTexture, mip);
-            glUniform1i(faceLoc, face);
+            params.uFace = static_cast<float>(face);
+            program.applyUniforms(UB_env_prefilter_fs_params, params);
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
     }
@@ -251,51 +249,8 @@ void prefilterCubemap(Renderer& renderer, GLuint sourceTexture, GLuint targetTex
 void Renderer::initEnvironmentRenderer() {
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);  // 面の継ぎ目でフィルタが途切れないように
 
-    const std::string vertexSource = FileLoader::readText("shaders/postprocess_vertex.glsl");
-    const std::string fragmentSource = FileLoader::readText("shaders/env_prefilter_fragment.glsl");
-    if (vertexSource.empty() || fragmentSource.empty()) {
-        RCBN_ERROR("Renderer: env_prefilter shader sources are missing; Skybox reflections fall back to the procedural sky");
-    } else {
-        const char* vertexText = vertexSource.c_str();
-        const char* fragmentText = fragmentSource.c_str();
-        GLint ok = 0;
-        char log[1024];
-
-        GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(vertexShader, 1, &vertexText, nullptr);
-        glCompileShader(vertexShader);
-        glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &ok);
-        if (!ok) {
-            glGetShaderInfoLog(vertexShader, sizeof(log), nullptr, log);
-            RCBN_ERROR("ENV_PREFILTER_VERT: " << log);
-        }
-
-        GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(fragmentShader, 1, &fragmentText, nullptr);
-        glCompileShader(fragmentShader);
-        GLint fragmentOk = 0;
-        glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &fragmentOk);
-        if (!fragmentOk) {
-            glGetShaderInfoLog(fragmentShader, sizeof(log), nullptr, log);
-            RCBN_ERROR("ENV_PREFILTER_FRAG: " << log);
-        }
-
-        if (ok && fragmentOk) {
-            m_envPrefilterShader = glCreateProgram();
-            glAttachShader(m_envPrefilterShader, vertexShader);
-            glAttachShader(m_envPrefilterShader, fragmentShader);
-            glLinkProgram(m_envPrefilterShader);
-            GLint linked = 0;
-            glGetProgramiv(m_envPrefilterShader, GL_LINK_STATUS, &linked);
-            if (!linked) {
-                glGetProgramInfoLog(m_envPrefilterShader, sizeof(log), nullptr, log);
-                RCBN_ERROR("ENV_PREFILTER_PROGRAM: " << log);
-                glDeleteProgram(m_envPrefilterShader);
-                m_envPrefilterShader = 0;
-            }
-        }
-        glDeleteShader(vertexShader);
-        glDeleteShader(fragmentShader);
+    if (!m_envPrefilterProgram.create(*env_prefilter_shader_desc(SG_BACKEND_GLCORE), "env_prefilter")) {
+        RCBN_ERROR("Renderer: env_prefilter shader is unavailable; Skybox reflections fall back to the procedural sky");
     }
 
     glGenFramebuffers(1, &m_envFbo);
@@ -307,10 +262,9 @@ void Renderer::initEnvironmentRenderer() {
 void Renderer::destroyEnvironmentRenderer() {
     if (m_envSpecularTex) glDeleteTextures(1, &m_envSpecularTex);
     if (m_envFbo) glDeleteFramebuffers(1, &m_envFbo);
-    if (m_envPrefilterShader) glDeleteProgram(m_envPrefilterShader);
+    m_envPrefilterProgram.destroy();
     m_envSpecularTex = 0;
     m_envFbo = 0;
-    m_envPrefilterShader = 0;
 }
 
 void Renderer::updateEnvironmentMap(Skybox* skybox) {
@@ -325,7 +279,7 @@ void Renderer::updateEnvironmentMap(Skybox* skybox) {
     GLuint newTexture = 0;
     float newMaxLod = 0.0f;
 
-    if (signature != 0 && skybox && m_envPrefilterShader && m_envFbo) {
+    if (signature != 0 && skybox && m_envPrefilterProgram.isValid() && m_envFbo) {
         glBindFramebuffer(GL_FRAMEBUFFER, m_envFbo);
         GLuint sourceTexture = 0;
         glGenTextures(1, &sourceTexture);

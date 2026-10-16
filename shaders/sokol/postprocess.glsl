@@ -1,14 +1,30 @@
-#version 330 core
-out vec4 FragColor;
-in vec2 TexCoord;
+// 組み込みポストエフェクト（Renderer::renderPostEffects）
+// カスタム PostEffect はユーザーの GLSL をそのまま使うので、この形式ではなく shaders/postprocess_vertex.glsl と組む。
+@module post
+@include _fullscreen.glsl
 
-uniform sampler2D screenTexture;
-uniform vec2  u_resolution;
-uniform int   u_effectType; // 0=None 1=CRT 2=Posterization 3=Pixelize 4=Saturation 5=VHS 6=ChromaticAberration
-uniform float u_intensity;  // 元画像とのブレンド比率 (0..1)
-uniform float u_param1;     // ScanlineCount(CRT) / Levels(Posterization) / PixelSize(Pixelize) / SaturationAmount(Saturation) / NoiseAmount(VHS) / Offset(ChromaticAberration)
-uniform float u_param2;     // CurveAmount(CRT)。他タイプでは未使用
-uniform float u_time;       // 経過時間（秒）。VHSのノイズに使用
+@vs post_vs
+@include_block fullscreen_vs
+@end
+
+@fs post_fs
+layout(binding = 0) uniform texture2D screenTexture;
+layout(binding = 0) uniform sampler screenTextureSampler;
+layout(binding = 0) uniform fs_params {
+    vec2  u_resolution;
+    float u_effectType; // 0=None 1=CRT 2=Posterization 3=Pixelize 4=Saturation 5=VHS 6=ChromaticAberration（整数値）
+    float u_intensity;  // 元画像とのブレンド比率 (0..1)
+    float u_param1;     // ScanlineCount(CRT) / Levels(Posterization) / PixelSize(Pixelize) / SaturationAmount(Saturation) / NoiseAmount(VHS) / Offset(ChromaticAberration)
+    float u_param2;     // CurveAmount(CRT)。他タイプでは未使用
+    float u_time;       // 経過時間（秒）。VHSのノイズに使用
+};
+
+in vec2 TexCoord;
+out vec4 FragColor;
+
+vec4 sampleScreen(vec2 uv) {
+    return texture(sampler2D(screenTexture, screenTextureSampler), uv);
+}
 
 vec3 applyCRT(vec2 uv) {
     // バレル歪み（簡易）
@@ -20,12 +36,12 @@ vec3 applyCRT(vec2 uv) {
     vec2 isAboveMin = step(vec2(0.0), distortedUv);
     // distortedUv <= 1.0 なら 1.0、そうでなければ 0.0
     vec2 isBelowMax = step(distortedUv, vec2(1.0));
-    
+
     // 4つの条件（Xの上下限、Yの上下限）をすべて掛け合わせる
     // どこか1つでも画面外（0.0）があれば、maskは 0.0 になる
     float mask = isAboveMin.x * isAboveMin.y * isBelowMax.x * isBelowMax.y;
 
-    vec3 col = texture(screenTexture, distortedUv).rgb;
+    vec3 col = sampleScreen(distortedUv).rgb;
 
     float scanlines = max(u_param1, 1.0);
     float scan = sin(distortedUv.y * scanlines * 3.14159265);
@@ -43,7 +59,7 @@ vec3 applyPixelize(vec2 uv) {
     float pixelSize = max(u_param1, 1.0);
     vec2 cells = max(u_resolution / pixelSize, vec2(1.0));
     vec2 snapped = (floor(uv * cells) + 0.5) / cells;
-    return texture(screenTexture, snapped).rgb;
+    return sampleScreen(snapped).rgb;
 }
 
 vec3 applySaturation(vec3 col) {
@@ -62,7 +78,7 @@ vec3 applyVHS(vec2 uv) {
     float lineNoise = hash(vec2(floor(uv.y * u_resolution.y), u_time)) - 0.5;
     vec2 jitteredUv = uv + vec2(lineNoise * noiseAmount * 0.02, 0.0);
 
-    vec3 col = texture(screenTexture, jitteredUv).rgb;
+    vec3 col = sampleScreen(jitteredUv).rgb;
 
     // 粒状ノイズ
     float grain = hash(uv * u_resolution + u_time) - 0.5;
@@ -75,28 +91,29 @@ vec3 applyChromaticAberration(vec2 uv) {
     vec2 dir = uv - 0.5;
     vec2 offset = dir * u_param1 * 0.02;
 
-    float r = texture(screenTexture, uv + offset).r;
-    float g = texture(screenTexture, uv).g;
-    float b = texture(screenTexture, uv - offset).b;
+    float r = sampleScreen(uv + offset).r;
+    float g = sampleScreen(uv).g;
+    float b = sampleScreen(uv - offset).b;
 
     return vec3(r, g, b);
 }
 
 void main() {
-    vec3 original = texture(screenTexture, TexCoord).rgb;
+    vec3 original = sampleScreen(TexCoord).rgb;
+    int effectType = int(u_effectType + 0.5);
 
     vec3 effected;
-    if (u_effectType == 1) {
+    if (effectType == 1) {
         effected = applyCRT(TexCoord);
-    } else if (u_effectType == 2) {
+    } else if (effectType == 2) {
         effected = applyPosterize(original);
-    } else if (u_effectType == 3) {
+    } else if (effectType == 3) {
         effected = applyPixelize(TexCoord);
-    } else if (u_effectType == 4) {
+    } else if (effectType == 4) {
         effected = applySaturation(original);
-    } else if (u_effectType == 5) {
+    } else if (effectType == 5) {
         effected = applyVHS(TexCoord);
-    } else if (u_effectType == 6) {
+    } else if (effectType == 6) {
         effected = applyChromaticAberration(TexCoord);
     } else {
         FragColor = vec4(original, 1.0);
@@ -106,3 +123,6 @@ void main() {
     vec3 result = mix(original, effected, clamp(u_intensity, 0.0, 1.0));
     FragColor = vec4(result, 1.0);
 }
+@end
+
+@program effect post_vs post_fs

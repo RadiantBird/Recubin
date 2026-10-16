@@ -1,14 +1,29 @@
-#version 330 core
 // 環境キューブマップのプレフィルタ。ソースキューブマップをGGX重要度サンプリングで
 // roughnessごとにぼかし、mipレベルmに roughness = m / (mipCount - 1) の結果を書く。
-// 頂点シェーダーは postprocess_vertex.glsl（フルスクリーン）を共用する。
+// 頂点シェーダーは _fullscreen.glsl（フルスクリーン）を共用する。
+@module env
+@include _fullscreen.glsl
+
+@vs prefilter_vs
+@include_block fullscreen_vs
+@end
+
+@fs prefilter_fs
+layout(binding = 0) uniform textureCube uSrc;
+layout(binding = 0) uniform sampler uSrcSampler;
+layout(binding = 0) uniform prefilter_fs_params {
+    float uRoughness;
+    float uFace;      // 書き込み中のキューブ面 (0:+X 1:-X 2:+Y 3:-Y 4:+Z 5:-Z)（整数値）
+    float uSize;      // 書き込み先mipの一辺のピクセル数
+    float uSrcSize;   // ソースmip0の一辺のピクセル数（サンプルのmip選択に使う）
+};
+
+in vec2 TexCoord; // 未使用（sokol-shdc は頂点出力とフラグメント入力の一致を求める）。位置は gl_FragCoord から求める
 out vec4 FragColor;
 
-uniform samplerCube uSrc;
-uniform float uRoughness;
-uniform int   uFace;      // 書き込み中のキューブ面 (0:+X 1:-X 2:+Y 3:-Y 4:+Z 5:-Z)
-uniform float uSize;      // 書き込み先mipの一辺のピクセル数
-uniform float uSrcSize;   // ソースmip0の一辺のピクセル数（サンプルのmip選択に使う）
+vec4 sampleSrc(vec3 direction, float lod) {
+    return textureLod(samplerCube(uSrc, uSrcSampler), direction, lod);
+}
 
 const float PI = 3.14159265;
 const uint SAMPLE_COUNT = 128u;
@@ -59,10 +74,10 @@ float distributionGGX(float NdotH, float roughness) {
 
 void main() {
     vec2 uv = gl_FragCoord.xy / uSize;
-    vec3 N = normalize(faceDirection(uFace, uv));
+    vec3 N = normalize(faceDirection(int(uFace + 0.5), uv));
 
     if (uRoughness < 0.001) {
-        FragColor = vec4(textureLod(uSrc, N, 0.0).rgb, 1.0);
+        FragColor = vec4(sampleSrc(N, 0.0).rgb, 1.0);
         return;
     }
 
@@ -82,8 +97,11 @@ void main() {
         float pdf = distributionGGX(NdotH, uRoughness) * NdotH / (4.0 * HdotV) + 1e-4;
         float saSample = 1.0 / (float(SAMPLE_COUNT) * pdf + 1e-4);
         float lod = 0.5 * log2(saSample / saTexel);
-        sum += textureLod(uSrc, L, max(lod, 0.0)).rgb * NdotL;
+        sum += sampleSrc(L, max(lod, 0.0)).rgb * NdotL;
         totalWeight += NdotL;
     }
     FragColor = vec4(sum / max(totalWeight, 1e-4), 1.0);
 }
+@end
+
+@program prefilter prefilter_vs prefilter_fs

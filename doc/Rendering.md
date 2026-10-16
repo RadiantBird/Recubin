@@ -12,7 +12,9 @@
 | `src/Core/Renderer.cpp` | 初期化・シャドウパス・メインパス・地形描画 |
 | `src/Core/Renderer_GUI.cpp` | ScreenGui / WorldGui / SurfaceGui / ホットバーの描画 |
 | `shaders/vertex.glsl`, `shaders/fragment.glsl` | メインシェーダー（Phong + シャドウ + トライプラナー） |
-| `shaders/depth_vertex.glsl`, `shaders/depth_fragment.glsl` | シャドウマップ用デプスシェーダー |
+| `shaders/sokol/depth.glsl` | シャドウマップ / SurfaceMark 用デプスシェーダー |
+| `shaders/sokol/*.glsl` | sokol-shdc 形式のシェーダー（depth / postprocess / selection / sky_flare / env_prefilter）。ビルド時に `<build>/generated/shaders/<名前>.h` へ変換され、実行時にファイルは読まない |
+| `include/Core/ShdcProgram.hpp` | sokol-shdc 生成シェーダーを生 GL のプログラムとして使う移行用ラッパー（ユニフォームは生成された構造体ごと送る） |
 | `src/Editor/ViewportPanel.cpp` | エディタの各ビューポートパネルが FBO を持ち `renderViewport` を呼ぶ |
 | `include/Core/TerrainStreamer.hpp` | チャンクメッシュ（`Chunk::mesh`）の供給元 |
 
@@ -92,7 +94,7 @@ SurfaceGuiがCubeの通常面を上書きする条件は、`Visible`、有効な
 - `unlit`: ON のときライティング計算をスキップして `ourColor`/テクスチャのみで出力（GUI ベイク・デカール等）
 - `isSurfaceGui`: SurfaceGui テクスチャ合成時のみ通常と異なるブレンド式（`mix(ourColor, texColor, texColor.a)`、色を乗算しない）
 
-### デプスシェーダー（`depth_vertex.glsl` / `depth_fragment.glsl`）
+### デプスシェーダー（`shaders/sokol/depth.glsl`）
 
 シャドウパス専用。`lightSpaceMatrix * model * position` を出力するのみ（カラー出力なし、深度のみ）。
 

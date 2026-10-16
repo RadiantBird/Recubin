@@ -26,7 +26,7 @@
 
 ## 逆光・光条の描画
 
-強さが0の効果は描かない（既定はすべて無効なので、有効にしない限り見た目は変わらない）。`sky_flare` シェーダー（`shaders/sky_flare_vertex.glsl` / `sky_flare_fragment.glsl`、`Renderer_Sky.cpp` の `renderSkyFlares`）が、不透明物・地形・雲・パーティクルの描画後、選択アウトラインとポストエフェクトの前に重ねる（深度は書かない）。地平線の下は `HorizonFade` で消せる。
+強さが0の効果は描かない（既定はすべて無効なので、有効にしない限り見た目は変わらない）。`sky_flare` シェーダー（`shaders/sokol/sky_flare.glsl`、`Renderer_Sky.cpp` の `renderSkyFlares`）が、不透明物・地形・雲・パーティクルの描画後、選択アウトラインとポストエフェクトの前に重ねる（深度は書かない）。地平線の下は `HorizonFade` で消せる。
 
 ### 遮蔽
 

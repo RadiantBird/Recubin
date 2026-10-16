@@ -8,6 +8,7 @@
 
 #include <include/Core/User.hpp>
 #include <include/Core/Terrain.hpp>
+#include <include/Core/ShdcProgram.hpp>
 #include <include/Instances/Cube.hpp>
 #include <include/Instances/Workspace.hpp>
 
@@ -189,9 +190,6 @@ class Renderer {
         };
         InstanceBatch m_instBatches[INST_SHAPE_COUNT];
         int m_uInstancedLoc = -1;       // メインシェーダーの uInstanced
-        int m_uInstancedDepthLoc = -1;  // depthシェーダーの uInstanced
-        int m_uTimeDepthLoc = -1;
-        int m_uIsLiquidDepthLoc = -1;
 
         struct LightUniformLocs {
             int type = -1, position = -1, direction = -1, color = -1;
@@ -203,7 +201,7 @@ class Renderer {
 
         unsigned int shadowFBO     = 0;
         unsigned int shadowMapTex  = 0;
-        unsigned int depthShader   = 0;
+        ShdcProgram  m_depthProgram;      // shaders/sokol/depth.glsl（シャドウマップ / SurfaceMark の深度）
         static constexpr int SHADOW_CASCADE_COUNT = 3;
         static const int SHADOW_MAP_SIZE = 2048;
         unsigned int surfaceMarkFBO = 0;
@@ -241,7 +239,7 @@ class Renderer {
         float        m_envMaxLod = 0.0f;
         std::size_t  m_envSignature = 0;       // 焼いた時のSkybox入力の識別値。0は手続き的フォールバック
         bool         m_envBuilt = false;
-        unsigned int m_envPrefilterShader = 0;
+        ShdcProgram  m_envPrefilterProgram; // shaders/sokol/env_prefilter.glsl
         unsigned int m_envFbo = 0;
         void initEnvironmentRenderer();
         void destroyEnvironmentRenderer();
@@ -256,20 +254,7 @@ class Renderer {
         // 不透明物の描画後に重ねる。グロー・光条・月の円盤は、ビューポートの深度をコピーした
         // テクスチャ(m_skyDepthTex)で手前の物体に遮られ、グローだけは天体が見えている分だけ
         // 物体の上へもにじむ。ベールは天体が隠れているほど弱まる。
-        unsigned int m_skyFlareShader = 0;
-        struct SkyFlareUniforms {
-            int fullscreen = -1, phaseDisc = -1, view = -1, projection = -1;
-            int center = -1, right = -1, up = -1, halfSize = -1;
-            int forward = -1, tanHalfFov = -1, aspect = -1;
-            int color = -1, strength = -1, extent = -1;
-            int glowIntensity = -1, glowRadius = -1;
-            int spikeIntensity = -1, spikeLength = -1, spikeRotation = -1, spikeCount = -1;
-            int veilIntensity = -1, veilFalloff = -1, bodyDirection = -1;
-            int sceneDepth = -1, occlusionEnabled = -1, projA = -1, projB = -1;
-            int occluderDepth = -1, discRadius = -1, viewportSize = -1, bleed = -1;
-            int phase = -1, phaseRotation = -1, earthshine = -1;
-        };
-        SkyFlareUniforms m_skyFlareLoc;
+        ShdcProgram m_skyFlareProgram; // shaders/sokol/sky_flare.glsl
         // 遮蔽判定用: ビューポートの深度のコピー。ビューポートの大きさが変わったら作り直す。
         unsigned int m_skyDepthTex = 0;
         unsigned int m_skyDepthFbo = 0;
@@ -389,7 +374,7 @@ class Renderer {
 
         // ポストエフェクト（PostEffect インスタンスの ZIndex 順チェーン適用）
         GLuint m_postVAO = 0, m_postVBO = 0;
-        GLuint m_postShader = 0;
+        ShdcProgram m_postProgram; // shaders/sokol/postprocess.glsl（組み込みエフェクト）
         GLuint m_postFboA = 0, m_postTexA = 0;
         // System.LockAspectRatio 用: 黒帯の内側のサイズで描くオフスクリーンFBO（ウィンドウへ転送する）
         GLuint m_letterboxFbo = 0, m_letterboxColor = 0, m_letterboxDepth = 0;
@@ -402,8 +387,8 @@ class Renderer {
         GLuint m_selectionMaskFBO = 0;
         GLuint m_selectionMaskTex = 0;
         GLuint m_selectionMaskDepth = 0;
-        GLuint m_selectionMaskShader = 0;
-        GLuint m_selectionOutlineShader = 0;
+        ShdcProgram m_selectionMaskProgram;    // shaders/sokol/selection.glsl: mask
+        ShdcProgram m_selectionOutlineProgram; // shaders/sokol/selection.glsl: outline
         int m_selectionMaskWidth = 0;
         int m_selectionMaskHeight = 0;
 

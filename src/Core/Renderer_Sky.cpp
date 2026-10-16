@@ -1,14 +1,17 @@
 #include <Core/Renderer.hpp>
-#include <Core/FileLoader.hpp>
+
 #include <Instances/CelestialBody.hpp>
 #include <Instances/Sun.hpp>
 #include <Instances/Moon.hpp>
 #include <Instances/Sphere.hpp>
 #include <Util/GLUniformCache.hpp>
 #include <Util/Logger.hpp>
+#include <sokol/sokol_gfx.h>
+#include <shaders/sky_flare.h>
 #include <include/Math/CFrame.hpp>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <string>
 
 namespace {
@@ -70,19 +73,34 @@ struct FlareBillboard {
     int spikeCount = 4;
 };
 
-void drawFlareBillboard(const Renderer::SkyFlareUniforms& u, const FlareBillboard& b) {
-    glUniform1f(u.fullscreen, 0.0f);
-    glUniform1f(u.phaseDisc, 0.0f);
-    glUniform3f(u.center, b.center.x, b.center.y, b.center.z);
-    glUniform1f(u.halfSize, b.halfSize);
-    glUniform1f(u.extent, b.extent);
-    glUniform1f(u.glowIntensity, b.glowIntensity);
-    glUniform1f(u.glowRadius, b.glowRadius);
-    glUniform1f(u.spikeIntensity, b.spikeIntensity);
-    glUniform1f(u.spikeLength, b.spikeLength);
-    glUniform1f(u.spikeRotation, b.spikeRotation);
-    glUniform1i(u.spikeCount, b.spikeCount);
+void setVec3(float (&dst)[3], const Vector3& v) {
+    dst[0] = v.x;
+    dst[1] = v.y;
+    dst[2] = v.z;
+}
+
+// sky_flare の 1 ドロー（postprocess 用 VAO のクアッド）。両ステージのユニフォームを送ってから描く。
+void drawSkyFlareQuad(const ShdcProgram& program, const sky_flare_vs_params_t& vs, const sky_flare_fs_params_t& fs) {
+    program.applyUniforms(UB_sky_flare_vs_params, vs);
+    program.applyUniforms(UB_sky_flare_fs_params, fs);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+void drawFlareBillboard(const ShdcProgram& program, sky_flare_vs_params_t& vs, sky_flare_fs_params_t& fs,
+                        const FlareBillboard& b) {
+    vs.uFullscreen = 0.0f;
+    fs.uFullscreen = 0.0f;
+    fs.uPhaseDisc = 0.0f;
+    setVec3(vs.uCenter, b.center);
+    vs.uHalfSize = b.halfSize;
+    fs.uExtent = b.extent;
+    fs.uGlowIntensity = b.glowIntensity;
+    fs.uGlowRadius = b.glowRadius;
+    fs.uSpikeIntensity = b.spikeIntensity;
+    fs.uSpikeLength = b.spikeLength;
+    fs.uSpikeRotation = b.spikeRotation;
+    fs.uSpikeCount = static_cast<float>(b.spikeCount);
+    drawSkyFlareQuad(program, vs, fs);
 }
 
 } // namespace
@@ -138,7 +156,7 @@ void Renderer::renderCelestialBodies(Workspace& workspace, const Vector3& camera
         if (!skyBodyDirection(*body, moonDirection, direction)) continue;
 
         // 満ち欠けのある月は sky_flare の円盤で描く。シェーダーが無い環境では球で代用し、月を消さない。
-        if (m_skyFlareShader && isPhasedMoon(*body)) continue;
+        if (m_skyFlareProgram.isValid() && isPhasedMoon(*body)) continue;
 
         const float diameter = body->apparentDiameter();
         const Matrix4 model =
@@ -172,98 +190,15 @@ void Renderer::renderCelestialBodies(Workspace& workspace, const Vector3& camera
 //  （天体より遠い物体が遮らないのは円盤と同じ制約）。強さが0の効果は描かない。
 // ===================================================
 void Renderer::initSkyFlareRenderer() {
-    const std::string vertexSource = FileLoader::readText("shaders/sky_flare_vertex.glsl");
-    const std::string fragmentSource = FileLoader::readText("shaders/sky_flare_fragment.glsl");
-    if (vertexSource.empty() || fragmentSource.empty()) {
-        RCBN_ERROR("Renderer: sky_flare shader sources are missing; sun/moon glow, veil, spikes and moon phases are disabled");
-        return;
+    if (!m_skyFlareProgram.create(*sky_flare_shader_desc(SG_BACKEND_GLCORE), "sky_flare")) {
+        RCBN_ERROR("Renderer: sky_flare shader is unavailable; sun/moon glow, veil, spikes and moon phases are disabled");
     }
-
-    char log[1024];
-    GLint ok = 0;
-    const char* vertexText = vertexSource.c_str();
-    const char* fragmentText = fragmentSource.c_str();
-
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexText, nullptr);
-    glCompileShader(vertexShader);
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &ok);
-    if (!ok) {
-        glGetShaderInfoLog(vertexShader, sizeof(log), nullptr, log);
-        RCBN_ERROR("SKY_FLARE_VERT: " << log);
-    }
-    const GLint vertexOk = ok;
-
-    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentText, nullptr);
-    glCompileShader(fragmentShader);
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &ok);
-    if (!ok) {
-        glGetShaderInfoLog(fragmentShader, sizeof(log), nullptr, log);
-        RCBN_ERROR("SKY_FLARE_FRAG: " << log);
-    }
-    const GLint fragmentOk = ok;
-
-    if (vertexOk && fragmentOk) {
-        m_skyFlareShader = glCreateProgram();
-        glAttachShader(m_skyFlareShader, vertexShader);
-        glAttachShader(m_skyFlareShader, fragmentShader);
-        glLinkProgram(m_skyFlareShader);
-        GLint linked = 0;
-        glGetProgramiv(m_skyFlareShader, GL_LINK_STATUS, &linked);
-        if (!linked) {
-            glGetProgramInfoLog(m_skyFlareShader, sizeof(log), nullptr, log);
-            RCBN_ERROR("SKY_FLARE_PROGRAM: " << log);
-            glDeleteProgram(m_skyFlareShader);
-            m_skyFlareShader = 0;
-        }
-    }
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-    if (!m_skyFlareShader) return;
-
-    const auto loc = [this](const char* name) { return glGetUniformLocation(m_skyFlareShader, name); };
-    m_skyFlareLoc.fullscreen = loc("uFullscreen");
-    m_skyFlareLoc.phaseDisc = loc("uPhaseDisc");
-    m_skyFlareLoc.view = loc("view");
-    m_skyFlareLoc.projection = loc("projection");
-    m_skyFlareLoc.center = loc("uCenter");
-    m_skyFlareLoc.right = loc("uRight");
-    m_skyFlareLoc.up = loc("uUp");
-    m_skyFlareLoc.halfSize = loc("uHalfSize");
-    m_skyFlareLoc.forward = loc("uForward");
-    m_skyFlareLoc.tanHalfFov = loc("uTanHalfFov");
-    m_skyFlareLoc.aspect = loc("uAspect");
-    m_skyFlareLoc.color = loc("uColor");
-    m_skyFlareLoc.strength = loc("uStrength");
-    m_skyFlareLoc.extent = loc("uExtent");
-    m_skyFlareLoc.glowIntensity = loc("uGlowIntensity");
-    m_skyFlareLoc.glowRadius = loc("uGlowRadius");
-    m_skyFlareLoc.spikeIntensity = loc("uSpikeIntensity");
-    m_skyFlareLoc.spikeLength = loc("uSpikeLength");
-    m_skyFlareLoc.spikeRotation = loc("uSpikeRotation");
-    m_skyFlareLoc.spikeCount = loc("uSpikeCount");
-    m_skyFlareLoc.veilIntensity = loc("uVeilIntensity");
-    m_skyFlareLoc.veilFalloff = loc("uVeilFalloff");
-    m_skyFlareLoc.bodyDirection = loc("uBodyDirection");
-    m_skyFlareLoc.sceneDepth = loc("uSceneDepth");
-    m_skyFlareLoc.occlusionEnabled = loc("uOcclusionEnabled");
-    m_skyFlareLoc.projA = loc("uProjA");
-    m_skyFlareLoc.projB = loc("uProjB");
-    m_skyFlareLoc.occluderDepth = loc("uOccluderDepth");
-    m_skyFlareLoc.discRadius = loc("uDiscRadius");
-    m_skyFlareLoc.viewportSize = loc("uViewportSize");
-    m_skyFlareLoc.bleed = loc("uBleed");
-    m_skyFlareLoc.phase = loc("uPhase");
-    m_skyFlareLoc.phaseRotation = loc("uPhaseRotation");
-    m_skyFlareLoc.earthshine = loc("uEarthshine");
 }
 
 void Renderer::destroySkyFlareRenderer() {
-    if (m_skyFlareShader) glDeleteProgram(m_skyFlareShader);
+    m_skyFlareProgram.destroy();
     if (m_skyDepthFbo) glDeleteFramebuffers(1, &m_skyDepthFbo);
     if (m_skyDepthTex) glDeleteTextures(1, &m_skyDepthTex);
-    m_skyFlareShader = 0;
     m_skyDepthFbo = 0;
     m_skyDepthTex = 0;
 }
@@ -315,7 +250,7 @@ bool Renderer::updateSkySceneDepth(unsigned int sourceFbo, int width, int height
 void Renderer::renderSkyFlares(Workspace& workspace, const ViewportRenderDesc& desc,
                                const Matrix4& view, const Matrix4& projection,
                                float fovYDegrees, const Sun* primarySun) {
-    if (!m_skyFlareShader || !m_postVAO || desc.width <= 0 || desc.height <= 0) return;
+    if (!m_skyFlareProgram.isValid() || !m_postVAO || desc.width <= 0 || desc.height <= 0) return;
     const auto& bodies = workspace.getRenderCelestialBodies();
     if (bodies.empty()) return;
 
@@ -338,42 +273,50 @@ void Renderer::renderSkyFlares(Workspace& workspace, const ViewportRenderDesc& d
     const bool occlusionAvailable = updateSkySceneDepth(desc.fbo, desc.width, desc.height);
 
     // 呼び出し元の状態を保存し、深度なし・深度は書かずに描いたあとに復元する。
-    GLint previousProgram = 0, previousVao = 0, previousActiveTexture = GL_TEXTURE0, previousTexture = 0;
+    // 深度テクスチャは頂点用・フラグメント用の 2 ユニット（0 と 1）に束縛する。
+    GLint previousProgram = 0, previousVao = 0, previousActiveTexture = GL_TEXTURE0;
+    GLint previousTextures[2] = {};
     glGetIntegerv(GL_CURRENT_PROGRAM, &previousProgram);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previousVao);
     glGetIntegerv(GL_ACTIVE_TEXTURE, &previousActiveTexture);
-    glActiveTexture(GL_TEXTURE0);
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
+    for (int unit = 0; unit < 2; ++unit) {
+        glActiveTexture(static_cast<GLenum>(GL_TEXTURE0 + unit));
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTextures[unit]);
+    }
     const GLboolean depthTestWasEnabled = glIsEnabled(GL_DEPTH_TEST);
     const GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
     GLboolean depthMaskWas = GL_TRUE;
     glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMaskWas);
 
-    glUseProgram(m_skyFlareShader);
+    m_skyFlareProgram.use();
     glBindVertexArray(m_postVAO);
     // 遮蔽はシェーダーが深度テクスチャで判定するので、ハードウェアの深度テストは使わない。
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);
 
-    const SkyFlareUniforms& u = m_skyFlareLoc;
+    // ユニフォームは描画ごとに両ブロックを丸ごと送る。ここで共通の値を入れ、以降は変わる値だけ書き換える。
+    sky_flare_vs_params_t vs = {};
+    sky_flare_fs_params_t fs = {};
     const float aspect = static_cast<float>(desc.width) / static_cast<float>(desc.height);
-    glUniformMatrix4fv(u.view, 1, GL_FALSE, view.m);
-    glUniformMatrix4fv(u.projection, 1, GL_FALSE, projection.m);
-    glUniform3f(u.right, right.x, right.y, right.z);
-    glUniform3f(u.up, up.x, up.y, up.z);
-    glUniform3f(u.forward, forward.x, forward.y, forward.z);
-    glUniform1f(u.tanHalfFov, std::tan(fovYDegrees * 0.5f * DEGREES_TO_RADIANS));
-    glUniform1f(u.aspect, aspect);
+    std::memcpy(vs.view, view.m, sizeof(vs.view));
+    std::memcpy(vs.projection, projection.m, sizeof(vs.projection));
+    setVec3(vs.uRight, right);
+    setVec3(vs.uUp, up);
+    setVec3(vs.uForward, forward);
+    vs.uTanHalfFov = std::tan(fovYDegrees * 0.5f * DEGREES_TO_RADIANS);
+    vs.uAspect = aspect;
 
     // 遮蔽判定の共通設定。投影行列の m[10]/m[14] で、深度バッファの値を視線方向の距離へ戻す。
-    glBindTexture(GL_TEXTURE_2D, occlusionAvailable ? m_skyDepthTex : 0);
-    glUniform1i(u.sceneDepth, 0);
-    glUniform1f(u.occlusionEnabled, occlusionAvailable ? 1.0f : 0.0f);
-    glUniform1f(u.projA, projection.m[10]);
-    glUniform1f(u.projB, projection.m[14]);
-    glUniform2f(u.viewportSize, static_cast<float>(desc.width), static_cast<float>(desc.height));
-    glUniform1f(u.bleed, GLOW_BLEED);
+    const GLuint sceneDepth = occlusionAvailable ? m_skyDepthTex : 0;
+    m_skyFlareProgram.bindTexture(VIEW_sky_uSceneDepthVs, GL_TEXTURE_2D, sceneDepth);
+    m_skyFlareProgram.bindTexture(VIEW_sky_uSceneDepth, GL_TEXTURE_2D, sceneDepth);
+    vs.uOcclusionEnabled = fs.uOcclusionEnabled = occlusionAvailable ? 1.0f : 0.0f;
+    vs.uProjA = fs.uProjA = projection.m[10];
+    vs.uProjB = fs.uProjB = projection.m[14];
+    fs.uViewportSize[0] = static_cast<float>(desc.width);
+    fs.uViewportSize[1] = static_cast<float>(desc.height);
+    fs.uBleed = GLOW_BLEED;
 
     for (CelestialBody* body : bodies) {
         if (!body || body->Color.a <= 0.001f) continue;
@@ -388,32 +331,34 @@ void Renderer::renderSkyFlares(Workspace& workspace, const ViewportRenderDesc& d
         const Vector3 center = desc.cameraPosition + direction * CelestialBody::SKY_RENDER_DISTANCE;
 
         // この天体を手前の物体が隠しているかの判定: 円盤の最前面より手前(視線方向の距離)にある物体。
-        glUniform3f(u.color, body->Color.r, body->Color.g, body->Color.b);
-        glUniform3f(u.center, center.x, center.y, center.z);
-        glUniform1f(u.discRadius, discRadius);
-        glUniform1f(u.occluderDepth,
-                    facing * CelestialBody::SKY_RENDER_DISTANCE - DISC_CLEARANCE * discRadius);
+        fs.uColor[0] = body->Color.r;
+        fs.uColor[1] = body->Color.g;
+        fs.uColor[2] = body->Color.b;
+        setVec3(vs.uCenter, center);
+        vs.uDiscRadius = discRadius;
+        vs.uOccluderDepth = fs.uOccluderDepth =
+            facing * CelestialBody::SKY_RENDER_DISTANCE - DISC_CLEARANCE * discRadius;
 
         // (1) 満ち欠けのある月の円盤（アルファブレンド）。影の部分は Earthshine だけ透けて空が見える。
         if (phased) {
             const Moon& moon = static_cast<const Moon&>(*body);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            glUniform1f(u.fullscreen, 0.0f);
-            glUniform1f(u.phaseDisc, 1.0f);
-            glUniform1f(u.strength, body->Color.a);
-            glUniform1f(u.halfSize, discRadius);
-            glUniform1f(u.extent, 1.0f);
-            glUniform1f(u.phase, moon.wrappedPhase());
-            glUniform1f(u.phaseRotation, finiteOr(moon.PhaseRotation, 0.0f) * DEGREES_TO_RADIANS);
-            glUniform1f(u.earthshine, std::clamp(finiteOr(moon.Earthshine, 0.0f), 0.0f, 1.0f));
-            glDrawArrays(GL_TRIANGLES, 0, 6);
-            glUniform1f(u.phaseDisc, 0.0f);
+            vs.uFullscreen = fs.uFullscreen = 0.0f;
+            fs.uPhaseDisc = 1.0f;
+            fs.uStrength = body->Color.a;
+            vs.uHalfSize = discRadius;
+            fs.uExtent = 1.0f;
+            fs.uPhase = moon.wrappedPhase();
+            fs.uPhaseRotation = finiteOr(moon.PhaseRotation, 0.0f) * DEGREES_TO_RADIANS;
+            fs.uEarthshine = std::clamp(finiteOr(moon.Earthshine, 0.0f), 0.0f, 1.0f);
+            drawSkyFlareQuad(m_skyFlareProgram, vs, fs);
+            fs.uPhaseDisc = 0.0f;
         }
 
         if (!body->hasFlareEffect()) continue;
         const float strength = body->Color.a * horizonFadeFactor(*body, direction);
         if (strength <= 0.001f) continue;
-        glUniform1f(u.strength, strength);
+        fs.uStrength = strength;
         glBlendFunc(GL_SRC_ALPHA, GL_ONE);  // アルファは常に1なので、出力した光をそのまま足す
 
         // 範囲外・非有限の値は描画側で丸める（シェーダーに不正値を渡さない）。
@@ -439,18 +384,18 @@ void Renderer::renderSkyFlares(Workspace& workspace, const ViewportRenderDesc& d
             billboard.spikeLength = spikeLength;
             billboard.spikeRotation = spikeRotation;
             billboard.spikeCount = spikeCount;
-            drawFlareBillboard(u, billboard);
+            drawFlareBillboard(m_skyFlareProgram, vs, fs, billboard);
         }
 
         // (3) ベール: カメラが天体を向くほど画面全体が白く霞む。天体が隠れているほど弱い。
         //     天体から大きく外れた向きでは描かない。
         if (veilIntensity > 0.0f && facing > -0.2f) {
-            glUniform1f(u.fullscreen, 1.0f);
-            glUniform1f(u.veilIntensity, veilIntensity);
-            glUniform1f(u.veilFalloff, veilFalloff);
-            glUniform3f(u.bodyDirection, direction.x, direction.y, direction.z);
-            glDrawArrays(GL_TRIANGLES, 0, 6);
-            glUniform1f(u.fullscreen, 0.0f);
+            vs.uFullscreen = fs.uFullscreen = 1.0f;
+            fs.uVeilIntensity = veilIntensity;
+            fs.uVeilFalloff = veilFalloff;
+            setVec3(fs.uBodyDirection, direction);
+            drawSkyFlareQuad(m_skyFlareProgram, vs, fs);
+            vs.uFullscreen = fs.uFullscreen = 0.0f;
         }
     }
 
@@ -459,7 +404,10 @@ void Renderer::renderSkyFlares(Workspace& workspace, const ViewportRenderDesc& d
     if (!blendWasEnabled) glDisable(GL_BLEND);
     if (depthTestWasEnabled) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
     glDepthMask(depthMaskWas);
-    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previousTexture));
+    for (int unit = 0; unit < 2; ++unit) {
+        glActiveTexture(static_cast<GLenum>(GL_TEXTURE0 + unit));
+        glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previousTextures[unit]));
+    }
     glActiveTexture(static_cast<GLenum>(previousActiveTexture));
     glBindVertexArray(static_cast<GLuint>(previousVao));
     glUseProgram(static_cast<GLuint>(previousProgram));

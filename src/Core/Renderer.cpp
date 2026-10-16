@@ -11,6 +11,10 @@
 #include <Util/MeshEdges.hpp>
 #include <Util/GLUniformCache.hpp>
 #include <Core/GfxDevice.hpp>
+#include <sokol/sokol_gfx.h>
+#include <shaders/selection.h>
+#include <shaders/postprocess.h>
+#include <shaders/depth.h>
 #include <Editor/IEditorManager.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
@@ -789,36 +793,8 @@ void Renderer::init(GLFWwindow* window) {
     glUniform1f(surfaceMarkPassLoc, 0.0f);
     glUniform1f(hasShadowsLoc, 0.0f);
 
-    // --- Depth シェーダーのコンパイル（Shadow Pass 用）---
-    {
-        std::string dvStr = FileLoader::readText("shaders/depth_vertex.glsl");
-        std::string dfStr = FileLoader::readText("shaders/depth_fragment.glsl");
-        const char* dvSrc = dvStr.c_str();
-        const char* dfSrc = dfStr.c_str();
-
-        unsigned int dv = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(dv, 1, &dvSrc, NULL);
-        glCompileShader(dv);
-        int ok; char log[512];
-        glGetShaderiv(dv, GL_COMPILE_STATUS, &ok);
-        if (!ok) { glGetShaderInfoLog(dv, 512, NULL, log); std::cout << "DEPTH_VERT: " << log << std::endl; }
-
-        unsigned int df = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(df, 1, &dfSrc, NULL);
-        glCompileShader(df);
-        glGetShaderiv(df, GL_COMPILE_STATUS, &ok);
-        if (!ok) { glGetShaderInfoLog(df, 512, NULL, log); std::cout << "DEPTH_FRAG: " << log << std::endl; }
-
-        depthShader = glCreateProgram();
-        glAttachShader(depthShader, dv);
-        glAttachShader(depthShader, df);
-        glLinkProgram(depthShader);
-        glDeleteShader(dv);
-        glDeleteShader(df);
-        m_uInstancedDepthLoc = glGetUniformLocation(depthShader, "uInstanced");
-        m_uTimeDepthLoc = glGetUniformLocation(depthShader, "uTime");
-        m_uIsLiquidDepthLoc = glGetUniformLocation(depthShader, "uIsLiquid");
-    }
+    // --- Depth シェーダー（Shadow Pass / SurfaceMark の投影深度用）---
+    m_depthProgram.create(*depth_pass_shader_desc(SG_BACKEND_GLCORE), "depth");
 
     // --- Shadow Map FBO + 深度テクスチャ生成 ---
     {
@@ -935,7 +911,7 @@ Renderer::~Renderer() {
     if (shadowMapTex) glDeleteTextures(1, &shadowMapTex);
     if (surfaceMarkFBO) glDeleteFramebuffers(1, &surfaceMarkFBO);
     if (surfaceMarkDepthTex) glDeleteTextures(1, &surfaceMarkDepthTex);
-    if (depthShader)  glDeleteProgram(depthShader);
+    m_depthProgram.destroy();
     if (m_meshFallbackTexture) glDeleteTextures(1, &m_meshFallbackTexture);
 
     if (m_lineVBO)    glDeleteBuffers(1, &m_lineVBO);
@@ -953,7 +929,7 @@ Renderer::~Renderer() {
 
     if (m_postVBO)    glDeleteBuffers(1, &m_postVBO);
     if (m_postVAO)    glDeleteVertexArrays(1, &m_postVAO);
-    if (m_postShader) glDeleteProgram(m_postShader);
+    m_postProgram.destroy();
     if (m_postFboA)   glDeleteFramebuffers(1, &m_postFboA);
     if (m_postTexA)   glDeleteTextures(1, &m_postTexA);
     if (m_postFboB)   glDeleteFramebuffers(1, &m_postFboB);
@@ -964,8 +940,8 @@ Renderer::~Renderer() {
     if (m_selectionMaskFBO)   glDeleteFramebuffers(1, &m_selectionMaskFBO);
     if (m_selectionMaskTex)   glDeleteTextures(1, &m_selectionMaskTex);
     if (m_selectionMaskDepth) glDeleteRenderbuffers(1, &m_selectionMaskDepth);
-    if (m_selectionMaskShader) glDeleteProgram(m_selectionMaskShader);
-    if (m_selectionOutlineShader) glDeleteProgram(m_selectionOutlineShader);
+    m_selectionMaskProgram.destroy();
+    m_selectionOutlineProgram.destroy();
     destroyEnvironmentRenderer();
     destroySkyFlareRenderer();
     for (auto& [path, entry] : m_customPostEffectPrograms) {
@@ -1795,30 +1771,7 @@ static GLuint getCustomPostEffectProgram(
 }
 
 void Renderer::initPostEffectRenderer() {
-    std::string vStr = FileLoader::readText("shaders/postprocess_vertex.glsl");
-    std::string fStr = FileLoader::readText("shaders/postprocess_fragment.glsl");
-    const char* vSrc = vStr.c_str();
-    const char* fSrc = fStr.c_str();
-
-    unsigned int v = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(v, 1, &vSrc, NULL);
-    glCompileShader(v);
-    int ok; char log[512];
-    glGetShaderiv(v, GL_COMPILE_STATUS, &ok);
-    if (!ok) { glGetShaderInfoLog(v, 512, NULL, log); std::cout << "POSTFX_VERT: " << log << std::endl; }
-
-    unsigned int f = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(f, 1, &fSrc, NULL);
-    glCompileShader(f);
-    glGetShaderiv(f, GL_COMPILE_STATUS, &ok);
-    if (!ok) { glGetShaderInfoLog(f, 512, NULL, log); std::cout << "POSTFX_FRAG: " << log << std::endl; }
-
-    m_postShader = glCreateProgram();
-    glAttachShader(m_postShader, v);
-    glAttachShader(m_postShader, f);
-    glLinkProgram(m_postShader);
-    glDeleteShader(v);
-    glDeleteShader(f);
+    m_postProgram.create(*post_effect_shader_desc(SG_BACKEND_GLCORE), "postprocess");
 
     // NDC -1..1 を覆うフルスクリーンクアッド（位置 vec2 + UV vec2）
     float quadVerts[] = {
@@ -1903,57 +1856,8 @@ void Renderer::ensurePostEffectFBOs(int width, int height) {
 }
 
 void Renderer::initSelectionRenderer() {
-    const std::string maskVertexSource = FileLoader::readText("shaders/selection_mask_vertex.glsl");
-    const std::string maskFragmentSource = FileLoader::readText("shaders/selection_mask_fragment.glsl");
-    const std::string outlineVertexSource = FileLoader::readText("shaders/postprocess_vertex.glsl");
-    const std::string outlineFragmentSource = FileLoader::readText("shaders/selection_outline_fragment.glsl");
-    auto compile = [](GLenum type, const std::string& source, const char* label) -> GLuint {
-        if (source.empty()) {
-            RCBN_ERROR("Selection shader source is empty: " << label);
-            return 0;
-        }
-        GLuint shader = glCreateShader(type);
-        const char* src = source.c_str();
-        glShaderSource(shader, 1, &src, nullptr);
-        glCompileShader(shader);
-        GLint ok = GL_FALSE;
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
-        if (!ok) {
-            char log[1024] = {};
-            glGetShaderInfoLog(shader, sizeof(log), nullptr, log);
-            RCBN_ERROR("Selection shader compilation failed (" << label << "): " << log);
-            glDeleteShader(shader);
-            return 0;
-        }
-        return shader;
-    };
-    auto link = [](GLuint vertex, GLuint fragment, const char* label) -> GLuint {
-        if (!vertex || !fragment) return 0;
-        GLuint program = glCreateProgram();
-        glAttachShader(program, vertex);
-        glAttachShader(program, fragment);
-        glLinkProgram(program);
-        GLint ok = GL_FALSE;
-        glGetProgramiv(program, GL_LINK_STATUS, &ok);
-        if (!ok) {
-            char log[1024] = {};
-            glGetProgramInfoLog(program, sizeof(log), nullptr, log);
-            RCBN_ERROR("Selection shader link failed (" << label << "): " << log);
-            glDeleteProgram(program);
-            return 0;
-        }
-        return program;
-    };
-    GLuint mv = compile(GL_VERTEX_SHADER, maskVertexSource, "mask vertex");
-    GLuint mf = compile(GL_FRAGMENT_SHADER, maskFragmentSource, "mask fragment");
-    m_selectionMaskShader = link(mv, mf, "mask");
-    if (mv) glDeleteShader(mv);
-    if (mf) glDeleteShader(mf);
-    GLuint ov = compile(GL_VERTEX_SHADER, outlineVertexSource, "outline vertex");
-    GLuint of = compile(GL_FRAGMENT_SHADER, outlineFragmentSource, "outline fragment");
-    m_selectionOutlineShader = link(ov, of, "outline");
-    if (ov) glDeleteShader(ov);
-    if (of) glDeleteShader(of);
+    m_selectionMaskProgram.create(*selection_mask_shader_desc(SG_BACKEND_GLCORE), "selection mask");
+    m_selectionOutlineProgram.create(*selection_outline_shader_desc(SG_BACKEND_GLCORE), "selection outline");
 }
 
 void Renderer::ensureSelectionMaskFBO(int width, int height) {
@@ -2000,7 +1904,7 @@ void Renderer::ensureSelectionMaskFBO(int width, int height) {
 void Renderer::renderEditorSelectionOutline(const ViewportRenderDesc& desc, const Matrix4& view, const Matrix4& projection) {
     const bool hasSecondarySelection = desc.selectionTargets && !desc.selectionTargets->empty();
     if (!desc.renderHighlights || (!desc.primarySelection && !hasSecondarySelection) ||
-        !m_selectionMaskShader || !m_selectionOutlineShader || !m_postVAO) {
+        !m_selectionMaskProgram.isValid() || !m_selectionOutlineProgram.isValid() || !m_postVAO) {
         return;
     }
     std::vector<BaseCube*> targets;
@@ -2027,7 +1931,7 @@ void Renderer::renderSelectionOutline(const std::vector<BaseCube*>& targets,
                                       const Matrix4& view, const Matrix4& projection,
                                       const Color4& outlineColor, float outlineWidth) {
     if (targets.empty() || destinationFbo == 0 || width <= 0 || height <= 0 ||
-        !m_selectionMaskShader || !m_selectionOutlineShader || !m_postVAO) {
+        !m_selectionMaskProgram.isValid() || !m_selectionOutlineProgram.isValid() || !m_postVAO) {
         return;
     }
     ensureSelectionMaskFBO(width, height);
@@ -2097,17 +2001,17 @@ void Renderer::renderSelectionOutline(const std::vector<BaseCube*>& targets,
     glPolygonOffset(-1.0f, -1.0f);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glDisable(GL_BLEND);
-    glUseProgram(m_selectionMaskShader);
-    glUniformMatrix4fv(glGetUniformLocation(m_selectionMaskShader, "view"), 1, GL_FALSE, view.m);
-    glUniformMatrix4fv(glGetUniformLocation(m_selectionMaskShader, "projection"), 1, GL_FALSE, projection.m);
-    const GLint selectionMaskModelLoc =
-        glGetUniformLocation(m_selectionMaskShader, "model");
+    m_selectionMaskProgram.use();
+    selection_mask_vs_params_t maskParams = {};
+    std::memcpy(maskParams.view, view.m, sizeof(maskParams.view));
+    std::memcpy(maskParams.projection, projection.m, sizeof(maskParams.projection));
     for (BaseCube* target : targets) {
         GLsizei count = 0;
         if (!bindHighlightGeometry(target, count)) continue;
         Matrix4 model = target->getWorldCFrame().toMatrix4() *
                         Matrix4::Scale(target->Size.x, target->Size.y, target->Size.z);
-        glUniformMatrix4fv(selectionMaskModelLoc, 1, GL_FALSE, model.m);
+        std::memcpy(maskParams.model, model.m, sizeof(maskParams.model));
+        m_selectionMaskProgram.applyUniforms(UB_selection_mask_vs_params, maskParams);
         glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, nullptr);
     }
 
@@ -2118,16 +2022,17 @@ void Renderer::renderSelectionOutline(const std::vector<BaseCube*>& targets,
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glUseProgram(m_selectionOutlineShader);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, m_selectionMaskTex);
-    glUniform1i(glGetUniformLocation(m_selectionOutlineShader, "selectionMask"), 0);
-    glUniform2f(glGetUniformLocation(m_selectionOutlineShader, "texelSize"),
-                1.0f / width, 1.0f / height);
-    glUniform1f(glGetUniformLocation(m_selectionOutlineShader, "outlineWidth"),
-                (std::max)(outlineWidth, 1.0f));
-    glUniform4f(glGetUniformLocation(m_selectionOutlineShader, "outlineColor"),
-                outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a);
+    m_selectionOutlineProgram.use();
+    m_selectionOutlineProgram.bindTexture(VIEW_selection_selectionMask, GL_TEXTURE_2D, m_selectionMaskTex);
+    selection_outline_fs_params_t outlineParams = {};
+    outlineParams.texelSize[0] = 1.0f / width;
+    outlineParams.texelSize[1] = 1.0f / height;
+    outlineParams.outlineWidth = (std::max)(outlineWidth, 1.0f);
+    outlineParams.outlineColor[0] = outlineColor.r;
+    outlineParams.outlineColor[1] = outlineColor.g;
+    outlineParams.outlineColor[2] = outlineColor.b;
+    outlineParams.outlineColor[3] = outlineColor.a;
+    m_selectionOutlineProgram.applyUniforms(UB_selection_outline_fs_params, outlineParams);
     glBindVertexArray(m_postVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(static_cast<GLuint>(savedVao));
@@ -2169,7 +2074,7 @@ void Renderer::renderSelectionOutline(const std::vector<BaseCube*>& targets,
 }
 
 void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int width, int height) {
-    if (!m_postShader || width <= 0 || height <= 0) return;
+    if (!m_postProgram.isValid() || width <= 0 || height <= 0) return;
 
     std::vector<PostEffect*> effects;
     for (PostEffect* pe : workspace.getRenderPostEffects()) {
@@ -2193,13 +2098,9 @@ void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int wid
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_postFboA);
     glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-    glUseProgram(m_postShader);
     glBindVertexArray(m_postVAO);
+    // カスタム PostEffect はユーザーの GLSL を従来どおりの頂点シェーダーと組み、名前でユニフォームを設定する。
     const std::string postVertexSource = FileLoader::readText("shaders/postprocess_vertex.glsl");
-    glUniform1i(glGetUniformLocation(m_postShader, "screenTexture"), 0);
-    glUniform2f(glGetUniformLocation(m_postShader, "u_resolution"), (float)width, (float)height);
-    glUniform1f(glGetUniformLocation(m_postShader, "u_time"), (float)glfwGetTime());
-    glActiveTexture(GL_TEXTURE0);
 
     GLuint srcTex = m_postTexA;
     GLuint pingFbo = m_postFboB; // 次の書き込み先（ping-pong）
@@ -2210,20 +2111,20 @@ void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int wid
         bool isLast = (i == effects.size() - 1);
         GLuint destFbo = isLast ? targetFbo : pingFbo;
 
-        GLuint effectProgram = m_postShader;
+        GLuint customProgram = 0; // 0 なら組み込みの postprocess を使う
         bool custom = effect->Type == PostEffectKind::Custom;
         if (custom) {
             const std::string path = AssetPath::normalize(effect->FragmentShaderFile);
             if (!path.empty() && AssetGuard::allow(path)) {
                 auto& entry = m_customPostEffectPrograms[path];
-                effectProgram = getCustomPostEffectProgram(entry, path, postVertexSource);
+                customProgram = getCustomPostEffectProgram(entry, path, postVertexSource);
             } else if (path.empty()) {
                 auto& entry = m_customPostEffectPrograms["<empty>"];
                 if (!entry.attempted) {
                     entry.attempted = true;
                     RCBN_ERROR("Custom PostEffect has an empty FragmentShaderFile");
                 }
-                effectProgram = entry.program;
+                customProgram = entry.program;
             } else {
                 auto& entry = m_customPostEffectPrograms[path];
                 if (!entry.attempted) {
@@ -2233,22 +2134,32 @@ void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int wid
             }
             // A failed first compile has no program: use the built-in pass-through
             // path so the rest of the post-effect chain remains functional.
-            if (!effectProgram) effectProgram = m_postShader;
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, destFbo);
         glViewport(0, 0, width, height);
-        glBindTexture(GL_TEXTURE_2D, srcTex);
-        glUseProgram(effectProgram);
-        glUniform1i(glGetUniformLocation(effectProgram, "screenTexture"), 0);
-        glUniform2f(glGetUniformLocation(effectProgram, "u_resolution"), (float)width, (float)height);
-        glUniform1f(glGetUniformLocation(effectProgram, "u_time"), (float)glfwGetTime());
-        glUniform1f(glGetUniformLocation(effectProgram, "u_intensity"), effect->Intensity);
-        glUniform1f(glGetUniformLocation(effectProgram, "u_param1"), effect->Param1);
-        glUniform1f(glGetUniformLocation(effectProgram, "u_param2"), effect->Param2);
-        if (!custom || effectProgram == m_postShader) {
-            glUniform1i(glGetUniformLocation(effectProgram, "u_effectType"),
-                        effectProgram == m_postShader && custom ? 0 : static_cast<int>(effect->Type));
+        if (customProgram) {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, srcTex);
+            glUseProgram(customProgram);
+            glUniform1i(glGetUniformLocation(customProgram, "screenTexture"), 0);
+            glUniform2f(glGetUniformLocation(customProgram, "u_resolution"), (float)width, (float)height);
+            glUniform1f(glGetUniformLocation(customProgram, "u_time"), (float)glfwGetTime());
+            glUniform1f(glGetUniformLocation(customProgram, "u_intensity"), effect->Intensity);
+            glUniform1f(glGetUniformLocation(customProgram, "u_param1"), effect->Param1);
+            glUniform1f(glGetUniformLocation(customProgram, "u_param2"), effect->Param2);
+        } else {
+            m_postProgram.use();
+            m_postProgram.bindTexture(VIEW_post_screenTexture, GL_TEXTURE_2D, srcTex);
+            post_fs_params_t params = {};
+            params.u_resolution[0] = static_cast<float>(width);
+            params.u_resolution[1] = static_cast<float>(height);
+            params.u_effectType = custom ? 0.0f : static_cast<float>(static_cast<int>(effect->Type)); // 失敗したカスタムは素通し
+            params.u_intensity = effect->Intensity;
+            params.u_param1 = effect->Param1;
+            params.u_param2 = effect->Param2;
+            params.u_time = static_cast<float>(glfwGetTime());
+            m_postProgram.applyUniforms(UB_post_fs_params, params);
         }
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
@@ -2551,7 +2462,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         const bool canInstanceMain = mainShapeIdx >= 0 &&
             m_uInstancedLoc != -1 && instShapes[mainShapeIdx].vao != 0;
         const bool canInstanceShadow = shadowShapeIdx >= 0 &&
-            m_uInstancedDepthLoc != -1 && instShapes[shadowShapeIdx].vao != 0;
+            m_depthProgram.isValid() && instShapes[shadowShapeIdx].vao != 0;
         if (!canInstanceMain) chunk.individualMain.push_back(inst);
         if (!canInstanceShadow) chunk.individualShadow.push_back(inst);
         if (mainShapeIdx >= 0 || shadowShapeIdx >= 0) {
@@ -2725,7 +2636,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     bool capturedGpuShadow = false;
     if (desc.renderShadows && lighting && hasDirectionalLight &&
         std::isfinite(lighting->shadowDistance) && lighting->shadowDistance > 0.1f &&
-        shadowFBO && shadowMapTex && depthShader) {
+        shadowFBO && shadowMapTex && m_depthProgram.isValid()) {
         // シャドウマップは毎フレーム再描画する。カメラ移動中に隔フレームで前フレームの
         // マップを再利用すると、動くキャスター(追従カメラ下のキャラ等)の影が1フレーム遅れ、
         // 交互にずれてちらつく。
@@ -2853,11 +2764,10 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         glEnable(GL_POLYGON_OFFSET_FILL);
         glPolygonOffset(1.0f, 1.0f);
 
-        glUseProgram(depthShader);
-        static CachedUniform s_lsmDepthLocCache;
-        static CachedUniform s_modelDepthLocCache;
-        int lsmDepthLoc  = cachedUniformLocation(depthShader, s_lsmDepthLocCache,  "lightSpaceMatrix");
-        int modelDepthLoc = cachedUniformLocation(depthShader, s_modelDepthLocCache, "model");
+        m_depthProgram.use();
+        // ユニフォームはドローごとにブロックを丸ごと送る（applyDepth）。
+        depth_vs_params_t depthParams = {};
+        const auto applyDepth = [&]() { m_depthProgram.applyUniforms(UB_depth_vs_params, depthParams); };
         // カスケード・形状をまたいで容量を使い回す（毎回の巨大な再確保を避ける）。
         std::vector<CubeInstanceData> visibleShadowInstances;
         for (int cascade = 0; cascade < SHADOW_CASCADE_COUNT; ++cascade) {
@@ -2865,17 +2775,14 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                                       shadowMapTex, 0, cascade);
             glClearDepth(1.0);
             glClear(GL_DEPTH_BUFFER_BIT);
-            glUniformMatrix4fv(lsmDepthLoc, 1, GL_FALSE, lightSpaceMatrices[cascade].m);
-            if (m_uTimeDepthLoc != -1) {
-                glUniform1f(m_uTimeDepthLoc,
-                            lighting && desc.workspace->getPhysicsEngine()
-                                ? desc.workspace->getPhysicsEngine()->getWaveTime() : 0.0f);
-            }
-            if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, 0.0f);
+            std::memcpy(depthParams.lightSpaceMatrix, lightSpaceMatrices[cascade].m, sizeof(depthParams.lightSpaceMatrix));
+            depthParams.uTime = lighting && desc.workspace->getPhysicsEngine()
+                                    ? desc.workspace->getPhysicsEngine()->getWaveTime() : 0.0f;
+            depthParams.uIsLiquid = 0.0f;
 
             const FrustumPlanes shadowFrustum =
                 extractFrustumPlanes(lightSpaceMatrices[cascade]);
-            if (m_uInstancedDepthLoc != -1) {
+            {
                 bool anyShadowInst = false;
                 for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
                     const auto& batch = m_instBatches[shapeIdx].shadow;
@@ -2921,7 +2828,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     }
                     if (visibleShadowInstances.empty()) continue;
                     if (!anyShadowInst) {
-                        glUniform1f(m_uInstancedDepthLoc, 1.0f);
+                        depthParams.uInstanced = 1.0f;
+                        applyDepth();
                         anyShadowInst = true;
                     }
                     glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
@@ -2951,7 +2859,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 }
                 if (anyShadowInst) {
                     glBindVertexArray(0);
-                    glUniform1f(m_uInstancedDepthLoc, 0.0f);
+                    depthParams.uInstanced = 0.0f;
                 }
             }
 
@@ -2960,7 +2868,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             FrameProfiler::get().addCount("treeShadowNodes", 1);
             const int shadowShapeIdx = shadowInstanceableShapeIndex(inst);
             const bool shadowBatchHandled = shadowShapeIdx >= 0 &&
-                m_uInstancedDepthLoc != -1 &&
+                m_depthProgram.isValid() &&
                 instShapes[shadowShapeIdx].vao != 0;
             if (shadowBatchHandled) {
                 // 収集済み → インスタンス描画済み
@@ -2973,10 +2881,11 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     FrameProfiler::get().addCount("shadowCubesCulled", 1);
                 }
                 if (insideShadowFrustum && shouldCastShadow(bc)) {
-                    if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, bc->IsA("LiquidCube") ? 1.0f : 0.0f);
+                    depthParams.uIsLiquid = bc->IsA("LiquidCube") ? 1.0f : 0.0f;
                     Matrix4 modelMat = bc->getWorldCFrame().toMatrix4() *
                                        Matrix4::Scale(bc->Size.x, bc->Size.y, bc->Size.z);
-                    glUniformMatrix4fv(modelDepthLoc, 1, GL_FALSE, modelMat.m);
+                    std::memcpy(depthParams.model, modelMat.m, sizeof(depthParams.model));
+                    applyDepth();
                     if (inst->IsA("Cylinder")) {
                         glBindVertexArray(Cylinder::s_VAO);
                         glDrawElements(GL_TRIANGLES, Cylinder::s_IndexCount, GL_UNSIGNED_INT, nullptr);
@@ -3001,7 +2910,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     }
                     FrameProfiler::get().addCount("shadowCubes", 1);
                     FrameProfiler::get().addCount("drawCallsShadow", 1);
-                    if (m_uIsLiquidDepthLoc != -1) glUniform1f(m_uIsLiquidDepthLoc, 0.0f);
+                    depthParams.uIsLiquid = 0.0f;
                 }
             }
         };
@@ -3009,7 +2918,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
         // ---- Terrain Shadow ----
         Matrix4 identity;
-        glUniformMatrix4fv(modelDepthLoc, 1, GL_FALSE, identity.m);
+        std::memcpy(depthParams.model, identity.m, sizeof(depthParams.model));
+        applyDepth();
         for (Terrain* terrain : desc.workspace->getRenderTerrains()) {
             if (!terrain->Enabled || !terrain->streamer) continue;
             for (auto& [key, entry] : terrain->streamer->getChunks()) {
@@ -3420,13 +3330,6 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         writeGpuTimestamp(GpuTimestamp::SurfaceMarksBegin);
     }
     if (surfaceMarkFBO && surfaceMarkDepthTex && !surfaceMarks.empty() && !surfaceTargets.empty()) {
-        static CachedUniform depthModelCache;
-        static CachedUniform depthTimeCache;
-        static CachedUniform depthLiquidCache;
-        static CachedUniform depthLightCache;
-        const int depthModelLoc = cachedUniformLocation(depthShader, depthModelCache, "model");
-        const int depthTimeLoc = cachedUniformLocation(depthShader, depthTimeCache, "uTime");
-        const int depthLiquidLoc = cachedUniformLocation(depthShader, depthLiquidCache, "uIsLiquid");
         const Physics* markPhysics = desc.workspace->getPhysicsEngine();
         const float markTime = markPhysics ? markPhysics->getWaveTime() : 0.0f;
         GLint savedDrawFbo = 0, savedReadFbo = 0, savedViewport[4] = {}, savedProgram = 0;
@@ -3462,13 +3365,16 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
 
             glBindFramebuffer(GL_FRAMEBUFFER, surfaceMarkFBO); glViewport(0, 0, SURFACE_MARK_MAP_SIZE, SURFACE_MARK_MAP_SIZE);
             glClearDepth(1.0); glClear(GL_DEPTH_BUFFER_BIT); glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS); glDepthMask(GL_TRUE);
-            glDisable(GL_BLEND); glUseProgram(depthShader); glUniform1f(m_uInstancedDepthLoc, 0.0f);
-            glUniformMatrix4fv(cachedUniformLocation(depthShader, depthLightCache, "lightSpaceMatrix"), 1, GL_FALSE, markVP.m);
-            glUniform1f(depthTimeLoc, markTime); glUniform1f(depthLiquidLoc, 0.0f); glBindVertexArray(VAO);
+            glDisable(GL_BLEND); m_depthProgram.use();
+            depth_vs_params_t markDepthParams = {};
+            std::memcpy(markDepthParams.lightSpaceMatrix, markVP.m, sizeof(markDepthParams.lightSpaceMatrix));
+            markDepthParams.uTime = markTime;
+            glBindVertexArray(VAO);
             for (BaseCube* cube : candidates) {
                 Matrix4 model = cube->getWorldCFrame().toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
-                glUniformMatrix4fv(depthModelLoc, 1, GL_FALSE, model.m);
-                glUniform1f(depthLiquidLoc, cube->IsA("LiquidCube") ? 1.0f : 0.0f);
+                std::memcpy(markDepthParams.model, model.m, sizeof(markDepthParams.model));
+                markDepthParams.uIsLiquid = cube->IsA("LiquidCube") ? 1.0f : 0.0f;
+                m_depthProgram.applyUniforms(UB_depth_vs_params, markDepthParams);
                 GLsizei count = 0; if (!bindHighlightGeometry(cube, count)) continue;
                 glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, nullptr);
             }
