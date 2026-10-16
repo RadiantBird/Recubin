@@ -13524,9 +13524,9 @@ static int runPropertySchemaRegression() {
         expect(customEnumValue == static_cast<int>(PostEffectKind::Custom),
                "PostEffect Type name Custom maps to PostEffectKind::Custom");
 
-        // 以前の表で保存された Type: 7 は Custom として読み込む。
+        // 以前の表で保存された Type: 7 は Custom として読み込む（SceneLoader と同じ経路で読む）。
         auto legacy = std::make_shared<PostEffect>();
-        legacy->setProperty("Type", YAML::Load("7"));
+        PropertyRegistry::loadApplicableProperty(legacy.get(), "Type", YAML::Load("7"));
         expect(legacy->Type == PostEffectKind::Custom, "legacy PostEffect Type 7 loads as Custom");
     }
 
