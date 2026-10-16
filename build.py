@@ -269,12 +269,13 @@ def build_outputs_are_up_to_date(config: str) -> bool:
     oldest_output = min(path.stat().st_mtime_ns for path in output_paths)
     input_suffixes = {
         ".c", ".cc", ".cpp", ".cxx", ".m", ".mm", ".h", ".hh", ".hpp", ".hxx",
-        ".inl", ".cmake", ".lib", ".a",
+        ".inl", ".cmake", ".lib", ".a", ".glsl",
     }
     input_names = {"CMakeLists.txt", "CMakePresets.json"}
     ignored_parts = {".git", ".claude", ".codex", "build", "build-mac", "dist"}
     input_paths = [ROOT_DIR / name for name in ("CMakeLists.txt", "CMakePresets.json")]
-    input_roots = [ROOT_DIR / name for name in ("src", "include", "temp_libs", "cmake")]
+    # shaders/sokol は sokol-shdc でビルド時にヘッダーへ変換するので入力に含める（他の shaders/ は実行時読み込み）
+    input_roots = [ROOT_DIR / name for name in ("src", "include", "temp_libs", "cmake", "shaders/sokol")]
     candidate_paths = [path for path in input_paths if path.is_file()]
     for input_root in input_roots:
         if input_root.is_dir():

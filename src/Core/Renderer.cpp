@@ -10,6 +10,7 @@
 #include <Util/AssetPath.hpp>
 #include <Util/MeshEdges.hpp>
 #include <Util/GLUniformCache.hpp>
+#include <Core/GfxDevice.hpp>
 #include <Editor/IEditorManager.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
@@ -519,6 +520,8 @@ void Renderer::writeGpuTimestamp(GpuTimestamp timestamp) {
 void Renderer::init(GLFWwindow* window) {
     instance  = this;
     m_window  = window;
+    // sokol_gfx（GL バックエンド）を生 GL と共存させて初期化する。失敗しても生 GL の描画は続ける。
+    GfxDevice::setup();
     initGpuProfiler();
 
     // ImGui 初期化（エディター/ランタイム両方でゲーム GUI 描画に必要）
@@ -968,6 +971,7 @@ Renderer::~Renderer() {
     for (auto& [path, entry] : m_customPostEffectPrograms) {
         if (entry.program) glDeleteProgram(entry.program);
     }
+    GfxDevice::shutdown();
 }
 
 // ===================================================
@@ -3730,6 +3734,7 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
     }
     FrameProfiler::get().endSection("render");
     endGpuFrame();
+    GfxDevice::commit();
 
     if (m_beforeSwap) m_beforeSwap(window);
     FrameProfiler::get().beginSection("swap");

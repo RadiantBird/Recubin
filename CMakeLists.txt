@@ -237,6 +237,65 @@ else()
     )
 endif()
 
+# --- 4.5. sokol_gfx / sokol-shdc ---
+# 描画バックエンドの選択。sokol-shdc が生成するシェーダーヘッダーも同じ定義で分岐するため、
+# 全ターゲット共通にする（Metal へ移行するときは Apple だけ SOKOL_METAL に切り替える）。
+list(APPEND COMMON_DEFS SOKOL_GLCORE)
+
+# shaders/sokol/*.glsl を sokol-shdc で <build>/generated/shaders/<名前>.h に変換する。
+# C++ からは #include <shaders/<名前>.h> で読む。名前が "_" で始まるファイルは
+# @include 専用とみなして単独では変換しない（変更時は全シェーダーを作り直す）。
+# sokol-shdc は tools/sokol-shdc/<win32|osx_arm64|osx>/ に置く（git 管理外。取得元: floooh/sokol-tools-bin）。
+# 生成コードは sokol_gfx.h の構造体に依存するので、include/sokol/sokol_gfx.h と同じ時期のものを使うこと。
+if(WIN32)
+    set(RECUBIN_SOKOL_SHDC_DIR "${CMAKE_SOURCE_DIR}/tools/sokol-shdc/win32")
+elseif(APPLE AND CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64")
+    set(RECUBIN_SOKOL_SHDC_DIR "${CMAKE_SOURCE_DIR}/tools/sokol-shdc/osx_arm64")
+else()
+    set(RECUBIN_SOKOL_SHDC_DIR "${CMAKE_SOURCE_DIR}/tools/sokol-shdc/osx")
+endif()
+find_program(RECUBIN_SOKOL_SHDC NAMES sokol-shdc HINTS "${RECUBIN_SOKOL_SHDC_DIR}" NO_DEFAULT_PATH)
+
+set(RECUBIN_SOKOL_SHADER_DIR "${CMAKE_SOURCE_DIR}/shaders/sokol")
+set(RECUBIN_SOKOL_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
+file(GLOB RECUBIN_SOKOL_SHADER_FILES CONFIGURE_DEPENDS "${RECUBIN_SOKOL_SHADER_DIR}/*.glsl")
+set(RECUBIN_SOKOL_SHADER_HEADERS)
+if(MSVC)
+    set(RECUBIN_SOKOL_SHDC_ERRFMT msvc)
+else()
+    set(RECUBIN_SOKOL_SHDC_ERRFMT gcc)
+endif()
+foreach(shader_file IN LISTS RECUBIN_SOKOL_SHADER_FILES)
+    get_filename_component(shader_name "${shader_file}" NAME_WE)
+    if(shader_name MATCHES "^_")
+        continue()
+    endif()
+    if(NOT RECUBIN_SOKOL_SHDC)
+        message(FATAL_ERROR "sokol-shdc が見つかりません（${RECUBIN_SOKOL_SHDC_DIR}）。"
+                            "floooh/sokol-tools-bin から取得して配置してください。")
+    endif()
+    set(shader_header "${RECUBIN_SOKOL_GENERATED_DIR}/shaders/${shader_name}.h")
+    add_custom_command(
+        OUTPUT "${shader_header}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${RECUBIN_SOKOL_GENERATED_DIR}/shaders"
+        COMMAND "${RECUBIN_SOKOL_SHDC}"
+            --input "${shader_file}"
+            --output "${shader_header}"
+            --slang glsl410:metal_macos
+            --ifdef
+            --errfmt ${RECUBIN_SOKOL_SHDC_ERRFMT}
+        DEPENDS ${RECUBIN_SOKOL_SHADER_FILES}
+        COMMENT "[sokol-shdc] ${shader_name}.glsl"
+        VERBATIM
+    )
+    list(APPEND RECUBIN_SOKOL_SHADER_HEADERS "${shader_header}")
+endforeach()
+add_custom_target(RecubinSokolShaders DEPENDS ${RECUBIN_SOKOL_SHADER_HEADERS})
+list(APPEND COMMON_INCLUDES "${RECUBIN_SOKOL_GENERATED_DIR}")
+foreach(shader_consumer RecubinCore Recubin RecubinEngine RecubinTest)
+    add_dependencies(${shader_consumer} RecubinSokolShaders)
+endforeach()
+
 # ---- RecubinCore (共有オブジェクトライブラリ) ----
 target_compile_definitions(RecubinCore PRIVATE ${COMMON_DEFS})
 target_include_directories(RecubinCore PRIVATE ${COMMON_INCLUDES})
