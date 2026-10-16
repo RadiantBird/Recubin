@@ -1,7 +1,7 @@
 #include <Instances/Wedge.hpp>
 #include <Core/Renderer.hpp>
 #include <Util/MeshEdges.hpp>
-#include <Util/GLUniformCache.hpp>
+#include <Core/MainShaderState.hpp>
 #include <GL/glew.h>
 #include <Core/PropertyRegistry.hpp>
 #include <cmath>
@@ -126,14 +126,11 @@ Wedge::Wedge(Vector3 Pos, Vector3 Sz)
     if (Renderer::instance) initGeometry();
 }
 
-void Wedge::draw(int modelLoc, int shaderProgram) {
+void Wedge::draw(MainShaderState& shader) {
     glBindVertexArray(s_VAO);
 
-    static CachedUniform s_colorLocCache;
-    int colorLoc = cachedUniformLocation(shaderProgram, s_colorLocCache, "ourColor");
-    if (colorLoc != -1) {
-        glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
-    }
+    shader.setColor(Color4(Color.r, Color.g, Color.b, Color.a));
+    shader.flush();  // 以降の面ごとの描画ではユニフォームを変えない
 
     glActiveTexture(GL_TEXTURE0);
 

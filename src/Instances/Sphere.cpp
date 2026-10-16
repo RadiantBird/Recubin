@@ -1,6 +1,6 @@
 #include <Instances/Sphere.hpp>
 #include <Core/Renderer.hpp>
-#include <Util/GLUniformCache.hpp>
+#include <Core/MainShaderState.hpp>
 #include <GL/glew.h>
 #include <cmath>
 #include <include/Core/PropertyRegistry.hpp>
@@ -122,14 +122,11 @@ Sphere::Sphere(Vector3 Pos, Vector3 Sz)
     if (Renderer::instance) initGeometry();
 }
 
-void Sphere::draw(int modelLoc, int shaderProgram) {
+void Sphere::draw(MainShaderState& shader) {
     glBindVertexArray(s_VAO);
 
-    static CachedUniform s_colorLocCache;
-    int colorLoc = cachedUniformLocation(shaderProgram, s_colorLocCache, "ourColor");
-    if (colorLoc != -1) {
-        glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
-    }
+    shader.setColor(Color4(Color.r, Color.g, Color.b, Color.a));
+    shader.flush();  // 以降の面ごとの描画ではユニフォームを変えない
 
     glActiveTexture(GL_TEXTURE0);
     for (int i = 0; i < 6; ++i) {

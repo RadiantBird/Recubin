@@ -7,6 +7,8 @@
 #include <include/Instances/Texture.hpp>
 #include <vector>
 
+class MainShaderState;
+
 // 頂点構造体
 struct Vertex {
     Vector3 Position;  
@@ -32,7 +34,7 @@ class Cube : public Named<Cube, BaseCube> {
         Cube(Vector3 Pos, Vector3 Sz, unsigned int defaultTex);
 
         // メソッドの宣言
-        void draw(int modelLoc, int shaderProgram);
+        void draw(MainShaderState& shader);
 
         std::shared_ptr<Instance> clone() const override;
 

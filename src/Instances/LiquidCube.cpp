@@ -1,7 +1,7 @@
 #include <Instances/LiquidCube.hpp>
 #include <Instances/Cube.hpp>          // s_VAO / defaultTextureID 流用
 #include <include/Core/PropertyRegistry.hpp>
-#include <Util/GLUniformCache.hpp>
+#include <Core/MainShaderState.hpp>
 #include <GL/glew.h>
 #include <cmath>
 
@@ -34,19 +34,14 @@ void LiquidCube::setProperty(const std::string& name, const YAML::Node& value) {
 }
 
 // 単純な半透明ボックス描画（面デカール処理は不要）
-void LiquidCube::draw(int modelLoc, int shaderProgram) {
+void LiquidCube::draw(MainShaderState& shader) {
     glBindVertexArray(Cube::s_VAO);
-    static CachedUniform s_colorLocCache;
-    static CachedUniform s_uvScaleLocCache;
-    static CachedUniform s_isSurfaceGuiLocCache;
-    int colorLoc        = cachedUniformLocation(shaderProgram, s_colorLocCache,        "ourColor");
-    int uvScaleLoc      = cachedUniformLocation(shaderProgram, s_uvScaleLocCache,      "uvScale");
-    int isSurfaceGuiLoc = cachedUniformLocation(shaderProgram, s_isSurfaceGuiLocCache, "isSurfaceGui");
-    if (colorLoc        != -1) glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
-    if (uvScaleLoc      != -1) glUniform2f(uvScaleLoc, 1.0f, 1.0f);
-    if (isSurfaceGuiLoc != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
+    shader.setColor(Color4(Color.r, Color.g, Color.b, Color.a));
+    shader.setUvScale(1.0f, 1.0f);
+    shader.setSurfaceGui(0.0f);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, Cube::defaultTextureID);
+    shader.flush();
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 }
 

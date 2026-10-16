@@ -10,7 +10,7 @@
 #include <Util/AssetGuard.hpp>
 #include <Util/AssetPath.hpp>
 #include <Util/MeshEdges.hpp>
-#include <Util/GLUniformCache.hpp>
+#include <Core/MainShaderState.hpp>
 #include <GL/glew.h>
 #include <xatlas.h>
 #include <algorithm>
@@ -207,72 +207,29 @@ MeshHitResult MeshCube::raycastLocal(const Vector3& localOri, const Vector3& loc
     return result;
 }
 
-namespace {
-    // collectUVDecals(8) の上限に合わせたデカール配列uniformの一括キャッシュ。
-    // shaderProgram が変わった時だけ全ロケーションを引き直す（文字列連結はミス時のみ）。
-    const int kMaxDecalUniforms = 8;
-    unsigned int s_decalUniformProgram = 0;
-    int s_decalLayerLoc[kMaxDecalUniforms];
-    int s_decalCenterLoc[kMaxDecalUniforms];
-    int s_decalRadiusLoc[kMaxDecalUniforms];
-    int s_decalColorLoc[kMaxDecalUniforms];
-    int s_decalModeLoc[kMaxDecalUniforms];
-    int s_decalFaceLoc[kMaxDecalUniforms];
-
-    void ensureDecalUniformLocations(unsigned int shaderProgram) {
-        if (s_decalUniformProgram == shaderProgram) return;
-        s_decalUniformProgram = shaderProgram;
-        for (int i = 0; i < kMaxDecalUniforms; ++i) {
-            std::string idx = std::to_string(i);
-            s_decalLayerLoc[i]  = glGetUniformLocation(shaderProgram, ("uDecalLayer[" + idx + "]").c_str());
-            s_decalCenterLoc[i] = glGetUniformLocation(shaderProgram, ("uDecalCenter[" + idx + "]").c_str());
-            s_decalRadiusLoc[i] = glGetUniformLocation(shaderProgram, ("uDecalRadius[" + idx + "]").c_str());
-            s_decalColorLoc[i]  = glGetUniformLocation(shaderProgram, ("uDecalColor[" + idx + "]").c_str());
-            s_decalModeLoc[i]   = glGetUniformLocation(shaderProgram, ("uDecalMode[" + idx + "]").c_str());
-            s_decalFaceLoc[i]   = glGetUniformLocation(shaderProgram, ("uDecalFace[" + idx + "]").c_str());
-        }
-    }
-}
-
-void MeshCube::draw(int modelLoc, int shaderProgram) {
+void MeshCube::draw(MainShaderState& shader) {
     const unsigned int drawVAO = getVAO();
     const unsigned int drawIndexCount = getIndexCount();
     if (drawVAO == 0 || drawIndexCount == 0) return;
     glBindVertexArray(drawVAO);
 
-    static CachedUniform s_colorLocCache;
-    static CachedUniform s_uvScaleLocCache;
-    static CachedUniform s_isSurfaceGuiLocCache;
-    static CachedUniform s_texTintColorLocCache;
-    static CachedUniform s_useTexTintLocCache;
-    static CachedUniform s_useVertexColorLocCache;
-    static CachedUniform s_instancedLocCache;
-    int colorLoc = cachedUniformLocation(shaderProgram, s_colorLocCache, "ourColor");
-    int uvScaleLoc = cachedUniformLocation(shaderProgram, s_uvScaleLocCache, "uvScale");
-    int isSurfaceGuiLoc = cachedUniformLocation(shaderProgram, s_isSurfaceGuiLocCache, "isSurfaceGui");
-    int texTintColorLoc = cachedUniformLocation(shaderProgram, s_texTintColorLocCache, "uTextureTintColor");
-    int useTexTintLoc = cachedUniformLocation(shaderProgram, s_useTexTintLocCache, "uUseTextureTint");
-    int useVertexColorLoc = cachedUniformLocation(shaderProgram, s_useVertexColorLocCache, "useVertexColor");
-    int instancedLoc = cachedUniformLocation(shaderProgram, s_instancedLocCache, "uInstanced");
-    if (colorLoc != -1) {
-        if (m_fallbackActive) {
-            // The fallback is diagnostic UI: instance tint/alpha must never
-            // hide or recolor its magenta/black missing-mesh pattern.
-            glUniform4f(colorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
-        } else {
-            glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
-        }
+    if (m_fallbackActive) {
+        // The fallback is diagnostic UI: instance tint/alpha must never
+        // hide or recolor its magenta/black missing-mesh pattern.
+        shader.setColor(Color4(1.0f, 1.0f, 1.0f, 1.0f));
+    } else {
+        shader.setColor(Color4(Color.r, Color.g, Color.b, Color.a));
     }
 
     // These uniforms are shared by all objects using the main shader.  A
     // Texture/Canvas on a previously drawn Cube may leave different values
     // behind, so MeshCube must establish its own sampling state explicitly.
-    if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1.0f, 1.0f);
-    if (isSurfaceGuiLoc != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
-    if (texTintColorLoc != -1) glUniform4f(texTintColorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
-    if (useTexTintLoc != -1) glUniform1f(useTexTintLoc, 0.0f);
-    if (useVertexColorLoc != -1) glUniform1f(useVertexColorLoc, 0.0f);
-    if (instancedLoc != -1) glUniform1f(instancedLoc, 0.0f);
+    shader.setUvScale(1.0f, 1.0f);
+    shader.setSurfaceGui(0.0f);
+    shader.setTextureTintColor(Color4(1.0f, 1.0f, 1.0f, 1.0f));
+    shader.setUseTextureTint(0.0f);
+    shader.setUseVertexColor(0.0f);
+    shader.setInstanced(0.0f);
 
     glActiveTexture(GL_TEXTURE0);
     unsigned int tex = 0;
@@ -284,8 +241,7 @@ void MeshCube::draw(int modelLoc, int shaderProgram) {
     }
     glBindTexture(GL_TEXTURE_2D, tex);
 
-    std::vector<UVDecalDesc> uvDecals = collectUVDecals(kMaxDecalUniforms);
-    ensureDecalUniformLocations(static_cast<unsigned int>(shaderProgram));
+    std::vector<UVDecalDesc> uvDecals = collectUVDecals(MainShaderState::MAX_DECALS);
     if (Renderer::instance) {
         glActiveTexture(GL_TEXTURE0 + Renderer::DECAL_ARRAY_UNIT);
         glBindTexture(GL_TEXTURE_2D_ARRAY, Renderer::instance->m_decalArrayTexture);
@@ -294,33 +250,16 @@ void MeshCube::draw(int modelLoc, int shaderProgram) {
         const UVDecalDesc& d = uvDecals[i];
 
         const int layer = Renderer::instance ? Renderer::instance->decalArrayLayerFor(d.textureID) : -1;
-        int layerLoc = s_decalLayerLoc[i];
-        int centerLoc = s_decalCenterLoc[i];
-        int radiusLoc = s_decalRadiusLoc[i];
-        int colorLocD = s_decalColorLoc[i];
-        int modeLoc   = s_decalModeLoc[i];
-        int faceLoc   = s_decalFaceLoc[i];
-        if (layerLoc  != -1) glUniform1i(layerLoc, std::max(layer, 0));
-        if (centerLoc != -1) glUniform2f(centerLoc, d.center.x, d.center.y);
-        if (radiusLoc != -1) glUniform1f(radiusLoc, d.radius);
-        if (colorLocD != -1) glUniform4f(colorLocD, d.color.r, d.color.g, d.color.b, d.color.a);
-        if (modeLoc   != -1) glUniform1i(modeLoc, d.mode);
-        if (faceLoc   != -1) glUniform1i(faceLoc, d.face);
+        shader.setDecal(static_cast<int>(i), std::max(layer, 0), d.center.x, d.center.y, d.radius, d.color,
+                        d.mode, d.face);
     }
-    static CachedUniform s_countLocCache;
-    int countLoc = cachedUniformLocation(shaderProgram, s_countLocCache, "uDecalCount");
-    if (countLoc != -1) glUniform1i(countLoc, static_cast<int>(uvDecals.size()));
+    shader.setDecalCount(static_cast<int>(uvDecals.size()));
+    shader.setLocalBounds(m_localBoundsMin, m_localBoundsMax);
 
-    static CachedUniform s_boundsMinLocCache;
-    static CachedUniform s_boundsMaxLocCache;
-    int boundsMinLoc = cachedUniformLocation(shaderProgram, s_boundsMinLocCache, "uLocalBoundsMin");
-    int boundsMaxLoc = cachedUniformLocation(shaderProgram, s_boundsMaxLocCache, "uLocalBoundsMax");
-    if (boundsMinLoc != -1) glUniform3f(boundsMinLoc, m_localBoundsMin.x, m_localBoundsMin.y, m_localBoundsMin.z);
-    if (boundsMaxLoc != -1) glUniform3f(boundsMaxLoc, m_localBoundsMax.x, m_localBoundsMax.y, m_localBoundsMax.z);
-
+    shader.flush();
     glDrawElements(GL_TRIANGLES, drawIndexCount, GL_UNSIGNED_INT, nullptr);
 
-    if (countLoc != -1) glUniform1i(countLoc, 0);
+    shader.setDecalCount(0);
     glActiveTexture(GL_TEXTURE0);
 }
 

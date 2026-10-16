@@ -8,6 +8,8 @@
 #include <vector>
 #include <string>
 
+class MainShaderState;
+
 // MeshCube描画用: UV空間の中心座標+半径でブレンドするDecal記述子
 struct UVDecalDesc {
     unsigned int textureID;
@@ -42,7 +44,7 @@ public:
 
     std::string MeshFile; // GLBファイルパス(空文字なら未ロード)
 
-    void draw(int modelLoc, int shaderProgram);
+    void draw(MainShaderState& shader);
 
     virtual void setProperty(const std::string& name, const YAML::Node& value) override;
     std::shared_ptr<Instance> clone() const override;

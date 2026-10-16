@@ -1,7 +1,7 @@
 #include <Instances/TriangularPrism.hpp>
 #include <Core/Renderer.hpp>
 #include <Util/MeshEdges.hpp>
-#include <Util/GLUniformCache.hpp>
+#include <Core/MainShaderState.hpp>
 #include <GL/glew.h>
 #include <Core/PropertyRegistry.hpp>
 
@@ -143,14 +143,11 @@ static const int TP_AB_OFF   = 6,  TP_AB_COUNT   = 6;
 static const int TP_BC_OFF   = 12, TP_BC_COUNT   = 6;
 static const int TP_CA_OFF   = 18, TP_CA_COUNT   = 6;
 
-void TriangularPrism::draw(int modelLoc, int shaderProgram) {
+void TriangularPrism::draw(MainShaderState& shader) {
     glBindVertexArray(s_VAO);
 
-    static CachedUniform s_colorLocCache;
-    int colorLoc = cachedUniformLocation(shaderProgram, s_colorLocCache, "ourColor");
-    if (colorLoc != -1) {
-        glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
-    }
+    shader.setColor(Color4(Color.r, Color.g, Color.b, Color.a));
+    shader.flush();  // 以降の面ごとの描画ではユニフォームを変えない
 
     glActiveTexture(GL_TEXTURE0);
 

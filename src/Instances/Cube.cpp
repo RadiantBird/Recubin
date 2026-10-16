@@ -2,7 +2,7 @@
 #include <Instances/SurfaceGui.hpp>
 #include <Instances/Canvas.hpp>
 #include <Instances/MaterialInstance.hpp>
-#include <Util/GLUniformCache.hpp>
+#include <Core/MainShaderState.hpp>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <include/Core/PropertyRegistry.hpp>
@@ -112,18 +112,8 @@ void assignDecalOrTexture(Instance& child, FaceSlots& slots, bool fillOnlyUnclai
 } // namespace
 
 // 描画の実装
-void Cube::draw(int modelLoc, int shaderProgram) {
+void Cube::draw(MainShaderState& shader) {
     glBindVertexArray(s_VAO);
-    static CachedUniform s_colorLocCache;
-    static CachedUniform s_uvScaleLocCache;
-    static CachedUniform s_isSurfaceGuiLocCache;
-    static CachedUniform s_texTintColorLocCache;
-    static CachedUniform s_useTexTintLocCache;
-    int colorLoc           = cachedUniformLocation(shaderProgram, s_colorLocCache,        "ourColor");
-    int uvScaleLoc         = cachedUniformLocation(shaderProgram, s_uvScaleLocCache,      "uvScale");
-    int isSurfaceGuiLoc    = cachedUniformLocation(shaderProgram, s_isSurfaceGuiLocCache, "isSurfaceGui");
-    int texTintColorLoc    = cachedUniformLocation(shaderProgram, s_texTintColorLocCache, "uTextureTintColor");
-    int useTexTintLoc      = cachedUniformLocation(shaderProgram, s_useTexTintLocCache,   "uUseTextureTint");
 
     // フェイスごとのデカール・テクスチャ収集
     FaceSlots slots;
@@ -177,13 +167,14 @@ void Cube::draw(int modelLoc, int shaderProgram) {
 
     if (!anyFaceOverride) {
         // 面子要素が1つもない場合: 6面すべて素材同一のため1ドローで短絡
-        if (colorLoc           != -1) glUniform4f(colorLoc,        Color.r, Color.g, Color.b, Color.a);
-        if (uvScaleLoc         != -1) glUniform2f(uvScaleLoc,      1.0f, 1.0f);
-        if (isSurfaceGuiLoc    != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
-        if (texTintColorLoc    != -1) glUniform4f(texTintColorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
-        if (useTexTintLoc      != -1) glUniform1f(useTexTintLoc,   0.0f);
+        shader.setColor(Color4(Color.r, Color.g, Color.b, Color.a));
+        shader.setUvScale(1.0f, 1.0f);
+        shader.setSurfaceGui(0.0f);
+        shader.setTextureTintColor(Color4(1.0f, 1.0f, 1.0f, 1.0f));
+        shader.setUseTextureTint(0.0f);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, defaultTextureID);
+        shader.flush();
         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
         return;
     }
@@ -198,40 +189,41 @@ void Cube::draw(int modelLoc, int shaderProgram) {
     for (int i = 0; i < 6; i++) {
         if (activeDecals[i]) {
             const Color4& dc = activeDecals[i]->Color;
-            if (colorLoc           != -1) glUniform4f(colorLoc,        Color.r, Color.g, Color.b, Color.a);
-            if (uvScaleLoc         != -1) glUniform2f(uvScaleLoc,      1.0f, 1.0f);
-            if (isSurfaceGuiLoc    != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
-            if (texTintColorLoc    != -1) glUniform4f(texTintColorLoc, dc.r, dc.g, dc.b, dc.a);
-            if (useTexTintLoc      != -1) glUniform1f(useTexTintLoc,   1.0f);
+            shader.setColor(Color4(Color.r, Color.g, Color.b, Color.a));
+            shader.setUvScale(1.0f, 1.0f);
+            shader.setSurfaceGui(0.0f);
+            shader.setTextureTintColor(Color4(dc.r, dc.g, dc.b, dc.a));
+            shader.setUseTextureTint(1.0f);
         } else if (activeTexInst[i]) {
             const Color4& tc = activeTexInst[i]->Color;
             float su = activeTexInst[i]->StudsPerTileU;
             float sv = activeTexInst[i]->StudsPerTileV;
             float scaleU = (su > 0.0f) ? faceSizeU[i] / su : 1.0f;
             float scaleV = (sv > 0.0f) ? faceSizeV[i] / sv : 1.0f;
-            if (colorLoc           != -1) glUniform4f(colorLoc,        Color.r, Color.g, Color.b, Color.a);
-            if (uvScaleLoc         != -1) glUniform2f(uvScaleLoc,      scaleU, scaleV);
-            if (isSurfaceGuiLoc    != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
-            if (texTintColorLoc    != -1) glUniform4f(texTintColorLoc, tc.r, tc.g, tc.b, tc.a);
-            if (useTexTintLoc      != -1) glUniform1f(useTexTintLoc,   1.0f);
+            shader.setColor(Color4(Color.r, Color.g, Color.b, Color.a));
+            shader.setUvScale(scaleU, scaleV);
+            shader.setSurfaceGui(0.0f);
+            shader.setTextureTintColor(Color4(tc.r, tc.g, tc.b, tc.a));
+            shader.setUseTextureTint(1.0f);
         } else if (activeSurfaceGui[i]) {
-            if (colorLoc           != -1) glUniform4f(colorLoc,        Color.r, Color.g, Color.b, Color.a);
-            if (uvScaleLoc         != -1) glUniform2f(uvScaleLoc,      1.0f, 1.0f);
-            if (isSurfaceGuiLoc    != -1) glUniform1f(isSurfaceGuiLoc, 1.0f);
-            if (texTintColorLoc    != -1) glUniform4f(texTintColorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
-            if (useTexTintLoc      != -1) glUniform1f(useTexTintLoc,   0.0f);
+            shader.setColor(Color4(Color.r, Color.g, Color.b, Color.a));
+            shader.setUvScale(1.0f, 1.0f);
+            shader.setSurfaceGui(1.0f);
+            shader.setTextureTintColor(Color4(1.0f, 1.0f, 1.0f, 1.0f));
+            shader.setUseTextureTint(0.0f);
         } else {
-            if (colorLoc           != -1) glUniform4f(colorLoc,        Color.r, Color.g, Color.b, Color.a);
-            if (uvScaleLoc         != -1) glUniform2f(uvScaleLoc,      1.0f, 1.0f);
-            if (isSurfaceGuiLoc    != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
-            if (texTintColorLoc    != -1) glUniform4f(texTintColorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
-            if (useTexTintLoc      != -1) glUniform1f(useTexTintLoc,   0.0f);
+            shader.setColor(Color4(Color.r, Color.g, Color.b, Color.a));
+            shader.setUvScale(1.0f, 1.0f);
+            shader.setSurfaceGui(0.0f);
+            shader.setTextureTintColor(Color4(1.0f, 1.0f, 1.0f, 1.0f));
+            shader.setUseTextureTint(0.0f);
         }
 
         glActiveTexture(GL_TEXTURE0);
         unsigned int tex = activeTextures[i];
         if (tex == 0) tex = defaultTextureID;
         glBindTexture(GL_TEXTURE_2D, tex);
+        shader.flush();
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(uintptr_t)(i * 6 * sizeof(unsigned int)));
     }
 }

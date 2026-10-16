@@ -2,6 +2,8 @@
 #include <include/Instances/BaseCube.hpp>
 #include <include/Instances/Named.hpp>
 
+class MainShaderState;
+
 // 水などの液体ボリューム。コリジョンを持たず、侵入した BaseCube に浮力を与える。
 class LiquidCube : public Named<LiquidCube, BaseCube> {
 public:
@@ -17,7 +19,7 @@ public:
 
     LiquidCube(Vector3 Pos, Vector3 Sz);
 
-    void draw(int modelLoc, int shaderProgram);
+    void draw(MainShaderState& shader);
 
     void setProperty(const std::string& name, const YAML::Node& value) override;
     std::shared_ptr<Instance> clone() const override;

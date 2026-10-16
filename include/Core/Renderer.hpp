@@ -9,6 +9,7 @@
 #include <include/Core/User.hpp>
 #include <include/Core/Terrain.hpp>
 #include <include/Core/ShdcProgram.hpp>
+#include <include/Core/MainShaderState.hpp>
 #include <include/Instances/Cube.hpp>
 #include <include/Instances/Workspace.hpp>
 
@@ -108,56 +109,22 @@ class Renderer {
         unsigned int VAO;
         unsigned int EBO;
 
-        unsigned int shaderProgram;
+        // メインシェーダー（shaders/sokol/main.glsl）。ユニフォームは m_main の set* で設定し、
+        // メインシェーダーで描く直前に m_main.flush() を呼ぶ。shaderProgram は glUseProgram 用の GL 名。
+        MainShaderState m_main;
+        unsigned int shaderProgram = 0;
 
-        int          lightDirLoc    = -1;
-        int          brightnessLoc  = -1;
-        int          lightColorLoc  = -1;
-
-        // メインシェーダー(shaderProgram)のuniform locationキャッシュ。
-        // 毎フレーム/毎インスタンスのglGetUniformLocation(文字列検索)を避けるため、
-        // init()でリンク直後に一度だけ取得する。
-        int          viewLoc             = -1;
-        int          projectionLoc       = -1;
-        int          viewPosLoc          = -1;
-        int          shadowDistanceLoc   = -1;
-        int          shadowFadeDistanceLoc = -1;
-        int          hasShadowsLoc       = -1;
-        int          lightSpaceMatricesLoc = -1;
-        int          shadowCascadeSplitsLoc = -1;
-        int          shadowCascadeBlendLoc = -1;
-        int          modelLoc            = -1;
-        int          unlitLoc            = -1;
-        int          triplanarLoc        = -1;
-        int          texScaleLoc         = -1;
-        int          uTimeLoc            = -1;
-        int          uIsLiquidLoc        = -1;
-        int          useVertexColorLoc   = -1;
-        int          ourColorLoc         = -1;
-        // SurfaceMark projection overlay uniforms (set only during the overlay pass).
-        int          surfaceMarkPassLoc = -1;
-        int          surfaceMarkWorldToLocalLoc = -1;
-        int          surfaceMarkProjectionLoc = -1;
-        int          surfaceMarkSizeLoc = -1;
-        int          surfaceMarkTintLoc = -1;
-        int          surfaceMarkDepthLoc = -1;
-        int          surfaceMarkTextureLoc = -1;
-
-        int          m_uPbrMaterialLoc   = -1;  // 個別描画用のPBR値(w=0でPBR無効)
-        int          m_uEnvMaxLodLoc     = -1;
 
         // ---- Materialの画像マップ（BaseColor/Roughness/Metallic/Normal） ----
         // マップを持つMaterialの参照元は個別描画に回り、描画ごとにここでユニット
         // MATERIAL_MAP_UNIT_BASE+0..3 へ束縛する。解決したテクスチャはMaterialごとに
         // キャッシュし、参照文字列の解決とファイル確認は一定間隔でしか行わない。
-        static constexpr int MATERIAL_MAP_UNIT_BASE = 11;
+        static constexpr int MATERIAL_MAP_UNIT_BASE = MainShaderState::MATERIAL_MAP_UNIT_BASE;
         struct MaterialMapEntry {
             std::string  signature;                        // 解決済みパスの連結
             unsigned int textures[4] = {0, 0, 0, 0};
             double       nextCheck = 0.0;
         };
-        int          m_uMatMapFlagsLoc  = -1;
-        int          m_uMatMapParamsLoc = -1;
         std::unordered_map<const MaterialInstance*, MaterialMapEntry> m_materialMapCache;
         void bindMaterialMaps(const BaseCube& cube);
         // materialがnullまたはマップ無しなら、マップを無効にする(フラグを0にする)。
@@ -189,15 +156,7 @@ class Renderer {
             bool attribsAttached = false;          // 形状のs_VAOへ属性5-9を付与済みか
         };
         InstanceBatch m_instBatches[INST_SHAPE_COUNT];
-        int m_uInstancedLoc = -1;       // メインシェーダーの uInstanced
-
-        struct LightUniformLocs {
-            int type = -1, position = -1, direction = -1, color = -1;
-            int brightness = -1, range = -1, cosCutoff = -1;
-        };
-        static const int MAX_LIGHTS = 8; // shaders/fragment.glslの#define MAX_LIGHTSと一致させること
-        LightUniformLocs lightLocs[MAX_LIGHTS];
-        int          uLightCountLoc = -1;
+        static constexpr int MAX_LIGHTS = MainShaderState::MAX_LIGHTS;
 
         unsigned int shadowFBO     = 0;
         unsigned int shadowMapTex  = 0;
@@ -222,7 +181,7 @@ class Renderer {
         //      サンプラー上限(16個)を回避するため、uDecalTex[8]をsampler2DArray 1個に集約する ----
         static constexpr int DECAL_ARRAY_SIZE = 256;
         static constexpr int DECAL_ARRAY_MAX_LAYERS = 64;
-        static constexpr int DECAL_ARRAY_UNIT = 9;
+        static constexpr int DECAL_ARRAY_UNIT = MainShaderState::DECAL_ARRAY_UNIT;
         unsigned int m_decalArrayTexture = 0;
         std::unordered_map<unsigned int, int> m_decalArrayLayerCache;
         int m_decalArrayNextLayer = 0;
@@ -234,7 +193,7 @@ class Renderer {
         // Skyboxの6面から焼いた、mipがroughnessに対応するキューブマップ。Skyboxが無い/
         // テクスチャ未読込のときは手続き的な空のグラデーションを使う。メインシェーダーでは
         // テクスチャユニット ENV_SPECULAR_UNIT の samplerCube uEnvSpecular に束縛する。
-        static constexpr int ENV_SPECULAR_UNIT = 10;
+        static constexpr int ENV_SPECULAR_UNIT = MainShaderState::ENV_SPECULAR_UNIT;
         unsigned int m_envSpecularTex = 0;
         float        m_envMaxLod = 0.0f;
         std::size_t  m_envSignature = 0;       // 焼いた時のSkybox入力の識別値。0は手続き的フォールバック

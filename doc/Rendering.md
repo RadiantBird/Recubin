@@ -11,9 +11,9 @@
 | `include/Core/Renderer.hpp` | `Renderer` クラス定義、`ViewportRenderDesc` |
 | `src/Core/Renderer.cpp` | 初期化・シャドウパス・メインパス・地形描画 |
 | `src/Core/Renderer_GUI.cpp` | ScreenGui / WorldGui / SurfaceGui / ホットバーの描画 |
-| `shaders/vertex.glsl`, `shaders/fragment.glsl` | メインシェーダー（Phong + シャドウ + トライプラナー） |
+| `shaders/sokol/main.glsl` | メインシェーダー（Phong + シャドウ + トライプラナー）。ユニフォームは `include/Core/MainShaderState.hpp` が保持し、描画の直前に `flush()` で送る |
 | `shaders/sokol/depth.glsl` | シャドウマップ / SurfaceMark 用デプスシェーダー |
-| `shaders/sokol/*.glsl` | sokol-shdc 形式のシェーダー（depth / postprocess / selection / sky_flare / env_prefilter）。ビルド時に `<build>/generated/shaders/<名前>.h` へ変換され、実行時にファイルは読まない |
+| `shaders/sokol/*.glsl` | sokol-shdc 形式のシェーダー（main / depth / postprocess / selection / sky_flare / env_prefilter / line / particle / cloud）。ビルド時に `<build>/generated/shaders/<名前>.h` へ変換され、実行時にファイルは読まない |
 | `include/Core/ShdcProgram.hpp` | sokol-shdc 生成シェーダーを生 GL のプログラムとして使う移行用ラッパー（ユニフォームは生成された構造体ごと送る） |
 | `src/Editor/ViewportPanel.cpp` | エディタの各ビューポートパネルが FBO を持ち `renderViewport` を呼ぶ |
 | `include/Core/TerrainStreamer.hpp` | チャンクメッシュ（`Chunk::mesh`）の供給元 |
@@ -84,7 +84,7 @@ SurfaceGuiがCubeの通常面を上書きする条件は、`Visible`、有効な
 
 ## シェーダー仕様
 
-### メインシェーダー（`vertex.glsl` / `fragment.glsl`）
+### メインシェーダー（`shaders/sokol/main.glsl`）
 
 - 頂点属性: `aPos`(0), `aNormal`(1), `aTexCoord`(2), `aVertexColor`(3, Terrain用)
 - ライティング: Lambert 拡散光 + 固定 ambient(0.3) のみ。スペキュラなし

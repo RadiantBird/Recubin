@@ -43,7 +43,7 @@ const CubeFaceView kFaceViews[6] = {
 };
 
 // キューブ面のテクセル位置(u,v は -1..1、vは画像の行方向)から方向を求める。
-// env_prefilter_fragment.glsl の faceDirection と同じ規約。
+// shaders/sokol/env_prefilter.glsl の faceDirection と同じ規約。
 Vector3 faceDirection(int face, float u, float v) {
     switch (face) {
         case 0:  return Vector3( 1.0f,   -v,   -u);
@@ -175,18 +175,18 @@ void renderSkyboxToCubemap(Renderer& renderer, Skybox& skybox, GLuint sourceText
                           Matrix4::Scale(size.x, size.y, size.z);
 
     // メインシェーダーのuniformを、Skyboxを単色(unlit)で描く状態に揃える。
-    glUniformMatrix4fv(renderer.projectionLoc, 1, GL_FALSE, projection.m);
-    glUniformMatrix4fv(renderer.modelLoc, 1, GL_FALSE, model.m);
-    glUniform3f(renderer.viewPosLoc, 0.0f, 0.0f, 0.0f);
-    if (renderer.unlitLoc != -1) glUniform1f(renderer.unlitLoc, 1.0f);
-    if (renderer.triplanarLoc != -1) glUniform1f(renderer.triplanarLoc, 0.0f);
-    if (renderer.texScaleLoc != -1) glUniform1f(renderer.texScaleLoc, 1.0f);
-    if (renderer.useVertexColorLoc != -1) glUniform1f(renderer.useVertexColorLoc, 0.0f);
-    if (renderer.uIsLiquidLoc != -1) glUniform1f(renderer.uIsLiquidLoc, 0.0f);
-    if (renderer.m_uInstancedLoc != -1) glUniform1f(renderer.m_uInstancedLoc, 0.0f);
-    if (renderer.m_uPbrMaterialLoc != -1) glUniform4f(renderer.m_uPbrMaterialLoc, 0.0f, 0.0f, 0.0f, 0.0f);
-    if (renderer.surfaceMarkPassLoc != -1) glUniform1f(renderer.surfaceMarkPassLoc, 0.0f);
-    glUniform1i(glGetUniformLocation(renderer.shaderProgram, "uDecalCount"), 0);
+    renderer.m_main.setProjection(projection);
+    renderer.m_main.setModel(model);
+    renderer.m_main.setViewPos(Vector3(0.0f, 0.0f, 0.0f));
+    renderer.m_main.setUnlit(1.0f);
+    renderer.m_main.setTriplanar(0.0f);
+    renderer.m_main.setTextureScale(1.0f);
+    renderer.m_main.setUseVertexColor(0.0f);
+    renderer.m_main.setIsLiquid(0.0f);
+    renderer.m_main.setInstanced(0.0f);
+    renderer.m_main.setPbrMaterial(0.0f, 0.0f, 0.0f, 0.0f);
+    renderer.m_main.setSurfaceMarkPass(0.0f);
+    renderer.m_main.setDecalCount(0);
     glActiveTexture(GL_TEXTURE0);
 
     for (int face = 0; face < 6; ++face) {
@@ -196,8 +196,8 @@ void renderSkyboxToCubemap(Renderer& renderer, Skybox& skybox, GLuint sourceText
         glClear(GL_COLOR_BUFFER_BIT);
         const Matrix4 view = Matrix4::LookAt(Vector3(0.0f, 0.0f, 0.0f), kFaceViews[face].forward,
                                              kFaceViews[face].up);
-        glUniformMatrix4fv(renderer.viewLoc, 1, GL_FALSE, view.m);
-        skybox.draw(renderer.modelLoc, renderer.shaderProgram);
+        renderer.m_main.setView(view);
+        skybox.draw(renderer.m_main);
     }
 
     // プレフィルタが拡大/縮小サンプルするため、ソースにもmipを持たせる(256→1の9段)。
@@ -331,5 +331,5 @@ void Renderer::bindEnvironmentMap() {
     glActiveTexture(GL_TEXTURE0 + ENV_SPECULAR_UNIT);
     glBindTexture(GL_TEXTURE_CUBE_MAP, m_envSpecularTex);
     glActiveTexture(GL_TEXTURE0);
-    if (m_uEnvMaxLodLoc != -1) glUniform1f(m_uEnvMaxLodLoc, m_envMaxLod);
+    m_main.setEnvMaxLod(m_envMaxLod);
 }

@@ -125,25 +125,17 @@ void Renderer::renderCelestialBodies(Workspace& workspace, const Vector3& camera
     const Vector3 moonDirection = moonDirectionFor(primarySun);
 
     // メインシェーダーを、単色(unlit)の個別描画と同じ状態にそろえる。
-    static CachedUniform s_uvScaleCache;
-    static CachedUniform s_isSurfaceGuiCache;
-    static CachedUniform s_tintColorCache;
-    static CachedUniform s_useTintCache;
-    const int uvScaleLoc = cachedUniformLocation(shaderProgram, s_uvScaleCache, "uvScale");
-    const int isSurfaceGuiLoc = cachedUniformLocation(shaderProgram, s_isSurfaceGuiCache, "isSurfaceGui");
-    const int tintColorLoc = cachedUniformLocation(shaderProgram, s_tintColorCache, "uTextureTintColor");
-    const int useTintLoc = cachedUniformLocation(shaderProgram, s_useTintCache, "uUseTextureTint");
-    if (unlitLoc != -1) glUniform1f(unlitLoc, 1.0f);
-    if (triplanarLoc != -1) glUniform1f(triplanarLoc, 0.0f);
-    if (texScaleLoc != -1) glUniform1f(texScaleLoc, 1.0f);
-    if (useVertexColorLoc != -1) glUniform1f(useVertexColorLoc, 0.0f);
-    if (uIsLiquidLoc != -1) glUniform1f(uIsLiquidLoc, 0.0f);
-    if (m_uInstancedLoc != -1) glUniform1f(m_uInstancedLoc, 0.0f);
-    if (m_uPbrMaterialLoc != -1) glUniform4f(m_uPbrMaterialLoc, 0.0f, 0.0f, 0.0f, 0.0f);
-    if (uvScaleLoc != -1) glUniform2f(uvScaleLoc, 1.0f, 1.0f);
-    if (isSurfaceGuiLoc != -1) glUniform1f(isSurfaceGuiLoc, 0.0f);
-    if (tintColorLoc != -1) glUniform4f(tintColorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
-    if (useTintLoc != -1) glUniform1f(useTintLoc, 0.0f);
+    m_main.setUnlit(1.0f);
+    m_main.setTriplanar(0.0f);
+    m_main.setTextureScale(1.0f);
+    m_main.setUseVertexColor(0.0f);
+    m_main.setIsLiquid(0.0f);
+    m_main.setInstanced(0.0f);
+    m_main.setPbrMaterial(0.0f, 0.0f, 0.0f, 0.0f);
+    m_main.setUvScale(1.0f, 1.0f);
+    m_main.setSurfaceGui(0.0f);
+    m_main.setTextureTintColor(Color4(1.0f, 1.0f, 1.0f, 1.0f));
+    m_main.setUseTextureTint(0.0f);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, whiteTexture);
@@ -162,14 +154,13 @@ void Renderer::renderCelestialBodies(Workspace& workspace, const Vector3& camera
         const Matrix4 model =
             CFrame(cameraPosition + direction * CelestialBody::SKY_RENDER_DISTANCE).toMatrix4() *
             Matrix4::Scale(diameter, diameter, diameter);
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
-        if (ourColorLoc != -1) {
-            glUniform4f(ourColorLoc, body->Color.r, body->Color.g, body->Color.b, body->Color.a);
-        }
+        m_main.setModel(model);
+        m_main.setColor(Color4(body->Color.r, body->Color.g, body->Color.b, body->Color.a));
 
         // 半透明の円盤は深度を書かない（後ろの物を隠さない）。ブレンドはメインパス既定のまま。
         const bool translucent = body->Color.a < 0.999f;
         if (translucent) glDepthMask(GL_FALSE);
+        m_main.flush();
         glDrawElements(GL_TRIANGLES, Sphere::s_IndexCount, GL_UNSIGNED_INT, nullptr);
         if (translucent) glDepthMask(GL_TRUE);
     }

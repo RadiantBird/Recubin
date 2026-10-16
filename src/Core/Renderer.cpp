@@ -639,54 +639,16 @@ void Renderer::init(GLFWwindow* window) {
         indices.push_back(start + 0); indices.push_back(start + 2); indices.push_back(start + 3);
     }
 
-    std::string vShaderStr = FileLoader::readText("shaders/vertex.glsl");
-    std::string fShaderStr = FileLoader::readText("shaders/fragment.glsl");
-    const char* vertexShaderSource   = vShaderStr.c_str();
-    const char* fragmentShaderSource = fShaderStr.c_str();
-
-    unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-    glCompileShader(vertexShader);
-
-    int  success;
-    char infoLog[512];
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+    if (!m_main.create()) {
+        RCBN_ERROR("Renderer: main shader is unavailable; the 3D scene cannot be drawn");
     }
-
-    unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-    glCompileShader(fragmentShader);
-
-    char infoLog2[512];
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog2);
-        std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog2 << std::endl;
-    }
-
-    shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-
-    char infoLog3[512];
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if (!success) {
-        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog3);
-        std::cout << "ERROR::SHADER::PROGRAM::LINK_FAILED\n" << infoLog3 << std::endl;
-    }
+    shaderProgram = m_main.program();
 
     glUseProgram(shaderProgram);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glVertexAttrib1f(4, 1.0f); // MeshCube以外がattrib4を使わない場合のデフォルトMatAlpha=1
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
 
     // 標準キューブ頂点を VBO へ
     Cube testCube({0,0,0}, {1,1,1}, 0);
@@ -725,76 +687,14 @@ void Renderer::init(GLFWwindow* window) {
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-    lightColorLoc = glGetUniformLocation(shaderProgram, "lightColor");
-    glUniform3f(lightColorLoc, 1.0f, 1.0f, 1.0f);
-    lightDirLoc   = glGetUniformLocation(shaderProgram, "lightDir");
-    brightnessLoc = glGetUniformLocation(shaderProgram, "brightness");
-    glUniform3f(lightDirLoc, 1.0f, -1.0f, -1.0f);
-    glUniform1f(brightnessLoc, 1.0f);
-
-    // --- 毎フレーム参照するuniform locationを一括キャッシュ（renderViewport/renderTerrainで再利用） ---
-    viewLoc             = glGetUniformLocation(shaderProgram, "view");
-    projectionLoc       = glGetUniformLocation(shaderProgram, "projection");
-    viewPosLoc          = glGetUniformLocation(shaderProgram, "viewPos");
-    shadowDistanceLoc   = glGetUniformLocation(shaderProgram, "uShadowDistance");
-    shadowFadeDistanceLoc = glGetUniformLocation(shaderProgram, "uShadowFadeDistance");
-    hasShadowsLoc       = glGetUniformLocation(shaderProgram, "hasShadows");
-    lightSpaceMatricesLoc = glGetUniformLocation(shaderProgram, "lightSpaceMatrices[0]");
-    shadowCascadeSplitsLoc = glGetUniformLocation(shaderProgram, "uShadowCascadeSplits");
-    shadowCascadeBlendLoc = glGetUniformLocation(shaderProgram, "uShadowCascadeBlend");
-    modelLoc            = glGetUniformLocation(shaderProgram, "model");
-    unlitLoc            = glGetUniformLocation(shaderProgram, "unlit");
-    triplanarLoc        = glGetUniformLocation(shaderProgram, "useTriplanar");
-    texScaleLoc         = glGetUniformLocation(shaderProgram, "u_textureScale");
-    uTimeLoc            = glGetUniformLocation(shaderProgram, "uTime");
-    uIsLiquidLoc        = glGetUniformLocation(shaderProgram, "uIsLiquid");
-    useVertexColorLoc   = glGetUniformLocation(shaderProgram, "useVertexColor");
-    ourColorLoc         = glGetUniformLocation(shaderProgram, "ourColor");
-    surfaceMarkPassLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkPass");
-    surfaceMarkWorldToLocalLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkWorldToLocal");
-    surfaceMarkProjectionLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkProjection");
-    surfaceMarkSizeLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkSize");
-    surfaceMarkTintLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkTint");
-    surfaceMarkTextureLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkTexture");
-    surfaceMarkDepthLoc = glGetUniformLocation(shaderProgram, "uSurfaceMarkDepth");
-    uLightCountLoc      = glGetUniformLocation(shaderProgram, "uLightCount");
-    m_uInstancedLoc     = glGetUniformLocation(shaderProgram, "uInstanced");
-    m_uPbrMaterialLoc   = glGetUniformLocation(shaderProgram, "uPbrMaterial");
-    m_uEnvMaxLodLoc     = glGetUniformLocation(shaderProgram, "uEnvMaxLod");
-    for (int i = 0; i < MAX_LIGHTS; i++) {
-        std::string b = "uLights[" + std::to_string(i) + "].";
-        lightLocs[i].type       = glGetUniformLocation(shaderProgram, (b + "type").c_str());
-        lightLocs[i].position   = glGetUniformLocation(shaderProgram, (b + "position").c_str());
-        lightLocs[i].direction  = glGetUniformLocation(shaderProgram, (b + "direction").c_str());
-        lightLocs[i].color      = glGetUniformLocation(shaderProgram, (b + "color").c_str());
-        lightLocs[i].brightness = glGetUniformLocation(shaderProgram, (b + "brightness").c_str());
-        lightLocs[i].range      = glGetUniformLocation(shaderProgram, (b + "range").c_str());
-        lightLocs[i].cosCutoff  = glGetUniformLocation(shaderProgram, (b + "cosCutoff").c_str());
-    }
-
-    // --- Shadow map テクスチャユニットのバインド設定 ---
-    glUniform1i(glGetUniformLocation(shaderProgram, "shadowMap"), 1);
-    // SurfaceMark uses dedicated units 2 (image) and 3 (viewpoint depth).
-    glUniform1i(surfaceMarkTextureLoc, 2);
-    glUniform1i(surfaceMarkDepthLoc, 3);
-    // 環境キューブマップ専用のユニット。sampler2Dと同じユニットを指すとdraw時にGL_INVALID_OPERATION
-    // になるため、既定値(0)のままにせず必ず専用ユニットを割り当てる。
-    glUniform1i(glGetUniformLocation(shaderProgram, "uEnvSpecular"), ENV_SPECULAR_UNIT);
-    // Decal配列テクスチャ専用のユニット。他のsamplerと同じユニットを指すとdraw時にGL_INVALID_OPERATION
-    // になるため、既定値(0)のままにせず必ず専用ユニットを割り当てる(uEnvSpecularと同じ理由)。
-    glUniform1i(glGetUniformLocation(shaderProgram, "uDecalTexArray"), DECAL_ARRAY_UNIT);
-    // Materialの画像マップ用ユニット(BaseColor/Roughness/Metallic/Normal)。
-    static constexpr const char* MATERIAL_MAP_SAMPLERS[4] = {
-        "uMatBaseColorMap", "uMatRoughnessMap", "uMatMetallicMap", "uMatNormalMap"};
-    for (int slot = 0; slot < 4; ++slot)
-        glUniform1i(glGetUniformLocation(shaderProgram, MATERIAL_MAP_SAMPLERS[slot]),
-                    MATERIAL_MAP_UNIT_BASE + slot);
-    m_uMatMapFlagsLoc  = glGetUniformLocation(shaderProgram, "uMatMapFlags");
-    m_uMatMapParamsLoc = glGetUniformLocation(shaderProgram, "uMatMapParams");
-    if (m_uMatMapFlagsLoc != -1) glUniform4f(m_uMatMapFlagsLoc, 0.0f, 0.0f, 0.0f, 0.0f);
-    if (m_uPbrMaterialLoc != -1) glUniform4f(m_uPbrMaterialLoc, 0.0f, 0.0f, 0.0f, 0.0f);
-    glUniform1f(surfaceMarkPassLoc, 0.0f);
-    glUniform1f(hasShadowsLoc, 0.0f);
+    // テクスチャユニットは main.glsl の binding で固定（MainShaderState の *_UNIT）。
+    m_main.setLightColor(Color4(1.0f, 1.0f, 1.0f, 1.0f));
+    m_main.setLightDir(Vector3(1.0f, -1.0f, -1.0f));
+    m_main.setBrightness(1.0f);
+    m_main.setMatMapFlags(0.0f, 0.0f, 0.0f, 0.0f);
+    m_main.setPbrMaterial(0.0f, 0.0f, 0.0f, 0.0f);
+    m_main.setSurfaceMarkPass(0.0f);
+    m_main.setHasShadows(0.0f);
 
     // --- Depth シェーダー（Shadow Pass / SurfaceMark の投影深度用）---
     m_depthProgram.create(*depth_pass_shader_desc(SG_BACKEND_GLCORE), "depth");
@@ -906,7 +806,7 @@ Renderer::~Renderer() {
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &EBO);
     glDeleteVertexArrays(1, &VAO);
-    glDeleteProgram(shaderProgram);
+    m_main.destroy();
 
     if (m_instanceVBO) glDeleteBuffers(1, &m_instanceVBO);
 
@@ -2099,7 +1999,7 @@ void Renderer::drawBaseCubeHighlight(BaseCube* target, const Color4& fillColor,
     if (!bindHighlightGeometry(target, indexCount)) return;
 
     glDisable(GL_DEPTH_TEST);                       // 深度無効化：壁越しに見せる
-    if (unlitLoc != -1) glUniform1f(unlitLoc, 1.0f); // フラット単色描画を保証（メインパスの残り値に依存しない）
+    m_main.setUnlit(1.0f); // フラット単色描画を保証（メインパスの残り値に依存しない）
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, whiteTexture);
 
@@ -2107,9 +2007,10 @@ void Renderer::drawBaseCubeHighlight(BaseCube* target, const Color4& fillColor,
     if (fillColor.a > 0.001f) {
         Matrix4 fillMat = target->getWorldCFrame().toMatrix4() *
                           Matrix4::Scale(target->Size.x, target->Size.y, target->Size.z);
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, fillMat.m);
-        if (ourColorLoc != -1) glUniform4f(ourColorLoc, fillColor.r, fillColor.g, fillColor.b, fillColor.a);
+        m_main.setModel(fillMat);
+        m_main.setColor(Color4(fillColor.r, fillColor.g, fillColor.b, fillColor.a));
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        m_main.flush();
         glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, nullptr);
     }
 
@@ -2142,7 +2043,7 @@ void Renderer::drawBaseCubeHighlight(BaseCube* target, const Color4& fillColor,
         }
     }
 
-    if (unlitLoc != -1) glUniform1f(unlitLoc, 0.0f);
+    m_main.setUnlit(0.0f);
     glEnable(GL_DEPTH_TEST);
 }
 
@@ -2367,7 +2268,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         const int shadowShapeIdx = shadowInstanceableShapeIndex(inst);
         const int mainShapeIdx = instanceableShapeIndexForShape(inst, shadowShapeIdx);
         const bool canInstanceMain = mainShapeIdx >= 0 &&
-            m_uInstancedLoc != -1 && instShapes[mainShapeIdx].vao != 0;
+            m_main.isValid() && instShapes[mainShapeIdx].vao != 0;
         const bool canInstanceShadow = shadowShapeIdx >= 0 &&
             m_depthProgram.isValid() && instShapes[shadowShapeIdx].vao != 0;
         if (!canInstanceMain) chunk.individualMain.push_back(inst);
@@ -2863,18 +2764,18 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     if (captureGpuViewport) writeGpuTimestamp(GpuTimestamp::MainBegin);
     FrameProfiler::get().beginSection("main");
     glUseProgram(shaderProgram);
-    glUniformMatrix4fv(viewLoc,       1, GL_FALSE, view.m);
-    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, projection.m);
-    glUniform3f(viewPosLoc, desc.cameraPosition.x, desc.cameraPosition.y, desc.cameraPosition.z);
-    if (shadowDistanceLoc != -1) {
+    m_main.setView(view);
+    m_main.setProjection(projection);
+    m_main.setViewPos(Vector3(desc.cameraPosition.x, desc.cameraPosition.y, desc.cameraPosition.z));
+    {
         const float shadowDistance = lighting && std::isfinite(lighting->shadowDistance) ?
             std::max(lighting->shadowDistance, 0.0f) : 160.0f;
-        glUniform1f(shadowDistanceLoc, shadowDistance);
+        m_main.setShadowDistance(shadowDistance);
     }
-    if (shadowFadeDistanceLoc != -1) {
+    {
         const float shadowFadeDistance = lighting && std::isfinite(lighting->shadowFadeDistance) ?
             std::max(lighting->shadowFadeDistance, 0.0f) : 20.0f;
-        glUniform1f(shadowFadeDistanceLoc, shadowFadeDistance);
+        m_main.setShadowFadeDistance(shadowFadeDistance);
     }
 
     // 平行光源（太陽光）。向きはSun、強さと色はLighting（無ければ1.0/白）。Sunが無いときは
@@ -2883,9 +2784,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         const float sunBrightness = !hasDirectionalLight ? 0.0f
             : (lighting ? lighting->brightness : 1.0f);
         const Color4 sunColor = lighting ? lighting->lightColor : Color4(1.0f, 1.0f, 1.0f, 1.0f);
-        if (lightDirLoc   != -1) glUniform3f(lightDirLoc,   lightDirection.x,  lightDirection.y,  lightDirection.z);
-        if (brightnessLoc != -1) glUniform1f(brightnessLoc, sunBrightness);
-        if (lightColorLoc != -1) glUniform3f(lightColorLoc, sunColor.r, sunColor.g, sunColor.b);
+        m_main.setLightDir(Vector3(lightDirection.x, lightDirection.y, lightDirection.z));
+        m_main.setBrightness(sunBrightness);
+        m_main.setLightColor(Color4(sunColor.r, sunColor.g, sunColor.b, 1.0f));
     }
 
     // ---- 追加 Point/Spot 光源を uniform 配列へ ----
@@ -2910,43 +2811,27 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 float ang = static_cast<SpotLight*>(ls)->Angle;
                 cosCutoff = std::cos(ang * 3.14159265f / 180.0f);
             }
-            const LightUniformLocs& loc = lightLocs[count];
-            glUniform1i(loc.type, isSpot ? 1 : 0);
-            glUniform3f(loc.position,  pos.x, pos.y, pos.z);
-            glUniform3f(loc.direction, dir.x, dir.y, dir.z);
-            glUniform3f(loc.color, ls->lightColor.r, ls->lightColor.g, ls->lightColor.b);
-            glUniform1f(loc.brightness, ls->brightness);
-            glUniform1f(loc.range,      ls->range);
-            glUniform1f(loc.cosCutoff,  cosCutoff);
+            m_main.setLight(count, isSpot, pos, dir, ls->lightColor, ls->brightness, ls->range, cosCutoff);
             count++;
         }
-        glUniform1i(uLightCountLoc, count);
+        m_main.setLightCount(count);
     }
 
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D_ARRAY, shadowReady ? shadowMapTex : 0);
     glActiveTexture(GL_TEXTURE0);
     bindEnvironmentMap();
-    if (lightSpaceMatricesLoc != -1) {
-        glUniformMatrix4fv(lightSpaceMatricesLoc, SHADOW_CASCADE_COUNT, GL_FALSE,
-                           lightSpaceMatrices[0].m);
-    }
-    if (shadowCascadeSplitsLoc != -1) {
-        glUniform3f(shadowCascadeSplitsLoc,
-                    shadowCascadeSplits[0], shadowCascadeSplits[1], shadowCascadeSplits[2]);
-    }
-    if (shadowCascadeBlendLoc != -1) {
-        glUniform2f(shadowCascadeBlendLoc,
-                    shadowCascadeBlend[0], shadowCascadeBlend[1]);
-    }
-    if (hasShadowsLoc != -1) glUniform1f(hasShadowsLoc, shadowReady ? 1.0f : 0.0f);
+    m_main.setLightSpaceMatrices(lightSpaceMatrices.data(), SHADOW_CASCADE_COUNT);
+    m_main.setShadowCascadeSplits(shadowCascadeSplits[0], shadowCascadeSplits[1], shadowCascadeSplits[2]);
+    m_main.setShadowCascadeBlend(shadowCascadeBlend[0], shadowCascadeBlend[1]);
+    m_main.setHasShadows(shadowReady ? 1.0f : 0.0f);
 
     glBindVertexArray(VAO);
 
     // 波アニメ用の時間と液体フラグ（既定 0）
     const Physics* wavePhysics = desc.workspace->getPhysicsEngine();
-    glUniform1f(uTimeLoc, wavePhysics ? wavePhysics->getWaveTime() : 0.0f);
-    glUniform1f(uIsLiquidLoc, 0.0f);
+    m_main.setTime(wavePhysics ? wavePhysics->getWaveTime() : 0.0f);
+    m_main.setIsLiquid(0.0f);
 
     // 完全不透明(Color.a>=1)のオブジェクトはGL_BLENDを無効化して描画コスト削減。
     // init()でglEnable(GL_BLEND)済みのためtrueスタート。ループを抜けた後はこの関数の
@@ -2969,10 +2854,6 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         }
     };
 
-    static CachedUniform baseCubeTintColorCache;
-    static CachedUniform baseCubeUseTintCache;
-    const int baseCubeTintColorLoc = cachedUniformLocation(shaderProgram, baseCubeTintColorCache, "uTextureTintColor");
-    const int baseCubeUseTintLoc = cachedUniformLocation(shaderProgram, baseCubeUseTintCache, "uUseTextureTint");
 
     auto renderInst = [&](BaseCube* inst) -> void {
         if (!inst) return;
@@ -2980,20 +2861,20 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         FrameProfiler::get().addCount("baseCubesVisited", 1);
         BaseCube* bc = inst;
             // 個別描画のPBR値。Material未参照の個体は全て0（従来のLambert描画）に戻す。
-            if (m_uPbrMaterialLoc != -1) {
+            {
                 float pbr[4];
                 getPbrParams(*bc, pbr);
-                glUniform4f(m_uPbrMaterialLoc, pbr[0], pbr[1], pbr[2], pbr[3]);
+                m_main.setPbrMaterial(pbr[0], pbr[1], pbr[2], pbr[3]);
             }
             bindMaterialMaps(*bc);
-            if (unlitLoc     != -1) glUniform1f(unlitLoc,     bc->Unlit        ? 1.0f : 0.0f);
-            if (triplanarLoc != -1) glUniform1f(triplanarLoc, bc->UseTriplanar ? 1.0f : 0.0f);
-            if (texScaleLoc  != -1) glUniform1f(texScaleLoc,  bc->TextureScale);
+            m_main.setUnlit(bc->Unlit ? 1.0f : 0.0f);
+            m_main.setTriplanar(bc->UseTriplanar ? 1.0f : 0.0f);
+            m_main.setTextureScale(bc->TextureScale);
             // Cube::draw() changes these per face. Reset them for every
             // BaseCube so another draw class cannot inherit the prior face's
             // texture tint state.
-            if (baseCubeTintColorLoc != -1) glUniform4f(baseCubeTintColorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
-            if (baseCubeUseTintLoc != -1) glUniform1f(baseCubeUseTintLoc, 0.0f);
+            m_main.setTextureTintColor(Color4(1.0f, 1.0f, 1.0f, 1.0f));
+            m_main.setUseTextureTint(0.0f);
         if (inst->IsA("Cube")) {
             Cube* cube = static_cast<Cube*>(inst);
             if (instanceableShapeIndex(cube) < 0) {
@@ -3001,9 +2882,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     CFrame wcf = cube->getWorldCFrame();
                     if (sphereInFrustum(camFrustum, wcf.Position, cube->Size.length() * 0.5f)) {
                         Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
-                        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                        m_main.setModel(m);
                         setBlendForAlpha(cube->Color.a);
-                        cube->draw(modelLoc, shaderProgram);
+                        cube->draw(m_main);
                         FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                     } else {
                         FrameProfiler::get().addCount("cubesCulled", 1);
@@ -3017,9 +2898,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     CFrame wcf = c->getWorldCFrame();
                     if (sphereInFrustum(camFrustum, wcf.Position, c->Size.length() * 0.5f)) {
                         Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(c->Size.x, c->Size.y, c->Size.z);
-                        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                        m_main.setModel(m);
                         setBlendForAlpha(c->Color.a);
-                        c->draw(modelLoc, shaderProgram);
+                        c->draw(m_main);
                         FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                     } else {
                         FrameProfiler::get().addCount("cubesCulled", 1);
@@ -3033,9 +2914,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     CFrame wcf = tp->getWorldCFrame();
                     if (sphereInFrustum(camFrustum, wcf.Position, tp->Size.length() * 0.5f)) {
                         Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(tp->Size.x, tp->Size.y, tp->Size.z);
-                        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                        m_main.setModel(m);
                         setBlendForAlpha(tp->Color.a);
-                        tp->draw(modelLoc, shaderProgram);
+                        tp->draw(m_main);
                         FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                     } else {
                         FrameProfiler::get().addCount("cubesCulled", 1);
@@ -3048,9 +2929,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 CFrame wcf = wg->getWorldCFrame();
                 if (sphereInFrustum(camFrustum, wcf.Position, wg->Size.length() * 0.5f)) {
                     Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(wg->Size.x, wg->Size.y, wg->Size.z);
-                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                    m_main.setModel(m);
                     setBlendForAlpha(wg->Color.a);
-                    wg->draw(modelLoc, shaderProgram);
+                    wg->draw(m_main);
                     FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                 } else {
                     FrameProfiler::get().addCount("cubesCulled", 1);
@@ -3063,9 +2944,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     CFrame wcf = sp->getWorldCFrame();
                     if (sphereInFrustum(camFrustum, wcf.Position, sp->Size.length() * 0.5f)) {
                         Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(sp->Size.x, sp->Size.y, sp->Size.z);
-                        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                        m_main.setModel(m);
                         setBlendForAlpha(sp->Color.a);
-                        sp->draw(modelLoc, shaderProgram);
+                        sp->draw(m_main);
                         FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                     } else {
                         FrameProfiler::get().addCount("cubesCulled", 1);
@@ -3078,9 +2959,9 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                 CFrame wcf = mc->getWorldCFrame();
                 if (sphereInFrustum(camFrustum, wcf.Position, mc->Size.length() * 0.5f)) {
                     Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(mc->Size.x, mc->Size.y, mc->Size.z);
-                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                    m_main.setModel(m);
                     setBlendForAlpha(mc->isUsingFallback() ? 1.0f : mc->Color.a);
-                    mc->draw(modelLoc, shaderProgram);
+                    mc->draw(m_main);
                     FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                 } else {
                     FrameProfiler::get().addCount("cubesCulled", 1);
@@ -3091,12 +2972,12 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             if (lc->Color.a > 0.001f) {
                 CFrame wcf = lc->getWorldCFrame();
                 if (sphereInFrustum(camFrustum, wcf.Position, lc->Size.length() * 0.5f)) {
-                    glUniform1f(uIsLiquidLoc, 1.0f);
+                    m_main.setIsLiquid(1.0f);
                     Matrix4 m = wcf.toMatrix4() * Matrix4::Scale(lc->Size.x, lc->Size.y, lc->Size.z);
-                    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, m.m);
+                    m_main.setModel(m);
                     setBlendForAlpha(lc->Color.a);
-                    lc->draw(modelLoc, shaderProgram);
-                    glUniform1f(uIsLiquidLoc, 0.0f);
+                    lc->draw(m_main);
+                    m_main.setIsLiquid(0.0f);
                     FrameProfiler::get().addCount("cubesDrawn", 1); FrameProfiler::get().addCount("drawCallsMain", 1);
                 } else {
                     FrameProfiler::get().addCount("cubesCulled", 1);
@@ -3114,21 +2995,17 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
             if (!m_instBatches[shapeIdx].main.empty() && instShapes[shapeIdx].vao != 0) { anyMainInst = true; break; }
         }
-        if (anyMainInst && m_uInstancedLoc != -1) {
+        if (anyMainInst && m_main.isValid()) {
             setBlendForAlpha(1.0f); // blend無効・depth write有効
-            if (unlitLoc          != -1) glUniform1f(unlitLoc,          0.0f);
-            if (triplanarLoc      != -1) glUniform1f(triplanarLoc,      0.0f);
-            if (texScaleLoc       != -1) glUniform1f(texScaleLoc,       1.0f);
-            if (useVertexColorLoc != -1) glUniform1f(useVertexColorLoc, 0.0f);
-            static CachedUniform s_instUvScaleCache;
-            static CachedUniform s_instIsSurfaceGuiCache;
-            int instUvScaleLoc      = cachedUniformLocation(shaderProgram, s_instUvScaleCache,      "uvScale");
-            int instIsSurfaceGuiLoc = cachedUniformLocation(shaderProgram, s_instIsSurfaceGuiCache, "isSurfaceGui");
-            if (instUvScaleLoc      != -1) glUniform2f(instUvScaleLoc, 1.0f, 1.0f);
-            if (instIsSurfaceGuiLoc != -1) glUniform1f(instIsSurfaceGuiLoc, 0.0f);
+            m_main.setUnlit(0.0f);
+            m_main.setTriplanar(0.0f);
+            m_main.setTextureScale(1.0f);
+            m_main.setUseVertexColor(0.0f);
+            m_main.setUvScale(1.0f, 1.0f);
+            m_main.setSurfaceGui(0.0f);
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, Cube::defaultTextureID);
-            glUniform1f(m_uInstancedLoc, 1.0f);
+            m_main.setInstanced(1.0f);
             for (int shapeIdx = 0; shapeIdx < INST_SHAPE_COUNT; ++shapeIdx) {
                 const auto& batch = m_instBatches[shapeIdx].main;
                 if (batch.empty() || instShapes[shapeIdx].vao == 0) continue;
@@ -3146,6 +3023,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     // 画像マップ無し(先頭からmapStart個)。マップは無効にしておく。
                     bindMaterialMapsFor(nullptr);
                     if (shapeBatch.mapStart > 0) {
+                        m_main.flush();
                         glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
                                                 GL_UNSIGNED_INT, 0, (GLsizei)shapeBatch.mapStart);
                         ++drawCalls;
@@ -3154,6 +3032,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     for (const auto& run : shapeBatch.mapRuns) {
                         bindMaterialMapsFor(run.material);
                         setInstanceAttribPointers(run.first * sizeof(CubeInstanceData));
+                        m_main.flush();
                         glDrawElementsInstanced(GL_TRIANGLES, instShapes[shapeIdx].indexCount,
                                                 GL_UNSIGNED_INT, 0, (GLsizei)run.count);
                         ++drawCalls;
@@ -3171,7 +3050,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
                     "instanceUploadBytes",
                     (long long)(batch.size() * sizeof(CubeInstanceData)));
             }
-            glUniform1f(m_uInstancedLoc, 0.0f);
+            m_main.setInstanced(0.0f);
             glBindVertexArray(VAO); // 以降の個別描画は既存VAO前提
         }
     }
@@ -3287,28 +3166,29 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             }
 
             glBindFramebuffer(GL_FRAMEBUFFER, desc.fbo); glViewport(0, 0, desc.width, desc.height);
-            glUseProgram(shaderProgram); glUniform1f(m_uInstancedLoc, 0.0f); glDepthFunc(GL_LEQUAL); glDepthMask(GL_FALSE); glEnable(GL_BLEND);
-            glUniform1f(surfaceMarkPassLoc, 1.0f);
-            if (m_uPbrMaterialLoc != -1) glUniform4f(m_uPbrMaterialLoc, 0.0f, 0.0f, 0.0f, 0.0f);  // 重ね描画はPBR対象外
-            glUniform1i(glGetUniformLocation(shaderProgram, "uDecalCount"), 0);
-            glUniformMatrix4fv(surfaceMarkWorldToLocalLoc, 1, GL_FALSE, markCf.inverse().toMatrix4().m);
-            glUniformMatrix4fv(surfaceMarkProjectionLoc, 1, GL_FALSE, markVP.m);
-            glUniform3f(surfaceMarkSizeLoc, mark->Size.x, mark->Size.y, mark->Size.z);
-            glUniform4f(surfaceMarkTintLoc, mark->Color.r, mark->Color.g, mark->Color.b, mark->Color.a);
+            glUseProgram(shaderProgram); m_main.setInstanced(0.0f); glDepthFunc(GL_LEQUAL); glDepthMask(GL_FALSE); glEnable(GL_BLEND);
+            m_main.setSurfaceMarkPass(1.0f);
+            m_main.setPbrMaterial(0.0f, 0.0f, 0.0f, 0.0f);  // 重ね描画はPBR対象外
+            m_main.setDecalCount(0);
+            m_main.setSurfaceMarkWorldToLocal(markCf.inverse().toMatrix4());
+            m_main.setSurfaceMarkProjection(markVP);
+            m_main.setSurfaceMarkSize(Vector3(mark->Size.x, mark->Size.y, mark->Size.z));
+            m_main.setSurfaceMarkTint(Color4(mark->Color.r, mark->Color.g, mark->Color.b, mark->Color.a));
             glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, mark->TextureID);
             glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, surfaceMarkDepthTex);
             glActiveTexture(GL_TEXTURE0);
             for (BaseCube* cube : candidates) {
                 Matrix4 model = cube->getWorldCFrame().toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
-                glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.m);
-                glUniform1f(uIsLiquidLoc, cube->IsA("LiquidCube") ? 1.0f : 0.0f);
-                glUniform1f(unlitLoc, cube->Unlit ? 1.0f : 0.0f);
-                glUniform4f(ourColorLoc, cube->Color.r, cube->Color.g, cube->Color.b, cube->Color.a);
+                m_main.setModel(model);
+                m_main.setIsLiquid(cube->IsA("LiquidCube") ? 1.0f : 0.0f);
+                m_main.setUnlit(cube->Unlit ? 1.0f : 0.0f);
+                m_main.setColor(Color4(cube->Color.r, cube->Color.g, cube->Color.b, cube->Color.a));
                 GLsizei count = 0; if (!bindHighlightGeometry(cube, count)) continue;
+                m_main.flush();
                 glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, nullptr);
             }
         }
-        glUseProgram(shaderProgram); glUniform1f(surfaceMarkPassLoc, 0.0f); glUniform1f(uIsLiquidLoc, 0.0f);
+        glUseProgram(shaderProgram); m_main.setSurfaceMarkPass(0.0f); m_main.setIsLiquid(0.0f);
         glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, savedTex2);
         glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, savedTex3);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, savedDrawFbo); glBindFramebuffer(GL_READ_FRAMEBUFFER, savedReadFbo);
@@ -3588,10 +3468,10 @@ void Renderer::bindMaterialMaps(const BaseCube& cube) {
 }
 
 void Renderer::bindMaterialMapsFor(const MaterialInstance* materialPtr) {
-    if (m_uMatMapFlagsLoc == -1) return;
+    if (!m_main.isValid()) return;
     const MaterialInstance* material = materialPtr;
     if (!material || !material->hasMaps()) {
-        glUniform4f(m_uMatMapFlagsLoc, 0.0f, 0.0f, 0.0f, 0.0f);
+        m_main.setMatMapFlags(0.0f, 0.0f, 0.0f, 0.0f);
         return;
     }
 
@@ -3624,9 +3504,8 @@ void Renderer::bindMaterialMapsFor(const MaterialInstance* materialPtr) {
         glBindTexture(GL_TEXTURE_2D, entry.textures[slot]);
     }
     glActiveTexture(GL_TEXTURE0);
-    glUniform4f(m_uMatMapFlagsLoc, flags[0], flags[1], flags[2], flags[3]);
-    if (m_uMatMapParamsLoc != -1)
-        glUniform2f(m_uMatMapParamsLoc, material->TextureScale, material->NormalStrength);
+    m_main.setMatMapFlags(flags[0], flags[1], flags[2], flags[3]);
+    m_main.setMatMapParams(material->TextureScale, material->NormalStrength);
 }
 
 namespace {
@@ -3823,18 +3702,18 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection, Wor
     if (!workspace) return;
 
     glUseProgram(shaderProgram);
-    glUniformMatrix4fv(viewLoc,       1, GL_FALSE, view.m);
-    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, projection.m);
+    m_main.setView(view);
+    m_main.setProjection(projection);
 
     Matrix4 identity;
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, identity.m);
+    m_main.setModel(identity);
 
-    if (unlitLoc          != -1) glUniform1f(unlitLoc,          0.0f);
-    if (triplanarLoc      != -1) glUniform1f(triplanarLoc,      0.0f);
-    if (texScaleLoc       != -1) glUniform1f(texScaleLoc,       1.0f);
-    if (useVertexColorLoc != -1) glUniform1f(useVertexColorLoc, 1.0f);
-    if (ourColorLoc       != -1) glUniform4f(ourColorLoc,       1.0f, 1.0f, 1.0f, 1.0f);
-    if (m_uPbrMaterialLoc != -1) glUniform4f(m_uPbrMaterialLoc, 0.0f, 0.0f, 0.0f, 0.0f);  // 地形はPBR対象外
+    m_main.setUnlit(0.0f);
+    m_main.setTriplanar(0.0f);
+    m_main.setTextureScale(1.0f);
+    m_main.setUseVertexColor(1.0f);
+    m_main.setColor(Color4(1.0f, 1.0f, 1.0f, 1.0f));
+    m_main.setPbrMaterial(0.0f, 0.0f, 0.0f, 0.0f);  // 地形はPBR対象外
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, whiteTexture);
@@ -3845,6 +3724,7 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection, Wor
             const Chunk& chunk = entry.chunk;
             if (chunk.mesh.indexCount == 0) continue;
             glBindVertexArray(chunk.mesh.VAO);
+            m_main.flush();
             glDrawElements(GL_TRIANGLES, (GLsizei)chunk.mesh.indexCount,
                            GL_UNSIGNED_INT, nullptr);
             FrameProfiler::get().addCount("drawCallsMain", 1);
@@ -3853,5 +3733,5 @@ void Renderer::renderTerrain(const Matrix4& view, const Matrix4& projection, Wor
     }
 
     glBindVertexArray(0);
-    if (useVertexColorLoc != -1) glUniform1f(useVertexColorLoc, 0.0f);
+    m_main.setUseVertexColor(0.0f);
 }

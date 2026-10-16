@@ -49,13 +49,14 @@ GLuint linkProgram(GLuint vertex, GLuint fragment, const std::string& label) {
 
 ShdcProgram::ShdcProgram() {
     m_pairViewSlot.fill(-1);
+    m_pairUnit.fill(-1);
 }
 
 ShdcProgram::~ShdcProgram() {
     destroy();
 }
 
-bool ShdcProgram::create(const sg_shader_desc& desc, const char* label) {
+bool ShdcProgram::create(const sg_shader_desc& desc, const char* label, TextureUnits units) {
     destroy();
     m_label = label ? label : "";
 
@@ -66,7 +67,7 @@ bool ShdcProgram::create(const sg_shader_desc& desc, const char* label) {
     if (fragment) glDeleteShader(fragment);
     if (!m_program) return false;
 
-    if (!cacheUniformBlocks(desc) || !assignTextureUnits(desc)) {
+    if (!cacheUniformBlocks(desc) || !assignTextureUnits(desc, units)) {
         destroy();
         return false;
     }
@@ -78,6 +79,7 @@ void ShdcProgram::destroy() {
     m_program = 0;
     m_uniformBlocks.fill(UniformBlock{});
     m_pairViewSlot.fill(-1);
+    m_pairUnit.fill(-1);
 }
 
 bool ShdcProgram::isValid() const {
@@ -113,7 +115,7 @@ bool ShdcProgram::cacheUniformBlocks(const sg_shader_desc& desc) {
     return true;
 }
 
-bool ShdcProgram::assignTextureUnits(const sg_shader_desc& desc) {
+bool ShdcProgram::assignTextureUnits(const sg_shader_desc& desc, TextureUnits units) {
     GLint previousProgram = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, &previousProgram);
     glUseProgram(m_program);
@@ -125,9 +127,18 @@ bool ShdcProgram::assignTextureUnits(const sg_shader_desc& desc) {
             glUseProgram(static_cast<GLuint>(previousProgram));
             return false;
         }
+        const int unit = units == TextureUnits::ViewSlot ? p.view_slot : pair;
+        for (int other = 0; other < pair; ++other) {
+            if (m_pairUnit[static_cast<size_t>(other)] != unit) continue;
+            RCBN_ERROR("sokol-shdc texture-sampler pairs " << other << " and " << pair << " share texture unit "
+                       << unit << " (" << m_label << "); use TextureUnits::PairIndex for this shader");
+            glUseProgram(static_cast<GLuint>(previousProgram));
+            return false;
+        }
         m_pairViewSlot[static_cast<size_t>(pair)] = p.view_slot;
+        m_pairUnit[static_cast<size_t>(pair)] = unit;
         const GLint location = glGetUniformLocation(m_program, p.glsl_name);
-        if (location >= 0) glUniform1i(location, pair);
+        if (location >= 0) glUniform1i(location, unit);
     }
     glUseProgram(static_cast<GLuint>(previousProgram));
     return true;
@@ -149,14 +160,14 @@ void ShdcProgram::applyUniforms(int blockSlot, const void* data, std::size_t siz
         return;
     }
     if (block.location < 0) return;
-    glUniform4fv(block.location, block.vec4Count, static_cast<const GLfloat*>(data));
+    glProgramUniform4fv(m_program, block.location, block.vec4Count, static_cast<const GLfloat*>(data));
 }
 
 void ShdcProgram::bindTexture(int viewSlot, unsigned int target, unsigned int texture) const {
     bool bound = false;
     for (int pair = 0; pair < MAX_TEXTURE_SAMPLER_PAIRS; ++pair) {
         if (m_pairViewSlot[static_cast<size_t>(pair)] != viewSlot) continue;
-        glActiveTexture(static_cast<GLenum>(GL_TEXTURE0 + pair));
+        glActiveTexture(static_cast<GLenum>(GL_TEXTURE0 + m_pairUnit[static_cast<size_t>(pair)]));
         glBindTexture(static_cast<GLenum>(target), static_cast<GLuint>(texture));
         bound = true;
     }

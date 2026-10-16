@@ -4,6 +4,8 @@
 #include <include/Instances/Named.hpp>
 #include <vector>
 
+class MainShaderState;
+
 class Sphere : public Named<Sphere, BaseCube> {
 public:
     static constexpr const char* ClassName = "Sphere";
@@ -18,7 +20,7 @@ public:
 
     Sphere(Vector3 Pos, Vector3 Sz);
 
-    void draw(int modelLoc, int shaderProgram);
+    void draw(MainShaderState& shader);
 
     std::shared_ptr<Instance> clone() const override;
 

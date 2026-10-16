@@ -4,6 +4,8 @@
 #include <include/Instances/Named.hpp>
 #include <vector>
 
+class MainShaderState;
+
 // 直角三角形の角柱（斜面つきブロック）。
 // ローカル座標: YZ断面が直角三角形で X 方向に押し出す。
 // 底面(-Y)と背面(+Z)が正方形、斜面は前方(-Z)の下端から背面(+Z)の上端へ上る。
@@ -20,7 +22,7 @@ public:
 
     Wedge(Vector3 Pos, Vector3 Sz);
 
-    void draw(int modelLoc, int shaderProgram);
+    void draw(MainShaderState& shader);
 
     std::shared_ptr<Instance> clone() const override;
 

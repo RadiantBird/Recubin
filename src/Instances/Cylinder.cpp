@@ -1,7 +1,7 @@
 #include <Instances/Cylinder.hpp>
 #include <Core/Renderer.hpp>
 #include <Util/MeshEdges.hpp>
-#include <Util/GLUniformCache.hpp>
+#include <Core/MainShaderState.hpp>
 #include <GL/glew.h>
 #include <cmath>
 #include <include/Core/PropertyRegistry.hpp>
@@ -130,14 +130,11 @@ static const int CYL_SIDE_OFF_1 = CYL_SIDE_OFF_0 + CYL_QUAD_COUNT; // 240 (Back)
 static const int CYL_SIDE_OFF_2 = CYL_SIDE_OFF_1 + CYL_QUAD_COUNT; // 288 (Left)
 static const int CYL_SIDE_OFF_3 = CYL_SIDE_OFF_2 + CYL_QUAD_COUNT; // 336 (Front)
 
-void Cylinder::draw(int modelLoc, int shaderProgram) {
+void Cylinder::draw(MainShaderState& shader) {
     glBindVertexArray(s_VAO);
 
-    static CachedUniform s_colorLocCache;
-    int colorLoc = cachedUniformLocation(shaderProgram, s_colorLocCache, "ourColor");
-    if (colorLoc != -1) {
-        glUniform4f(colorLoc, Color.r, Color.g, Color.b, Color.a);
-    }
+    shader.setColor(Color4(Color.r, Color.g, Color.b, Color.a));
+    shader.flush();  // 以降の面ごとの描画ではユニフォームを変えない
 
     glActiveTexture(GL_TEXTURE0);
 

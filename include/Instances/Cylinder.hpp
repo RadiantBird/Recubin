@@ -4,6 +4,8 @@
 #include <include/Instances/Named.hpp>
 #include <vector>
 
+class MainShaderState;
+
 class Cylinder : public Named<Cylinder, BaseCube> {
 public:
     static constexpr const char* ClassName = "Cylinder";
@@ -17,7 +19,7 @@ public:
 
     Cylinder(Vector3 Pos, Vector3 Sz);
 
-    void draw(int modelLoc, int shaderProgram);
+    void draw(MainShaderState& shader);
 
     std::shared_ptr<Instance> clone() const override;
 
