@@ -25,6 +25,22 @@ constexpr int ENV_SOURCE_SIZE    = 256;  // Skyboxを描くソースキューブ
 constexpr int ENV_PREFILTER_SIZE = 128;  // プレフィルタ後のmip0の一辺
 constexpr int ENV_PREFILTER_MIPS = 6;    // 128,64,32,16,8,4
 constexpr int ENV_FALLBACK_SIZE  = 32;   // 手続き的な空。32→1の6段
+constexpr int ENV_SOURCE_MIPS    = 9;    // ソースの 256→1。mip は描画後に GPU で作る（sokol に無いので段階 5 で置き換える）
+
+// 各面・各 mip へ個別に描く cube の描画先。
+TextureHandle createEnvTarget(int size, int mipLevels, GfxTextures::Format format, const char* label) {
+    GfxTextures::Desc desc;
+    desc.width = size;
+    desc.height = size;
+    desc.cubemap = true;
+    desc.format = format;
+    desc.renderTarget = true;
+    desc.mipLevels = mipLevels;
+    desc.filter = GfxTextures::Filter::LinearMipmap;
+    desc.wrap = GfxTextures::Wrap::ClampToEdge;
+    desc.label = label;
+    return GfxTextures::create(desc);
+}
 
 struct CubeFaceView {
     Vector3 forward;
@@ -156,11 +172,6 @@ void setCubemapSampling(GLuint texture, int levelCount) {
 // Skybox自身を、中心から6方向へ90度FOVで描いてソースキューブマップを作る。
 // 面ごとのDecal/テクスチャ向き/色はSkybox::drawがそのまま解決する。
 void renderSkyboxToCubemap(Renderer& renderer, Skybox& skybox, GLuint sourceTexture) {
-    glBindTexture(GL_TEXTURE_CUBE_MAP, sourceTexture);
-    for (int face = 0; face < 6; ++face) {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, GL_RGBA8,
-                     ENV_SOURCE_SIZE, ENV_SOURCE_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    }
     setCubemapSampling(sourceTexture, 1);
 
     glUseProgram(renderer.shaderProgram);
@@ -209,14 +220,6 @@ void renderSkyboxToCubemap(Renderer& renderer, Skybox& skybox, GLuint sourceText
 
 // ソースキューブマップをroughnessごとにぼかし、mipレベルmへ roughness = m/(mipCount-1) を書く。
 void prefilterCubemap(Renderer& renderer, GLuint sourceTexture, GLuint targetTexture) {
-    glBindTexture(GL_TEXTURE_CUBE_MAP, targetTexture);
-    for (int mip = 0; mip < ENV_PREFILTER_MIPS; ++mip) {
-        const int size = ENV_PREFILTER_SIZE >> mip;
-        for (int face = 0; face < 6; ++face) {
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, mip, GL_RGBA16F,
-                         size, size, 0, GL_RGBA, GL_FLOAT, nullptr);
-        }
-    }
     setCubemapSampling(targetTexture, ENV_PREFILTER_MIPS);
 
     const ShdcProgram& program = renderer.m_envPrefilterProgram;
@@ -260,10 +263,9 @@ void Renderer::initEnvironmentRenderer() {
 }
 
 void Renderer::destroyEnvironmentRenderer() {
-    if (m_envSpecularTex) glDeleteTextures(1, &m_envSpecularTex);
+    GfxTextures::destroy(m_envSpecularTex);
     if (m_envFbo) glDeleteFramebuffers(1, &m_envFbo);
     m_envPrefilterProgram.destroy();
-    m_envSpecularTex = 0;
     m_envFbo = 0;
 }
 
@@ -276,30 +278,30 @@ void Renderer::updateEnvironmentMap(Skybox* skybox) {
     m_envSignature = signature;
     m_envBuilt = true;
 
-    GLuint newTexture = 0;
+    TextureHandle newTexture;
     float newMaxLod = 0.0f;
 
     if (signature != 0 && skybox && m_envPrefilterProgram.isValid() && m_envFbo) {
         glBindFramebuffer(GL_FRAMEBUFFER, m_envFbo);
-        GLuint sourceTexture = 0;
-        glGenTextures(1, &sourceTexture);
-        glGenTextures(1, &newTexture);
-        renderSkyboxToCubemap(*this, *skybox, sourceTexture);
-        prefilterCubemap(*this, sourceTexture, newTexture);
-        glDeleteTextures(1, &sourceTexture);
+        TextureHandle sourceTexture = createEnvTarget(ENV_SOURCE_SIZE, ENV_SOURCE_MIPS,
+                                                      GfxTextures::Format::RGBA8, "env source");
+        newTexture = createEnvTarget(ENV_PREFILTER_SIZE, ENV_PREFILTER_MIPS,
+                                     GfxTextures::Format::RGBA16F, "env specular");
+        if (sourceTexture && newTexture) {
+            renderSkyboxToCubemap(*this, *skybox, sourceTexture.glName());
+            prefilterCubemap(*this, sourceTexture.glName(), newTexture.glName());
+        }
+        GfxTextures::destroy(sourceTexture);
         newMaxLod = static_cast<float>(ENV_PREFILTER_MIPS - 1);
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        if (!newTexture || glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
             RCBN_ERROR("Renderer: environment framebuffer is incomplete; using the procedural sky");
-            glDeleteTextures(1, &newTexture);
-            newTexture = 0;
+            GfxTextures::destroy(newTexture);
         }
     }
 
-    if (newTexture == 0) {
+    if (!newTexture) {
         // 手続き的な空のグラデーション。滑らかなのでGGXプレフィルタは行わず、mipで代用する。
-        glGenTextures(1, &newTexture);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, newTexture);
-        std::vector<unsigned char> pixels(static_cast<std::size_t>(ENV_FALLBACK_SIZE) * ENV_FALLBACK_SIZE * 4);
+        std::vector<unsigned char> pixels(static_cast<std::size_t>(ENV_FALLBACK_SIZE) * ENV_FALLBACK_SIZE * 4 * 6);
         for (int face = 0; face < 6; ++face) {
             for (int row = 0; row < ENV_FALLBACK_SIZE; ++row) {
                 for (int col = 0; col < ENV_FALLBACK_SIZE; ++col) {
@@ -308,28 +310,35 @@ void Renderer::updateEnvironmentMap(Skybox* skybox) {
                     const Vector3 direction = faceDirection(face, u, v);
                     float rgb[3];
                     skyGradient(direction.y / direction.length(), rgb);
-                    unsigned char* texel = &pixels[(static_cast<std::size_t>(row) * ENV_FALLBACK_SIZE + col) * 4];
+                    unsigned char* texel = &pixels[((static_cast<std::size_t>(face) * ENV_FALLBACK_SIZE + row) *
+                                                    ENV_FALLBACK_SIZE + col) * 4];
                     for (int c = 0; c < 3; ++c)
                         texel[c] = static_cast<unsigned char>(std::lround(std::min(std::max(rgb[c], 0.0f), 1.0f) * 255.0f));
                     texel[3] = 255;
                 }
             }
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0, GL_RGBA8,
-                         ENV_FALLBACK_SIZE, ENV_FALLBACK_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
         }
-        setCubemapSampling(newTexture, 6);  // 32→1の6段
-        glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+        GfxTextures::Desc fallbackDesc;
+        fallbackDesc.width = ENV_FALLBACK_SIZE;
+        fallbackDesc.height = ENV_FALLBACK_SIZE;
+        fallbackDesc.cubemap = true;
+        fallbackDesc.pixels = pixels.data();
+        fallbackDesc.generateMipmaps = true;  // 32→1の6段（CPU で作る）
+        fallbackDesc.filter = GfxTextures::Filter::LinearMipmap;
+        fallbackDesc.wrap = GfxTextures::Wrap::ClampToEdge;
+        fallbackDesc.label = "env fallback";
+        newTexture = GfxTextures::create(fallbackDesc);
         newMaxLod = std::floor(std::log2(static_cast<float>(ENV_FALLBACK_SIZE)));
     }
 
-    if (m_envSpecularTex) glDeleteTextures(1, &m_envSpecularTex);
+    GfxTextures::destroy(m_envSpecularTex);
     m_envSpecularTex = newTexture;
     m_envMaxLod = newMaxLod;
 }
 
 void Renderer::bindEnvironmentMap() {
     glActiveTexture(GL_TEXTURE0 + ENV_SPECULAR_UNIT);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, m_envSpecularTex);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, m_envSpecularTex.glName());
     glActiveTexture(GL_TEXTURE0);
     m_main.setEnvMaxLod(m_envMaxLod);
 }

@@ -704,56 +704,51 @@ void Renderer::init(GLFWwindow* window) {
 
     // --- Shadow Map FBO + 深度テクスチャ生成 ---
     {
-        glGenTextures(1, &shadowMapTex);
-        glBindTexture(GL_TEXTURE_2D_ARRAY, shadowMapTex);
-        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT24,
-                     SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, SHADOW_CASCADE_COUNT,
-                     0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+        GfxTextures::Desc shadowDesc;
+        shadowDesc.width = SHADOW_MAP_SIZE;
+        shadowDesc.height = SHADOW_MAP_SIZE;
+        shadowDesc.arrayLayers = SHADOW_CASCADE_COUNT;
+        shadowDesc.format = GfxTextures::Format::Depth;
+        shadowDesc.renderTarget = true;
         // PCF is performed by explicit depth comparisons in the fragment
         // shader. Filtering the depth texture here would compare against
         // bilinearly blended depths instead of nine actual texels.
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_NONE);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-        float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-        glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, borderColor);
+        shadowDesc.filter = GfxTextures::Filter::Nearest;
+        shadowDesc.wrap = GfxTextures::Wrap::ClampToBorderWhite;
+        shadowDesc.label = "shadow map";
+        shadowMapTex = GfxTextures::create(shadowDesc);
 
         glGenFramebuffers(1, &shadowFBO);
         glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
-        glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowMapTex, 0, 0);
+        glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowMapTex.glName(), 0, 0);
         glDrawBuffer(GL_NONE);
         glReadBuffer(GL_NONE);
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
             std::cout << "[Renderer] Shadow framebuffer is incomplete." << std::endl;
             glDeleteFramebuffers(1, &shadowFBO);
-            glDeleteTextures(1, &shadowMapTex);
+            GfxTextures::destroy(shadowMapTex);
             shadowFBO = 0;
-            shadowMapTex = 0;
         }
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
-    glGenTextures(1, &surfaceMarkDepthTex);
-    glBindTexture(GL_TEXTURE_2D, surfaceMarkDepthTex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, SURFACE_MARK_MAP_SIZE, SURFACE_MARK_MAP_SIZE,
-                 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    const float markBorder[] = {1.f, 1.f, 1.f, 1.f};
-    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, markBorder);
+    GfxTextures::Desc markDesc;
+    markDesc.width = SURFACE_MARK_MAP_SIZE;
+    markDesc.height = SURFACE_MARK_MAP_SIZE;
+    markDesc.format = GfxTextures::Format::Depth;
+    markDesc.renderTarget = true;
+    markDesc.filter = GfxTextures::Filter::Nearest;
+    markDesc.wrap = GfxTextures::Wrap::ClampToBorderWhite;
+    markDesc.label = "SurfaceMark depth";
+    surfaceMarkDepthTex = GfxTextures::create(markDesc);
     glGenFramebuffers(1, &surfaceMarkFBO);
     glBindFramebuffer(GL_FRAMEBUFFER, surfaceMarkFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, surfaceMarkDepthTex, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, surfaceMarkDepthTex.glName(), 0);
     glDrawBuffer(GL_NONE); glReadBuffer(GL_NONE);
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         std::cout << "[Renderer] SurfaceMark depth framebuffer is incomplete." << std::endl;
-        glDeleteFramebuffers(1, &surfaceMarkFBO); glDeleteTextures(1, &surfaceMarkDepthTex);
-        surfaceMarkFBO = surfaceMarkDepthTex = 0;
+        glDeleteFramebuffers(1, &surfaceMarkFBO); GfxTextures::destroy(surfaceMarkDepthTex);
+        surfaceMarkFBO = 0;
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -805,9 +800,9 @@ Renderer::~Renderer() {
     if (m_instanceVBO) glDeleteBuffers(1, &m_instanceVBO);
 
     if (shadowFBO)    glDeleteFramebuffers(1, &shadowFBO);
-    if (shadowMapTex) glDeleteTextures(1, &shadowMapTex);
+    GfxTextures::destroy(shadowMapTex);
     if (surfaceMarkFBO) glDeleteFramebuffers(1, &surfaceMarkFBO);
-    if (surfaceMarkDepthTex) glDeleteTextures(1, &surfaceMarkDepthTex);
+    GfxTextures::destroy(surfaceMarkDepthTex);
     m_depthProgram.destroy();
     GfxTextures::destroy(m_meshFallbackTexture);
 
@@ -828,15 +823,15 @@ Renderer::~Renderer() {
     if (m_postVAO)    glDeleteVertexArrays(1, &m_postVAO);
     m_postProgram.destroy();
     if (m_postFboA)   glDeleteFramebuffers(1, &m_postFboA);
-    if (m_postTexA)   glDeleteTextures(1, &m_postTexA);
+    GfxTextures::destroy(m_postTexA);
     if (m_postFboB)   glDeleteFramebuffers(1, &m_postFboB);
-    if (m_postTexB)   glDeleteTextures(1, &m_postTexB);
+    GfxTextures::destroy(m_postTexB);
     if (m_letterboxFbo)   glDeleteFramebuffers(1, &m_letterboxFbo);
-    if (m_letterboxColor) glDeleteTextures(1, &m_letterboxColor);
-    if (m_letterboxDepth) glDeleteRenderbuffers(1, &m_letterboxDepth);
+    GfxTextures::destroy(m_letterboxColor);
+    GfxTextures::destroy(m_letterboxDepth);
     if (m_selectionMaskFBO)   glDeleteFramebuffers(1, &m_selectionMaskFBO);
-    if (m_selectionMaskTex)   glDeleteTextures(1, &m_selectionMaskTex);
-    if (m_selectionMaskDepth) glDeleteRenderbuffers(1, &m_selectionMaskDepth);
+    GfxTextures::destroy(m_selectionMaskTex);
+    GfxTextures::destroy(m_selectionMaskDepth);
     m_selectionMaskProgram.destroy();
     m_selectionOutlineProgram.destroy();
     destroyEnvironmentRenderer();
@@ -1606,25 +1601,16 @@ void Renderer::initPostEffectRenderer() {
 void Renderer::ensureLetterboxFBO(int width, int height) {
     if (width == m_letterboxWidth && height == m_letterboxHeight && m_letterboxFbo) return;
     if (m_letterboxFbo)   glDeleteFramebuffers(1, &m_letterboxFbo);
-    if (m_letterboxColor) glDeleteTextures(1, &m_letterboxColor);
-    if (m_letterboxDepth) glDeleteRenderbuffers(1, &m_letterboxDepth);
+    GfxTextures::destroy(m_letterboxColor);
+    GfxTextures::destroy(m_letterboxDepth);
 
-    glGenTextures(1, &m_letterboxColor);
-    glBindTexture(GL_TEXTURE_2D, m_letterboxColor);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    glGenRenderbuffers(1, &m_letterboxDepth);
-    glBindRenderbuffer(GL_RENDERBUFFER, m_letterboxDepth);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+    m_letterboxColor = GfxTextures::createColorTarget(width, height, "scene color");
+    m_letterboxDepth = GfxTextures::createSceneDepthTarget(width, height, "scene depth");
 
     glGenFramebuffers(1, &m_letterboxFbo);
     glBindFramebuffer(GL_FRAMEBUFFER, m_letterboxFbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_letterboxColor, 0);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_letterboxDepth);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_letterboxColor.glName(), 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, m_letterboxDepth.glName(), 0);
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         RCBN_ERROR("Letterbox framebuffer is incomplete: " << width << "x" << height);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1637,22 +1623,16 @@ void Renderer::ensurePostEffectFBOs(int width, int height) {
     if (width == m_postFboWidth && height == m_postFboHeight && m_postFboA && m_postFboB) return;
 
     if (m_postFboA) glDeleteFramebuffers(1, &m_postFboA);
-    if (m_postTexA) glDeleteTextures(1, &m_postTexA);
+    GfxTextures::destroy(m_postTexA);
     if (m_postFboB) glDeleteFramebuffers(1, &m_postFboB);
-    if (m_postTexB) glDeleteTextures(1, &m_postTexB);
+    GfxTextures::destroy(m_postTexB);
 
-    auto makeFbo = [&](GLuint& fbo, GLuint& tex) {
-        glGenTextures(1, &tex);
-        glBindTexture(GL_TEXTURE_2D, tex);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    auto makeFbo = [&](GLuint& fbo, TextureHandle& tex) {
+        tex = GfxTextures::createColorTarget(width, height, "post effect");
 
         glGenFramebuffers(1, &fbo);
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex.glName(), 0);
     };
     makeFbo(m_postFboA, m_postTexA);
     makeFbo(m_postFboB, m_postTexB);
@@ -1673,35 +1653,32 @@ void Renderer::ensureSelectionMaskFBO(int width, int height) {
     if (m_selectionMaskFBO) {
         glDeleteFramebuffers(1, &m_selectionMaskFBO);
     }
-    if (m_selectionMaskTex) {
-        glDeleteTextures(1, &m_selectionMaskTex);
-    }
-    if (m_selectionMaskDepth) {
-        glDeleteRenderbuffers(1, &m_selectionMaskDepth);
-    }
-    m_selectionMaskFBO = m_selectionMaskTex = m_selectionMaskDepth = 0;
-    glGenTextures(1, &m_selectionMaskTex);
-    glBindTexture(GL_TEXTURE_2D, m_selectionMaskTex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glGenRenderbuffers(1, &m_selectionMaskDepth);
-    glBindRenderbuffer(GL_RENDERBUFFER, m_selectionMaskDepth);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+    GfxTextures::destroy(m_selectionMaskTex);
+    GfxTextures::destroy(m_selectionMaskDepth);
+    m_selectionMaskFBO = 0;
+    GfxTextures::Desc maskDesc;
+    maskDesc.width = width;
+    maskDesc.height = height;
+    maskDesc.format = GfxTextures::Format::R8;
+    maskDesc.renderTarget = true;
+    maskDesc.filter = GfxTextures::Filter::Nearest;
+    maskDesc.wrap = GfxTextures::Wrap::ClampToEdge;
+    maskDesc.label = "selection mask";
+    m_selectionMaskTex = GfxTextures::create(maskDesc);
+    // シーンの深度をそのままブリットするので、シーンの深度と同じ形式にする。
+    m_selectionMaskDepth = GfxTextures::createSceneDepthTarget(width, height, "selection mask depth");
     glGenFramebuffers(1, &m_selectionMaskFBO);
     glBindFramebuffer(GL_FRAMEBUFFER, m_selectionMaskFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_selectionMaskTex, 0);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_selectionMaskDepth);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_selectionMaskTex.glName(), 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, m_selectionMaskDepth.glName(), 0);
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
     glReadBuffer(GL_COLOR_ATTACHMENT0);
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         RCBN_ERROR("Selection mask framebuffer is incomplete at " << width << "x" << height);
         glDeleteFramebuffers(1, &m_selectionMaskFBO);
-        glDeleteTextures(1, &m_selectionMaskTex);
-        glDeleteRenderbuffers(1, &m_selectionMaskDepth);
-        m_selectionMaskFBO = m_selectionMaskTex = m_selectionMaskDepth = 0;
+        GfxTextures::destroy(m_selectionMaskTex);
+        GfxTextures::destroy(m_selectionMaskDepth);
+        m_selectionMaskFBO = 0;
     }
     m_selectionMaskWidth = width;
     m_selectionMaskHeight = height;
@@ -1830,7 +1807,7 @@ void Renderer::renderSelectionOutline(const std::vector<BaseCube*>& targets,
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     m_selectionOutlineProgram.use();
-    m_selectionOutlineProgram.bindTexture(VIEW_selection_selectionMask, GL_TEXTURE_2D, m_selectionMaskTex);
+    m_selectionOutlineProgram.bindTexture(VIEW_selection_selectionMask, GL_TEXTURE_2D, m_selectionMaskTex.glName());
     selection_outline_fs_params_t outlineParams = {};
     outlineParams.texelSize[0] = 1.0f / width;
     outlineParams.texelSize[1] = 1.0f / height;
@@ -1909,9 +1886,9 @@ void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int wid
     // カスタム PostEffect はユーザーの GLSL を従来どおりの頂点シェーダーと組み、名前でユニフォームを設定する。
     const std::string postVertexSource = FileLoader::readText("shaders/postprocess_vertex.glsl");
 
-    GLuint srcTex = m_postTexA;
+    GLuint srcTex = m_postTexA.glName();
     GLuint pingFbo = m_postFboB; // 次の書き込み先（ping-pong）
-    GLuint pingTex = m_postTexB;
+    GLuint pingTex = m_postTexB.glName();
 
     for (size_t i = 0; i < effects.size(); i++) {
         PostEffect* effect = effects[i];
@@ -1973,7 +1950,7 @@ void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int wid
         if (!isLast) {
             srcTex = pingTex;
             pingFbo = (pingFbo == m_postFboB) ? m_postFboA : m_postFboB;
-            pingTex = (pingTex == m_postTexB) ? m_postTexA : m_postTexB;
+            pingTex = (pingTex == m_postTexB.glName()) ? m_postTexA.glName() : m_postTexB.glName();
         }
     }
 
@@ -2575,7 +2552,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         std::vector<CubeInstanceData> visibleShadowInstances;
         for (int cascade = 0; cascade < SHADOW_CASCADE_COUNT; ++cascade) {
             glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-                                      shadowMapTex, 0, cascade);
+                                      shadowMapTex.glName(), 0, cascade);
             glClearDepth(1.0);
             glClear(GL_DEPTH_BUFFER_BIT);
             std::memcpy(depthParams.lightSpaceMatrix, lightSpaceMatrices[cascade].m, sizeof(depthParams.lightSpaceMatrix));
@@ -2813,7 +2790,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
     }
 
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, shadowReady ? shadowMapTex : 0);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, shadowReady ? shadowMapTex.glName() : 0);
     glActiveTexture(GL_TEXTURE0);
     bindEnvironmentMap();
     m_main.setLightSpaceMatrices(lightSpaceMatrices.data(), SHADOW_CASCADE_COUNT);
@@ -3170,7 +3147,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             m_main.setSurfaceMarkSize(Vector3(mark->Size.x, mark->Size.y, mark->Size.z));
             m_main.setSurfaceMarkTint(Color4(mark->Color.r, mark->Color.g, mark->Color.b, mark->Color.a));
             glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, mark->TextureID.glName());
-            glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, surfaceMarkDepthTex);
+            glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, surfaceMarkDepthTex.glName());
             glActiveTexture(GL_TEXTURE0);
             for (BaseCube* cube : candidates) {
                 Matrix4 model = cube->getWorldCFrame().toMatrix4() * Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
@@ -3384,7 +3361,12 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
         const bool aspectLocked = width > 0 && height > 0 && ScreenGuiLayout::lockedAspectArea(
             workspace, ScreenGuiLayout::Rect{0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)},
             lockedArea);
-        if (aspectLocked) {
+        // 固定しない場合もウィンドウ全体の大きさのオフスクリーンへ描き、同じ経路で転送する。
+        if (!aspectLocked) {
+            lockedArea = ScreenGuiLayout::Rect{0.0f, 0.0f, static_cast<float>(width), static_cast<float>(desc.height)};
+        }
+        const bool offscreen = width > 0;
+        if (offscreen) {
             ensureLetterboxFBO(static_cast<int>(lockedArea.w), static_cast<int>(lockedArea.h));
             desc.fbo = m_letterboxFbo;
             desc.width = m_letterboxWidth;
@@ -3394,7 +3376,7 @@ void Renderer::render(User& user, GLFWwindow* window, Workspace& workspace) {
         // Viewport描画を実行
         renderViewport(desc);
 
-        if (aspectLocked) {
+        if (offscreen) {
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
             glViewport(0, 0, width, height);
             glClearColor(0.0f, 0.0f, 0.0f, 1.0f);

@@ -25,7 +25,7 @@ main.cpp ループ
   └─ Renderer::render(user, window, workspace)
        ├─ ViewportRenderDesc 構築（Primary Viewport）
        │    editor あり → desc.fbo = editor->getViewportFBO()
-       │    editor なし → desc.fbo = 0（デフォルトFB）
+       │    editor なし → desc.fbo = シーン用オフスクリーンFBO（m_letterboxFbo。描画後にデフォルトFBへ色だけ転送）
        ├─ renderViewport(desc)        ← 3D シーン1回分
        ├─ editor->clearForImGui(window)
        ├─ editor->renderUI(...)       ← ImGui 全パネル

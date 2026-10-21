@@ -160,12 +160,12 @@ class Renderer {
         static constexpr int MAX_LIGHTS = MainShaderState::MAX_LIGHTS;
 
         unsigned int shadowFBO     = 0;
-        unsigned int shadowMapTex  = 0;
+        TextureHandle shadowMapTex;
         ShdcProgram  m_depthProgram;      // shaders/sokol/depth.glsl（シャドウマップ / SurfaceMark の深度）
         static constexpr int SHADOW_CASCADE_COUNT = 3;
         static const int SHADOW_MAP_SIZE = 2048;
         unsigned int surfaceMarkFBO = 0;
-        unsigned int surfaceMarkDepthTex = 0;
+        TextureHandle surfaceMarkDepthTex;
         static const int SURFACE_MARK_MAP_SIZE = 1024;
 
         std::vector<unsigned int> indices = {};
@@ -199,7 +199,7 @@ class Renderer {
         // テクスチャ未読込のときは手続き的な空のグラデーションを使う。メインシェーダーでは
         // テクスチャユニット ENV_SPECULAR_UNIT の samplerCube uEnvSpecular に束縛する。
         static constexpr int ENV_SPECULAR_UNIT = MainShaderState::ENV_SPECULAR_UNIT;
-        unsigned int m_envSpecularTex = 0;
+        TextureHandle m_envSpecularTex;
         float        m_envMaxLod = 0.0f;
         std::size_t  m_envSignature = 0;       // 焼いた時のSkybox入力の識別値。0は手続き的フォールバック
         bool         m_envBuilt = false;
@@ -220,7 +220,7 @@ class Renderer {
         // 物体の上へもにじむ。ベールは天体が隠れているほど弱まる。
         ShdcProgram m_skyFlareProgram; // shaders/sokol/sky_flare.glsl
         // 遮蔽判定用: ビューポートの深度のコピー。ビューポートの大きさが変わったら作り直す。
-        unsigned int m_skyDepthTex = 0;
+        TextureHandle m_skyDepthTex;
         unsigned int m_skyDepthFbo = 0;
         int m_skyDepthWidth = 0;
         int m_skyDepthHeight = 0;
@@ -343,18 +343,23 @@ class Renderer {
         // ポストエフェクト（PostEffect インスタンスの ZIndex 順チェーン適用）
         GLuint m_postVAO = 0, m_postVBO = 0;
         ShdcProgram m_postProgram; // shaders/sokol/postprocess.glsl（組み込みエフェクト）
-        GLuint m_postFboA = 0, m_postTexA = 0;
+        GLuint m_postFboA = 0;
+        TextureHandle m_postTexA;
         // System.LockAspectRatio 用: 黒帯の内側のサイズで描くオフスクリーンFBO（ウィンドウへ転送する）
-        GLuint m_letterboxFbo = 0, m_letterboxColor = 0, m_letterboxDepth = 0;
+        // ランタイムはアスペクト比を固定しない場合も、ウィンドウ全体の大きさでここへ描いてから転送する
+        // （深度を sokol の形式に揃え、空の深度コピーやポストエフェクトがデフォルトフレームバッファに依存しないため）。
+        GLuint m_letterboxFbo = 0;
+        TextureHandle m_letterboxColor, m_letterboxDepth;
         int m_letterboxWidth = 0, m_letterboxHeight = 0;
         void ensureLetterboxFBO(int width, int height);
-        GLuint m_postFboB = 0, m_postTexB = 0;
+        GLuint m_postFboB = 0;
+        TextureHandle m_postTexB;
         int    m_postFboWidth = 0, m_postFboHeight = 0;
 
         // Screen-space editor selection mask and outline resources.
         GLuint m_selectionMaskFBO = 0;
-        GLuint m_selectionMaskTex = 0;
-        GLuint m_selectionMaskDepth = 0;
+        TextureHandle m_selectionMaskTex;
+        TextureHandle m_selectionMaskDepth;
         ShdcProgram m_selectionMaskProgram;    // shaders/sokol/selection.glsl: mask
         ShdcProgram m_selectionOutlineProgram; // shaders/sokol/selection.glsl: outline
         int m_selectionMaskWidth = 0;

@@ -189,28 +189,21 @@ void Renderer::initSkyFlareRenderer() {
 void Renderer::destroySkyFlareRenderer() {
     m_skyFlareProgram.destroy();
     if (m_skyDepthFbo) glDeleteFramebuffers(1, &m_skyDepthFbo);
-    if (m_skyDepthTex) glDeleteTextures(1, &m_skyDepthTex);
+    GfxTextures::destroy(m_skyDepthTex);
     m_skyDepthFbo = 0;
-    m_skyDepthTex = 0;
 }
 
 bool Renderer::updateSkySceneDepth(unsigned int sourceFbo, int width, int height) {
     if (m_skyDepthBlitFailed || width <= 0 || height <= 0) return false;
 
     if (!m_skyDepthTex || width != m_skyDepthWidth || height != m_skyDepthHeight) {
-        if (!m_skyDepthTex) glGenTextures(1, &m_skyDepthTex);
-        glBindTexture(GL_TEXTURE_2D, m_skyDepthTex);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, width, height, 0,
-                     GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);  // 深度の値そのものを読む
+        // ブリット元（シーンの深度）と同じ形式で作る。深度の値そのものを読む設定は GfxTextures が入れる。
+        GfxTextures::destroy(m_skyDepthTex);
+        m_skyDepthTex = GfxTextures::createSceneDepthTarget(width, height, "sky scene depth");
 
         if (!m_skyDepthFbo) glGenFramebuffers(1, &m_skyDepthFbo);
         glBindFramebuffer(GL_FRAMEBUFFER, m_skyDepthFbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_skyDepthTex, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, m_skyDepthTex.glName(), 0);
         glDrawBuffer(GL_NONE);
         glReadBuffer(GL_NONE);
         const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
@@ -299,7 +292,7 @@ void Renderer::renderSkyFlares(Workspace& workspace, const ViewportRenderDesc& d
     vs.uAspect = aspect;
 
     // 遮蔽判定の共通設定。投影行列の m[10]/m[14] で、深度バッファの値を視線方向の距離へ戻す。
-    const GLuint sceneDepth = occlusionAvailable ? m_skyDepthTex : 0;
+    const GLuint sceneDepth = occlusionAvailable ? m_skyDepthTex.glName() : 0;
     m_skyFlareProgram.bindTexture(VIEW_sky_uSceneDepthVs, GL_TEXTURE_2D, sceneDepth);
     m_skyFlareProgram.bindTexture(VIEW_sky_uSceneDepth, GL_TEXTURE_2D, sceneDepth);
     vs.uOcclusionEnabled = fs.uOcclusionEnabled = occlusionAvailable ? 1.0f : 0.0f;

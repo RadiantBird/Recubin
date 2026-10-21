@@ -26,6 +26,7 @@ struct GuiEditState {
 #include <Instances/Instance.hpp>
 #include <Instances/Workspace.hpp>
 #include <Math/Matrix4.hpp>
+#include <Core/GfxTexture.hpp>
 #include <Math/Quaternion.hpp>
 #include <Core/User.hpp>
 #include <Core/Terrain.hpp>
@@ -42,8 +43,8 @@ class ViewportPanel : public EditorPanel {
 public:
     enum class MultiResizeMode { Individual, GroupScale };
     GLuint framebuffer       = 0;
-    GLuint colorTexture      = 0;
-    GLuint depthRenderbuffer = 0;
+    TextureHandle colorTexture;
+    TextureHandle depthTexture;
 
     int fbWidth  = 1280;
     int fbHeight = 720;

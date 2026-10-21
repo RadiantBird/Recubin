@@ -48,23 +48,14 @@ void ViewportPanel::initFBO(int w, int h) {
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 
     // カラーテクスチャ
-    glGenTextures(1, &colorTexture);
-    glBindTexture(GL_TEXTURE_2D, colorTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    colorTexture = GfxTextures::createColorTarget(w, h, "viewport panel color");
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                           GL_TEXTURE_2D, colorTexture, 0);
+                           GL_TEXTURE_2D, colorTexture.glName(), 0);
 
-    // 深度・ステンシル用レンダーバッファ
-    glGenRenderbuffers(1, &depthRenderbuffer);
-    glBindRenderbuffer(GL_RENDERBUFFER, depthRenderbuffer);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
-                              GL_RENDERBUFFER, depthRenderbuffer);
+    // 深度・ステンシル（選択マスク・空の遮蔽へブリットするので、シーンの深度と同じ形式）
+    depthTexture = GfxTextures::createSceneDepthTarget(w, h, "viewport panel depth");
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+                           GL_TEXTURE_2D, depthTexture.glName(), 0);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
@@ -99,8 +90,8 @@ void ViewportPanel::resizeFBO(int w, int h) {
 }
 
 void ViewportPanel::destroyFBO() {
-    if (colorTexture)      { glDeleteTextures(1, &colorTexture);          colorTexture = 0; }
-    if (depthRenderbuffer) { glDeleteRenderbuffers(1, &depthRenderbuffer); depthRenderbuffer = 0; }
+    GfxTextures::destroy(colorTexture);
+    GfxTextures::destroy(depthTexture);
     if (framebuffer)       { glDeleteFramebuffers(1, &framebuffer);        framebuffer = 0; }
 }
 
@@ -237,7 +228,7 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
     // FBO のカラーテクスチャを表示
     // ImTextureRef で GLuint を包む（v1.92 以降の API）
     ImGui::SetCursorScreenPos(contentOrigin);
-    ImTextureRef texRef((ImTextureID)(uintptr_t)colorTexture);
+    ImTextureRef texRef((ImTextureID)(uintptr_t)colorTexture.glName());
     ImGui::Image(texRef, ImVec2((float)w, (float)h), ImVec2(0, 1), ImVec2(1, 0)); // Y 反転
 
     // ゲーム内 GUI をビューポート上に重ねて描画

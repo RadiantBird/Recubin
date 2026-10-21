@@ -45,7 +45,37 @@ int bytesPerPixel(Format format) {
 }
 
 sg_pixel_format pixelFormat(Format format) {
-    return format == Format::R8 ? SG_PIXELFORMAT_R8 : SG_PIXELFORMAT_RGBA8;
+    switch (format) {
+        case Format::R8:           return SG_PIXELFORMAT_R8;
+        case Format::RGBA16F:      return SG_PIXELFORMAT_RGBA16F;
+        case Format::Depth:        return SG_PIXELFORMAT_DEPTH;
+        case Format::DepthStencil: return SG_PIXELFORMAT_DEPTH_STENCIL;
+        default:                   return SG_PIXELFORMAT_RGBA8;
+    }
+}
+
+bool isDepthFormat(Format format) {
+    return format == Format::Depth || format == Format::DepthStencil;
+}
+
+bool isRenderTargetOnlyFormat(Format format) {
+    return format == Format::RGBA16F || isDepthFormat(format);
+}
+
+GLenum bindingQuery(GLenum target) {
+    switch (target) {
+        case GL_TEXTURE_2D_ARRAY: return GL_TEXTURE_BINDING_2D_ARRAY;
+        case GL_TEXTURE_CUBE_MAP: return GL_TEXTURE_BINDING_CUBE_MAP;
+        default:                  return GL_TEXTURE_BINDING_2D;
+    }
+}
+
+GLint glWrap(Wrap wrap) {
+    switch (wrap) {
+        case Wrap::Repeat:             return GL_REPEAT;
+        case Wrap::ClampToBorderWhite: return GL_CLAMP_TO_BORDER;
+        default:                       return GL_CLAMP_TO_EDGE;
+    }
 }
 
 // RGBA8 の mip を 1 段縮小する（2x2 の平均。奇数の辺は端の画素を繰り返す）。
@@ -98,15 +128,21 @@ GLint glMinFilter(Filter filter) {
 void applyGlSampling(TextureHandle handle, const Desc& desc) {
     const sg_gl_image_info info = sg_gl_query_image_info(sg_image{handle.id()});
     const GLenum target = static_cast<GLenum>(info.tex_target);
-    const GLenum bindingQuery = target == GL_TEXTURE_2D_ARRAY ? GL_TEXTURE_BINDING_2D_ARRAY : GL_TEXTURE_BINDING_2D;
     GLint previous = 0;
-    glGetIntegerv(bindingQuery, &previous);
+    glGetIntegerv(bindingQuery(target), &previous);
     glBindTexture(target, info.tex[info.active_slot]);
     glTexParameteri(target, GL_TEXTURE_MIN_FILTER, glMinFilter(desc.filter));
     glTexParameteri(target, GL_TEXTURE_MAG_FILTER, desc.filter == Filter::Nearest ? GL_NEAREST : GL_LINEAR);
-    const GLint wrap = desc.wrap == Wrap::Repeat ? GL_REPEAT : GL_CLAMP_TO_EDGE;
+    const GLint wrap = glWrap(desc.wrap);
     glTexParameteri(target, GL_TEXTURE_WRAP_S, wrap);
     glTexParameteri(target, GL_TEXTURE_WRAP_T, wrap);
+    if (target == GL_TEXTURE_CUBE_MAP) glTexParameteri(target, GL_TEXTURE_WRAP_R, wrap);
+    if (desc.wrap == Wrap::ClampToBorderWhite) {
+        const float white[] = {1.0f, 1.0f, 1.0f, 1.0f};
+        glTexParameterfv(target, GL_TEXTURE_BORDER_COLOR, white);
+    }
+    // 深度は値そのものを読む（比較サンプリングはシェーダー側で行う）。
+    if (isDepthFormat(desc.format)) glTexParameteri(target, GL_TEXTURE_COMPARE_MODE, GL_NONE);
     glBindTexture(target, static_cast<GLuint>(previous));
 }
 
@@ -117,11 +153,42 @@ bool validateDesc(const Desc& desc) {
         return false;
     }
     if (desc.generateMipmaps && (desc.format != Format::RGBA8 || desc.arrayLayers > 0 || desc.renderTarget)) {
-        RCBN_ERROR("GfxTextures: mipmaps are only generated for RGBA8 2D textures ("
+        RCBN_ERROR("GfxTextures: mipmaps are only generated for RGBA8 2D / cube textures ("
+                   << (desc.label ? desc.label : "") << ")");
+        return false;
+    }
+    if (desc.cubemap && (desc.arrayLayers > 0 || desc.width != desc.height)) {
+        RCBN_ERROR("GfxTextures: a cubemap needs square faces and no array layers ("
+                   << (desc.label ? desc.label : "") << ")");
+        return false;
+    }
+    if (isRenderTargetOnlyFormat(desc.format) && !desc.renderTarget) {
+        RCBN_ERROR("GfxTextures: RGBA16F / depth formats are only for render targets ("
+                   << (desc.label ? desc.label : "") << ")");
+        return false;
+    }
+    if (desc.mipLevels < 1 || desc.mipLevels > SG_MAX_MIPMAPS || (desc.mipLevels > 1 && !desc.renderTarget)) {
+        RCBN_ERROR("GfxTextures: mipLevels " << desc.mipLevels << " is only valid for render targets ("
                    << (desc.label ? desc.label : "") << ")");
         return false;
     }
     return true;
+}
+
+// 面（またはレイヤー）ごとに mip を作り、各 mip 段の面を順に並べる（sokol の mip_levels の並び）。
+std::vector<std::vector<unsigned char>> buildFaceMipChain(const unsigned char* level0, int size, int faceCount) {
+    const size_t faceBytes = static_cast<size_t>(size) * static_cast<size_t>(size) * 4;
+    std::vector<std::vector<std::vector<unsigned char>>> perFace;
+    for (int face = 0; face < faceCount; ++face) {
+        perFace.push_back(buildMipChain(level0 + faceBytes * static_cast<size_t>(face), size, size));
+    }
+    std::vector<std::vector<unsigned char>> levels(perFace.empty() ? 0 : perFace[0].size());
+    for (size_t level = 0; level < levels.size(); ++level) {
+        for (const auto& chain : perFace) {
+            levels[level].insert(levels[level].end(), chain[level].begin(), chain[level].end());
+        }
+    }
+    return levels;
 }
 
 } // namespace
@@ -130,12 +197,13 @@ TextureHandle create(const Desc& desc) {
     if (!GfxDevice::isValid()) return {};
     if (!validateDesc(desc)) return {};
 
-    const int layers = std::max(desc.arrayLayers, 1);
+    const int layers = desc.cubemap ? 6 : std::max(desc.arrayLayers, 1);
     const size_t levelBytes = static_cast<size_t>(desc.width) * static_cast<size_t>(desc.height) *
                               static_cast<size_t>(layers) * static_cast<size_t>(bytesPerPixel(desc.format));
 
     sg_image_desc imageDesc = {};
-    imageDesc.type = desc.arrayLayers > 0 ? SG_IMAGETYPE_ARRAY : SG_IMAGETYPE_2D;
+    imageDesc.type = desc.cubemap ? SG_IMAGETYPE_CUBE
+                   : desc.arrayLayers > 0 ? SG_IMAGETYPE_ARRAY : SG_IMAGETYPE_2D;
     imageDesc.width = desc.width;
     imageDesc.height = desc.height;
     imageDesc.num_slices = layers;
@@ -146,8 +214,12 @@ TextureHandle create(const Desc& desc) {
     std::vector<unsigned char> zeroPixels;
     std::vector<std::vector<unsigned char>> mipChain;
     if (desc.renderTarget) {
-        imageDesc.usage.color_attachment = true;
-        imageDesc.num_mipmaps = 1;
+        if (isDepthFormat(desc.format)) {
+            imageDesc.usage.depth_stencil_attachment = true;
+        } else {
+            imageDesc.usage.color_attachment = true;
+        }
+        imageDesc.num_mipmaps = desc.mipLevels;
     } else {
         const void* level0 = desc.pixels;
         if (!level0) {
@@ -155,7 +227,12 @@ TextureHandle create(const Desc& desc) {
             level0 = zeroPixels.data();
         }
         imageDesc.data.mip_levels[0] = sg_range{level0, levelBytes};
-        if (desc.generateMipmaps) {
+        if (desc.generateMipmaps && desc.cubemap) {
+            mipChain = buildFaceMipChain(static_cast<const unsigned char*>(level0), desc.width, layers);
+            for (size_t i = 0; i < mipChain.size(); ++i) {
+                imageDesc.data.mip_levels[i + 1] = sg_range{mipChain[i].data(), mipChain[i].size()};
+            }
+        } else if (desc.generateMipmaps) {
             mipChain = buildMipChain(static_cast<const unsigned char*>(level0), desc.width, desc.height);
             for (size_t i = 0; i < mipChain.size(); ++i) {
                 imageDesc.data.mip_levels[i + 1] = sg_range{mipChain[i].data(), mipChain[i].size()};
@@ -175,8 +252,7 @@ TextureHandle create(const Desc& desc) {
         return {};
     }
     const TextureHandle handle(image.id);
-    applyGlSampling(handle, desc);
-    return handle;
+    applyGlSampling(handle, desc);    return handle;
 }
 
 void destroy(TextureHandle& handle) {
@@ -193,6 +269,29 @@ bool size(TextureHandle handle, int& width, int& height) {
     width = sg_query_image_width(image);
     height = sg_query_image_height(image);
     return true;
+}
+
+TextureHandle createColorTarget(int width, int height, const char* label) {
+    Desc desc;
+    desc.width = width;
+    desc.height = height;
+    desc.renderTarget = true;
+    desc.filter = Filter::Linear;
+    desc.wrap = Wrap::ClampToEdge;
+    desc.label = label;
+    return create(desc);
+}
+
+TextureHandle createSceneDepthTarget(int width, int height, const char* label) {
+    Desc desc;
+    desc.width = width;
+    desc.height = height;
+    desc.format = Format::DepthStencil;
+    desc.renderTarget = true;
+    desc.filter = Filter::Nearest;
+    desc.wrap = Wrap::ClampToEdge;
+    desc.label = label;
+    return create(desc);
 }
 
 } // namespace GfxTextures
