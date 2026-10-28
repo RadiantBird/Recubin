@@ -62,6 +62,7 @@ public:
     bool isSnapshotDirty() const { return m_snapshotDirty; }
     const std::filesystem::path& logicalScenePath() const { return m_logicalScenePath; }
     const std::filesystem::path& autosaveDirectory() const { return m_sessionDirectory; }
+    const std::filesystem::path& storageRoot() const { return m_storageRoot; }
 
 private:
     bool saveRecovery(std::chrono::steady_clock::time_point now);

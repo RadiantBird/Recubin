@@ -35,6 +35,7 @@
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
 #include <Core/SceneRuntime.hpp>
+#include <Core/RbxlxConverter.hpp>
 #include <Core/FileLoader.hpp>
 #include <Core/AudioService.hpp>
 #include <Core/PhysicalFileInstanceRegistry.hpp>
@@ -493,6 +494,43 @@ bool checkExit(EditorManager* ed, GLFWwindow& window) {
 //  全クラスをWorkspace配下に生成してYAMLへ保存する。RecubinTest.exeでの
 //  網羅的なリグレッション確認用（run_regression.pyから呼ばれる想定）。
 // ===================================================
+// --convert <in.rbxlx> [-o <out.rcbn>]。指定が無ければ nullopt（通常起動を続ける）。
+// -o を省略すると入力と同じ場所の .rcbn に出力する。
+static std::optional<int> runConvertFromArgs(int argc, char* argv[]) {
+    std::optional<std::filesystem::path> input;
+    std::optional<std::filesystem::path> output;
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        if (arg == "--convert") {
+            if (i + 1 >= argc) {
+                std::cerr << "[convert] ERROR: --convert requires an input .rbxlx path\n";
+                return 1;
+            }
+            input = std::filesystem::path(argv[++i]);
+        } else if (arg == "-o") {
+            if (i + 1 >= argc) {
+                std::cerr << "[convert] ERROR: -o requires an output path\n";
+                return 1;
+            }
+            output = std::filesystem::path(argv[++i]);
+        }
+    }
+    if (!input) return std::nullopt;
+    if (!output) output = std::filesystem::path(*input).replace_extension(".rcbn");
+
+    const RbxlxConverter::Result result = RbxlxConverter::convertFile(*input, *output);
+    for (const std::string& warning : result.warnings) {
+        std::cout << "[convert] WARNING: " << warning << "\n";
+    }
+    if (!result) {
+        std::cerr << "[convert] ERROR: " << result.message << "\n";
+        return 1;
+    }
+    std::cout << "[convert] " << result.message << " (skipped " << result.skippedCount
+              << " Roblox instances)\n";
+    return 0;
+}
+
 static int runGenTestScene(const std::string& outputPath) {
     getPlatform().setupConsoleUtf8();
 
@@ -691,6 +729,8 @@ int main(int argc, char* argv[]) {
     // (Windows日本語版等では既定のANSIコードページのままだと、UTF-8で書かれた
     //  ログやLuauのprint出力が文字化けする)
     getPlatform().setupConsoleUtf8();
+    // ヘッドレス変換モード: .rbxlx を .rcbn に変換して即終了する（Watcher も起動しない）
+    if (const auto convertExitCode = runConvertFromArgs(argc, argv)) return *convertExitCode;
     GuiAutomation::start();
     getPlatform().setupDllSearchPath();
     if (!Physics::configureBackendFromCommandLine(argc, argv)) return -1;

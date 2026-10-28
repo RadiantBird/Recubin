@@ -77,6 +77,8 @@
 #include <Core/AssetImporter.hpp>
 #include <Util/Sha256.hpp>
 #include <Core/SceneLoader.hpp>
+#include <Core/RbxlxConverter.hpp>
+#include <Core/RbxlxDocument.hpp>
 #include <Core/AnimationClip.hpp>
 #include <Core/SceneRuntime.hpp>
 #include <Core/AudioService.hpp>
@@ -18754,6 +18756,125 @@ int runSecurityRegression() {
     return SecurityRegression::g_failures == 0 ? 0 : 1;
 }
 
+// assets/scenes/AddonTest.rbxlx を変換し、SceneLoader で読み直して中身を確かめる。
+int runRbxlxConvertRegression() {
+    namespace fs = std::filesystem;
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[RbxlxConvert] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    const fs::path input = "assets/scenes/AddonTest.rbxlx";
+    std::error_code ec;
+    const fs::path work = fs::temp_directory_path(ec) / "recubin_rbxlx_convert_regression";
+    fs::remove_all(work, ec);
+    fs::create_directories(work, ec);
+    const fs::path output = work / "AddonTest.rcbn";
+
+    const RbxlxConverter::Result converted = RbxlxConverter::convertFile(input, output);
+    expect(static_cast<bool>(converted), "convertFile succeeds: " + converted.message);
+    if (!converted) return 1;
+
+    auto loaded = SceneLoader::loadSceneResult(output.string());
+    expect(static_cast<bool>(loaded), "converted scene loads: " + loaded.message);
+    if (!loaded) return 1;
+
+    int cubes = 0, models = 0, welds = 0, resolvedWelds = 0, motors = 0, resolvedMotors = 0;
+    std::vector<std::array<float, 3>> loadedPositions;
+    std::vector<std::string> loadedPaths;
+    std::vector<std::array<float, 3>> loadedSizes;
+    auto sortedSize = [](const Vector3& size) {
+        std::array<float, 3> values = { size.x, size.y, size.z };
+        std::sort(values.begin(), values.end());
+        return values;
+    };
+    auto walk = [&](auto& self, Instance* node) -> void {
+        for (auto& [name, child] : node->children) {
+            Instance* inst = child.get();
+            if (inst->IsA("BaseCube")) {
+                ++cubes;
+                auto* cube = static_cast<BaseCube*>(inst);
+                const Vector3 position = cube->getWorldPosition();
+                loadedPositions.push_back({ position.x, position.y, position.z });
+                loadedPaths.push_back(cube->getFullPath());
+                loadedSizes.push_back(sortedSize(cube->Size));
+            } else if (inst->getClassName() == "Model") {
+                ++models;
+            } else if (inst->getClassName() == "Weld") {
+                ++welds;
+                auto* weld = static_cast<Weld*>(inst);
+                if (weld->getCube0() && weld->getCube1()) ++resolvedWelds;
+            } else if (inst->getClassName() == "Motor6D") {
+                ++motors;
+                auto* motor = static_cast<Motor6D*>(inst);
+                if (motor->getPart0() && motor->getPart1()) ++resolvedMotors;
+            }
+            self(self, inst);
+        }
+    };
+    walk(walk, loaded.root.get());
+
+    expect(cubes == 577, "577 BaseCubes (got " + std::to_string(cubes) + ")");
+    expect(models == 13, "13 Models (got " + std::to_string(models) + ")");
+    expect(welds == 1020, "1020 Welds from Snap/Weld (got " + std::to_string(welds) + ")");
+    expect(resolvedWelds == welds, "every Weld resolves both cubes");
+    expect(motors == 6 && resolvedMotors == motors, "6 Motor6D with both parts resolved");
+
+    // rbxlx 側の Part のワールド位置・サイズの集合と一致すること（親 Model からのローカル化の検証）。
+    std::string error;
+    auto document = RbxlxDocument::load(input, error);
+    expect(document.has_value(), "rbxlx document reloads for comparison");
+    if (!document) return 1;
+    std::vector<std::array<float, 3>> sourcePositions;
+    std::vector<std::array<float, 3>> sourceSizes;
+    auto collect = [&](auto& self, const RbxlxDocument::Node& node) -> void {
+        // Terrain も BasePart だが変換対象外
+        if (auto cframe = node.getCFrame("CFrame"); cframe && node.getVector3("size") && node.className != "Terrain") {
+            sourcePositions.push_back({ cframe->Position.x, cframe->Position.y, cframe->Position.z });
+            sourceSizes.push_back(sortedSize(*node.getVector3("size")));
+        }
+        for (const auto& child : node.children) self(self, *child);
+    };
+    for (const auto& root : document->roots) collect(collect, *root);
+
+    // 許容誤差つきの多重集合比較（ソートすると誤差で並びがずれるので、未使用の近い要素と 1 対 1 で対応付ける）。
+    auto sameSet = [&](const std::vector<std::array<float, 3>>& actual,
+                       const std::vector<std::array<float, 3>>& expected,
+                       const std::vector<std::string>* actualNames) {
+        if (actual.size() != expected.size()) {
+            std::cout << "[RbxlxConvert]   count differs: " << actual.size() << " vs " << expected.size() << '\n';
+            return false;
+        }
+        std::vector<bool> used(expected.size(), false);
+        for (size_t i = 0; i < actual.size(); ++i) {
+            const auto& p = actual[i];
+            bool matched = false;
+            for (size_t j = 0; j < expected.size() && !matched; ++j) {
+                const auto& q = expected[j];
+                if (!used[j] && std::fabs(p[0] - q[0]) <= 1e-3f && std::fabs(p[1] - q[1]) <= 1e-3f &&
+                    std::fabs(p[2] - q[2]) <= 1e-3f) {
+                    used[j] = true;
+                    matched = true;
+                }
+            }
+            if (!matched) {
+                std::cout << "[RbxlxConvert]   unmatched " << (actualNames ? (*actualNames)[i] : std::string("value"))
+                          << " (" << p[0] << ", " << p[1] << ", " << p[2] << ")\n";
+                return false;
+            }
+        }
+        return true;
+    };
+    expect(sameSet(loadedPositions, sourcePositions, &loadedPaths), "BaseCube world positions match the rbxlx CFrames");
+    expect(sameSet(loadedSizes, sourceSizes, &loadedPaths), "BaseCube sizes match the rbxlx sizes");
+
+    fs::remove_all(work, ec);
+    std::cout << "[RbxlxConvert] " << (failures == 0 ? "all passed" : "failures present")
+              << " (failures=" << failures << ")\n";
+    return failures == 0 ? 0 : 1;
+}
+
 struct RegressionEntry {
     std::string_view name;
     int (*runner)(int, char**);
@@ -18809,6 +18930,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--viewport-helper-regression", runViewportHelperRegression),
         REG("--autosave-regression", runAutosaveRegression),
         REG("--asset-path-regression", runAssetPathRegression),
+        REG("--rbxlx-convert-regression", runRbxlxConvertRegression),
         REG("--app-image-regression", runAppImageRegression),
         REG("--runtime-launch-args-regression", runRuntimeLaunchArgsRegression),
         REG("--starter-weld-rename-regression", runStarterWeldRenameRegression),

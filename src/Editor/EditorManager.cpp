@@ -44,6 +44,7 @@
 #include <Instances/PathfindingService.hpp>
 #include <Core/CharacterRig.hpp>
 #include <Core/SceneLoader.hpp>
+#include <Core/RbxlxConverter.hpp>
 #include <Instances/System.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_impl_glfw.h>
@@ -937,14 +938,64 @@ void EditorManager::renderRestoreR6Dialog() {
     ImGui::EndPopup();
 }
 
+// 開くダイアログのフィルター。.rbxlx は読み込み時に .rcbn へ変換する。
+static std::vector<FileFilter> sceneOpenFilters() {
+    return {{"Scene (*.rcbn;*.yaml;*.yml)", "*.rcbn;*.yaml;*.yml"},
+            {"Roblox Place (*.rbxlx)", "*.rbxlx"}};
+}
+
+static bool isRobloxPlacePath(const std::string& path) {
+    std::string extension = std::filesystem::path(path).extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return extension == ".rbxlx";
+}
+
+// <storageRoot>/imported/<stem>.rcbn に変換する。失敗時は nullopt と理由。
+static std::optional<std::string> convertRobloxPlace(const std::string& path,
+                                                     const std::filesystem::path& storageRoot,
+                                                     std::string& error) {
+    const std::filesystem::path output =
+        storageRoot / "imported" / std::filesystem::path(path).stem().concat(".rcbn");
+    std::error_code ec;
+    std::filesystem::create_directories(output.parent_path(), ec);
+    if (ec) {
+        error = "Failed to create " + output.parent_path().string() + ": " + ec.message();
+        return std::nullopt;
+    }
+    const RbxlxConverter::Result result = RbxlxConverter::convertFile(path, output);
+    for (const std::string& warning : result.warnings) {
+        RCBN_WARN("[RbxlxConverter] " << warning);
+    }
+    if (!result) {
+        error = result.message;
+        return std::nullopt;
+    }
+    RCBN_LOG("[RbxlxConverter] " << result.message);
+    return output.string();
+}
+
 void EditorManager::openSceneDialog() {
-    requestSceneLoad(getPlatform().openFileDialog({{"Scene (*.rcbn;*.yaml;*.yml)", "*.rcbn;*.yaml;*.yml"}}));
+    requestSceneLoad(getPlatform().openFileDialog(sceneOpenFilters()));
 }
 
 void EditorManager::requestSceneLoad(const std::string& path) {
     if (path.empty()) return;
 
     if (isEditMode()) {
+        if (isRobloxPlacePath(path)) {
+            // 変換結果は一時ファイルとして読み、無題・未保存で開く（Save で .rcbn の保存先を聞く。.rbxlx は上書きしない）
+            std::string error;
+            const auto converted = convertRobloxPlace(path, m_autosave.storageRoot(), error);
+            if (!converted) {
+                RCBN_ERROR("[RbxlxConverter] " << error);
+                showSceneLoadError(error);
+                return;
+            }
+            pendingScene = {true, PendingSceneKind::Formal, *converted, std::string(), true};
+            if (welcomePanel) welcomePanel->isOpen = false;
+            return;
+        }
         if (auto candidate = m_autosave.findCrashRecoveryForScene(path)) {
             if (!m_autosave.isActive() || candidate->directory != m_autosave.autosaveDirectory()) {
                 m_recoveryCandidate = std::move(candidate);
@@ -1700,7 +1751,7 @@ void EditorManager::renderToolbarBasic() {
     }
     ImGui::SameLine();
     if (drawIconButton(ICON_LOAD, Loc::t(Loc::LocKey::LoadButton), iconBtnSz)) {
-        requestSceneLoad(getPlatform().openFileDialog({{"Scene (*.rcbn;*.yaml;*.yml)", "*.rcbn;*.yaml;*.yml"}}));
+        requestSceneLoad(getPlatform().openFileDialog(sceneOpenFilters()));
     }
 }
 
