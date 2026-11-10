@@ -60,7 +60,7 @@ std::string formatFloatList(const float* values, std::size_t count) {
 }
 
 Result draw(const char* label, const float* values, std::size_t count,
-            bool mixed, float minimum, float maximum) {
+            const char* hint, bool mixed, float minimum, float maximum) {
     Result result;
     if (!label || !values || count == 0) return result;
 
@@ -74,7 +74,7 @@ Result draw(const char* label, const float* values, std::size_t count,
     std::array<char, 512> buffer{};
     std::snprintf(buffer.data(), buffer.size(), "%s", draft.text.c_str());
     const bool submitted = ImGui::InputTextWithHint(
-        label, mixed ? "Mixed value" : "x, y, z", buffer.data(), buffer.size(),
+        label, mixed ? "Mixed value" : (hint ? hint : ""), buffer.data(), buffer.size(),
         ImGuiInputTextFlags_EnterReturnsTrue);
     draft.text = buffer.data();
     draft.active = ImGui::IsItemActive();

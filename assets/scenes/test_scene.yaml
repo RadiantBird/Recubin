@@ -8,6 +8,7 @@ Root:
   Properties:
     BaseResolution: [1920, 1080]
     UseNetwork: false
+    NetworkInterpolationDelay: 0.1
     EnableIOAPI: true
     EnableIPCAPI: true
     EnableExternalFileAccess: false
@@ -17,6 +18,8 @@ Root:
     MaxTasksPerFrame: 1000
     ScriptLoopTimeoutSeconds: 2
     DefaultCameraMode: Character
+    LockAspectRatio: true
+    UseFixedResolution: false
   Children:
     - ClassName: MaterialService
       Name: MaterialService
@@ -27,6 +30,12 @@ Root:
             Metallic: 1
             Roughness: 0.2
             Reflectance: 0.5
+            BaseColorMap: ""
+            RoughnessMap: ""
+            MetallicMap: ""
+            NormalMap: ""
+            TextureScale: 4
+            NormalStrength: 1
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
@@ -99,6 +108,9 @@ Root:
                 - ClassName: Tool
                   Name: TestTool1
                   Properties:
+                    Position: [0, 0, 0]
+                    Size: [1, 1, 1]
+                    Rotation: [0, 0, 0, 1]
                     Hand: Right
                     GripC0:
                       Position: [0, 0, -1]
@@ -106,9 +118,6 @@ Root:
                     GripC1:
                       Position: [0, 0, 0]
                       Rotation: [-0, -0, -0, 1]
-                    Position: [0, 0, 0]
-                    Size: [1, 1, 1]
-                    Rotation: [0, 0, 0, 1]
                   Children:
                     - ClassName: Cube
                       Name: Handle
@@ -136,6 +145,9 @@ Root:
                 - ClassName: Tool
                   Name: TestTool2
                   Properties:
+                    Position: [0, 0, 0]
+                    Size: [1, 1, 1]
+                    Rotation: [0, 0, 0, 1]
                     Hand: Right
                     GripC0:
                       Position: [0, 0, -1]
@@ -143,9 +155,6 @@ Root:
                     GripC1:
                       Position: [0, 0, 0]
                       Rotation: [-0, -0, -0, 1]
-                    Position: [0, 0, 0]
-                    Size: [1, 1, 1]
-                    Rotation: [0, 0, 0, 1]
     - ClassName: AppImage
       Name: AppImage
       Properties:
@@ -156,6 +165,7 @@ Root:
         Gravity: [0, -196.2, 0]
         Wind: [0, 0, 0]
         PhysicsEnabled: true
+        PhysicsSubsteps: 8
       Children:
         - ClassName: Cube
           Name: Branch
@@ -393,10 +403,11 @@ Root:
           Properties:
             Enabled: false
             ContentPath: ""
+            ScriptExtension: Luau
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [19.778564, -7.088905, -24.879272]
+            Position: [-43.344, -4.3597302, 9.654983]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -454,6 +465,7 @@ Root:
           Properties:
             Enabled: false
             ContentPath: scripts/2006.luau
+            ScriptExtension: Luau
         - ClassName: Cube
           Name: Floppa1
           Properties:
@@ -756,11 +768,14 @@ Root:
             Axis: [0, 1, 0]
             DriveVelocity: 1
             MaxForce: 1000
+            Servo: false
+            TargetAngle: 0
         - ClassName: Script
           Name: HelloLuar
           Properties:
             Enabled: false
             ContentPath: scripts/HelloLuar.luar
+            ScriptExtension: Luar
         - ClassName: Lighting
           Name: Lighting
           Properties:
@@ -944,6 +959,7 @@ Root:
               Name: YawForce
               Properties:
                 Enabled: false
+                RelativeTo: World
                 Torque: true
                 MaintainVelocity: true
                 Value: [0, 0, 0]

@@ -459,10 +459,21 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
         dd.DisplaySize      = ImVec2((float)w, (float)h);
         dd.FramebufferScale = ImVec2(1.f, 1.f);
         // This draw data is rendered before the normal end-of-frame ImGui
-        // draw data. Forward pending dynamic-atlas uploads here; otherwise
-        // text can sample an old/uncreated atlas texture and the bad result is
-        // then retained by SurfaceGui's static bake cache.
-        dd.Textures = &ImGui::GetPlatformIO().Textures;
+        // draw data. UpdateTexturesEndFrame() has not rebuilt PlatformIO.Textures
+        // yet, so include the current font-atlas entries explicitly. Otherwise
+        // a newly grown atlas is left with an invalid TexID for this bake.
+        ImVector<ImTextureData*> bakeTextures = ImGui::GetPlatformIO().Textures;
+        for (ImTextureData* texture : ImGui::GetIO().Fonts->TexList) {
+            bool alreadyListed = false;
+            for (ImTextureData* listedTexture : bakeTextures) {
+                if (listedTexture == texture) {
+                    alreadyListed = true;
+                    break;
+                }
+            }
+            if (!alreadyListed) bakeTextures.push_back(texture);
+        }
+        dd.Textures = &bakeTextures;
         dd.AddDrawList(dl);
         ImGui_ImplOpenGL3_RenderDrawData(&dd);
 

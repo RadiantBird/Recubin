@@ -89,6 +89,7 @@
 #define ICON_TEXTFILE            "\xef\x85\x9c"  // f15c fa-file-alt
 #define ICON_NUMBERVALUE         "\xef\x87\xac"  // f1ec fa-calculator
 #define ICON_BOOLVALUE           "\xef\x88\x85"  // f205 fa-toggle-on
+#define ICON_STRINGVALUE         "\xef\x80\xb1"  // f031 fa-font
 #define ICON_VECTOR3VALUE        "\xef\x82\xb2"  // f0b2 fa-arrows-alt
 #define ICON_COLORVALUE          "\xef\x87\xbb"  // f1fb fa-eye-dropper
 #define ICON_CFRAMEVALUE         "\xef\x86\xb3"  // f1b3 fa-cubes

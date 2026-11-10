@@ -34,6 +34,8 @@ f12log.txt
 output.txt
 .wizard-backup/
 LuarChecker.luau
+*.lock
+*.rbxlx
 
 Claude's last exam/
 CodexField/

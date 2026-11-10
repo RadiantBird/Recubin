@@ -704,3 +704,18 @@
 - **音声のフィルターだけ書式が違う**：`AUDIO_EXTENSION` のフィルターは `mp3,wav,ogg,flac`（カンマ区切り、`*.` なし）。他は `*.png;*.jpg`。
 - **Decal の Face は YAML に数値で保存する**（`yamlEnumAsString=false`）。SurfaceGui などは文字列で、クラスごとに不統一。
 - **GL のない RecubinTest でアセットのパスが解決できると、読み込み・アップロードで落ちる**：パスが解決できないと警告だけで済む。
+
+## 2026-11-11 コード調査結果の検証
+
+- `code_review_2026-11-11.md` の4件を調査。`PropertyTextInput::draw` に呼び出し元指定のヒントを追加し、Vector3、Color4、CFrame の入力順を表示するよう変更。混合値・解析・Undo は維持。
+- SurfaceGui の無効テクスチャ警告を `TestCases/TestGame/TestGame.yaml` の self-check で再現。一時診断で、ベイク時の font atlas が `WantCreate`、TexID 0 のまま `PlatformIO.Textures` に存在しないことを確認。EndFrame 前のベイク用一覧に現在の atlas `TexList` を重複なく追加し、backend にアップロードさせるよう修正。修正後は TexID が有効となり警告が消えた。一時ログは削除済み。
+- `findOverlapping` の回転無視は `doc/archive.md` に記録された設計であり、仕様違反とは断定できないため変更していない。回転した形状との判定差は残る。
+- NumberValue の Undo は通常操作では activation 後のフレームで値が変わるため、報告書の懸念を再現・確認できず変更していない。GUI の特殊な同一フレーム操作は未検証。
+- Windows Release build、`--property-text-input-regression`、TestGame の self-check、変更対象の `git diff --check` は成功。入力ヒントの実際の見え方と他の SurfaceGui シーンは実機未確認。既存の `--audio-diagnostics-regression` 失敗は今回未検証。
+- 次の確認: エディターで単一・複数選択時の CFrame / Color4 ヒント、および多様な文字・画像を含む SurfaceGui の表示を確認する。
+
+## 2026-11-11 StringValue 追加
+
+- `StringValue` を `ValueBase` 派生として追加。空文字列を既定値に、`Value` の PropertyRegistry 登録、文字列を渡す `Changed`、clone、YAML、Luau の生成・読み書き、Explorer の挿入・アイコン・カタログを実装した。
+- PropertyRegistry の Luau 文字列変換を長さ付き API に変更し、埋め込み NUL も保存・通知する。Properties の単一行文字列入力は固定長を廃止し、NUL を含む単一値は破壊を防ぐため編集不可と表示する。
+- Windows Release build、`--string-value-regression`、`--clone-class-regression`、`--scene-hierarchy-grouping-regression`、変更対象の `git diff --check` は成功。エディター実画面での長文入力・複数選択・Undo は未確認。必要に応じて実画面で確認する。

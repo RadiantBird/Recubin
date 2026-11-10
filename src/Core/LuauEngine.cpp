@@ -69,6 +69,7 @@
 #include "include/Instances/ValueBase.hpp"
 #include "include/Instances/IntValue.hpp"
 #include "include/Instances/BoolValue.hpp"
+#include "include/Instances/StringValue.hpp"
 #include "include/Instances/NumberValue.hpp"
 #include "include/Instances/Vector3Value.hpp"
 #include "include/Instances/Color4Value.hpp"
@@ -3079,6 +3080,7 @@ static const std::unordered_map<std::string, std::function<std::shared_ptr<Insta
         { "NoCollision",      [] { return std::make_shared<NoCollision>(); } },
         { "IntValue",         [] { return std::make_shared<IntValue>(); } },
         { "BoolValue",        [] { return std::make_shared<BoolValue>(); } },
+        { "StringValue",      [] { return std::make_shared<StringValue>(); } },
         { "NumberValue",      [] { return std::make_shared<NumberValue>(); } },
         { "Vector3Value",     [] { return std::make_shared<Vector3Value>(); } },
         { "Color4Value",      [] { return std::make_shared<Color4Value>(); } },

@@ -55,6 +55,8 @@
 #include <Instances/SurfaceMark.hpp>
 #include <Instances/Highlight.hpp>
 #include <Instances/IntValue.hpp>
+#include <Instances/BoolValue.hpp>
+#include <Instances/StringValue.hpp>
 #include <Instances/CFrameValue.hpp>
 #include <Instances/QuaternionValue.hpp>
 #include <Core/BaseCubeBvh.hpp>
@@ -11823,6 +11825,15 @@ static int runSceneHierarchyGroupingRegression() {
            "catalog search is case-insensitive and finds all script classes");
     expect(InstanceCatalog::search("SYSTEM").empty(), "catalog excludes system classes");
     expect(InstanceCatalog::create("Workspace") != nullptr, "catalog creates Workspace");
+    const auto stringValueEntry = std::find_if(catalogEntries.begin(), catalogEntries.end(),
+        [](const auto& entry) { return entry.className == "StringValue"; });
+    expect(stringValueEntry != catalogEntries.end() &&
+               stringValueEntry->category == InstanceCategory::Values,
+           "catalog includes StringValue in the Values category");
+    auto catalogStringValue = InstanceCatalog::create("StringValue");
+    expect(catalogStringValue && catalogStringValue->IsA("ValueBase") &&
+               static_cast<StringValue*>(catalogStringValue.get())->Value.empty(),
+           "catalog creates StringValue with an empty default value");
 
     // Explorer range selection is based only on the expanded rows supplied in
     // visible display order. Reverse selection returns the same stable order.
@@ -12609,7 +12620,7 @@ std::shared_ptr<System> buildScene(const AssetTable& assets, const fs::path& pro
     const std::vector<std::string> plainClasses = {
         "Skybox", "Lighting", "Sun", "Moon", "PostEffect", "Weather", "Terrain", "Folder", "Instance",
         "Animation", "AppImage", "SignalEvent", "StarterCharacter", "FileRef", "FontFile", "TextFile",
-        "Program", "Script", "LocalScript", "ModuleScript", "IntValue", "BoolValue", "NumberValue",
+        "Program", "Script", "LocalScript", "ModuleScript", "IntValue", "BoolValue", "StringValue", "NumberValue",
         "Vector3Value", "Color4Value", "CFrameValue", "QuaternionValue", "ObjectValue",
         "Rope", "Rod", "Spring", "PrismaticConstraint", "BallSocket", "NoCollision", "Weld", "Motor",
         "Motor6D"};
@@ -13349,6 +13360,57 @@ static int runPropertyTextInputRegression() {
                !PropertyTextInput::parseFloatList("1, inf, 3", 3, values),
            "rejects non-finite values");
 
+    return failures == 0 ? 0 : 1;
+}
+
+static int runStringValueRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[StringValue] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto value = std::make_shared<StringValue>();
+    expect(value->Value.empty(), "StringValue default value is empty");
+    value->Value = std::string("A\0B\n", 4);
+    auto copy = value->clone();
+    expect(copy && static_cast<StringValue*>(copy.get())->Value == value->Value,
+           "StringValue clone preserves embedded NUL");
+
+    YAML::Emitter out;
+    SceneLoader::emitNode(out, value.get());
+    auto roundTrip = SceneLoader::parseNode(YAML::Load(out.c_str()));
+    expect(roundTrip && static_cast<StringValue*>(roundTrip.get())->Value == value->Value,
+           "StringValue YAML round-trip preserves embedded NUL");
+
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    system->addChild(workspace);
+    auto script = std::make_shared<Script>();
+    script->Name = "StringValueLuaRegression";
+    script->Source =
+        "local value = Instance.new('StringValue') "
+        "assert(value:IsA('StringValue') and value.Value == '') "
+        "local changed = false "
+        "value.Changed:Connect(function(newValue) "
+        "  changed = #newValue == 3 and string.byte(newValue, 2) == 0 "
+        "end) "
+        "value.Value = string.char(65, 0, 66) "
+        "assert(#value.Value == 3 and string.byte(value.Value, 2) == 0 and changed) "
+        "print('[StringValueRegression] pass')";
+    workspace->addChild(script);
+    LuauEngine engine;
+    engine.setWorkspace(workspace);
+    engine.setSystem(system.get());
+    const auto oldLogHook = g_luauLogHook;
+    bool passed = false;
+    g_luauLogHook = [&](const std::string& message) {
+        passed = passed || message.find("[StringValueRegression] pass") != std::string::npos;
+    };
+    const bool started = engine.execute(*script);
+    g_luauLogHook = oldLogHook;
+    expect(started && passed, "Luau StringValue Value and Changed preserve embedded NUL");
     return failures == 0 ? 0 : 1;
 }
 
@@ -17553,7 +17615,7 @@ static int runCloneClassRegression() {
         "Model", "Decal", "SurfaceMark", "Texture", "Canvas", "Highlight", "SignalEvent",
         "Sound", "Lighting", "Sun", "Moon", "PointLight", "SpotLight", "PostEffect", "AppImage",
         "Humanoid", "Animation", "StarterCharacter", "Terrain", "Instance", "Rope", "Rod", "Spring", "PrismaticConstraint",
-        "BallSocket", "NoCollision", "IntValue", "BoolValue", "NumberValue", "Vector3Value",
+        "BallSocket", "NoCollision", "IntValue", "BoolValue", "StringValue", "NumberValue", "Vector3Value",
         "Color4Value", "CFrameValue", "QuaternionValue", "ObjectValue", "Weld", "Motor", "Motor6D",
         "Gyro", "Attachment", "Force", "TextLabel", "TextButton", "ImageLabel", "ImageButton",
         "SurfaceGui", "BillboardGui", "ProximityPrompt", "Folder", "Users", "LocalScript",
@@ -17628,6 +17690,18 @@ static int runCloneClassRegression() {
         auto numberRoundTrip = SceneLoader::parseNode(YAML::Load(numberOut.c_str()));
         expect(numberRoundTrip && static_cast<NumberValue*>(numberRoundTrip.get())->Value == number->Value,
                "NumberValue YAML round-trips the exact double through the schema");
+
+        auto stringValue = std::make_shared<StringValue>();
+        stringValue->Name = "Message";
+        stringValue->Value = std::string("A\0B\n", 4);
+        auto stringCopy = stringValue->clone();
+        expect(stringCopy && static_cast<StringValue*>(stringCopy.get())->Value == stringValue->Value,
+               "StringValue.clone() preserves embedded NUL and newline");
+        YAML::Emitter stringOut;
+        SceneLoader::emitNode(stringOut, stringValue.get());
+        auto stringRoundTrip = SceneLoader::parseNode(YAML::Load(stringOut.c_str()));
+        expect(stringRoundTrip && static_cast<StringValue*>(stringRoundTrip.get())->Value == stringValue->Value,
+               "StringValue YAML round-trips embedded NUL and newline");
 
         auto holder = std::make_shared<Folder>();
         auto target = std::make_shared<Folder>();
@@ -18947,6 +19021,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--character-tick-control-regression", runCharacterTickControlRegression),
         REG("--physical-file-instance-regression", runPhysicalFileInstanceRegression),
         REG("--property-text-input-regression", runPropertyTextInputRegression),
+        REG("--string-value-regression", runStringValueRegression),
         REG("--property-schema-regression", runPropertySchemaRegression),
         REG("--material-service-regression", runMaterialServiceRegression),
         REG("--asset-regression", runAssetRegression),

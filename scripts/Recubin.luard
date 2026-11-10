@@ -9,7 +9,7 @@ declare class Vector3 is
         static zero: Vector3
 
         function length(v: Vector3): number
-        function normalize(v: Vector3): number
+        function normalize(v: Vector3): Vector3
         static function new(x: number, y: number, z: number): Vector3
         function set(self, x: number, y: number, z: number): ()
         

@@ -48,6 +48,7 @@
 #include <Instances/ValueBase.hpp>
 #include <Instances/IntValue.hpp>
 #include <Instances/BoolValue.hpp>
+#include <Instances/StringValue.hpp>
 #include <Instances/NumberValue.hpp>
 #include <Instances/Vector3Value.hpp>
 #include <Instances/Color4Value.hpp>
@@ -465,6 +466,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
     if (className == "NoCollision") return std::make_shared<NoCollision>();
     if (className == "IntValue")        return std::make_shared<IntValue>();
     if (className == "BoolValue")       return std::make_shared<BoolValue>();
+    if (className == "StringValue")     return std::make_shared<StringValue>();
     if (className == "NumberValue")     return std::make_shared<NumberValue>();
     if (className == "Vector3Value")    return std::make_shared<Vector3Value>();
     if (className == "Color4Value")     return std::make_shared<Color4Value>();

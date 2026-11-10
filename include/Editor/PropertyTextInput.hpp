@@ -22,6 +22,7 @@ struct Result {
 // Keeps an editable draft keyed by the current ImGui item ID. The draft is
 // refreshed from the property only while the field is not being edited.
 Result draw(const char* label, const float* values, std::size_t count,
+            const char* hint,
             bool mixed = false,
             float minimum = -std::numeric_limits<float>::infinity(),
             float maximum = std::numeric_limits<float>::infinity());

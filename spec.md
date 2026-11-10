@@ -492,6 +492,9 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
   クリック判定の誤動作）を起こす。
 - Explorer の Insert Object / Group は検索付きクラスピッカーから選択する。分類は既存分類に加えて Container、File、Script を持ち、検索は大文字小文字を区別しない部分一致とする。
 - Explorer の Replace Instance は単一ノードを同名の選択クラスへ置換する。共通プロパティは移送し、互換性のないプロパティは破棄する。子要素は同一オブジェクトを維持して新しい親へ移動し、Undo/Redo で完全に復元する。System、Workspace、親を持たないルートは対象外とする。
+- `StringValue` は `ValueBase` を継承し、空文字列を既定値とする `std::string Value` を保持する。
+  YAML と Luau の `Value` で文字列を読み書きでき、変更時の `Changed` は新しい文字列を1引数で渡す。
+  文字列の長さは保持され、埋め込みNULも切り捨てない。埋め込みNULを含む値はエディターで編集を無効化する。
 - Explorer の各親直下の要素は、`Workspace`、`Folder`、`Model`、`Script`、`LocalScript`、`ModuleScript`、
   物理ファイル (`PhysicalFileInstance`)、`ValueBase`、`BaseCube`、その他の順で表示する。優先順位が
   同じ要素は具体的なクラスごとにまとめ、名前を ASCII 順で並べる。名前中の連続した数字は数値として

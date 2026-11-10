@@ -99,6 +99,24 @@ bool inputMultilineString(const char* id, std::string& value) {
     return changed;
 }
 
+bool inputSingleLineString(const char* id, std::string& value,
+                           const char* hint = nullptr,
+                           ImGuiInputTextFlags flags = 0) {
+    if (value.find('\0') != std::string::npos) {
+        ImGui::TextDisabled("String contains embedded NUL; editing is disabled");
+        return false;
+    }
+    const bool changed = hint
+        ? ImGui::InputTextWithHint(id, hint, value.data(), value.size() + 1,
+                                   flags | ImGuiInputTextFlags_CallbackResize,
+                                   resizeStdStringCallback, &value)
+        : ImGui::InputText(id, value.data(), value.size() + 1,
+                           flags | ImGuiInputTextFlags_CallbackResize,
+                           resizeStdStringCallback, &value);
+    if (changed) value.resize(std::strlen(value.c_str()));
+    return changed;
+}
+
 class SetUserCursorCommand final : public Command {
 public:
     enum class Kind { Type, Path, HotspotX, HotspotY, Size };
@@ -434,9 +452,9 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                     if (inputMultilineString(("##" + label).c_str(), text)) applyLive(inst, PropValue(text));
                     break;
                 }
-                char buf[256];
-                std::snprintf(buf, sizeof(buf), "%s", std::get<std::string>(cur).c_str());
-                if (ImGui::InputText(("##" + label).c_str(), buf, sizeof(buf))) applyLive(inst, PropValue(std::string(buf)));
+                std::string text = std::get<std::string>(cur);
+                if (inputSingleLineString(("##" + label).c_str(), text))
+                    applyLive(inst, PropValue(text));
                 break;
             }
             case PropType::Vec3: {
@@ -445,7 +463,7 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                 mergeEditEdges(itemActivated, itemDeactivatedAfterEdit);
                 const float input[3] = {v.x, v.y, v.z};
                 auto textResult = PropertyTextInput::draw(
-                    "##vec3_text", input, 3);
+                    "##vec3_text", input, 3, "x, y, z");
                 recordedDirectly = recordedDirectly || textResult.suppressGenericTransaction;
                 if (textResult.submitted && !textResult.invalid) {
                     const Vector3 afterValue(textResult.values[0], textResult.values[1], textResult.values[2]);
@@ -476,7 +494,7 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                 mergeEditEdges(itemActivated, itemDeactivatedAfterEdit);
                 const float input[4] = {channels[0], channels[1], channels[2], channels[3]};
                 auto textResult = PropertyTextInput::draw(
-                    "##color4_text", input, 4, false, 0.0f, 255.0f);
+                    "##color4_text", input, 4, "R, G, B, A", false, 0.0f, 255.0f);
                 recordedDirectly = recordedDirectly || textResult.suppressGenericTransaction;
                 if (textResult.submitted && !textResult.invalid) {
                     const Color4 afterColor(textResult.values[0] / 255.0f, textResult.values[1] / 255.0f,
@@ -526,7 +544,7 @@ static void renderSchemaInspector(Instance* inst, const char* className,
                 const float input[6] = {v.Position.x, v.Position.y, v.Position.z,
                                         rotation.x, rotation.y, rotation.z};
                 auto textResult = PropertyTextInput::draw(
-                    "##cframe_text", input, 6);
+                    "##cframe_text", input, 6, "x, y, z, pitch, yaw, roll");
                 recordedDirectly = recordedDirectly || textResult.suppressGenericTransaction;
                 if (textResult.submitted && !textResult.invalid) {
                     const Vector3 position(textResult.values[0], textResult.values[1], textResult.values[2]);
@@ -899,16 +917,10 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                         applyLiveAll(PropValue(text));
                     break;
                 }
-                char buf[256];
-                if (mixed) {
-                    buf[0] = '\0';
-                    if (ImGui::InputTextWithHint(("##" + name).c_str(), Loc::t(Loc::LocKey::MixedValue), buf, sizeof(buf)))
-                        applyLiveAll(PropValue(std::string(buf)));
-                } else {
-                    std::snprintf(buf, sizeof(buf), "%s", std::get<std::string>(cur).c_str());
-                    if (ImGui::InputText(("##" + name).c_str(), buf, sizeof(buf)))
-                        applyLiveAll(PropValue(std::string(buf)));
-                }
+                std::string text = mixed ? std::string() : std::get<std::string>(cur);
+                const char* hint = mixed ? Loc::t(Loc::LocKey::MixedValue) : nullptr;
+                if (inputSingleLineString(("##" + name).c_str(), text, hint))
+                    applyLiveAll(PropValue(text));
                 break;
             }
             case PropType::Vec3: {
@@ -918,7 +930,7 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                 mergeEditEdges(itemActivated, itemDeactivatedAfterEdit);
                 const float input[3] = {v.x, v.y, v.z};
                 auto textResult = PropertyTextInput::draw(
-                    "##vec3_text", input, 3, mixed);
+                    "##vec3_text", input, 3, "x, y, z", mixed);
                 recordedImmediately = recordedImmediately || textResult.suppressGenericTransaction;
                 if (textResult.submitted && !textResult.invalid) {
                     applyLiveAll(PropValue(Vector3(textResult.values[0], textResult.values[1], textResult.values[2])));
@@ -950,7 +962,7 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                                                            channels[2] / 255.0f, channels[3] / 255.0f)));
                 const float input[4] = {channels[0], channels[1], channels[2], channels[3]};
                 auto textResult = PropertyTextInput::draw(
-                    "##color4_text", input, 4, mixed, 0.0f, 255.0f);
+                    "##color4_text", input, 4, "R, G, B, A", mixed, 0.0f, 255.0f);
                 recordedImmediately = recordedImmediately || textResult.suppressGenericTransaction;
                 if (textResult.submitted && !textResult.invalid) {
                     applyLiveAll(PropValue(Color4(textResult.values[0] / 255.0f,
@@ -1012,7 +1024,7 @@ static void renderMultiInspector(const std::vector<Instance*>& sel, CommandHisto
                 const float input[6] = {v.Position.x, v.Position.y, v.Position.z,
                                         rotation.x, rotation.y, rotation.z};
                 auto textResult = PropertyTextInput::draw(
-                    "##cframe_text", input, 6, mixed);
+                    "##cframe_text", input, 6, "x, y, z, pitch, yaw, roll", mixed);
                 recordedImmediately = recordedImmediately || textResult.suppressGenericTransaction;
                 if (textResult.submitted && !textResult.invalid) {
                     const Vector3 position(textResult.values[0], textResult.values[1], textResult.values[2]);

@@ -74,6 +74,7 @@
 #include <Instances/Weather.hpp>
 #include <Instances/IntValue.hpp>
 #include <Instances/BoolValue.hpp>
+#include <Instances/StringValue.hpp>
 #include <Instances/NumberValue.hpp>
 #include <Instances/Vector3Value.hpp>
 #include <Instances/Color4Value.hpp>
@@ -298,6 +299,7 @@ const ClassIconEntry kClassIcons[] = {
     {ICON_VALUE,            {"IntValue"}},
     {ICON_NUMBERVALUE,      {"NumberValue"}},
     {ICON_BOOLVALUE,        {"BoolValue"}},
+    {ICON_STRINGVALUE,      {"StringValue"}},
     {ICON_VECTOR3VALUE,     {"Vector3Value"}},
     {ICON_COLORVALUE,       {"Color4Value"}},
     {ICON_CFRAMEVALUE,      {"CFrameValue"}},
@@ -1470,6 +1472,7 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
 
         tryInsertInstance<IntValue>(m_history, "IntValue", parentSp);
         tryInsertInstance<BoolValue>(m_history, "BoolValue", parentSp);
+        tryInsertInstance<StringValue>(m_history, "StringValue", parentSp);
         tryInsertInstance<NumberValue>(m_history, "NumberValue", parentSp);
         tryInsertInstance<Vector3Value>(m_history, "Vector3Value", parentSp);
         tryInsertInstance<Color4Value>(m_history, "Color4Value", parentSp);
@@ -1709,6 +1712,7 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
         if (ImGui::BeginMenu(Loc::t(Loc::LocKey::CategoryValue))) {
             makeGroup("IntValue", [&] { return std::make_shared<IntValue>(); });
             makeGroup("BoolValue", [&] { return std::make_shared<BoolValue>(); });
+            makeGroup("StringValue", [&] { return std::make_shared<StringValue>(); });
             makeGroup("NumberValue", [&] { return std::make_shared<NumberValue>(); });
             makeGroup("Vector3Value", [&] { return std::make_shared<Vector3Value>(); });
             makeGroup("Color4Value", [&] { return std::make_shared<Color4Value>(); });

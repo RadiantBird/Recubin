@@ -40,7 +40,10 @@ static int valueToLua(lua_State* L, const PropertyDesc& d, const PropValue& v) {
         case PropType::Float:  lua_pushnumber (L, static_cast<lua_Number>(std::get<float>(v))); break;
         case PropType::Int:    lua_pushinteger(L, static_cast<lua_Integer>(std::get<int>(v)));  break;
         case PropType::Bool:   lua_pushboolean(L, std::get<bool>(v) ? 1 : 0);                    break;
-        case PropType::String: lua_pushstring (L, std::get<std::string>(v).c_str());             break;
+        case PropType::String: {
+            const std::string& stringValue = std::get<std::string>(v);
+            lua_pushlstring(L, stringValue.data(), stringValue.size());
+        } break;
         case PropType::Vec3: {
             Vector3* p = (Vector3*)lua_newuserdata(L, sizeof(Vector3)); *p = std::get<Vector3>(v);
             luaL_getmetatable(L, LuauEngine::RCBN_VEC3_METATABLE); lua_setmetatable(L, -2);
@@ -67,7 +70,11 @@ static PropValue valueFromLua(lua_State* L, int idx, const PropertyDesc& d) {
         case PropType::Float:  return static_cast<float>(luaL_checknumber(L, idx));
         case PropType::Int:    return static_cast<int>(luaL_checkinteger(L, idx));
         case PropType::Bool:   return lua_toboolean(L, idx) != 0;
-        case PropType::String: return std::string(luaL_checkstring(L, idx));
+        case PropType::String: {
+            size_t length = 0;
+            const char* value = luaL_checklstring(L, idx, &length);
+            return std::string(value, length);
+        }
         case PropType::Vec3:   return *(Vector3*)luaL_checkudata(L, idx, LuauEngine::RCBN_VEC3_METATABLE);
         case PropType::Vec2:   return *(Vector2*)luaL_checkudata(L, idx, LuauEngine::RCBN_VEC2_METATABLE);
         case PropType::Color4: return *(Color4*)luaL_checkudata(L, idx, LuauEngine::RCBN_COLOR4_METATABLE);

@@ -50,6 +50,7 @@
 #include "include/Instances/PathfindingService.hpp"
 #include "include/Instances/ChatService.hpp"
 #include "include/Instances/NumberValue.hpp"
+#include "include/Instances/StringValue.hpp"
 #include "include/Instances/QuaternionValue.hpp"
 #include "include/Instances/CFrameValue.hpp"
 #include <limits>
@@ -774,6 +775,7 @@ void LuauEngine::InitDispatchTable_Misc() {
     PropertyRegistry::applyToDispatch("ValueBase",     DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("IntValue",      DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("BoolValue",     DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("StringValue",   DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Vector3Value",  DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Color4Value",   DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("QuaternionValue", DispatchTable, SetterTable);
