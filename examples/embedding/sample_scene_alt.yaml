@@ -1,0 +1,12 @@
+Root:
+  Children:
+    - ClassName: Workspace
+      Name: AlternateWorkspace
+      Children:
+        - ClassName: Cube
+          Name: AlternateCube
+          Properties:
+            Position: [0, 0, 0]
+            Size: [1, 1, 1]
+            Anchored: true
+

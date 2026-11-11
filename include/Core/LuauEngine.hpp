@@ -34,10 +34,12 @@ class ChatService;
 class PathfindingService;
 class Program;
 
+#if !defined(RECUBIN_NO_LUAU_PRAGMA)
 #pragma comment(lib, "Luau.VM.lib")
 #pragma comment(lib, "Luau.Compiler.lib")
 #pragma comment(lib, "Luau.Ast.lib")
 #pragma comment(lib, "Luau.Common.lib")
+#endif
 
 class LuauEngine {
 private:

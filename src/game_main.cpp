@@ -25,6 +25,7 @@
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
 #include <Core/SceneRuntime.hpp>
+#include <Core/RuntimeFrame.hpp>
 #include <Core/AudioService.hpp>
 #include <Core/GLFWInputBackend.hpp>
 #include <Core/SystemState.hpp>
@@ -818,46 +819,30 @@ int main(int argc, char* argv[]) {
             replication.update(deltaTime, workspace->getPhysicsEngine());
         if (replication.hasFatalIdentityError()) break;
 
-        if (!navMeshBusy) {
-            FrameProfiler::get().beginSection("physics");
-            if (workspace->getPhysicsEngine()) workspace->getPhysicsEngine()->update(*workspace, deltaTime);
-            FrameProfiler::get().endSection("physics");
-            FrameProfiler::get().beginSection("luau");
-            luauEngine->resetFrameSafetyCounters();
-            luauEngine->fireHeartbeat(deltaTime);
-            navMeshBusy = PathfindingService::IsBuildActive();
-            if (!navMeshBusy) {
-                luauEngine->update(deltaTime);
-                navMeshBusy = PathfindingService::IsBuildActive();
-            }
-            if (!navMeshBusy) {
-                luauEngine->executeWorkspaceScripts(*workspace);
-                navMeshBusy = PathfindingService::IsBuildActive();
-            }
-            if (!navMeshBusy) {
-                luauEngine->executeSystemScripts();
-                navMeshBusy = PathfindingService::IsBuildActive();
-            }
-            syncCharacterWorkspace();
-            FrameProfiler::get().endSection("luau");
-        }
-        if (luauEngine->consumeSafetyHaltRequest()) break; // 既存のconsumeExitRequestと同じglfwTerminate()クリーンアップ経路に合流
-        navMeshBusy = PathfindingService::IsBuildActive();
-
-        // エディタが存在しないため、常にゲームプレイ入力として扱う
         const bool debugInput = runtimeEditorPtr && runtimeEditorPtr->isDebugCapturingKeyboard();
         const bool chatInput = renderer->isChatCapturingKeyboard() || ImGui::GetIO().WantTextInput;
         const bool uiInput = chatInput || debugInput;
         SystemState::get().viewportFocused = !uiInput;
-        // L キーでの Free/Character 切り替えは System.AllowControlModeSwitch で許可されたゲームだけ
-        user->allowControlModeSwitch = system->AllowControlModeSwitch;
+
         if (!navMeshBusy) {
-            user->processInput(workspace->getPhysicsEngine(), deltaTime,
-                               /*viewportFocused=*/!uiInput, /*viewportHovered=*/!uiInput,
-                               /*isGameplayInput=*/!uiInput,
-                               uiInput);
+            FrameProfiler::get().beginSection("simulation");
+            const bool simulationOk = RuntimeFrame::simulateScripts(
+                *luauEngine, *workspace, deltaTime,
+                workspace->getPhysicsEngine());
+            syncCharacterWorkspace();
+            FrameProfiler::get().endSection("simulation");
+            if (!simulationOk) break;
         }
-        if (user->consumeExitRequest()) break;
+        navMeshBusy = PathfindingService::IsBuildActive();
+        if (luauEngine->consumeSafetyHaltRequest()) break;
+
+        // エディタが存在しないため、常にゲームプレイ入力として扱う
+        // L キーでの Free/Character 切り替えは System.AllowControlModeSwitch で許可されたゲームだけ
+        // RuntimeFrame consumes exit requests even while NavMesh work pauses
+        // gameplay input, matching the original runtime loop.
+        if (!RuntimeFrame::processInput(
+                *user, *workspace, *system, deltaTime,
+                !uiInput, !uiInput, !uiInput, uiInput)) break;
 
         // ---- Workspace切り替え（User:RequestWorkspaceSwitch）。System.AllowWorkspaceSwitch が false なら要求を捨てる ----
         if (!navMeshBusy && user->consumeWorkspaceSwitchRequest() && system->AllowWorkspaceSwitch) {
@@ -882,18 +867,8 @@ int main(int argc, char* argv[]) {
         // 再生中のAnimationを評価し、対象Cubeのcframeを上書きする(main.cppの対応処理と同じ)
         // workspace内の全Humanoid(NPC含む)が対象
         if (!navMeshBusy)
-            Humanoid::updateAll(workspace->getRenderHumanoids(), deltaTime, workspace->getPhysicsEngine());
-
-        if (!navMeshBusy) {
-            Vector3 terrainCenter = user->cpos;
-            if (user->humanoid) {
-                if (auto root = user->humanoid->getRootPart())
-                    terrainCenter = root->getWorldCFrame().Position;
-            }
-            SceneRuntime::updateTerrains(workspace.get(), terrainCenter);
-            Weather::updateAll(workspace.get(), workspace->getRenderWeathers(), deltaTime, user->cpos);
-            ParticleEmitter::updateAll(workspace->getRenderParticleEmitters(), deltaTime);
-        }
+            RuntimeFrame::simulateAfterInput(*user, *workspace, deltaTime,
+                                             workspace->getPhysicsEngine());
 
         if (selfCheck) user->setCameraCFrame(selfCheckCamera());
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

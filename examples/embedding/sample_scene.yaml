@@ -1,0 +1,20 @@
+Root:
+  Children:
+    - ClassName: Workspace
+      Name: Workspace
+      Children:
+        - ClassName: StringValue
+          Name: ScriptValue
+          Properties:
+            Value: "not-run"
+        - ClassName: Cube
+          Name: SceneCube
+          Properties:
+            Position: [0, 0, 0]
+            Size: [2, 2, 2]
+            Anchored: true
+        - ClassName: Script
+          Name: EmbeddingScript
+          Properties:
+            ContentPath: sample_script.luau
+

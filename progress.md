@@ -719,3 +719,18 @@
 - `StringValue` を `ValueBase` 派生として追加。空文字列を既定値に、`Value` の PropertyRegistry 登録、文字列を渡す `Changed`、clone、YAML、Luau の生成・読み書き、Explorer の挿入・アイコン・カタログを実装した。
 - PropertyRegistry の Luau 文字列変換を長さ付き API に変更し、埋め込み NUL も保存・通知する。Properties の単一行文字列入力は固定長を廃止し、NUL を含む単一値は破壊を防ぐため編集不可と表示する。
 - Windows Release build、`--string-value-regression`、`--clone-class-regression`、`--scene-hierarchy-grouping-regression`、変更対象の `git diff --check` は成功。エディター実画面での長文入力・複数選択・Undo は未確認。必要に応じて実画面で確認する。
+
+## 2026-11-11 C++ 静的 SDK
+
+- Windows / MSVC 用 `recubin.h` と `recubin::Engine` を追加し、シーン読み込み、Workspace 取得、step/run、終了とエラー取得を提供。`RuntimeFrame` にゲームランタイムと共有するシミュレーション処理を抽出した。
+- `RecubinSdkArchive` は raw archive と依存静的ライブラリから単一 archive を生成する。SDK の install 先には `lib/Recubin.lib`、公開ヘッダー、標準フォント、シェーダー、CMake package、外部サンプルと利用文書が入る。コマンドは `doc/Core/Embedding.md` 参照。raw と配布用を分け、繰り返しビルドで再統合しない。
+- Windows Release の Studio / Engine / Test build と SDK archive build が成功。SDK を `build/recubin-sdk` に install し、その中のサンプルを別 build でコンパイル・リンク・実行。シーン、Luau、Workspace、step/run、同時 Engine 拒否、ロード失敗時の保持、シーン切替と再初期化を確認。存在しないシーンのエラーは失敗検証として意図したもの。
+- `--free-camera-stop-regression`、`--string-value-regression`、対象 `git diff --check` は成功。RecubinEngine の TestGame self-check は終了コード 0（同シーン既知の Gyro / スクリプト欠落警告あり）。Studio は起動後8秒間稼働することを確認した。
+- 未検証: macOS の実ビルド、Studio の操作全般、SDK のネットワーク・拡張機能を含む全機能。SDK は Windows/MSVC、同一プロセスの Engine は1個、ウィンドウと OpenGL は初期化スレッドが所有する前提。既存ビルドの APIENTRY 再定義警告あり。
+
+## 2026-11-11 Studio の起動とフレーム処理の整理
+
+- `main()` は起動結果の判定と Studio の実行に絞った。起動準備を `StudioLaunch.cpp`、初期化・フレーム・終了を `StudioApplication.cpp` に移し、Studio ターゲット専用に登録した。フレームごとの依存参照の束は、アプリが持つ状態と値だけの `FrameState` に置き換えた。
+- Play スナップショット、シーン Stage/Commit、LocalServer の起動と失敗時の復元を名前付きメソッドに分けた。終了時は子プロセスとコールバックを止め、Editor のシーン参照と Terrain を解放し、GLFW 終了前に Renderer を破棄する。
+- Windows/MSVC Release の Studio / Engine / Test と対象 3 件の回帰テスト（起動引数、シーン読み込みトランザクション、GUI 自動化）が成功。非表示 Studio で起動・終了、Play と Play Here の停止、LocalServer の起動・停止と無効なクライアント実行ファイルからの復元を確認。ようこそ画面から新規シーンで旧 Cube が消えることと、不正 YAML の読み込み失敗で旧 Cube が残ることを確認した。検証用 GUI ターゲットは削除済み。
+- macOS の実ビルドと、複数クライアントのうち一部だけが起動した場合の失敗は未検証。次に確認する場合は macOS で起動と終了を確認し、LocalServer で 2 台目のクライアント起動失敗を注入する。
