@@ -1,5 +1,7 @@
 # C++ 静的ライブラリ利用
 
+公開 API の各フィールド、戻り値、所有権、スレッド契約は [EmbeddingAPI.md](EmbeddingAPI.md) にまとめています。まず API リファレンスを確認し、その後このページの SDK 生成・リンク手順を実行してください。
+
 Windows / MSVC では、インストール済み SDK の `include/recubin.h` と `Recubin.lib` を C++23 プロジェクトから利用できます。CMake を使う場合は SDK の `lib/cmake/Recubin` を `CMAKE_PREFIX_PATH` に追加し、`find_package(Recubin CONFIG REQUIRED)` と `Recubin::Runtime` を使います。
 
 SDK をソースツリーから生成する場合は、Windows の開発者コマンドプロンプトで次を実行します。

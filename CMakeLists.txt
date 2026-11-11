@@ -466,6 +466,7 @@ if(WIN32)
         DESTINATION examples
     )
     install(FILES "${CMAKE_SOURCE_DIR}/doc/Core/Embedding.md"
+                  "${CMAKE_SOURCE_DIR}/doc/Core/EmbeddingAPI.md"
         DESTINATION doc/Core
     )
     install(EXPORT RecubinTargets

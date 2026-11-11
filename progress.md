@@ -734,3 +734,10 @@
 - Play スナップショット、シーン Stage/Commit、LocalServer の起動と失敗時の復元を名前付きメソッドに分けた。終了時は子プロセスとコールバックを止め、Editor のシーン参照と Terrain を解放し、GLFW 終了前に Renderer を破棄する。
 - Windows/MSVC Release の Studio / Engine / Test と対象 3 件の回帰テスト（起動引数、シーン読み込みトランザクション、GUI 自動化）が成功。非表示 Studio で起動・終了、Play と Play Here の停止、LocalServer の起動・停止と無効なクライアント実行ファイルからの復元を確認。ようこそ画面から新規シーンで旧 Cube が消えることと、不正 YAML の読み込み失敗で旧 Cube が残ることを確認した。検証用 GUI ターゲットは削除済み。
 - macOS の実ビルドと、複数クライアントのうち一部だけが起動した場合の失敗は未検証。次に確認する場合は macOS で起動と終了を確認し、LocalServer で 2 台目のクライアント起動失敗を注入する。
+
+## 2026-11-12 Luar の Recubin API 定義
+
+- `scripts/Recubin.luard` を現行の Luau C++ バインディングに合わせて拡張。数学型、Instance 階層、プロパティ、イベント、メソッド、システム拡張の IO/IPC、task、Enum、グローバル関数を宣言した。
+- Luar コンパイラで probe source の import/check が成功し、メインレビュー後に追加した数学演算子・IO 関数型・Instance.pick/throw も含めて構文を確認。対象ファイルの `git diff --check` も成功。
+- enum や複合戻り値など、現状の Luar 宣言で厳密に表現できない箇所は `any` としている。`Signal.Until` は宣言済み。
+- 次の一手: Studio で Luar 定義による補完・型チェックを確認する場合は、代表的な Instance/API を使う短い `.luar` を開いて確認する。
