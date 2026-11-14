@@ -15,6 +15,7 @@
 
 class Physics;   // Forward declaration
 class AnimationClip;
+struct ShapeCastHit;
 
 // 固定stepごとにHumanoidへ与える移動入力。各値の意味はHumanoid::move()の引数と同じ
 struct HumanoidControlInput {
@@ -273,6 +274,7 @@ private:
     // shoulders.  It is never reconstructed from a quaternion.
     float m_jumpShoulderAngle = 0.0f;
     Vector3 currentMoveDir;
+    bool m_hasWalkInput = false;
     Vector3 m_smoothedHeadingDirection;
     bool isGrounded = true;
     bool m_dead = false;
@@ -374,7 +376,7 @@ private:
     std::shared_ptr<Motor6D> findJointMotor(const std::string& jointName) const;
     void setJointTransform(const std::string& jointName, const CFrame& transform);
     std::vector<std::shared_ptr<BaseCube>> collectCharacterBodies() const;
-    void setHoverForces(Physics* physics, bool enabled, float acceleration);
+    Vector3 setHoverForces(Physics* physics, bool enabled, const Vector3& acceleration);
     void setCharacterGravity(Physics* physics, bool enabled);
     void setClimbForces(
         Physics* physics,
@@ -389,8 +391,11 @@ private:
     std::optional<float> getLandingImpactEquivalentSpeed(
         Physics* physics,
         float maximumNetUpwardAcceleration,
-        float ordinaryCaptureDistance
+        float ordinaryCaptureDistance,
+        const Vector3& supportVelocity
     ) const;
+    bool sampleGround(Physics& physics, const BaseCube& root, float distance,
+                      ShapeCastHit& hit) const;
     void updateGroundHover(Physics* physics, const std::shared_ptr<BaseCube>& root);
     // LeftLeg/RightLegのどちらかが足元で何かに接触しているか(ジャンプ許可判定用)
     bool isLegTouching(Physics* physics) const;

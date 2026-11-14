@@ -406,6 +406,8 @@ void LuauEngine::InitDispatchTable_Base() {
 
     // --- BaseCube（Position/Size は Spatial に集約。物理特有のみ残置）---
     PropertyRegistry::applyToDispatch("BaseCube", DispatchTable, SetterTable);
+    DispatchTable["BaseCube"]["SetKinematicTarget"] = getter_closure(
+        base_cube_set_kinematic_target_closure, "SetKinematicTarget");
     DispatchTable["BaseCube"]["Touched"]      = getter_signal <BaseCube, &BaseCube::Touched>();
     DispatchTable["BaseCube"]["TouchEnded"]   = getter_signal <BaseCube, &BaseCube::TouchEnded>();
     // Velocity is read from the physics actor at runtime, no direct field to bind

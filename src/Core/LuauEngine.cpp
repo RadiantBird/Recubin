@@ -949,6 +949,32 @@ int LuauEngine::instance_find_child_closure(lua_State* L) {
     }
 }
 
+int LuauEngine::base_cube_set_kinematic_target_closure(lua_State* L) {
+    auto* userdata = static_cast<std::weak_ptr<Instance>*>(
+        lua_touserdata(L, lua_upvalueindex(1)));
+    auto instance = userdata ? userdata->lock() : nullptr;
+    auto* cube = dynamic_cast<BaseCube*>(instance.get());
+    if (!cube) {
+        luaL_error(L, "BaseCube.SetKinematicTarget requires a live BaseCube");
+        return 0;
+    }
+
+    const auto* target = static_cast<const CFrame*>(
+        luaL_checkudata(L, 2, RCBN_CFRAME_METATABLE));
+    const float seconds = static_cast<float>(luaL_optnumber(L, 3, 1.0 / 60.0));
+    auto* workspace = dynamic_cast<Workspace*>(cube->findFirstAncestorWorkspace());
+    Physics* physics = workspace ? workspace->getPhysicsEngine() : nullptr;
+    if (!physics) {
+        luaL_error(L, "BaseCube.SetKinematicTarget requires an active Physics world");
+        return 0;
+    }
+    if (!physics->setMemberKinematicTarget(*cube, *target, seconds)) {
+        luaL_error(L, "BaseCube.SetKinematicTarget rejected the target for %s",
+                   cube->getFullPath().c_str());
+    }
+    return 0;
+}
+
 int LuauEngine::model_pivot_to_closure(lua_State* L) {
     auto* userdata = (std::weak_ptr<Instance>*)lua_touserdata(
         L, lua_upvalueindex(1));

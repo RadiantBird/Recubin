@@ -1,147 +1,169 @@
 type Arithmetic = Vector3 | number
 
 declare class Signal is
-    function Connect(callback: any): Connection
-    function Once(callback: any): Connection
-    function Until(callback: any): Connection
+    public is
+        function Connect(callback: any): Connection
+        function Once(callback: any): Connection
+        function Until(callback: any): Connection
+    end
 end
 
 declare class Connection is
-    function Disconnect(): () end
+    public is
+        function Disconnect(): ()
+    end
+end
 
 declare class Vector3 is
-    x: number
-    y: number
-    z: number
-    static zero: Vector3
-    static function new(x: number,
-    y: number,
-    z: number): Vector3
-    function length(v: Vector3): number
-    function normalize(v: Vector3): Vector3
-    function set(self,
-    x: number,
-    y: number,
-    z: number): Vector3
-    function operator+(a: Vector3,
-    b: Vector3): Vector3
-    function operator-(a: Vector3,
-    b: Vector3): Vector3
-    function operator*(a: Vector3,
-    b: Arithmetic): Vector3
-    function operator/(a: Vector3,
-    b: Arithmetic): Vector3
+    public is
+        x: number
+        y: number
+        z: number
+        static zero: Vector3
+        static function new(x: number,
+        y: number,
+        z: number): Vector3
+        function length(v: Vector3): number
+        function normalize(v: Vector3): Vector3
+        function set(self,
+        x: number,
+        y: number,
+        z: number): Vector3
+        function operator+(a: Vector3,
+        b: Vector3): Vector3
+        function operator-(a: Vector3,
+        b: Vector3): Vector3
+        function operator*(a: Vector3,
+        b: Arithmetic): Vector3
+        function operator/(a: Vector3,
+        b: Arithmetic): Vector3
+    end
 end
 
 declare class Vector2 is
-    X: number
-    Y: number
-    x: number
-    y: number
-    static function new(x: number,
-    y: number): Vector2
-    function set(self,
-    x: number,
-    y: number): Vector2
-    function operator+(a: Vector2, b: Vector2): Vector2
-    function operator-(a: Vector2, b: Vector2): Vector2
-    function operator*(a: Vector2, b: Vector2 | number): Vector2
-    function operator/(a: Vector2, b: Vector2 | number): Vector2
+    public is
+        X: number
+        Y: number
+        x: number
+        y: number
+        static function new(x: number,
+        y: number): Vector2
+        function set(self,
+        x: number,
+        y: number): Vector2
+        function operator+(a: Vector2, b: Vector2): Vector2
+        function operator-(a: Vector2, b: Vector2): Vector2
+        function operator*(a: Vector2, b: Vector2 | number): Vector2
+        function operator/(a: Vector2, b: Vector2 | number): Vector2
+    end
 end
 
 declare class Color4 is
-    r: number
-    g: number
-    b: number
-    a: number
-    static function new(r: number,
-    g: number,
-    b: number,
-    a: number?): Color4
-    static function fromRGBA(r: number,
-    g: number,
-    b: number,
-    a: number?): Color4
-    function operator+(a: Color4, b: Color4): Color4
-    function operator-(a: Color4, b: Color4): Color4
-    function operator*(a: Color4, b: Color4 | number): Color4
-    function operator/(a: Color4, b: number): Color4
+    public is
+        r: number
+        g: number
+        b: number
+        a: number
+        static function new(r: number,
+        g: number,
+        b: number,
+        a: number?): Color4
+        static function fromRGBA(r: number,
+        g: number,
+        b: number,
+        a: number?): Color4
+        function operator+(a: Color4, b: Color4): Color4
+        function operator-(a: Color4, b: Color4): Color4
+        function operator*(a: Color4, b: Color4 | number): Color4
+        function operator/(a: Color4, b: number): Color4
+    end
 end
 
 declare class Quaternion is
-    x: number
-    y: number
-    z: number
-    w: number
-    static function new(x: number,
-    y: number,
-    z: number,
-    w: number): Quaternion
-    static function fromEuler(degrees: Vector3): Quaternion
-    static function fromAxisAngle(axis: Vector3,
-    angle: number): Quaternion
-    static function Slerp(a: Quaternion,
-    b: Quaternion,
-    t: number): Quaternion
-    static function LookRotation(forward: Vector3,
-    up: Vector3?): Quaternion
-    function toEuler(): Vector3
-    function operator*(a: Quaternion, b: Quaternion | Vector3): Quaternion | Vector3
+    public is
+        x: number
+        y: number
+        z: number
+        w: number
+        static function new(x: number,
+        y: number,
+        z: number,
+        w: number): Quaternion
+        static function fromEuler(degrees: Vector3): Quaternion
+        static function fromAxisAngle(axis: Vector3,
+        angle: number): Quaternion
+        static function Slerp(a: Quaternion,
+        b: Quaternion,
+        t: number): Quaternion
+        static function LookRotation(forward: Vector3,
+        up: Vector3?): Quaternion
+        function toEuler(): Vector3
+        function operator*(a: Quaternion, b: Quaternion | Vector3): Quaternion | Vector3
+    end
 end
 
 declare class CFrame is
-    Position: Vector3
-    Rotation: Quaternion
-    LookVector: Vector3
-    static function new(...): CFrame
-    static function fromAxisAngle(axis: Vector3,
-    angle: number): CFrame
-    static function lookAt(position: Vector3,
-    target: Vector3,
-    up: Vector3?): CFrame
-    static function Angles(x: number,
-    y: number,
-    z: number): CFrame
-    function inverse(): CFrame
-    function operator*(a: CFrame, b: CFrame | Vector3): CFrame | Vector3
+    public is
+        Position: Vector3
+        Rotation: Quaternion
+        LookVector: Vector3
+        static function new(...): CFrame
+        static function fromAxisAngle(axis: Vector3,
+        angle: number): CFrame
+        static function lookAt(position: Vector3,
+        target: Vector3,
+        up: Vector3?): CFrame
+        static function Angles(x: number,
+        y: number,
+        z: number): CFrame
+        function inverse(): CFrame
+        function operator*(a: CFrame, b: CFrame | Vector3): CFrame | Vector3
+    end
 end
 
 declare class Instance is
-    Name: string
-    Parent: Instance?
-    function FindChild(name: string): Instance?
-    function WaitChild(name: string,
-    timeout: number?): Instance?
-    function GetChildren(): { Instance }
-    function IsA(classname: string): boolean
-    function Destroy(): ()
-    function Clone(): Instance?
-    static function new(classname: string): Instance?
-    static function pick(classname: string): Instance?
-    static function throw(instance: Instance): ()
+    public is
+        Name: string
+        Parent: Instance?
+        function FindChild(name: string): Instance?
+        function WaitChild(name: string,
+        timeout: number?): Instance?
+        function GetChildren(): { Instance }
+        function IsA(classname: string): boolean
+        function Destroy(): ()
+        function Clone(): Instance?
+        static function new(classname: string): Instance?
+        static function pick(classname: string): Instance?
+        static function throw(instance: Instance): ()
+    end
 end
 
 declare class Spatial is Instance
-    Position: Vector3
-    Size: Vector3
-    Rotation: Quaternion
-    CFrame: CFrame
-    WorldPosition: Vector3
-    WorldCFrame: CFrame 
+    public is
+        Position: Vector3
+        Size: Vector3
+        Rotation: Quaternion
+        CFrame: CFrame
+        WorldPosition: Vector3
+        WorldCFrame: CFrame
+    end
 end
 
 declare class BaseCube is Spatial
-    Anchored: boolean
-    CanCollide: boolean
-    CanTouch: boolean
-    CastShadow: boolean
-    Color: Color4
-    TextureScale: number
-    Unlit: boolean
-    UseTriplanar: boolean
-    Velocity: Vector3
-    Touched: Signal
-    TouchEnded: Signal
+    public is
+        Anchored: boolean
+        CanCollide: boolean
+        CanTouch: boolean
+        CastShadow: boolean
+        Color: Color4
+        TextureScale: number
+        Unlit: boolean
+        UseTriplanar: boolean
+        Velocity: Vector3
+        Touched: Signal
+        TouchEnded: Signal
+        function SetKinematicTarget(target: CFrame, durationSeconds: number?): ()
+    end
 end
 
 declare class Cube is BaseCube end
@@ -150,431 +172,622 @@ declare class Cylinder is BaseCube end
 declare class TriangularPrism is BaseCube end
 declare class Wedge is BaseCube end
 declare class LiquidCube is BaseCube
-    Density: number 
+    public is
+        Density: number
+    end
 end
 
 declare class SpawnLocation is Cube
-    Enabled: boolean 
+    public is
+        Enabled: boolean
+    end
 end
 
 declare class Model is Spatial
-    PrimaryCube: BaseCube?
-    function PivotTo(cframe: CFrame): ()
-    function MoveOrigin(cframe: CFrame): () 
+    public is
+        PrimaryCube: BaseCube?
+        function PivotTo(cframe: CFrame): ()
+        function MoveOrigin(cframe: CFrame): ()
+    end
 end
 
 declare class Workspace is Instance
-    Gravity: Vector3
-    Wind: Vector3
-    PhysicsEnabled: boolean
-    PhysicsSubsteps: number
-    function Raycast(origin: Vector3,
-    direction: Vector3,
-    exclude: Instance | { Instance }?): any
+    public is
+        Gravity: Vector3
+        Wind: Vector3
+        PhysicsEnabled: boolean
+        PhysicsSubsteps: number
+        function Raycast(origin: Vector3,
+        direction: Vector3,
+        exclude: Instance | { Instance }?): any
+    end
 end
 
 declare class PhysicsConstraint is Instance
-    Enabled: boolean end
+    public is
+        Enabled: boolean
+    end
+end
 declare class Force is PhysicsConstraint
-    Force: Vector3
-    AxisMask: Vector3
-    RelativeTo: any
-    MaintainVelocity: boolean end
+    public is
+        Force: Vector3
+        AxisMask: Vector3
+        RelativeTo: any
+        MaintainVelocity: boolean
+    end
+end
 declare class Rope is PhysicsConstraint
-    Cube0: BaseCube?
-    Cube1: BaseCube?
-    Color: Color4
-    LineWidth: number
-    Damping: number
-    MaxDistance: number
-    Stiffness: number end
+    public is
+        Cube0: BaseCube?
+        Cube1: BaseCube?
+        Color: Color4
+        LineWidth: number
+        Damping: number
+        MaxDistance: number
+        Stiffness: number
+    end
+end
 declare class Rod is PhysicsConstraint
-    Cube0: BaseCube?
-    Cube1: BaseCube?
-    Color: Color4
-    LineWidth: number end
+    public is
+        Cube0: BaseCube?
+        Cube1: BaseCube?
+        Color: Color4
+        LineWidth: number
+    end
+end
 declare class Spring is PhysicsConstraint
-    Cube0: BaseCube?
-    Cube1: BaseCube?
-    Color: Color4
-    Coils: number
-    Radius: number
-    Thickness: number
-    Visible: boolean
-    Damping: number
-    FreeLength: number
-    Stiffness: number end
+    public is
+        Cube0: BaseCube?
+        Cube1: BaseCube?
+        Color: Color4
+        Coils: number
+        Radius: number
+        Thickness: number
+        Visible: boolean
+        Damping: number
+        FreeLength: number
+        Stiffness: number
+    end
+end
 declare class Weld is PhysicsConstraint
-    Cube0: BaseCube?
-    Cube1: BaseCube? end
+    public is
+        Cube0: BaseCube?
+        Cube1: BaseCube?
+    end
+end
 declare class Motor is PhysicsConstraint
-    Cube0: BaseCube?
-    Cube1: BaseCube?
-    DriveVelocity: number
-    MaxForce: number
-    Servo: boolean
-    TargetAngle: number end
+    public is
+        Cube0: BaseCube?
+        Cube1: BaseCube?
+        DriveVelocity: number
+        MaxForce: number
+        Servo: boolean
+        TargetAngle: number
+    end
+end
 declare class Motor6D is Motor end
 declare class Gyro is PhysicsConstraint end
 declare class BallSocket is PhysicsConstraint end
 declare class NoCollision is PhysicsConstraint end
 declare class PrismaticConstraint is PhysicsConstraint
-    LimitsEnabled: boolean
-    LowerLimit: number
-    UpperLimit: number end
+    public is
+        LimitsEnabled: boolean
+        LowerLimit: number
+        UpperLimit: number
+    end
+end
 
 declare class PhysicalFileInstance is Instance
-    ContentPath: string end
+    public is
+        ContentPath: string
+    end
+end
 declare class FileRef is PhysicalFileInstance end
 declare class Decal is Instance
-    TextureID: number
-    TexturePath: string
-    Color: Color4
-    Face: any
-    Source: FileRef? end
+    public is
+        TextureID: number
+        TexturePath: string
+        Color: Color4
+        Face: any
+        Source: FileRef?
+    end
+end
 declare class Texture is Instance
-    Color: Color4
-    Face: any
-    StudsPerTileU: number
-    StudsPerTileV: number
-    Source: FileRef? end
+    public is
+        Color: Color4
+        Face: any
+        StudsPerTileU: number
+        StudsPerTileV: number
+        Source: FileRef?
+    end
+end
 declare class SurfaceMark is Spatial
-    TextureID: number
-    Color: Color4
-    FilterMode: any
-    FilterInstances: { Instance }
-    Source: FileRef? end
+    public is
+        TextureID: number
+        Color: Color4
+        FilterMode: any
+        FilterInstances: { Instance }
+        Source: FileRef?
+    end
+end
 declare class Material is Instance
-    Metallic: number
-    Roughness: number
-    Reflectance: number
-    Conductive: boolean
-    DynamicFriction: number
-    Restitution: number
-    MassDensity: number
-    TextureScale: number
-    NormalStrength: number
-    BaseColorMap: FileRef?
-    RoughnessMap: FileRef?
-    MetallicMap: FileRef?
-    NormalMap: FileRef? end
+    public is
+        Metallic: number
+        Roughness: number
+        Reflectance: number
+        Conductive: boolean
+        DynamicFriction: number
+        Restitution: number
+        MassDensity: number
+        TextureScale: number
+        NormalStrength: number
+        BaseColorMap: FileRef?
+        RoughnessMap: FileRef?
+        MetallicMap: FileRef?
+        NormalMap: FileRef?
+    end
+end
 declare class Lighting is Instance
-    Brightness: number
-    Color: Color4
-    ShadowDistance: number
-    ShadowFadeDistance: number end
+    public is
+        Brightness: number
+        Color: Color4
+        ShadowDistance: number
+        ShadowFadeDistance: number
+    end
+end
 declare class CelestialBody is Instance
-    Color: Color4
-    Distance: number
-    GlowIntensity: number
-    GlowRadius: number
-    HorizonFade: boolean
-    SpikeCount: number
-    SpikeIntensity: number
-    SpikeLength: number
-    SpikeRotation: number
-    VeilFalloff: number
-    VeilIntensity: number end
+    public is
+        Color: Color4
+        Distance: number
+        GlowIntensity: number
+        GlowRadius: number
+        HorizonFade: boolean
+        SpikeCount: number
+        SpikeIntensity: number
+        SpikeLength: number
+        SpikeRotation: number
+        VeilFalloff: number
+        VeilIntensity: number
+    end
+end
 declare class Sun is CelestialBody
-    Angle: Vector2 end
+    public is
+        Angle: Vector2
+    end
+end
 declare class Moon is CelestialBody
-    Phase: number
-    PhaseRotation: number
-    Earthshine: number end
+    public is
+        Phase: number
+        PhaseRotation: number
+        Earthshine: number
+    end
+end
 declare class Weather is Instance
-    Enabled: boolean
-    CloudColor: Color4
-    CloudCover: number
-    CloudDensity: number
-    CloudHeight: number
-    WindDirection: Vector3
-    CurrentWeather: any
-    AmbientVolume: number
-    ClearAmbientPath: string
-    RainAmbientPath: string
-    SnowAmbientPath: string
-    LightningEnabled: boolean
-    LightningInterval: number end
+    public is
+        Enabled: boolean
+        CloudColor: Color4
+        CloudCover: number
+        CloudDensity: number
+        CloudHeight: number
+        WindDirection: Vector3
+        CurrentWeather: any
+        AmbientVolume: number
+        ClearAmbientPath: string
+        RainAmbientPath: string
+        SnowAmbientPath: string
+        LightningEnabled: boolean
+        LightningInterval: number
+    end
+end
 declare class Sound is Spatial
-    Source: FileRef?
-    AutoPlay: boolean
-    Looped: boolean
-    Volume: number
-    Speed: number
-    PreservePitch: boolean
-    SoundGroup: string
-    IsPlaying: boolean
-    TimePosition: number
-    Length: number
-    function Play(): ()
-    function Stop(): ()
-    function Reset(): ()
-    function Seek(seconds: number): () end
+    public is
+        Source: FileRef?
+        AutoPlay: boolean
+        Looped: boolean
+        Volume: number
+        Speed: number
+        PreservePitch: boolean
+        SoundGroup: string
+        IsPlaying: boolean
+        TimePosition: number
+        Length: number
+        function Play(): ()
+        function Stop(): ()
+        function Reset(): ()
+        function Seek(seconds: number): ()
+    end
+end
 declare class Humanoid is Instance
-    WalkSpeed: number
-    JumpPower: number
-    ClimbSpeed: number
-    HipHeight: number
-    JumpHeight: number
-    MaxHealth: number
-    RespawnTime: number
-    Health: number
-    WalkAnimation: Animation?
-    JumpAnimation: Animation?
-    EquipAnimation: Animation?
-    Died: Signal
-    KeyframeReached: Signal
-    function PlayAnimation(animation: Animation): ()
-    function PauseAnimation(): ()
-    function StopAnimation(): ()
-    function TakeDamage(amount: number): ()
-    function MoveToward(direction: Vector3): ()
-    function Jump(): () end
+    public is
+        WalkSpeed: number
+        JumpPower: number
+        ClimbSpeed: number
+        HipHeight: number
+        JumpHeight: number
+        MaxHealth: number
+        RespawnTime: number
+        Health: number
+        WalkAnimation: Animation?
+        JumpAnimation: Animation?
+        EquipAnimation: Animation?
+        Died: Signal
+        KeyframeReached: Signal
+        function PlayAnimation(animation: Animation): ()
+        function PauseAnimation(): ()
+        function StopAnimation(): ()
+        function TakeDamage(amount: number): ()
+        function MoveToward(direction: Vector3): ()
+        function Jump(): ()
+    end
+end
 declare class Animation is Instance
-    ContentPath: string
-    Length: number
-    Looped: boolean
-    Speed: number
-    Source: string
-    LoadStatus: string
-    UsingBuiltInFallback: boolean end
+    public is
+        ContentPath: string
+        Length: number
+        Looped: boolean
+        Speed: number
+        Source: string
+        LoadStatus: string
+        UsingBuiltInFallback: boolean
+    end
+end
 declare class Seat is Cube
-    Steer: number
-    Throttle: number
-    function sit(humanoid: Humanoid): () end
+    public is
+        Steer: number
+        Throttle: number
+        function sit(humanoid: Humanoid): ()
+    end
+end
 declare class Tool is Model
-    Hand: any
-    GripC0: CFrame
-    GripC1: CFrame
-    Equipped: boolean
-    Activated: Signal end
+    public is
+        Hand: any
+        GripC0: CFrame
+        GripC1: CFrame
+        Equipped: boolean
+        Activated: Signal
+    end
+end
 
 declare class GuiObject is Instance
-    Position: Vector2
-    Norm: any
-    Transparency: number end
+    public is
+        Position: Vector2
+        Norm: any
+        Transparency: number
+    end
+end
 declare class ScreenGuiObject is GuiObject
-    Font: any
-    FontSize: number
-    FontFile: FileRef?
-    UseFontFile: boolean
-    Locked: boolean end
+    public is
+        Font: any
+        FontSize: number
+        FontFile: FileRef?
+        UseFontFile: boolean
+        Locked: boolean
+    end
+end
 declare class GuiButton is ScreenGuiObject
-    Activated: Signal
-    HoverEnded: Signal end
+    public is
+        Activated: Signal
+        HoverEnded: Signal
+    end
+end
 declare class TextLabel is ScreenGuiObject
-    Text: string
-    TextColor: Color4
-    TextXAlignment: any
-    TextYAlignment: any
-    TextScaled: boolean end
+    public is
+        Text: string
+        TextColor: Color4
+        TextXAlignment: any
+        TextYAlignment: any
+        TextScaled: boolean
+    end
+end
 declare class TextButton is GuiButton
-    Text: string
-    TextColor: Color4
-    TextXAlignment: any
-    TextYAlignment: any
-    TextScaled: boolean end
+    public is
+        Text: string
+        TextColor: Color4
+        TextXAlignment: any
+        TextYAlignment: any
+        TextScaled: boolean
+    end
+end
 declare class ImageLabel is ScreenGuiObject
-    Image: string
-    Source: FileRef? end
+    public is
+        Image: string
+        Source: FileRef?
+    end
+end
 declare class ImageButton is GuiButton
-    Image: string
-    Source: FileRef? end
+    public is
+        Image: string
+        Source: FileRef?
+    end
+end
 declare class WorldGuiObject is GuiObject end
 declare class SurfaceGui is WorldGuiObject
-    Face: any
-    Canvas: Canvas? end
+    public is
+        Face: any
+        Canvas: Canvas?
+    end
+end
 declare class BillboardGui is WorldGuiObject
-    Offset: Vector2
-    Mode: any
-    SizeMode: any end
+    public is
+        Offset: Vector2
+        Mode: any
+        SizeMode: any
+    end
+end
 declare class ProximityPrompt is BillboardGui
-    ActionText: string
-    ObjectText: string
-    Enabled: boolean
-    HoldDuration: number
-    KeyboardKeyCode: number
-    MaxActivationDistance: number end
+    public is
+        ActionText: string
+        ObjectText: string
+        Enabled: boolean
+        HoldDuration: number
+        KeyboardKeyCode: number
+        MaxActivationDistance: number
+    end
+end
 declare class Canvas is Instance
-    Width: number
-    Height: number
-    Face: any
-    BackgroundColor: Color4
-    function SetPixel(x: number,
-    y: number,
-    color: Color4): ()
-    function GetPixel(x: number,
-    y: number): Color4
-    function Clear(color: Color4?): ()
-    function WorldToUV(position: Vector3): Vector2 end
+    public is
+        Width: number
+        Height: number
+        Face: any
+        BackgroundColor: Color4
+        function SetPixel(x: number,
+        y: number,
+        color: Color4): ()
+        function GetPixel(x: number,
+        y: number): Color4
+        function Clear(color: Color4?): ()
+        function WorldToUV(position: Vector3): Vector2
+    end
+end
 declare class ParticleEmitter is Instance
-    Enabled: boolean
-    EmitRate: number
-    Lifetime: number
-    LifetimeVariance: number
-    MaxParticles: number
-    Speed: number
-    SpeedVariance: number
-    Direction: Vector3
-    SpreadAngle: number
-    GravityScale: number
-    StartColor: Color4
-    EndColor: Color4
-    StartSize: number
-    EndSize: number
-    Rotation: number
-    RotationVariance: number
-    SpinSpeed: number
-    SpinSpeedVariance: number
-    SpawnRadius: number
-    WindScale: number
-    CollisionCutoff: number
-    function Emit(count: number?): () end
+    public is
+        Enabled: boolean
+        EmitRate: number
+        Lifetime: number
+        LifetimeVariance: number
+        MaxParticles: number
+        Speed: number
+        SpeedVariance: number
+        Direction: Vector3
+        SpreadAngle: number
+        GravityScale: number
+        StartColor: Color4
+        EndColor: Color4
+        StartSize: number
+        EndSize: number
+        Rotation: number
+        RotationVariance: number
+        SpinSpeed: number
+        SpinSpeedVariance: number
+        SpawnRadius: number
+        WindScale: number
+        CollisionCutoff: number
+        function Emit(count: number?): ()
+    end
+end
 declare class Highlight is Instance
-    Enabled: boolean
-    FillColor: Color4
-    OutlineColor: Color4
-    OutlineThickness: number end
+    public is
+        Enabled: boolean
+        FillColor: Color4
+        OutlineColor: Color4
+        OutlineThickness: number
+    end
+end
 
 declare class Script is Instance
-    Enabled: boolean
-    Source: string
-    Aborted: boolean
-    ScriptExtension: any
-    function Restart(): () end
+    public is
+        Enabled: boolean
+        Source: string
+        Aborted: boolean
+        ScriptExtension: any
+        function Restart(): ()
+    end
+end
 declare class ModuleScript is Script end
 declare class LocalScript is Script end
 declare class ValueBase is Instance
-    Changed: Signal end
+    public is
+        Changed: Signal
+    end
+end
 declare class IntValue is ValueBase
-    Value: number end
+    public is
+        Value: number
+    end
+end
 declare class NumberValue is ValueBase
-    Value: number end
+    public is
+        Value: number
+    end
+end
 declare class BoolValue is ValueBase
-    Value: boolean end
+    public is
+        Value: boolean
+    end
+end
 declare class StringValue is ValueBase
-    Value: string end
+    public is
+        Value: string
+    end
+end
 declare class Vector3Value is ValueBase
-    Value: Vector3 end
+    public is
+        Value: Vector3
+    end
+end
 declare class Color4Value is ValueBase
-    Value: Color4 end
+    public is
+        Value: Color4
+    end
+end
 declare class QuaternionValue is ValueBase
-    Value: Quaternion end
+    public is
+        Value: Quaternion
+    end
+end
 declare class CFrameValue is ValueBase
-    Value: CFrame end
+    public is
+        Value: CFrame
+    end
+end
 declare class ObjectValue is ValueBase
-    Value: Instance? end
+    public is
+        Value: Instance?
+    end
+end
 declare class TextFile is PhysicalFileInstance
-    Content: string end
+    public is
+        Content: string
+    end
+end
 declare class Program is PhysicalFileInstance
-    function Start(): ()
-    function Call(message: string): string
-    function Send(message: string): ()
-    function Receive(): string?
-    function Connect(): ()
-    function Disconnect(): ()
-    function Close(): number end
+    public is
+        function Start(): ()
+        function Call(message: string): string
+        function Send(message: string): ()
+        function Receive(): string?
+        function Connect(): ()
+        function Disconnect(): ()
+        function Close(): number
+    end
+end
 declare class Event is Instance
-    function Fire(...): () end
+    public is
+        function Fire(...): ()
+    end
+end
 declare class SignalEvent is Instance
-    Fired: Signal
-    function Fire(...): () end
+    public is
+        Fired: Signal
+        function Fire(...): ()
+    end
+end
 declare class UserInput is Instance
-    Pressed: Signal
-    Released: Signal
-    function IsPressed(key: any): boolean end
+    public is
+        Pressed: Signal
+        Released: Signal
+        function IsPressed(key: any): boolean
+    end
+end
 declare class User is Instance
-    Character: Model?
-    Input: UserInput?
-    CharacterAdded: Signal
-    ExitRequested: Signal
-    CursorType: any
-    ControlMode: string
-    CameraCFrame: CFrame
-    PeerId: number
-    CharacterSmoothing: number
-    MovementInputEnabled: boolean
-    CameraInputEnabled: boolean
-    HotkeyInputEnabled: boolean
-    ToolInputEnabled: boolean
-    ExitRequestPending: boolean
-    Speed: number
-    ZoomSpeed: number
-    CameraDistance: number
-    RotationSpeed: number
-    MouseRotationSpeed: number
-    MouseZoomSpeed: number
-    function AddTool(tool: Tool): ()
-    function RemoveTool(tool: Tool): ()
-    function GetTool(name: string): Tool?
-    function GetTools(): { Tool }
-    function GetMouseRay(): any
-    function ToggleControlMode(): ()
-    function ToggleCtrlLock(): ()
-    function SetCtrlLockEnabled(enabled: boolean): ()
-    function ToggleCtrlLockOffset(): ()
-    function SetCtrlLockOffset(enabled: boolean): ()
-    function ToggleMouseLock(): ()
-    function SetMouseLockEnabled(enabled: boolean): ()
-    function SetMoveDirection(direction: Vector3): ()
-    function ClearMoveDirection(): ()
-    function Jump(): ()
-    function RequestWorkspaceSwitch(name: string): ()
-    function RequestExit(): ()
-    function ConfirmExit(): ()
-    function CancelExit(): ()
-    function SelectToolSlot(slot: number): ()
-    function ActivateTool(): () end
+    public is
+        Character: Model?
+        Input: UserInput?
+        CharacterAdded: Signal
+        ExitRequested: Signal
+        CursorType: any
+        ControlMode: string
+        CameraCFrame: CFrame
+        PeerId: number
+        CharacterSmoothing: number
+        MovementInputEnabled: boolean
+        CameraInputEnabled: boolean
+        HotkeyInputEnabled: boolean
+        ToolInputEnabled: boolean
+        ExitRequestPending: boolean
+        Speed: number
+        ZoomSpeed: number
+        CameraDistance: number
+        RotationSpeed: number
+        MouseRotationSpeed: number
+        MouseZoomSpeed: number
+        function AddTool(tool: Tool): ()
+        function RemoveTool(tool: Tool): ()
+        function GetTool(name: string): Tool?
+        function GetTools(): { Tool }
+        function GetMouseRay(): any
+        function ToggleControlMode(): ()
+        function ToggleCtrlLock(): ()
+        function SetCtrlLockEnabled(enabled: boolean): ()
+        function ToggleCtrlLockOffset(): ()
+        function SetCtrlLockOffset(enabled: boolean): ()
+        function ToggleMouseLock(): ()
+        function SetMouseLockEnabled(enabled: boolean): ()
+        function SetMoveDirection(direction: Vector3): ()
+        function ClearMoveDirection(): ()
+        function Jump(): ()
+        function RequestWorkspaceSwitch(name: string): ()
+        function RequestExit(): ()
+        function ConfirmExit(): ()
+        function CancelExit(): ()
+        function SelectToolSlot(slot: number): ()
+        function ActivateTool(): ()
+    end
+end
 declare class System is Instance
-    EnableIOAPI: boolean
-    EnableIPCAPI: boolean
-    EnableExternalFileAccess: boolean
-    AutoSpawnPlayerCharacter: boolean
-    NetworkInterpolationDelay: number
-    Heartbeat: Signal
-    NetworkRoleChanged: Signal
-    LocalPeerId: number
-    NetworkRole: any end
+    public is
+        EnableIOAPI: boolean
+        EnableIPCAPI: boolean
+        EnableExternalFileAccess: boolean
+        AutoSpawnPlayerCharacter: boolean
+        NetworkInterpolationDelay: number
+        Heartbeat: Signal
+        NetworkRoleChanged: Signal
+        LocalPeerId: number
+        NetworkRole: any
+    end
+end
 declare class PathfindingService is Instance
-    AgentHeight: number
-    AgentRadius: number
-    AgentMaxClimb: number
-    AgentMaxSlope: number
-    MaxJumpDistance: number
-    MaxJumpHeight: number
-    function Configure(): ()
-    function FindPath(start: Vector3,
-    goal: Vector3): { any } end
+    public is
+        AgentHeight: number
+        AgentRadius: number
+        AgentMaxClimb: number
+        AgentMaxSlope: number
+        MaxJumpDistance: number
+        MaxJumpHeight: number
+        function Configure(): ()
+        function FindPath(start: Vector3,
+        goal: Vector3): { any }
+    end
+end
 declare class Terrain is Instance
-    function SetBlock(position: Vector3,
-    material: any): ()
-    function RemoveBlock(position: Vector3): ()
-    function GetBlock(position: Vector3): any
-    function Raycast(origin: Vector3,
-    direction: Vector3): any
-    function ApplyBrush(position: Vector3,
-    radius: number,
-    material: any): () end
+    public is
+        function SetBlock(position: Vector3,
+        material: any): ()
+        function RemoveBlock(position: Vector3): ()
+        function GetBlock(position: Vector3): any
+        function Raycast(origin: Vector3,
+        direction: Vector3): any
+        function ApplyBrush(position: Vector3,
+        radius: number,
+        material: any): ()
+    end
+end
 declare class ChatService is Instance
-    MessageReceived: Signal
-    function SendMessage(text: string): () end
+    public is
+        MessageReceived: Signal
+        function SendMessage(text: string): ()
+    end
+end
 declare class AppImage is Instance
-    IconPath: string end
+    public is
+        IconPath: string
+    end
+end
 declare class PostEffect is Instance
-    Enabled: boolean
-    Type: any
-    FragmentShaderFile: string
-    Intensity: number
-    Param1: number
-    Param2: number
-    ZIndex: number end
+    public is
+        Enabled: boolean
+        Type: any
+        FragmentShaderFile: string
+        Intensity: number
+        Param1: number
+        Param2: number
+        ZIndex: number
+    end
+end
 declare class LightSource is Instance
-    Brightness: number
-    Color: Color4
-    Range: number end
+    public is
+        Brightness: number
+        Color: Color4
+        Range: number
+    end
+end
 declare class PointLight is LightSource end
 declare class SpotLight is LightSource
-    Angle: number end
+    public is
+        Angle: number
+    end
+end
 declare class Skybox is Cube end
 declare class Truss is Cube end
 declare class MaterialService is Instance end

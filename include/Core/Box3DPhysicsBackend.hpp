@@ -144,6 +144,13 @@ private:
     // 解除した際、明示的に無効化された重力を誤って有効化しないため保持する。
     std::unordered_map<const BaseCube*, bool> m_gravityEnabled;
     std::unordered_map<const BaseCube*, float> m_contactImpacts;
+    struct PendingKinematicTarget {
+        b3BodyId body;
+        CFrame worldCFrame;
+        float remainingSeconds;
+    };
+    std::unordered_map<std::uint64_t, PendingKinematicTarget>
+        m_pendingKinematicTargets;
     // native callback 中はInstanceへ触れず、shape userDataの値だけを積む。
     std::vector<std::pair<const void*, const void*>> m_pendingContacts;
     std::vector<std::pair<const void*, const void*>> m_pendingTouches;
@@ -213,6 +220,7 @@ public:
 
     void update(Workspace& workspace, float dt) override;
     void stepOnce(float dt) override;
+    void advanceKinematicTargets() override;
     void syncAllCubes() override;
     void moveWeldAssembly(
         const std::shared_ptr<BaseCube>& member, const CFrame& worldCFrame) override;
@@ -227,7 +235,10 @@ public:
     bool sharesBody(const BaseCube& first, const BaseCube& second) const override;
     CFrame getBodyWorldCFrame(const BaseCube& cube) const override;
     void setBodyWorldCFrame(BaseCube& cube, const CFrame& worldCFrame) override;
-    void setBodyKinematicTarget(BaseCube& cube, const CFrame& worldCFrame) override;
+    bool setBodyKinematicTarget(BaseCube& cube, const CFrame& worldCFrame,
+                                float durationSeconds = 1.0f / 60.0f) override;
+    bool applyForceAtPoint(BaseCube& cube, const Vector3& force,
+                           const Vector3& worldPoint) override;
     Vector3 getLinearVelocity(const BaseCube& cube) const override;
     Vector3 getAngularVelocity(const BaseCube& cube) const override;
     float consumeContactImpact(const BaseCube& cube) override;
@@ -239,6 +250,7 @@ public:
     void refreshCollisionFilter(BaseCube& cube) override;
     std::size_t getTouchSensorShapeCount() const override;
     bool isTouchActive(const BaseCube& first, const BaseCube& second) const override;
+    bool hasSupportContact(const BaseCube& rider, const BaseCube& support) const override;
     void syncCube(BaseCube& cube) override;
 
     void enqueueResize(const std::shared_ptr<BaseCube>& cube) override;

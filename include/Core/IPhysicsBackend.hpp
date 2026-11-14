@@ -41,6 +41,8 @@ struct ShapeCastHit {
     float travelDistance = 0.0f;
     Vector3 position;
     Vector3 normal;
+    Vector3 pointVelocity;
+    float friction = 0.0f;
     Instance* instance = nullptr;
 };
 
@@ -67,6 +69,7 @@ public:
 
     virtual void update(Workspace& workspace, float dt) = 0;
     virtual void stepOnce(float dt) = 0;
+    virtual void advanceKinematicTargets() {}
     virtual void syncAllCubes() = 0;
     virtual void moveWeldAssembly(const std::shared_ptr<BaseCube>& member, const CFrame& worldCFrame) = 0;
 
@@ -83,8 +86,14 @@ public:
     // キネマティック(Anchored)ボディを次の固定stepでworldCFrame(native body原点)へ動かす。
     // 瞬間移動と違い移動ぶんの速度が付くため、上に乗った物体が一緒に運ばれる。
     // 既定実装は瞬間移動で代用する。
-    virtual void setBodyKinematicTarget(BaseCube& cube, const CFrame& worldCFrame) {
+    virtual bool setBodyKinematicTarget(BaseCube& cube, const CFrame& worldCFrame,
+                                        float durationSeconds = 1.0f / 60.0f) {
+        (void)durationSeconds;
         setBodyWorldCFrame(cube, worldCFrame);
+        return true;
+    }
+    virtual bool applyForceAtPoint(BaseCube&, const Vector3&, const Vector3&) {
+        return false;
     }
     virtual Vector3 getLinearVelocity(const BaseCube& cube) const = 0;
     virtual Vector3 getAngularVelocity(const BaseCube&) const {
@@ -106,6 +115,7 @@ public:
     virtual std::size_t getTouchSensorShapeCount() const { return 0; }
     // Touchedを発火させるセンサー接触が、2つのCubeの間で現在有効か
     virtual bool isTouchActive(const BaseCube&, const BaseCube&) const { return false; }
+    virtual bool hasSupportContact(const BaseCube&, const BaseCube&) const { return false; }
     virtual void syncCube(BaseCube& cube) = 0;
 
     virtual void enqueueResize(const std::shared_ptr<BaseCube>& cube) = 0;

@@ -495,6 +495,7 @@ void Physics::update(Workspace& workspace, float dt) {
             const PreStepCallback callback = m_preStepCallbacks[i].callback;
             callback(*this, stepDt);
         }
+        m_backend->advanceKinematicTargets();
         Humanoid::stepControlAll(humanoids, this, stepDt, stepIndex > 0);
     });
     m_backend->update(workspace, dt);
@@ -586,10 +587,17 @@ void Physics::setMemberWorldCFrame(BaseCube& cube, const CFrame& worldCFrame) {
         cube, worldCFrame * cube.m_compoundLocalOffset.inverse());
 }
 
-void Physics::setMemberKinematicTarget(BaseCube& cube, const CFrame& worldCFrame) {
-    if (!isAvailable() || !ownsBody(cube)) return;
-    m_backend->setBodyKinematicTarget(
-        cube, worldCFrame * cube.m_compoundLocalOffset.inverse());
+bool Physics::setMemberKinematicTarget(BaseCube& cube, const CFrame& worldCFrame,
+                                       float durationSeconds) {
+    if (!isAvailable() || !ownsBody(cube)) return false;
+    return m_backend->setBodyKinematicTarget(
+        cube, worldCFrame * cube.m_compoundLocalOffset.inverse(), durationSeconds);
+}
+
+bool Physics::applyForceAtPoint(BaseCube& cube, const Vector3& force,
+                                const Vector3& worldPoint) {
+    if (!isAvailable() || !ownsBody(cube)) return false;
+    return m_backend->applyForceAtPoint(cube, force, worldPoint);
 }
 
 Vector3 Physics::getLinearVelocity(const BaseCube& cube) const {
@@ -632,6 +640,9 @@ void Physics::refreshCollisionFilter(BaseCube& cube) {
 }
 bool Physics::isTouchActive(const BaseCube& first, const BaseCube& second) const {
     return isAvailable() && m_backend->isTouchActive(first, second);
+}
+bool Physics::hasSupportContact(const BaseCube& rider, const BaseCube& support) const {
+    return isAvailable() && m_backend->hasSupportContact(rider, support);
 }
 
 std::size_t Physics::getTouchSensorShapeCount() const {

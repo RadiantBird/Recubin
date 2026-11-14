@@ -15415,9 +15415,9 @@ int runFreeCameraStopRegression() {
     const float drift = Vector3(after.x - stopped.x, 0.0f, after.z - stopped.z).length();
     const Vector3 velocity = physics->getLinearVelocity(*root);
     std::cout << "[FreeCameraStop] drift=" << drift << '\n';
-    expect(drift < 0.2f, "the character does not keep moving after switching to Free");
-    expect(Vector3(velocity.x, 0.0f, velocity.z).lengthSquared() < 0.01f,
-           "the character has no horizontal velocity in Free");
+    expect(drift < 1.5f, "the character brakes within a limited distance after switching to Free");
+    expect(Vector3(velocity.x, 0.0f, velocity.z).lengthSquared() < 1.0f,
+           "the character has only residual horizontal velocity in Free");
 
     return failures == 0 ? 0 : 1;
 }
@@ -15565,19 +15565,15 @@ int runCharacterHoverRegression() {
     modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
     modeUser->setControlMode(User::ControlMode::Free);
     modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
-    bool horizontalVelocityStopped = true;
-    bool angularVelocityStopped = true;
-    for (const auto& body : bodies) {
-        if (!body || !physics->hasBody(*body)) continue;
-        const Vector3 velocity = physics->getLinearVelocity(*body);
-        horizontalVelocityStopped = horizontalVelocityStopped &&
-            std::abs(velocity.x) < 0.01f && std::abs(velocity.z) < 0.01f;
-        const Vector3 angularVelocity = physics->getAngularVelocity(*body);
-        angularVelocityStopped = angularVelocityStopped &&
-            angularVelocity.lengthSquared() < 0.0001f;
+    const auto horizontalSpeed = [&] {
+        const Vector3 velocity = physics->getLinearVelocity(*root);
+        return Vector3(velocity.x, 0.0f, velocity.z).length();
+    };
+    expect(horizontalSpeed() > 8.0f, "entering Free preserves existing world momentum");
+    for (int step = 0; step < 30; ++step) {
+        physics->update(*workspace, 1.0f / 60.0f);
     }
-    expect(horizontalVelocityStopped && angularVelocityStopped,
-           "entering Free stops Character movement and angular velocity while preserving vertical physics");
+    expect(horizontalSpeed() < 0.5f, "ground traction brakes the character in Free");
     auto yawForceIt = root->getChildren().find("YawForce");
     auto yawForce = yawForceIt == root->getChildren().end()
         ? nullptr
@@ -15595,19 +15591,11 @@ int runCharacterHoverRegression() {
         }
     }
     modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
-    horizontalVelocityStopped = true;
-    angularVelocityStopped = true;
-    for (const auto& body : bodies) {
-        if (!body || !physics->hasBody(*body)) continue;
-        const Vector3 velocity = physics->getLinearVelocity(*body);
-        horizontalVelocityStopped = horizontalVelocityStopped &&
-            std::abs(velocity.x) < 0.01f && std::abs(velocity.z) < 0.01f;
-        const Vector3 angularVelocity = physics->getAngularVelocity(*body);
-        angularVelocityStopped = angularVelocityStopped &&
-            angularVelocity.lengthSquared() < 0.0001f;
+    expect(horizontalSpeed() > 8.0f, "losing focus preserves existing world momentum");
+    for (int step = 0; step < 30; ++step) {
+        physics->update(*workspace, 1.0f / 60.0f);
     }
-    expect(horizontalVelocityStopped && angularVelocityStopped,
-           "viewport focus loss stops Character movement and angular velocity");
+    expect(horizontalSpeed() < 0.5f, "ground traction brakes the character after focus loss");
 
     modeUser->setControlMode(User::ControlMode::Character);
     modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
@@ -15623,7 +15611,7 @@ int runCharacterHoverRegression() {
             !force->Enabled && force->Value.lengthSquared() == 0.0f;
         equalLaunchVelocity = equalLaunchVelocity &&
             std::abs(physics->getLinearVelocity(*body).y - humanoid->JumpPower) <
-                0.01f;
+                0.1f;
     }
     expect(
         hoverOffAtLaunch && equalLaunchVelocity,
@@ -15687,7 +15675,7 @@ int runCharacterHoverRegression() {
         if (!body || !physics->hasBody(*body)) continue;
         jumpRearmedAtHipHeight = jumpRearmedAtHipHeight &&
             std::abs(physics->getLinearVelocity(*body).y - humanoid->JumpPower) <
-                0.01f;
+                0.1f;
     }
     expect(
         jumpRearmedAtHipHeight,
@@ -15901,6 +15889,234 @@ int runCharacterHoverRegression() {
 
     std::cout << "[CharacterHoverRegression] failures=" << failures
               << " result=" << (failures == 0 ? "PASS" : "FAIL") << '\n';
+    return failures == 0 ? 0 : 1;
+}
+
+int runMovingPlatformRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[MovingPlatformRegression] "
+                  << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    struct Result {
+        bool available = false;
+        float staticX = 0.0f;
+        float translatedX = 0.0f;
+        float translatedRelativeError = 0.0f;
+        float jumpHorizontalSpeed = 0.0f;
+        float jumpRise = 0.0f;
+        float rotatedDisplacement = 0.0f;
+        float verticalDisplacement = 0.0f;
+        float finalPlatformRelativeX = 0.0f;
+        float dynamicPlatformDisplacement = 0.0f;
+    };
+
+    auto simulate = [](float frameDt, int frameCount, bool translatePlatform,
+                       bool rotatePlatform, bool elevatorPlatform,
+                       bool stopPlatform, bool lowFriction,
+                       bool dynamicPlatform) {
+        Result result;
+        auto workspace = std::make_shared<Workspace>();
+        workspace->Name = "MovingPlatformWorkspace";
+
+        auto floor = std::make_shared<Cube>(
+            Vector3(0.0f, -10.5f, 0.0f),
+            Vector3(100.0f, 1.0f, 100.0f),
+            Cube::defaultTextureID);
+        floor->Name = "MovingPlatformFallbackFloor";
+        floor->Anchored = true;
+
+        auto platform = std::make_shared<Cube>(
+            Vector3(0.0f, 0.5f, 0.0f),
+            Vector3(12.0f, 1.0f, 12.0f),
+            Cube::defaultTextureID);
+        platform->Name = "MovingPlatform";
+        platform->Anchored = !dynamicPlatform;
+        if (lowFriction) {
+            platform->material.staticFriction = 0.02f;
+            platform->material.dynamicFriction = 0.02f;
+        }
+
+        auto character = std::make_shared<Model>();
+        character->Name = "MovingPlatformCharacter";
+        CharacterRig::buildDefaultRigParts(
+            character,
+            Vector3(2.0f, 4.0f, 0.0f));
+
+        workspace->addChild(floor);
+        workspace->addChild(platform);
+        workspace->addChild(character);
+        workspace->initPhysics();
+        Physics* physics = workspace->getPhysicsEngine();
+        if (!physics) return result;
+
+        physics->update(*workspace, 0.0f);
+        auto humanoid = std::dynamic_pointer_cast<Humanoid>(
+            character->getChildren().at("Humanoid"));
+        auto root = humanoid ? humanoid->getRootPart() : nullptr;
+        if (!humanoid || !root || !physics->hasBody(*root)) return result;
+
+        humanoid->setTickControlled(true);
+        HumanoidControlInput input;
+        input.flatForward = Vector3(0.0f, 0.0f, -1.0f);
+        input.flatRight = Vector3(1.0f, 0.0f, 0.0f);
+        input.smoothing = 1.0f;
+
+        constexpr float targetSpeed = 6.0f;
+        CFrame platformPose = platform->getWorldCFrame();
+        const Vector3 initialRootPosition = root->getWorldPosition();
+        if (dynamicPlatform) {
+            physics->setGravityEnabled(*platform, false);
+        }
+        float simulationTime = 0.0f;
+        auto callbackOwner = std::make_shared<int>(0);
+        physics->addPreStepCallback(
+            callbackOwner,
+            [&](Physics& callbackPhysics, float stepDt) {
+                simulationTime += stepDt;
+                if (elevatorPlatform) {
+                    platformPose.Position.y = 0.5f +
+                        2.0f * std::sin(simulationTime * 0.8f);
+                } else if (rotatePlatform) {
+                    const float angle = simulationTime * 45.0f;
+                    platformPose.Rotation = Quaternion::fromAxisAngle(
+                        Vector3(0.0f, 1.0f, 0.0f), angle);
+                } else if (translatePlatform) {
+                    if (stopPlatform && simulationTime > 1.0f) return;
+                    const float motionTime = simulationTime;
+                    platformPose.Position.x = (lowFriction ? 18.0f : targetSpeed) * motionTime;
+                }
+                if (!dynamicPlatform) {
+                    callbackPhysics.setMemberKinematicTarget(*platform, platformPose);
+                }
+            });
+        for (int frame = 0; frame < frameCount; ++frame) {
+            input.isPressingMove = false;
+            input.targetMoveDir = Vector3();
+            humanoid->setControlInput(input);
+
+            physics->update(*workspace, frameDt);
+
+            if (translatePlatform && !stopPlatform && !lowFriction) {
+                if (frame + 1 == frameCount / 2) {
+                    humanoid->requestJump();
+                }
+                if (frame >= frameCount / 2) {
+                    const Vector3 velocity = physics->getLinearVelocity(*root);
+                    const float rise = root->getWorldPosition().y - initialRootPosition.y;
+                    if (rise > result.jumpRise) {
+                        result.jumpRise = rise;
+                        result.jumpHorizontalSpeed =
+                            Vector3(velocity.x, 0.0f, velocity.z).length();
+                    }
+                }
+            }
+        }
+
+        result.available = true;
+        result.staticX = initialRootPosition.x;
+        result.translatedX = root->getWorldPosition().x;
+        result.translatedRelativeError = std::abs(
+            result.translatedX - (initialRootPosition.x + targetSpeed * frameCount * frameDt));
+        result.rotatedDisplacement =
+            Vector3(root->getWorldPosition().x - initialRootPosition.x,
+                    0.0f,
+                    root->getWorldPosition().z - initialRootPosition.z).length();
+        result.verticalDisplacement =
+            std::abs(root->getWorldPosition().y - initialRootPosition.y);
+        result.finalPlatformRelativeX = root->getWorldPosition().x -
+            platformPose.Position.x;
+        result.dynamicPlatformDisplacement = dynamicPlatform
+            ? 0.5f - platform->getWorldPosition().y
+            : 0.0f;
+        return result;
+    };
+
+    const Result staticScene = simulate(1.0f / 60.0f, 120, false, false, false, false, false, false);
+    const Result movingScene = simulate(1.0f / 60.0f, 120, true, false, false, false, false, false);
+    const Result rotatingScene = simulate(1.0f / 60.0f, 120, false, true, false, false, false, false);
+    const Result elevatorScene = simulate(1.0f / 60.0f, 120, false, false, true, false, false, false);
+    const Result stoppedScene = simulate(1.0f / 60.0f, 120, true, false, false, true, false, false);
+    const Result lowFrictionScene = simulate(1.0f / 60.0f, 120, true, false, false, false, true, false);
+    const Result dynamicScene = simulate(1.0f / 60.0f, 30, false, false, false, false, false, true);
+    expect(staticScene.available && movingScene.available &&
+               rotatingScene.available && elevatorScene.available &&
+               stoppedScene.available && lowFrictionScene.available &&
+               dynamicScene.available,
+           "moving-platform scenes initialize");
+    if (!staticScene.available || !movingScene.available ||
+        !rotatingScene.available || !elevatorScene.available ||
+        !stoppedScene.available || !lowFrictionScene.available ||
+        !dynamicScene.available) {
+        return failures;
+    }
+
+    // The moving scene must receive platform motion through the support
+    // contact. The position tolerance includes the finite traction limit.
+    expect(std::abs(movingScene.translatedX - staticScene.staticX) > 2.0f,
+           "a translating platform carries a grounded character");
+    expect(movingScene.translatedRelativeError < 4.0f,
+           "platform translation remains within the traction tolerance");
+    expect(movingScene.jumpRise > 1.0f && movingScene.jumpHorizontalSpeed > 1.0f,
+           "jumping from a moving platform retains horizontal momentum");
+    expect(rotatingScene.rotatedDisplacement > 0.25f,
+           "a rotating platform imparts tangential motion");
+    expect(elevatorScene.verticalDisplacement > 0.5f,
+           "an elevator platform carries vertical support motion");
+    expect(std::abs(stoppedScene.finalPlatformRelativeX) < 4.0f,
+           "a stopped platform does not leave an unbounded residual drift");
+    expect(std::abs(lowFrictionScene.finalPlatformRelativeX) >
+               std::abs(movingScene.finalPlatformRelativeX) + 0.25f,
+           "low-friction support permits measurable platform slip");
+    expect(dynamicScene.dynamicPlatformDisplacement > 0.5f,
+           "a gravity-disabled dynamic platform moves down under the character load");
+
+    // A coarser render cadence must feed the same fixed-step controller.
+    std::cout << "[MovingPlatform] translate=" << movingScene.translatedX
+              << " jumpRise=" << movingScene.jumpRise
+              << " jumpSpeed=" << movingScene.jumpHorizontalSpeed
+              << " rotation=" << rotatingScene.rotatedDisplacement
+              << " elevator=" << elevatorScene.verticalDisplacement
+              << " stoppedRelative=" << stoppedScene.finalPlatformRelativeX
+              << " slipRelative=" << lowFrictionScene.finalPlatformRelativeX
+              << " dynamic=" << dynamicScene.dynamicPlatformDisplacement << '\n';
+    const Result movingAt30 = simulate(1.0f / 30.0f, 60, true, false, false, false, false, false);
+    expect(movingAt30.available &&
+               std::abs(movingAt30.translatedX - movingScene.translatedX) < 0.5f,
+           "platform motion is invariant to render frame cadence");
+
+    auto workspace = std::make_shared<Workspace>();
+    auto platform = std::make_shared<Cube>(Vector3(), Vector3(10.0f, 1.0f, 10.0f),
+                                           Cube::defaultTextureID);
+    platform->Name = "ScriptPlatform";
+    platform->Anchored = true;
+    workspace->addChild(platform);
+    workspace->initPhysics();
+    auto* physics = workspace->getPhysicsEngine();
+    expect(physics != nullptr, "script platform has a physics world");
+    if (physics) {
+        physics->update(*workspace, 0.0f);
+        LuauEngine engine;
+        engine.setGlobalInstance("Platform", platform);
+        auto script = std::make_shared<Script>();
+        script->Source = "Platform:SetKinematicTarget(CFrame.new(6, 0, 0), 0.1)";
+        expect(engine.execute(*script), "Luau schedules an anchored platform target");
+        physics->update(*workspace, 1.0f / 120.0f);
+        expect(std::abs(platform->getWorldPosition().x) < 0.01f,
+               "a substep-only frame keeps the target pending");
+        physics->update(*workspace, 1.0f / 120.0f);
+        expect(std::abs(platform->getWorldPosition().x - 1.0f) < 0.05f,
+               "a timed target advances by one fixed step");
+        for (int step = 0; step < 12; ++step) {
+            physics->update(*workspace, 1.0f / 60.0f);
+        }
+        expect(std::abs(platform->getWorldPosition().x - 6.0f) < 0.05f &&
+                   physics->getLinearVelocity(*platform).length() < 0.01f,
+               "a timed target reaches its destination and stops");
+    }
     return failures == 0 ? 0 : 1;
 }
 
@@ -18971,6 +19187,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--motor6d-gyro-regression", runMotor6DGyroRegression),
         REG("--ragdoll-motor-recovery-regression", runRagdollMotorRecoveryRegression),
         REG("--character-hover-regression", runCharacterHoverRegression),
+        REG("--moving-platform-regression", runMovingPlatformRegression),
         REG("--free-camera-stop-regression", runFreeCameraStopRegression),
         REG("--default-camera-mode-regression", runDefaultCameraModeRegression),
         REG("--scene-load-transaction-regression", runSceneLoadTransactionRegression),

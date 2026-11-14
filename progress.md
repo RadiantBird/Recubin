@@ -741,3 +741,15 @@
 - Luar コンパイラで probe source の import/check が成功し、メインレビュー後に追加した数学演算子・IO 関数型・Instance.pick/throw も含めて構文を確認。対象ファイルの `git diff --check` も成功。
 - enum や複合戻り値など、現状の Luar 宣言で厳密に表現できない箇所は `any` としている。`Signal.Until` は宣言済み。
 - 次の一手: Studio で Luar 定義による補完・型チェックを確認する場合は、代表的な Instance/API を使う短い `.luar` を開いて確認する。
+
+## 2026-11-12 Luar public 宣言修正
+
+- `scripts/Recubin.luard` の非空 `declare class` 全てを `public is ... end` ブロックへ移動した。Luar のデフォルト private により公開 API が参照不能になる問題を解消。
+- `luar check --stdin --source-path scripts/probe.luar` で `Vector3`、Instance、Sound、User、Terrain、TextLabel、Program、Workspace のプロパティとメソッド呼び出しを横断確認。全て成功。元の `Arithmetic` 型 alias も維持。`git diff --check` は成功。
+
+## 2026-11-14 キャラクターの移動床と慣性
+
+- 原因は `Humanoid::move()` による毎ステップの水平速度上書きと、床に反力を返さないホバー。`HipHeight` を使う支持力と摩擦上限付き接線力に変更し、Box3D の支持点速度で並進・回転を扱う。動的な床には支持点で反力を適用する。地上ジャンプの Y 初速に床の Y 速度を加え、水平速度は保持する。Free/Program への移行は歩行指令を解除する。
+- Luau/Luar に `BaseCube:SetKinematicTarget(worldCFrame, durationSeconds?)` を追加。固定ステップで Anchored body を移動し、到達後に停止する。単独床と Weld member は native body の姿勢を読み戻す。
+- Windows/MSVC Release の Studio、Engine、Test、移動床、ホバー、Free 停止、固定ステップ操作、入力平滑化、ラグドール、アバター通信、着席通信の回帰が成功。移動床回帰で Luau 呼び出し・複数ステップの目標到達と停止を確認。Luar の型チェックと `git diff --check` も成功。
+- 次の確認は Studio の Play で回転台の外周や昇降床から歩いて降り、入力の感触を確認すること。GCC は実行環境にないため未実行。ランチャーは `cl.exe` が PATH にないため build.py がスキップした。

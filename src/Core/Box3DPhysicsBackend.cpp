@@ -553,6 +553,12 @@ bool idsEqual(b3BodyId first, b3BodyId second) {
     return B3_IS_NON_NULL(first) && B3_ID_EQUALS(first, second);
 }
 
+bool shapeIdsEqual(b3ShapeId first, b3ShapeId second) {
+    return first.index1 == second.index1 &&
+           first.world0 == second.world0 &&
+           first.generation == second.generation;
+}
+
 CFrame attachmentFrame(
     const CFrame& cubeFrame, const std::weak_ptr<Attachment>& attachment,
     const BaseCube* cube) {
@@ -791,6 +797,7 @@ void Box3DPhysicsBackend::setBodyWorldCFrame(
     const b3BodyId id = bodyId(cube);
     if (B3_IS_NULL(id) || !b3Body_IsValid(id)) return;
     if (rejectNonFinite(worldCFrame, "setBodyWorldCFrame")) return;
+    m_pendingKinematicTargets.erase(b3StoreBodyId(id));
     b3Body_SetTransform(id, toB3Position(worldCFrame.Position),
                        toB3Quaternion(worldCFrame.Rotation));
     b3Body_SetLinearVelocity(id, b3Vec3_zero);
@@ -809,24 +816,86 @@ void Box3DPhysicsBackend::setBodyWorldCFrame(
     }
 }
 
-void Box3DPhysicsBackend::setBodyKinematicTarget(
-    BaseCube& cube, const CFrame& worldCFrame) {
+bool Box3DPhysicsBackend::setBodyKinematicTarget(
+    BaseCube& cube, const CFrame& worldCFrame, float durationSeconds) {
     const b3BodyId id = bodyId(cube);
-    if (B3_IS_NULL(id) || !b3Body_IsValid(id)) return;
+    if (B3_IS_NULL(id) || !b3Body_IsValid(id)) return false;
     // Weld compoundのAnchoredボディは同期時にbody poseを正としてmemberへ反映するため、
     // memberの論理姿勢を書き換えても動かない。外部からはこの経路で目標を渡す。
     if (b3Body_GetType(id) != b3_kinematicBody) {
         RCBN_ERROR("setBodyKinematicTarget requires an anchored body: "
                    << cube.getFullPath());
-        return;
+        return false;
     }
-    if (rejectNonFinite(worldCFrame, "setBodyKinematicTarget")) return;
-    const b3WorldTransform target = {
-        toB3Position(worldCFrame.Position),
-        toB3Quaternion(worldCFrame.Rotation),
-    };
-    b3Body_SetTargetTransform(id, target, FIXED_STEP, true);
+    if (rejectNonFinite(worldCFrame, "setBodyKinematicTarget")) return false;
+    if (!std::isfinite(durationSeconds) || durationSeconds <= 0.0f) {
+        RCBN_ERROR("setBodyKinematicTarget received invalid duration for \""
+                   << cube.getFullPath() << "\": " << durationSeconds);
+        return false;
+    }
+    m_pendingKinematicTargets[b3StoreBodyId(id)] = PendingKinematicTarget{
+        id, worldCFrame, durationSeconds};
+    return true;
 }
+
+void Box3DPhysicsBackend::advanceKinematicTargets() {
+    for (auto it = m_pendingKinematicTargets.begin();
+         it != m_pendingKinematicTargets.end();) {
+        auto& pending = it->second;
+        const b3BodyId id = pending.body;
+        if (!b3Body_IsValid(id) || b3Body_GetType(id) != b3_kinematicBody) {
+            it = m_pendingKinematicTargets.erase(it);
+            continue;
+        }
+        if (pending.remainingSeconds <= 0.0f) {
+            if (pending.remainingSeconds == 0.0f) {
+                b3Body_SetLinearVelocity(id, b3Vec3_zero);
+                b3Body_SetAngularVelocity(id, b3Vec3_zero);
+                // Keep the native pose authoritative until syncAllCubes reads it.
+                pending.remainingSeconds = -1.0f;
+            }
+            ++it;
+            continue;
+        }
+
+        const CFrame current = bodyWorldFrame(id);
+        const float fraction = std::min(1.0f, FIXED_STEP / pending.remainingSeconds);
+        const CFrame next(
+            current.Position + (pending.worldCFrame.Position - current.Position) * fraction,
+            Quaternion::Slerp(current.Rotation, pending.worldCFrame.Rotation, fraction));
+        const b3WorldTransform target = {
+            toB3Position(next.Position),
+            toB3Quaternion(next.Rotation),
+        };
+        b3Body_SetTargetTransform(id, target, FIXED_STEP, true);
+        pending.remainingSeconds -= FIXED_STEP;
+        if (pending.remainingSeconds < FIXED_STEP * 0.0001f) {
+            pending.remainingSeconds = 0.0f;
+        }
+        ++it;
+    }
+}
+
+bool Box3DPhysicsBackend::applyForceAtPoint(
+    BaseCube& cube, const Vector3& force, const Vector3& worldPoint) {
+    const b3BodyId id = bodyId(cube);
+    if (B3_IS_NULL(id) || !b3Body_IsValid(id)) {
+        RCBN_ERROR("Cannot apply point force to invalid Box3D body: "
+                   << cube.getFullPath());
+        return false;
+    }
+    if (!std::isfinite(force.x) || !std::isfinite(force.y) ||
+        !std::isfinite(force.z) || !std::isfinite(worldPoint.x) ||
+        !std::isfinite(worldPoint.y) || !std::isfinite(worldPoint.z)) {
+        RCBN_ERROR("Cannot apply non-finite point force to \""
+                   << cube.getFullPath() << "\"");
+        return false;
+    }
+    if (b3Body_GetType(id) != b3_dynamicBody) return true;
+    b3Body_ApplyForce(id, toB3Length(force), toB3Position(worldPoint), true);
+    return true;
+}
+
 
 Vector3 Box3DPhysicsBackend::getLinearVelocity(const BaseCube& cube) const {
     const b3BodyId id = bodyId(cube);
@@ -959,6 +1028,56 @@ void Box3DPhysicsBackend::refreshCollisionFilter(BaseCube& cube) {
 bool Box3DPhysicsBackend::isTouchActive(
     const BaseCube& first, const BaseCube& second) const {
     return m_activeTouches.contains(normalizePair(&first, &second));
+}
+
+bool Box3DPhysicsBackend::hasSupportContact(
+    const BaseCube& rider, const BaseCube& support) const {
+    const b3BodyId riderBody = bodyId(rider);
+    const b3BodyId supportBody = bodyId(support);
+    if (B3_IS_NULL(riderBody) || B3_IS_NULL(supportBody) ||
+        !b3Body_IsValid(riderBody) || !b3Body_IsValid(supportBody)) {
+        return false;
+    }
+    const int shapeCount = b3Body_GetShapeCount(riderBody);
+    if (shapeCount <= 0) return false;
+    std::vector<b3ShapeId> shapes(shapeCount);
+    b3Body_GetShapes(riderBody, shapes.data(), shapeCount);
+    for (b3ShapeId riderShape : shapes) {
+        if (b3Shape_IsSensor(riderShape)) continue;
+        const int capacity = b3Shape_GetContactCapacity(riderShape);
+        if (capacity <= 0) continue;
+        std::vector<b3ContactData> contacts(capacity);
+        const int count = b3Shape_GetContactData(
+            riderShape, contacts.data(), capacity);
+        for (int index = 0; index < count; ++index) {
+            const b3ContactData& contact = contacts[index];
+            const bool riderIsA = shapeIdsEqual(contact.shapeIdA, riderShape);
+            const b3ShapeId supportShape = riderIsA
+                ? contact.shapeIdB : contact.shapeIdA;
+            if (B3_IS_NULL(supportShape) ||
+                !idsEqual(b3Shape_GetBody(supportShape), supportBody)) {
+                continue;
+            }
+            for (int manifoldIndex = 0;
+                 manifoldIndex < contact.manifoldCount; ++manifoldIndex) {
+                const b3Manifold& manifold = contact.manifolds[manifoldIndex];
+                const Vector3 normal = fromB3Vector(manifold.normal);
+                const float supportToRiderY = riderIsA ? -normal.y : normal.y;
+                if (!std::isfinite(supportToRiderY) || supportToRiderY < 0.5f) {
+                    continue;
+                }
+                for (int pointIndex = 0; pointIndex < manifold.pointCount;
+                     ++pointIndex) {
+                    const b3ManifoldPoint& point = manifold.points[pointIndex];
+                    if (point.separation <= 0.08f &&
+                        (point.totalNormalImpulse > 0.0f || point.normalImpulse > 0.0f)) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
 }
 
 std::size_t Box3DPhysicsBackend::getTouchSensorShapeCount() const {
@@ -1447,6 +1566,7 @@ void Box3DPhysicsBackend::clearCubes() {
     }
     m_noCollisionEntries.clear();
     rebuildNoCollisionSnapshot();
+    m_pendingKinematicTargets.clear();
     destroyUniqueBodies();
     m_buoyancyProxyCache.clear();
     m_liquids.clear();
@@ -1477,7 +1597,7 @@ void Box3DPhysicsBackend::syncCubeWithBodyState(
     BodyEntry& entry) {
     const b3BodyId id = entry.bodyId;
     if (cube.Anchored) {
-        if (entry.sharesBody) {
+        if (entry.sharesBody || m_pendingKinematicTargets.contains(b3StoreBodyId(id))) {
             // Weld compound は body pose を物理側の正として member へ反映する。
             const CFrame memberWorld =
                 bodyWorldFrame(id) * cube.m_compoundLocalOffset;
@@ -1525,7 +1645,8 @@ void Box3DPhysicsBackend::syncAllCubes() {
                 continue;
             }
             bool needed = true;
-            if (!entry.hasSynchronizedWorldCFrame || entry.sharesBody) {
+            if (!entry.hasSynchronizedWorldCFrame || entry.sharesBody ||
+                m_pendingKinematicTargets.contains(b3StoreBodyId(entry.bodyId))) {
                 needed = true;
             } else if (cube->Anchored) {
                 // 物理側へは、グラフ側の姿勢が前回同期から変わったときだけ反映する。
@@ -1548,6 +1669,9 @@ void Box3DPhysicsBackend::syncAllCubes() {
         syncCubeWithBodyState(*cube, entry);
         entry.awakeAtLastSync = b3Body_IsAwake(entry.bodyId);
     }
+    std::erase_if(m_pendingKinematicTargets, [](const auto& target) {
+        return target.second.remainingSeconds < 0.0f;
+    });
 }
 
 void Box3DPhysicsBackend::moveWeldAssembly(
@@ -1570,6 +1694,7 @@ void Box3DPhysicsBackend::moveWeldAssembly(
     if (B3_IS_NULL(id)) return;
     const CFrame target = worldCFrame * member->m_compoundLocalOffset.inverse();
     if (rejectNonFinite(target, "setAssemblyWorldCFrame")) return;
+    m_pendingKinematicTargets.erase(b3StoreBodyId(id));
     b3Body_SetTransform(id, toB3Position(target.Position), toB3Quaternion(target.Rotation));
     b3Body_SetLinearVelocity(id, b3Vec3_zero);
     b3Body_SetAngularVelocity(id, b3Vec3_zero);
@@ -2603,6 +2728,8 @@ void Box3DPhysicsBackend::stepOnce(float dt) {
         if (m_preStepHook) {
             FrameProfiler::Scope scope("physics.preStepHook");
             m_preStepHook(FIXED_STEP, stepCount);
+        } else {
+            advanceKinematicTargets();
         }
         {
             FrameProfiler::Scope scope("physics.buoyancy");
@@ -4306,6 +4433,12 @@ float box3dGroundShapeCastCallback(
         context->result->travelDistance = fraction * context->maximumDistance;
         context->result->position = hitPosition;
         context->result->normal = hitNormal;
+        const b3BodyId body = b3Shape_GetBody(shapeId);
+        if (B3_IS_NON_NULL(body) && b3Body_IsValid(body)) {
+            context->result->pointVelocity = fromB3Length(
+                b3Body_GetWorldPointVelocity(body, toB3Position(hitPosition)));
+        }
+        context->result->friction = b3Shape_GetFriction(shapeId);
         context->result->instance = instance;
     }
 

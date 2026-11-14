@@ -318,7 +318,7 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
   保存SizeはMesh形状に応じて異なり得るが、既定Cube Torsoの物理寸法へ流用しない。
   接地時はRoot中心から下向きに一度floorをsampleし、保存されたHumanoid.HipHeight（既定3 stud）のdistanceを
   GroundHeight controllerで保つ。HipHeightは常に通常の保存プロパティであり、ground sampleから自動算出・上書きしない。
-  controllerは各dynamic R6 bodyへ同じ上向き加速度をmass比例のadditive Forceとして与える。接地状態は
+  controllerは支持点における床との相対速度で減衰を計算し、各dynamic R6 bodyへ質量比例の支持力を与える。接地状態は
   HipHeightを接地状態の捕捉ゲートとして使い、捕捉後は微小なfloor distance揺れでは接地状態を反転させず、
   床が消えるかRootが上昇したときに解除する。HipHeightが高い場合も、その目標距離までraycast範囲を拡張する。
   重力相殺は現在のWorkspace.Gravityから算出する。遠距離の床へ吸着せず、jump上昇中は停止し、
@@ -326,6 +326,10 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
   地面までの距離として使う。SpawnLocationがある場合はSpawnLocation上面へHipHeightを加えた位置へ配置する。
   SpawnLocationがない場合もfallback位置へ配置し、同じHipHeightをhover目標として使う。
   GroundHeight、接地、Truss中の重力設定は操作入力とは独立した物理更新として毎フレーム評価する。
+  接地中の歩行速度は足元の床に対する速度とする。支持荷重と摩擦係数で制限した接線力で歩行・停止し、
+  動的な支持剛体には支持力と接線力の反力を支持点に適用する。床との相対速度には床の並進と回転を含める。
+  ジャンプと床の端からの離床では水平のワールド速度を引き継ぐ。地上ジャンプのJumpPowerは支持点に対する上向きの初速とする。
+  空中入力の加速には上限を設ける。Anchoredの支持剛体を連続移動させるスクリプトは`BaseCube:SetKinematicTarget`を使う。
   Truss接触時はCharacter Modelに属する全dynamic R6 bodyの重力を無効化する。W入力中は`ClimbingUp`、S入力中は
   `ClimbingDown`状態へ遷移し、各bodyの`CharacterClimbForce`へ水平方向のストレイフ速度と`ClimbSpeed`の昇降速度を
   MaintainVelocityとして設定する。垂直入力が無い場合もTruss上で速度0を維持し、Trussから離れたらForceを無効化して

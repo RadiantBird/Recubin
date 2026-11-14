@@ -98,7 +98,10 @@ public:
     void setMemberWorldCFrame(BaseCube& cube, const CFrame& worldCFrame);
     // Anchored(キネマティック)ボディを、memberがworldCFrameになるよう次の固定stepで動かす。
     // Weld compoundでもnative bodyごと動く。compoundでは1ボディにつき1回だけ呼ぶこと。
-    void setMemberKinematicTarget(BaseCube& cube, const CFrame& worldCFrame);
+    bool setMemberKinematicTarget(BaseCube& cube, const CFrame& worldCFrame,
+                                  float durationSeconds = 1.0f / 60.0f);
+    bool applyForceAtPoint(BaseCube& cube, const Vector3& force,
+                           const Vector3& worldPoint);
     Vector3 getLinearVelocity(const BaseCube& cube) const;
     Vector3 getAngularVelocity(const BaseCube& cube) const;
     float consumeContactImpact(const BaseCube& cube) const;
@@ -110,6 +113,7 @@ public:
     void refreshCollisionFilter(BaseCube& cube);
     std::size_t getTouchSensorShapeCount() const;
     bool isTouchActive(const BaseCube& first, const BaseCube& second) const;
+    bool hasSupportContact(const BaseCube& rider, const BaseCube& support) const;
     void syncCube(BaseCube& cube);
 
     void enqueueResize(const std::shared_ptr<BaseCube>& cube);

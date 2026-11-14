@@ -35,6 +35,7 @@ Touch用sensor shapeは、そのBaseCubeの`Touched`または`TouchEnded`をLuau
 |---|---|
 | `syncPhysics()` | Box3D から位置・回転を読み取り CFrame に反映 |
 | `teleportTo(pos)` | member のローカル位置を物理へ反映する移動 |
+| `SetKinematicTarget(worldCFrame, durationSeconds?)` | Luau から、Anchored の物理剛体を指定のワールド姿勢へ連続移動させる |
 | `setSize(newSize)` | サイズ変更 → Box3D body/shape を再構築 |
 | `onAncestorChanged()` | Workspace への追加/削除時に自動で物理登録/解除 |
 | `setProperty(name, value)` | YAML デシリアライズ用 |
@@ -42,6 +43,8 @@ Touch用sensor shapeは、そのBaseCubeの`Touched`または`TouchEnded`をLuau
 ## 物理登録フロー
 
 Weld で接続された BaseCube は一つの assembly/body として扱われる。member の姿勢は Spatial のワールド CFrame と body 原点の間で変換され、Parent 変更だけでは子孫を追従させない。
+
+動く床は `SetKinematicTarget` に移動先のワールド `CFrame` と移動時間（秒）を渡す。省略時は物理 1 ステップ。Weld された床では、呼び出した member の目標姿勢としてアセンブリ全体を移動する。移動中の並進・回転は物理接触に伝わる。`CFrame` の直接代入は瞬間移動に使用する。
 
 ```
 setParent(workspace)

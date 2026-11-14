@@ -10,7 +10,9 @@
 Root の移動・回転は Root member のワールド CFrame を基準に行う。身体 Animation は local pose を更新し、Parent や Weld 用の座標補正を行わない。
 
 接地判定とGroundHeight hoverは同じ1回の下向きshape cast結果を使う。目標distanceは`HipHeight`で、各dynamic R6
-bodyの予約child `CharacterHoverForce`へ`body mass × upward acceleration`を設定する。HipHeightは既定値3 studを持つ
+bodyの予約child `CharacterHoverForce`へ質量に比例する支持力と接線力を設定する。支持点の速度には床の並進と回転を含める。
+接線力は支持荷重と摩擦係数に応じて制限し、無入力時も床に対する相対速度を減衰させる。動的な床には支持点で逆向きの力を返す。
+HipHeightは既定値3 studを持つ
 保存プロパティであり、Root中心からsupport surfaceまでのhover目標値と
 着地捕捉に使い、接地状態は捕捉後の微小なfloor distance揺れでは反転させず、床が消えるかRootが上昇した
 ときに解除する。jump開始時、死亡、
@@ -74,7 +76,7 @@ Box3Dのhit eventで得た接触点の`totalNormalImpulse`を優先し、
 | `setRootPart(root)` | ネットワーク予測用Rootの非所有参照を設定し、通常Rootと同じ角度ロックを適用。Luau/YAMLには非公開 |
 | `move(...)` | WASD相当の入力から移動、RootのYawForceがあればそのY角速度、なければGyroのY方位、歩行アニメ、身体配置を更新。無入力時は現在の方位を維持 |
 | `updatePhysicsState(physics)` | ControlModeに関係なく接地raycast、GroundHeight hover、Truss中の重力設定を更新 |
-| `stopCharacterMotion(physics)` | Character操作からFree/Programへ移行する際、全身の水平・角速度を停止し、Character専用YawForceを無効化して垂直速度を保持 |
+| `stopCharacterMotion(physics)` | Character操作からFree/Programへ移行する際、歩行入力を解除しCharacter専用YawForceを無効化する。接地中は床に対して摩擦で減速する |
 | `moveToward(target, physics, arrivalRadius)` | パス追従用の1フレーム移動（`move()`のロジックを流用） |
 | `jump()` | 通常時は接地中かつ前回の地上jump後にsupport距離がHipHeight以下へ戻った場合、Climbing中は接地判定なしでJumpPowerを適用。Climbing中のJumpは`Normal`へ戻してTrussから脱出 |
 | `setHealth(v)`/`takeDamage(n)` | クランプしつつ設定。0以下遷移でDied発火 |
@@ -94,7 +96,7 @@ move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, phy
   ├─ flatForwardをCharacterSmoothingでdt補間したheadingを更新
   ├─ 向き決定: CtrlLock中は平滑化済みカメラ正面 / 移動中は平滑化済み移動方向
   ├─ 壁ずり: 進行方向にレイキャストし、法線成分を速度から除去
-  ├─ Box3D bodyへ水平速度を適用（Y速度は保持）
+  ├─ 歩行目標を更新し、物理更新側で床に対する接線力を適用
   ├─ walkCycle更新（押下中は加算、離した後は0.5basisで戻す）
   ├─ 接地判定: Root下方向へレイキャスト
   └─ applyBodyAnimation() でボディパーツを再配置
@@ -103,7 +105,7 @@ move(flatForward, flatRight, isPressingMove, targetMoveDir, ctrlLockEnabled, phy
 ## フロー — ジャンプ/死亡演出
 
 ```
-jump(): NormalではisGroundedまたは水中を要求し、通常の地上jump連打は下降中のsupport距離<=HipHeightまでlockする。Climbingでは接地判定なしで全bodyのY速度=JumpPowerをセット。Climbing時はNormalへ戻る
+jump(): NormalではisGroundedまたは水中を要求し、通常の地上jumpには足元の接触が必要。全bodyの水平速度を保持し、地上jumpのY速度は支持点のY速度にJumpPowerを足した値にする。Climbingでは接地判定なしで全bodyのY速度=JumpPowerをセット。Climbing時はNormalへ戻る
 
 enterRagdoll(physics):
   state=Ragdoll, 再生中Animationの状態と時刻を保持したまま評価を一時停止し、hover/yaw/Gyro/Root lockを無効化

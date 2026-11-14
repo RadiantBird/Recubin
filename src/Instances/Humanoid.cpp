@@ -138,11 +138,13 @@ Humanoid::collectCharacterBodies() const {
     return bodies;
 }
 
-void Humanoid::setHoverForces(
+Vector3 Humanoid::setHoverForces(
     Physics* physics,
     bool enabled,
-    float acceleration
+    const Vector3& acceleration
 ) {
+    Vector3 totalForce;
+    std::vector<PhysicsBodyHandle> handledBodies;
     for (const auto& body : collectCharacterBodies()) {
         if (!body) continue;
         const auto found = body->getChildren().find(HOVER_FORCE_NAME);
@@ -169,6 +171,12 @@ void Humanoid::setHoverForces(
             force->Enabled = false;
             continue;
         }
+        const auto handle = physics->getBodyHandle(*body);
+        if (std::ranges::find(handledBodies, handle) != handledBodies.end()) {
+            force->Value = {};
+            force->Enabled = false;
+            continue;
+        }
         const auto mass = physics->getBodyMass(*body);
         if (!mass) {
             force->Value = {};
@@ -177,9 +185,12 @@ void Humanoid::setHoverForces(
         }
         force->Torque = false;
         force->MaintainVelocity = false;
-        force->Value = Vector3(0.0f, *mass * acceleration, 0.0f);
-        force->Enabled = acceleration > 0.0f;
+        handledBodies.push_back(handle);
+        force->Value = acceleration * *mass;
+        force->Enabled = acceleration.lengthSquared() > 0.0f;
+        totalForce += force->Value;
     }
+    return totalForce;
 }
 
 void Humanoid::setCharacterGravity(Physics* physics, bool enabled) {
@@ -266,7 +277,8 @@ void Humanoid::cancelCharacterDescent(Physics* physics) {
 std::optional<float> Humanoid::getLandingImpactEquivalentSpeed(
     Physics* physics,
     float maximumNetUpwardAcceleration,
-    float ordinaryCaptureDistance
+    float ordinaryCaptureDistance,
+    const Vector3& supportVelocity
 ) const {
     if (!physics) {
         RCBN_ERROR(
@@ -316,7 +328,8 @@ std::optional<float> Humanoid::getLandingImpactEquivalentSpeed(
             );
             return std::nullopt;
         }
-        const float verticalVelocity = physics->getLinearVelocity(*body).y;
+        const float verticalVelocity =
+            physics->getLinearVelocity(*body).y - supportVelocity.y;
         if (!std::isfinite(verticalVelocity)) {
             RCBN_ERROR(
                 "Humanoid \"" << getFullPath()
@@ -414,12 +427,26 @@ bool Humanoid::isLegTouching(Physics* physics) const {
     return false;
 }
 
+bool Humanoid::sampleGround(Physics& physics, const BaseCube& root,
+                            float distance, ShapeCastHit& hit) const {
+    const auto& settings = CharacterRig::groundHeightSettings();
+    const CFrame rootFrame = physics.getMemberWorldCFrame(root);
+    // Start above Root's center so the probe can also see low HipHeight floors.
+    const CFrame start(rootFrame.pointToWorld(
+        Vector3(0.0f, settings.groundQueryThickness * 0.5f, 0.0f)),
+        rootFrame.Rotation);
+    const auto character = Parent.lock();
+    return physics.shapeCastBox(start,
+        Vector3(root.Size.x, settings.groundQueryThickness, root.Size.z),
+        Vector3(0.0f, -1.0f, 0.0f), distance, hit, character.get(), 0.5f);
+}
+
 void Humanoid::updateGroundHover(
     Physics* physics,
     const std::shared_ptr<BaseCube>& root
 ) {
     if (!physics || !root || m_dead || m_seated) {
-        setHoverForces(physics, false, 0.0f);
+        setHoverForces(physics, false, {});
         isGrounded = false;
         return;
     }
@@ -433,61 +460,47 @@ void Humanoid::updateGroundHover(
             << "\": Root vertical velocity is non-finite while updating hover: "
             << verticalVelocity
         );
-        setHoverForces(physics, false, 0.0f);
+        setHoverForces(physics, false, {});
         isGrounded = false;
         return;
     }
-    const float downwardSpeed = std::max(0.0f, -verticalVelocity);
     const float gravityMagnitude = std::max(0.0f, -physics->getGravity().y);
     const float maximumNetUpwardAcceleration =
         settings.maxUpwardAcceleration - gravityMagnitude;
-    float brakingDistance = 0.0f;
-    if (maximumNetUpwardAcceleration > 0.0f) {
-        brakingDistance = downwardSpeed * downwardSpeed /
-            (2.0f * maximumNetUpwardAcceleration);
-    }
-    constexpr float PHYSICS_STEP_SECONDS = 1.0f / 60.0f;
+    constexpr float CONTROL_STEP = 1.0f / 60.0f;
     constexpr float CAPTURE_SAFETY_MARGIN = 0.25f;
-    const float dynamicLandingCaptureDistance = std::max(
-        settings.landingCaptureDistance,
-        brakingDistance + downwardSpeed * PHYSICS_STEP_SECONDS +
-            CAPTURE_SAFETY_MARGIN
-    );
+    const auto captureDistance = [&](float speed) {
+        const float downwardSpeed = std::max(0.0f, -speed);
+        const float brakingDistance = maximumNetUpwardAcceleration > 0.0f
+            ? downwardSpeed * downwardSpeed / (2.0f * maximumNetUpwardAcceleration)
+            : 0.0f;
+        return std::max(settings.landingCaptureDistance,
+            brakingDistance + downwardSpeed * CONTROL_STEP + CAPTURE_SAFETY_MARGIN);
+    };
+    float dynamicLandingCaptureDistance = captureDistance(verticalVelocity);
     const float floorDetectionDistance = std::max(
         settings.maxFloorDetectionDistance,
         HipHeight + dynamicLandingCaptureDistance
     );
-    const CFrame rootFrame = root->getWorldCFrame();
-    // The swept footprint must begin above every possible support surface.
-    // Starting below Root's collider works only while HipHeight is at least
-    // half the Root height.  With a lower authored HipHeight, collision keeps
-    // the Root above the floor but the old downward cast started underground
-    // and could never find that floor, leaving isGrounded false.
-    const CFrame groundQueryFrame(
-        rootFrame.pointToWorld(Vector3(
-            0.0f,
-            settings.groundQueryThickness * 0.5f,
-            0.0f
-        )),
-        rootFrame.Rotation
-    );
     ShapeCastHit groundHit;
-    const bool hasFloor = physics->shapeCastBox(
-        groundQueryFrame,
-        Vector3(
-            root->Size.x,
-            settings.groundQueryThickness,
-            root->Size.z
-        ),
-        Vector3(0.0f, -1.0f, 0.0f),
-        floorDetectionDistance,
-        groundHit,
-        character.get()
-    );
+    bool hasFloor = sampleGround(*physics, *root, floorDetectionDistance, groundHit);
+    float relativeY = verticalVelocity;
+    if (hasFloor) {
+        relativeY -= groundHit.pointVelocity.y;
+        // A nearby support moving toward us can require earlier braking.
+        const float relativeCapture = captureDistance(relativeY);
+        const float relativeDetection = HipHeight + relativeCapture;
+        if (relativeDetection > floorDetectionDistance) {
+            hasFloor = sampleGround(*physics, *root, relativeDetection, groundHit);
+            relativeY = hasFloor ? verticalVelocity - groundHit.pointVelocity.y
+                                 : verticalVelocity;
+        }
+        dynamicLandingCaptureDistance = captureDistance(relativeY);
+    }
     RaycastHit floor;
     if (hasFloor) {
         floor.hit = true;
-        floor.distance = rootFrame.Position.y - groundHit.position.y;
+        floor.distance = physics->getMemberWorldCFrame(*root).Position.y - groundHit.position.y;
         floor.position = groundHit.position;
         floor.normal = groundHit.normal;
         floor.instance = groundHit.instance;
@@ -497,7 +510,7 @@ void Humanoid::updateGroundHover(
 
     // 足が何かに触れた時点でジャンプを再許可する。
     // (足にTouchedを接続するゲームで、空中ジャンプによるずるを防ぐ)
-    if (m_groundJumpRearmPending && verticalVelocity <= 0.0f &&
+    if (m_groundJumpRearmPending && relativeY <= 0.0f &&
         isLegTouching(physics)) {
         m_groundJumpRearmPending = false;
     }
@@ -558,10 +571,26 @@ void Humanoid::updateGroundHover(
         std::abs(floor.distance - effectiveHipHeight) <=
             dynamicLandingCaptureDistance;
     const bool enteringAirborneLandingCapture = !groundedBefore &&
-        verticalVelocity <= 0.0f && withinLandingCapture;
+        relativeY <= 0.0f && withinLandingCapture;
     atHipHeight = hasFloor &&
         std::abs(floor.distance - effectiveHipHeight) <=
             settings.landingCaptureDistance;
+    const Vector3 desiredVelocity = currentMoveDir * WalkSpeed;
+    const auto applyAirControl = [&] {
+        if (m_hasWalkInput) {
+            constexpr float AIR_ACCELERATION = 12.0f;
+            const Vector3 velocity = physics->getLinearVelocity(*root);
+            const Vector3 error(desiredVelocity.x - velocity.x, 0.0f,
+                                desiredVelocity.z - velocity.z);
+            const float speedError = error.length();
+            if (speedError > 0.0f) {
+                const float gain = std::min(1.0f / CONTROL_STEP, AIR_ACCELERATION / speedError);
+                setHoverForces(physics, true, error * gain);
+                return;
+            }
+        }
+        setHoverForces(physics, false, {});
+    };
     // HipHeight is the hover setpoint, not a continuously evaluated jump
     // distance.  Use it only to acquire grounded state (and to release jump
     // suppression).  Once acquired, keep grounded through small floor-distance
@@ -569,9 +598,9 @@ void Humanoid::updateGroundHover(
     if (m_hoverSuppressedForJump) {
         isGrounded = false;
         const bool descendingIntoCapture =
-            verticalVelocity <= 0.0f && withinLandingCapture;
+            relativeY <= 0.0f && withinLandingCapture;
         if (!descendingIntoCapture) {
-            setHoverForces(physics, false, 0.0f);
+            applyAirControl();
             logGroundDebug("jump-suppressed", 0.0f);
             return;
         }
@@ -581,7 +610,8 @@ void Humanoid::updateGroundHover(
         const auto landingImpact = getLandingImpactEquivalentSpeed(
             physics,
             std::max(0.0f, maximumNetUpwardAcceleration),
-            settings.landingCaptureDistance
+            settings.landingCaptureDistance,
+            groundHit.pointVelocity
         );
         if (landingImpact && *landingImpact >= ImpactRagdollThreshold) {
             enterRagdoll(physics, *landingImpact);
@@ -589,29 +619,54 @@ void Humanoid::updateGroundHover(
             return;
         }
     }
-    if (!hasFloor) {
+    if (!hasFloor || !withinLandingCapture) {
         isGrounded = false;
     } else if (atHipHeight) {
         isGrounded = true;
     }
-    if (!hasFloor) {
-        setHoverForces(physics, false, 0.0f);
-        logGroundDebug("no-floor", 0.0f);
+    if (!hasFloor || (!isGrounded && !withinLandingCapture)) {
+        applyAirControl();
         return;
     }
-    const float hoverTargetDistance = HipHeight;
-    const float gravityCompensation =
-        std::max(0.0f, -physics->getGravity().y) *
-        settings.gravityCompensationScale;
-    const float acceleration = std::clamp(
-        gravityCompensation +
-            settings.stiffness * (hoverTargetDistance - floor.distance) -
-            settings.damping * verticalVelocity,
-        0.0f,
-        settings.maxUpwardAcceleration
-    );
-    setHoverForces(physics, true, acceleration);
-    logGroundDebug("hover", acceleration);
+
+    auto* support = dynamic_cast<BaseCube*>(groundHit.instance);
+    if (support && physics->sharesBody(*root, *support)) {
+        setHoverForces(physics, false, {});
+        isGrounded = false;
+        return;
+    }
+    const Vector3 normal = groundHit.normal;
+    const float verticalAcceleration = std::clamp(
+        gravityMagnitude * settings.gravityCompensationScale +
+            settings.stiffness * (HipHeight - floor.distance) - settings.damping * relativeY,
+        0.0f, settings.maxUpwardAcceleration);
+    const bool nativeSupport = support && floor.distance >= HipHeight &&
+        physics->hasSupportContact(*root, *support);
+    const float normalAcceleration = nativeSupport ? 0.0f : verticalAcceleration / normal.y;
+    Vector3 acceleration = normal * normalAcceleration;
+    if (isGrounded && (normalAcceleration > 0.0f || (nativeSupport && m_hasWalkInput))) {
+        const Vector3 error = groundHit.pointVelocity + desiredVelocity -
+                              physics->getLinearVelocity(*root);
+        const Vector3 tangentError = error - normal * Vector3::Dot(error, normal);
+        const float speedError = tangentError.length();
+        if (speedError > 0.0f) {
+            const float friction = std::sqrt(
+                root->effectiveMaterial().dynamicFriction * groundHit.friction);
+            // At collider height, the contact solver supplies passive traction.
+            // Apply only the player's drive in that case.
+            const float driveLoad = nativeSupport ? gravityMagnitude / normal.y : normalAcceleration;
+            const float gain = std::min(
+                1.0f / CONTROL_STEP, friction * driveLoad / speedError);
+            acceleration += tangentError * gain;
+        }
+    }
+    const Vector3 force = setHoverForces(physics, true, acceleration);
+    if (support && force.lengthSquared() > 0.0f &&
+        !physics->applyForceAtPoint(*support, -force, groundHit.position)) {
+        setHoverForces(physics, false, {});
+        isGrounded = false;
+    }
+    logGroundDebug("hover", verticalAcceleration);
 }
 
 // プロパティ・メタデータ表（単一の正）。ここから Luau getter/setter・YAML 読込/保存・
@@ -1320,7 +1375,7 @@ void Humanoid::beginRagdollRecovery(Physics* physics) {
     // normal bind-pose constraint in control while the RootGyro performs the
     // physical upright recovery.
     setRagdollConstraintsEnabled(false);
-    setHoverForces(physics, false, 0.0f);
+    setHoverForces(physics, false, {});
     if (auto yawForce = findCharacterYawForce(root)) {
         yawForce->Value = Vector3();
         yawForce->Enabled = false;
@@ -1662,15 +1717,16 @@ void Humanoid::finalizeRagdollRecovery(
 
 void Humanoid::updatePhysicsState(Physics* physics) {
     if (m_state == State::Ragdoll || m_state == State::Recovering) {
-        setHoverForces(physics, false, 0.0f);
+        setHoverForces(physics, false, {});
         setClimbForces(physics, false, Vector3());
         isGrounded = false;
         return;
     }
     auto root = getRootPart();
     if (!root || !physics || !physics->hasBody(*root)) {
-        setHoverForces(physics, false, 0.0f);
+        setHoverForces(physics, false, {});
         setClimbForces(physics, false, Vector3());
+        isGrounded = false;
         return;
     }
 
@@ -1682,7 +1738,7 @@ void Humanoid::updatePhysicsState(Physics* physics) {
     const bool onTruss = touchingTruss && !m_trussControlSuppressed;
     if (onTruss) {
         setCharacterGravity(physics, false);
-        setHoverForces(physics, false, 0.0f);
+        setHoverForces(physics, false, {});
         isGrounded = false;
         return;
     }
@@ -1706,15 +1762,8 @@ void Humanoid::stopCharacterMotion(Physics* physics) {
         yawForce->Enabled = false;
     }
 
-    for (const auto& body : collectCharacterBodies()) {
-        if (!body || !physics->hasBody(*body)) {
-            continue;
-        }
-
-        const Vector3 velocity = physics->getLinearVelocity(*body);
-        physics->setLinearVelocity(*body, Vector3(0.0f, velocity.y, 0.0f));
-        physics->setAngularVelocity(*body, Vector3());
-    }
+    currentMoveDir = {};
+    m_hasWalkInput = false;
 }
 
 void Humanoid::setHealth(float v) {
@@ -1729,7 +1778,7 @@ void Humanoid::setHealth(float v) {
     if (Health <= 0.0f && wasAlive) {
         Health = 0.0f;
         m_dead = true;
-        setHoverForces(nullptr, false, 0.0f);
+        setHoverForces(nullptr, false, {});
         if (Died) Died->fire(); // connect 済みなら m_mainL 経由で Lua へ通知
     }
 }
@@ -1785,7 +1834,7 @@ void Humanoid::enterRagdoll(Physics* physics, float impactStrength) {
     //     << " threshold=" << ImpactRagdollThreshold
     // );
 
-    setHoverForces(physics, false, 0.0f);
+    setHoverForces(physics, false, {});
 
     if (auto gyro = m_rootGyro.lock()) {
         gyro->setEnabled(false);
@@ -1883,12 +1932,12 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
                      bool leftArmRaised, bool rightArmRaised,
                      float forwardAxis, float rightAxis, float smoothing, float deltaTime) {
     if (m_dead || (m_state != State::Normal && !isClimbing())) {
-        setHoverForces(physics, false, 0.0f);
+        setHoverForces(physics, false, {});
         return;
     }
     auto root = getRootPart();
     if (!root || !physics || !physics->hasBody(*root)) {
-        setHoverForces(physics, false, 0.0f);
+        setHoverForces(physics, false, {});
         return;
     }
 
@@ -1909,7 +1958,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
 
     // --- Seat: 着席はSeat側が足のTouchedで行う。着席中はSteer/Throttle更新のみ行って抜ける ---
     if (m_seated) {
-        setHoverForces(physics, false, 0.0f);
+        setHoverForces(physics, false, {});
         if (auto gyro = m_rootGyro.lock()) {
             gyro->setEnabled(false);
         }
@@ -2009,7 +2058,7 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
             m_state = State::Normal;
         }
         setCharacterGravity(physics, false);
-        setHoverForces(physics, false, 0.0f);
+        setHoverForces(physics, false, {});
     } else {
         if (isClimbing()) {
             m_state = State::Normal;
@@ -2090,14 +2139,8 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         Vector3 climbVel = flatRight * (rightAxis * WalkSpeed);
         climbVel.y = forwardAxis * ClimbSpeed;
         setClimbForces(physics, true, climbVel);
-    } else if (currentMoveDir.length() > 0.01f) {
-        Vector3 velocity = currentMoveDir * WalkSpeed;
-        Vector3 currentVel = physics->getLinearVelocity(*root);
-        physics->setLinearVelocity(*root, Vector3(velocity.x, currentVel.y, velocity.z));
-    } else {
-        Vector3 currentVel = physics->getLinearVelocity(*root);
-        physics->setLinearVelocity(*root, Vector3(0, currentVel.y, 0));
     }
+    m_hasWalkInput = !trussCube && isPressingMove && currentMoveDir.lengthSquared() > 0.0001f;
 
     // --- アニメーションサイクル（0.0 ~ 1.0）の更新 ---
     const float animationStep = 0.025f * frameScale;
@@ -2192,6 +2235,14 @@ void Humanoid::jump(Physics* physics) {
         return;
     }
 
+    ShapeCastHit support;
+    if (!climbingJump && !submerged &&
+        !sampleGround(*physics, *root,
+            HipHeight + CharacterRig::groundHeightSettings().landingCaptureDistance,
+            support)) {
+        return;
+    }
+
     if (climbingJump) {
         m_state = State::Normal;
         m_trussControlSuppressed = true;
@@ -2203,7 +2254,7 @@ void Humanoid::jump(Physics* physics) {
     if (!climbingJump && !submerged) {
         m_groundJumpRearmPending = true;
     }
-    setHoverForces(physics, false, 0.0f);
+    setHoverForces(physics, false, {});
 
     // @RadiantBird 2026/09/13:
     // Character Rig v2 uses independent physical bodies connected by Motor6D.
@@ -2226,8 +2277,7 @@ void Humanoid::jump(Physics* physics) {
                     *part
                 );
 
-            velocity.y =
-                JumpPower;
+            velocity.y = JumpPower + support.pointVelocity.y;
 
             physics->setLinearVelocity(
                 *part,
@@ -2419,6 +2469,9 @@ void Humanoid::stepControl(Physics* physics, float dt, bool syncBodies) {
         move(input.flatForward, input.flatRight, input.isPressingMove, input.targetMoveDir,
              input.ctrlLockEnabled, physics, input.leftArmRaised, input.rightArmRaised,
              input.forwardAxis, input.rightAxis, input.smoothing, dt);
+    } else {
+        currentMoveDir = {};
+        m_hasWalkInput = false;
     }
     updatePhysicsState(physics);
 }
