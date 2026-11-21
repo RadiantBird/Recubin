@@ -39,6 +39,20 @@ local gpu_dir = path.join(depdir, "gpu", "windows", "x64")
 local sdl_include_dir = path.join(gpu_dir, "include")
 local sdl_lib = path.join(gpu_dir, "SDL3.lib")
 local dxc_executable = path.join(gpu_dir, "dxc", "dxc.exe")
+local glslang_dir = path.join(gpu_dir, "glslang")
+
+local function verify_gpu_dependencies(artifacts, readfile, sha256)
+    local manifest = path.join(gpu_dir, "manifest.txt")
+    local metadata = os.isfile(manifest) and readfile(manifest)
+    for _, artifact in ipairs(artifacts) do
+        local file = path.join(gpu_dir, artifact)
+        if not metadata or not os.isfile(file) or
+            not metadata:find("\n" .. artifact .. "=" .. sha256(file) .. "\n", 1, true) then
+            return nil, "GPU dependency missing or changed: " .. file .. ". Run `xmake lua tools/setup-gpu.lua`."
+        end
+    end
+    return manifest
+end
 
 local required_artifacts = {
     "box3d.lib", "Recast.lib", "Detour.lib", "glfw3.lib", "glew32s.lib",
@@ -116,6 +130,8 @@ for _, source in ipairs(all_sources) do
     if not per_target[relative] and
        not relative:find("PhysXPhysicsBackend.cpp", 1, true) and
        vendor ~= "app/src/Core/SDLInputBackend.cpp" and
+       vendor ~= "app/src/Core/SdlGpuWindow.cpp" and
+       vendor ~= "app/src/Core/PostEffectSpirv.cpp" and
        not vendor:startswith("app/src/imgui/") and
        not vendor:startswith("app/src/Network/Vendor/enet/") and
        vendor ~= "app/src/ThirdParty/pugixml.cpp" and
@@ -209,22 +225,18 @@ target("RecubinGpuSmoke")
     set_kind("binary")
     set_default(false)
     set_targetdir("$(builddir)/$(plat)/$(arch)/$(mode)/gpu-smoke")
-    add_files("tools/gpu_smoke.cpp", "app/src/Util/PngWriter.cpp", "app/src/Core/SDLInputBackend.cpp")
+    add_files("tools/gpu_smoke.cpp", "app/src/Util/PngWriter.cpp",
+              "app/src/Core/SDLInputBackend.cpp", "app/src/Core/SdlGpuWindow.cpp")
     add_includedirs("app", "app/include", generated_dir, sdl_include_dir)
     add_links(sdl_lib)
     before_build(function(target)
         if not target:is_plat("windows") or not target:is_arch("x64") then
             raise("The SDL GPU smoke target currently supports Windows x64.")
         end
-        local manifest = path.join(gpu_dir, "manifest.txt")
-        local metadata = os.isfile(manifest) and io.readfile(manifest)
-        for _, artifact in ipairs({"include/SDL3/SDL.h", "SDL3.lib", "SDL3.dll",
-                                  "dxc/dxc.exe", "dxc/dxcompiler.dll", "dxc/dxil.dll"}) do
-            local file = path.join(gpu_dir, artifact)
-            if not metadata or not os.isfile(file) or
-                not metadata:find("\n" .. artifact .. "=" .. hash.sha256(file) .. "\n", 1, true) then
-                raise("GPU dependency missing or changed: " .. file .. ". Run `xmake lua tools/setup-gpu.lua`.")
-            end
+        local manifest, error = verify_gpu_dependencies({"include/SDL3/SDL.h", "SDL3.lib", "SDL3.dll",
+            "dxc/dxc.exe", "dxc/dxcompiler.dll", "dxc/dxil.dll"}, io.readfile, hash.sha256)
+        if not manifest then
+            raise(error)
         end
         local generator = path.join(os.projectdir(), "tools", "generate_gpu_smoke_shaders.lua")
         local source = path.join(os.projectdir(), "tools", "gpu_smoke.hlsl")
@@ -236,6 +248,36 @@ target("RecubinGpuSmoke")
     end)
     after_build(function(target)
         os.cp(path.join(gpu_dir, "SDL3.dll"), path.join(target:targetdir(), "SDL3.dll"))
+    end)
+target_end()
+
+target("RecubinPostEffectSpirvCheck")
+    set_kind("binary")
+    set_default(false)
+    set_targetdir("$(builddir)/$(plat)/$(arch)/$(mode)/gpu-smoke")
+    add_files("tools/PostEffectSpirvCheck.cpp", "app/src/Core/PostEffectGlsl.cpp",
+              "app/src/Core/PostEffectSpirv.cpp", "app/src/Core/SdlGpuWindow.cpp")
+    add_includedirs("app/include", sdl_include_dir, path.join(glslang_dir, "include"))
+    add_links(sdl_lib, path.join(glslang_dir, "lib", "glslang.lib"),
+              path.join(glslang_dir, "lib", "glslang-default-resource-limits.lib"))
+    add_defines("GLSLANG_IS_SHARED_LIBRARY")
+    add_undefines("NDEBUG")
+    before_build(function(target)
+        if not target:is_plat("windows") or not target:is_arch("x64") then
+            raise("The PostEffect SPIR-V check currently supports Windows x64.")
+        end
+        local manifest, error = verify_gpu_dependencies({"include/SDL3/SDL.h", "SDL3.lib", "SDL3.dll",
+            "glslang/include/glslang/Include/glslang_c_interface.h",
+            "glslang/lib/glslang.lib", "glslang/lib/glslang-default-resource-limits.lib",
+            "glslang/bin/glslang.dll", "glslang/bin/glslang-default-resource-limits.dll"}, io.readfile, hash.sha256)
+        if not manifest then
+            raise(error)
+        end
+    end)
+    after_build(function(target)
+        os.cp(path.join(gpu_dir, "SDL3.dll"), target:targetdir())
+        os.cp(path.join(glslang_dir, "bin", "glslang.dll"), target:targetdir())
+        os.cp(path.join(glslang_dir, "bin", "glslang-default-resource-limits.dll"), target:targetdir())
     end)
 target_end()
 

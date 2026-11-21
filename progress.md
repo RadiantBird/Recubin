@@ -806,3 +806,10 @@
 - xmake に launcher を追加し、Studio 配布スクリプトは xmake 出力と出力先の指定に対応。隔離先に ZIP を生成できることを確認。
 - 現行描画経路で Windows/MSVC Release の Studio・Engine・Test・Runtime ビルドに成功。入力・ビューポート・GUI 自動化・GUI 編集の対象回帰が成功。--package-integrity は RecubinTest と同じ出力先の Engine を使うよう変更し、ソースと配布済みゲームの自己検査、画面の完全一致まで確認。
 - 未完了: Studio・Engine・SDK の SDL ウィンドウ／GPU 描画への切り替え、既存シーン描画パスの移植、実行時 GLSL コンパイル・SDL_shadercross・再読み込み、xmake の MSL 生成、移植後のゲーム配布・SDK 実機検証。次は共通の SDL GPU デバイスとフレーム処理を描画検証から抽出して Engine の経路に接続する。
+
+## 2026-11-22 SDL GPU のウィンドウ管理と GLSL コンパイル
+
+- 第1段階を `3dde8e5` にコミット。SDL video の参照、ウィンドウ、GPU デバイス、スワップチェーン、フレーム提出を `SdlGpuWindow` に移し、検証ターゲットから使用。取得済みスワップチェーンのキャンセルを拒否し、半端な初期化はロールバックする。
+- glslang 15.4.0 を検証用セットアップに追加。エンジン内で呼べる `PostEffectSpirv::compile` が既存 GLSL 330 を変換し、SPIR-V と元ファイルの診断を返す。以前の試作は glslang のリンク完了前にソース情報を書き込む呼び出しでクラッシュしたため、診断はコンパイラのログから取得するよう修正。
+- Windows/MSVC Release の検証ターゲットで、Vulkan と D3D12 の初期化失敗後の再試行、リサイズ後のピクセル寸法、ウィンドウとオフスクリーンでの PNG 一致を確認。GLSL の正常入力、元ファイル4行目のエラー、埋め込み NUL を検証。コンパイルした SPIR-V から実際に Vulkan の SDL GPU fragment shader を生成できることも確認。
+- 未完了: Engine・Studio・SDK からの SDL GPU 描画、カスタム効果の描画パスとホットリロード、SDL_shadercross による DXIL/MSL 変換の組み込み、既存描画パスの撤去。次は Engine のウィンドウと最初のシーン描画をこの SDL GPU ホストに接続する。

@@ -1,6 +1,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
+#include <Core/SdlGpuWindow.hpp>
 #include <Core/SDLInputBackend.hpp>
 #include <Util/PngWriter.hpp>
 #include <gpu_smoke_shaders.hpp>
@@ -45,9 +46,11 @@ T require(T result, std::string_view operation) {
 }
 
 struct Smoke {
+    SdlGpuWindow host;
+    // Borrowed handles owned by host. They remain valid until all resources
+    // below have been released and host.shutdown() is called.
     SDL_Window* window = nullptr;
     SDL_GPUDevice* device = nullptr;
-    bool claimed = false;
     SDL_GPUShader* vertexShader = nullptr;
     SDL_GPUShader* fragmentShader = nullptr;
     SDL_GPUGraphicsPipeline* scenePipeline = nullptr;
@@ -78,11 +81,8 @@ struct Smoke {
             if (scenePipeline) SDL_ReleaseGPUGraphicsPipeline(device, scenePipeline);
             if (fragmentShader) SDL_ReleaseGPUShader(device, fragmentShader);
             if (vertexShader) SDL_ReleaseGPUShader(device, vertexShader);
-            if (claimed) SDL_ReleaseWindowFromGPUDevice(device, window);
-            SDL_DestroyGPUDevice(device);
         }
-        if (window) SDL_DestroyWindow(window);
-        SDL_Quit();
+        host.shutdown();
     }
 
     SDL_GPUTexture* texture(Uint32 w, Uint32 h, SDL_GPUTextureFormat format,
@@ -137,18 +137,31 @@ struct Smoke {
     }
 
     void initialize(const std::string& driver, bool offscreen) {
-        require(SDL_Init(SDL_INIT_VIDEO), "initialize SDL video");
-        constexpr auto formats = SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL;
-        const auto* requested = driver == "auto" ? nullptr : driver.c_str();
-        device = require(SDL_CreateGPUDevice(formats, false, requested), "create GPU device (" + driver + ")");
-        const std::string_view actual = SDL_GetGPUDeviceDriver(device);
-        std::cout << "GPU driver: " << actual << '\n';
-        if (!offscreen) {
-            window = require(SDL_CreateWindow("Recubin GPU smoke", WIDTH, HEIGHT, SDL_WINDOW_RESIZABLE),
-                             "create test window");
-            require(SDL_ClaimWindowForGPUDevice(device, window), "claim test window");
-            claimed = true;
+        SdlGpuWindowConfig config;
+        config.title = "Recubin GPU smoke";
+        config.width = WIDTH;
+        config.height = HEIGHT;
+        config.present = !offscreen;
+        config.driver = driver == "vulkan" ? SdlGpuDriver::Vulkan :
+                        driver == "direct3d12" ? SdlGpuDriver::Direct3D12 : SdlGpuDriver::Auto;
+        config.shaderFormats = SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL;
+        std::string error;
+        if (config.present) {
+            auto invalid = config;
+            invalid.driver = SdlGpuDriver::Metal;
+            invalid.shaderFormats = SDL_GPU_SHADERFORMAT_MSL;
+            if (host.initialize(invalid, &error) || host.device() || host.window() ||
+                error.find("create GPU device (driver=metal)") == std::string::npos) {
+                throw std::runtime_error("Unavailable SDL GPU driver did not roll back initialization: " + error);
+            }
         }
+        if (!host.initialize(config, &error)) {
+            throw std::runtime_error(error);
+        }
+        device = host.device();
+        window = host.window();
+        const std::string_view actual = host.driverName();
+        std::cout << "GPU driver: " << actual << '\n';
         if (actual == "vulkan") {
             vertexShader = shader(gpu_smoke_vertex_spirv, SDL_GPU_SHADERSTAGE_VERTEX,
                                   SDL_GPU_SHADERFORMAT_SPIRV, "VSMain");
@@ -253,16 +266,24 @@ struct Smoke {
     }
 
     void save(const std::string& path) {
+        int pixelWidth = 0;
+        int pixelHeight = 0;
+        if (window) {
+            require(SDL_SetWindowSize(window, WIDTH + 64, HEIGHT + 32), "resize SDL window");
+            require(SDL_SyncWindow(window), "wait for SDL window resize");
+            require(SDL_GetWindowSizeInPixels(window, &pixelWidth, &pixelHeight), "query SDL window pixel size");
+        }
         fillUploadBuffer();
-        auto* command = require(SDL_AcquireGPUCommandBuffer(device), "acquire rendering commands");
-        SDL_GPUTexture* swapchain = nullptr;
-        Uint32 swapWidth = 0;
-        Uint32 swapHeight = 0;
-        if (claimed && !SDL_WaitAndAcquireGPUSwapchainTexture(command, window, &swapchain,
-                                                              &swapWidth, &swapHeight)) {
-            const std::string error = SDL_GetError();
-            SDL_CancelGPUCommandBuffer(command);
-            throw std::runtime_error("acquire swapchain texture: " + error);
+        std::string frameError;
+        auto frame = host.beginFrame(&frameError);
+        if (!frame) {
+            throw std::runtime_error(frameError);
+        }
+        auto* command = frame.command;
+        auto* swapchain = frame.swapchain;
+        if (window && (!swapchain || frame.width != static_cast<Uint32>(pixelWidth) ||
+                       frame.height != static_cast<Uint32>(pixelHeight))) {
+            throw std::runtime_error("SDL swapchain does not match the resized window's pixel size");
         }
         recordUpload(command);
         recordScene(command);
@@ -274,11 +295,13 @@ struct Smoke {
         if (swapchain) {
             SDL_GPUBlitInfo blit{};
             blit.source = {finalColor, 0, 0, 0, 0, WIDTH, HEIGHT};
-            blit.destination = {swapchain, 0, 0, 0, 0, swapWidth, swapHeight};
+            blit.destination = {swapchain, 0, 0, 0, 0, frame.width, frame.height};
             blit.load_op = SDL_GPU_LOADOP_DONT_CARE;
             SDL_BlitGPUTexture(command, &blit);
         }
-        fence = require(SDL_SubmitGPUCommandBufferAndAcquireFence(command), "submit and acquire fence");
+        if (!host.submit(frame, &fence, &frameError)) {
+            throw std::runtime_error(frameError);
+        }
         require(SDL_WaitForGPUFences(device, true, &fence, 1), "wait for download");
         std::vector<std::uint8_t> rows(WIDTH * HEIGHT * 4);
         const auto* data = static_cast<const Uint8*>(
@@ -301,9 +324,6 @@ struct Smoke {
             bottom[0] != 0 || bottom[1] != 255 || bottom[2] != 0 ||
             depthPixel[0] < 63 || depthPixel[0] > 65) {
             throw std::runtime_error("PNG pixels differ from the expected red top, green bottom and 0.25 depth");
-        }
-        if (claimed && !swapchain) {
-            throw std::runtime_error("No swapchain image was available to present");
         }
     }
 };
