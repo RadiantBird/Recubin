@@ -2,16 +2,12 @@
 --
 -- This script is intentionally independent from the xmake target graph.  The
 -- build must already have completed before it is invoked:
---   xmake lua tools/package.lua [Debug|Release]
+--   xmake lua tools/package.lua [Debug|Release] [output-root]
 -- The script uses xmake's Lua filesystem/process APIs and PowerShell's ZIP
 -- implementation on Windows.
 
 local root = path.absolute(".")
 local windows = os.host() == "windows"
-local config = (arg and arg[1]) or "Release"
-if config ~= "Debug" and config ~= "Release" then
-    raise("configuration must be Debug or Release")
-end
 
 local function require_file(file, description)
     if not os.isfile(file) then
@@ -123,77 +119,91 @@ local function prepare_package(package_dir)
     mkdir(path.join(package_dir, ".autosave"))
 end
 
-local package_dir = path.join(root, "dist", "RecubinStudio")
-local build_dir = windows and path.join(root, "build", config) or path.join(root, "build-mac")
-local names = windows and {
-    {"Recubin.exe", "Recubin.exe"},
-    {"RecubinEngine.exe", "RecubinEngine.exe"},
-    {"launcher.exe", "launcher.exe"},
-    {"Watcher.exe", "Watcher.exe"},
-} or {
-    {"Recubin", "Recubin"},
-    {"RecubinEngine", "RecubinEngine"},
-}
-for _, pair in ipairs(names) do
-    require_file(path.join(build_dir, pair[1]), pair[1])
-end
-
-if windows then
-    local redist = path.join(root, "redist", "vc_redist.x64.exe")
-    require_file(redist, "Visual C++ Redistributable installer")
-end
-
-local shaders_source = path.join(root, "shaders")
-local fonts_source = path.join(root, "assets", "fonts")
-local logo_source = path.join(root, "assets", "image", "rcbnstudio.png")
-if not os.isdir(shaders_source) or #os.files(path.join(shaders_source, "**")) == 0 then
-    raise("shader directory is missing or empty: " .. shaders_source)
-end
-if not os.isdir(fonts_source) or #os.files(path.join(fonts_source, "**")) == 0 then
-    raise("font directory is missing or empty: " .. fonts_source)
-end
-require_file(logo_source, "Studio logo")
-
--- Validate every required input before deleting or refreshing the destination.
-prepare_package(package_dir)
-for _, pair in ipairs(names) do
-    copy_file(path.join(build_dir, pair[1]), path.join(package_dir, pair[2]))
-end
-if windows then
-    copy_file(path.join(root, "redist", "vc_redist.x64.exe"), path.join(package_dir, "redist", "vc_redist.x64.exe"))
-    copy_tree(path.join(root, "dlls"), path.join(package_dir, "dlls"))
-end
-copy_tree(shaders_source, path.join(package_dir, "shaders"))
-copy_tree(fonts_source, path.join(package_dir, "assets", "fonts"))
-for _, directory in ipairs({"scenes", "image", "models", "scripts"}) do
-    mkdir(path.join(package_dir, "assets", directory))
-end
-copy_file(logo_source, path.join(package_dir, "assets", "image", "rcbnstudio.png"))
-copy_optional(path.join(root, "imgui.ini"), path.join(package_dir, "imgui.ini"))
-copy_optional(path.join(root, "LICENCE"), path.join(package_dir, "LICENSE"))
-copy_optional(path.join(root, "LICENCE_3RD_PARTY"), path.join(package_dir, "LICENCE_3RD_PARTY"))
-
-local readme = windows and [[Recubin.exeがエディター(スタジオ)なので、それをクリックすれば始められます。
-RecubinEngine.exeはランタイム用なので触らずにそのままにしておいてください。
-
-Recubin.exe is the editor (Studio), so you can start by clicking on it.
-Recubin.exeが起動しない場合は、先にredist/vc_redist.x64.exeを実行してからRecubin.exeを起動してください。
-
-RecubinEngine.exe is for the runtime, so please leave it as is and do not touch it.
-If Recubin.exe does not start, run redist/vc_redist.x64.exe before launching Recubin.exe.
-]] or [[Recubin is the editor (Studio). RecubinEngine is the runtime used by the in-editor game Packager. Keep both executables in this folder.
-]]
-io.writefile(path.join(package_dir, "readme.txt"), readme)
-
-if not windows then
-    for _, executable in ipairs({path.join(package_dir, "Recubin"), path.join(package_dir, "RecubinEngine")}) do
-        os.execv("codesign", {"--force", "--sign", "-", executable})
-        os.execv("codesign", {"--verify", "--strict", executable})
+function main(config, output_root)
+    config = config or "Release"
+    output_root = output_root and path.absolute(output_root) or path.join(root, "dist")
+    if config ~= "Debug" and config ~= "Release" then
+        raise("configuration must be Debug or Release")
     end
-end
 
-local suffix = windows and "" or "-macos"
-local archive = path.join(root, "dist", "RecubinStudio" .. suffix .. "-" .. os.date("%Y%m%d") .. ".zip")
-package_files(package_dir, archive)
-print("[SUCCESS] Packaged studio at " .. package_dir)
-print("[SUCCESS] Created archive at " .. archive)
+    local package_dir = path.join(output_root, "RecubinStudio")
+    local build_config = windows and config:lower() or config
+    local build_dir = windows and path.join(root, "build", "windows", "x64", build_config)
+        or path.join(root, "build-mac")
+    local names = windows and {
+        {"Recubin.exe", "Recubin.exe"},
+        {"RecubinEngine.exe", "RecubinEngine.exe"},
+        {"launcher.exe", "launcher.exe"},
+        {"Watcher.exe", "Watcher.exe"},
+    } or {
+        {"Recubin", "Recubin"},
+        {"RecubinEngine", "RecubinEngine"},
+    }
+    for _, pair in ipairs(names) do
+        require_file(path.join(build_dir, pair[1]), pair[1])
+    end
+
+    if windows then
+        local redist = path.join(root, "redist", "vc_redist.x64.exe")
+        require_file(redist, "Visual C++ Redistributable installer")
+        require_file(path.join(build_dir, "dlls", "luar_compiler.dll"), "Built Luar compiler DLL")
+    end
+
+    local shaders_source = path.join(root, "shaders")
+    local fonts_source = path.join(root, "assets", "fonts")
+    local logo_source = path.join(root, "assets", "image", "rcbnstudio.png")
+    if not os.isdir(shaders_source) or #os.files(path.join(shaders_source, "**")) == 0 then
+        raise("shader directory is missing or empty: " .. shaders_source)
+    end
+    if not os.isdir(fonts_source) or #os.files(path.join(fonts_source, "**")) == 0 then
+        raise("font directory is missing or empty: " .. fonts_source)
+    end
+    require_file(logo_source, "Studio logo")
+
+    -- Validate every required input before deleting or refreshing the destination.
+    prepare_package(package_dir)
+    for _, pair in ipairs(names) do
+        copy_file(path.join(build_dir, pair[1]), path.join(package_dir, pair[2]))
+    end
+    if windows then
+        copy_file(path.join(root, "redist", "vc_redist.x64.exe"), path.join(package_dir, "redist", "vc_redist.x64.exe"))
+        local built_dll_dir = path.join(build_dir, "dlls")
+        if not copy_tree(built_dll_dir, path.join(package_dir, "dlls")) then
+            raise("built DLL directory not found: " .. built_dll_dir)
+        end
+    end
+    copy_tree(shaders_source, path.join(package_dir, "shaders"))
+    copy_tree(fonts_source, path.join(package_dir, "assets", "fonts"))
+    for _, directory in ipairs({"scenes", "image", "models", "scripts"}) do
+        mkdir(path.join(package_dir, "assets", directory))
+    end
+    copy_file(logo_source, path.join(package_dir, "assets", "image", "rcbnstudio.png"))
+    copy_optional(path.join(root, "imgui.ini"), path.join(package_dir, "imgui.ini"))
+    copy_optional(path.join(root, "LICENCE"), path.join(package_dir, "LICENSE"))
+    copy_optional(path.join(root, "LICENCE_3RD_PARTY"), path.join(package_dir, "LICENCE_3RD_PARTY"))
+
+    local readme = windows and [[Recubin.exeがエディター(スタジオ)なので、それをクリックすれば始められます。
+    RecubinEngine.exeはランタイム用なので触らずにそのままにしておいてください。
+
+    Recubin.exe is the editor (Studio), so you can start by clicking on it.
+    Recubin.exeが起動しない場合は、先にredist/vc_redist.x64.exeを実行してからRecubin.exeを起動してください。
+
+    RecubinEngine.exe is for the runtime, so please leave it as is and do not touch it.
+    If Recubin.exe does not start, run redist/vc_redist.x64.exe before launching Recubin.exe.
+    ]] or [[Recubin is the editor (Studio). RecubinEngine is the runtime used by the in-editor game Packager. Keep both executables in this folder.
+    ]]
+    io.writefile(path.join(package_dir, "readme.txt"), readme)
+
+    if not windows then
+        for _, executable in ipairs({path.join(package_dir, "Recubin"), path.join(package_dir, "RecubinEngine")}) do
+            os.execv("codesign", {"--force", "--sign", "-", executable})
+            os.execv("codesign", {"--verify", "--strict", executable})
+        end
+    end
+
+    local suffix = windows and "" or "-macos"
+    local archive = path.join(output_root, "RecubinStudio" .. suffix .. "-" .. os.date("%Y%m%d") .. ".zip")
+    package_files(package_dir, archive)
+    print("[SUCCESS] Packaged studio at " .. package_dir)
+    print("[SUCCESS] Created archive at " .. archive)
+end

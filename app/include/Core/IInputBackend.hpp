@@ -36,4 +36,16 @@ public:
 
     // 前回の呼び出し以降に蓄積されたスクロール量を返し、内部カウンタを 0 にリセットする
     virtual double consumeScrollDelta() = 0;
+
+    // Returns accumulated relative motion while the backend owns mouse capture.
+    // Backends that only expose absolute cursor positions keep the default.
+    virtual bool consumeRelativeMouseDelta(double& x, double& y) {
+        x = 0.0;
+        y = 0.0;
+        return false;
+    }
+
+    // True when this backend owns a relative-mouse stream while captured.
+    // This distinguishes a valid zero-delta frame from an absolute-only backend.
+    virtual bool usesRelativeMouseInput() const { return false; }
 };

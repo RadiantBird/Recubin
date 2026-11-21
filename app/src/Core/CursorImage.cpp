@@ -55,13 +55,6 @@ std::vector<std::uint8_t> resizeRgba(const std::uint8_t* source, int sourceWidth
 }
 }
 
-bool CursorImageData::isValid() const {
-    if (width <= 0 || height <= 0 || revision == 0) return false;
-    const std::size_t pixelCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
-    return pixelCount <= rgba.max_size() / 4 && rgba.size() == pixelCount * 4 &&
-           hotspotX >= 0 && hotspotX < width && hotspotY >= 0 && hotspotY < height;
-}
-
 struct CursorImageProcessor::Impl {
     struct CacheKey {
         std::string path;

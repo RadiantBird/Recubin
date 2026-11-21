@@ -35,6 +35,10 @@ local function prepared_dependency_dir()
 end
 
 local prepared_dir = prepared_dependency_dir()
+local gpu_dir = path.join(depdir, "gpu", "windows", "x64")
+local sdl_include_dir = path.join(gpu_dir, "include")
+local sdl_lib = path.join(gpu_dir, "SDL3.lib")
+local dxc_executable = path.join(gpu_dir, "dxc", "dxc.exe")
 
 local required_artifacts = {
     "box3d.lib", "Recast.lib", "Detour.lib", "glfw3.lib", "glew32s.lib",
@@ -111,6 +115,7 @@ for _, source in ipairs(all_sources) do
     local vendor = relative:gsub("\\", "/")
     if not per_target[relative] and
        not relative:find("PhysXPhysicsBackend.cpp", 1, true) and
+       vendor ~= "app/src/Core/SDLInputBackend.cpp" and
        not vendor:startswith("app/src/imgui/") and
        not vendor:startswith("app/src/Network/Vendor/enet/") and
        vendor ~= "app/src/ThirdParty/pugixml.cpp" and
@@ -200,6 +205,48 @@ local function configure_binary(editor_disabled)
     end)
 end
 
+target("RecubinGpuSmoke")
+    set_kind("binary")
+    set_default(false)
+    set_targetdir("$(builddir)/$(plat)/$(arch)/$(mode)/gpu-smoke")
+    add_files("tools/gpu_smoke.cpp", "app/src/Util/PngWriter.cpp", "app/src/Core/SDLInputBackend.cpp")
+    add_includedirs("app", "app/include", generated_dir, sdl_include_dir)
+    add_links(sdl_lib)
+    before_build(function(target)
+        if not target:is_plat("windows") or not target:is_arch("x64") then
+            raise("The SDL GPU smoke target currently supports Windows x64.")
+        end
+        local manifest = path.join(gpu_dir, "manifest.txt")
+        local metadata = os.isfile(manifest) and io.readfile(manifest)
+        for _, artifact in ipairs({"include/SDL3/SDL.h", "SDL3.lib", "SDL3.dll",
+                                  "dxc/dxc.exe", "dxc/dxcompiler.dll", "dxc/dxil.dll"}) do
+            local file = path.join(gpu_dir, artifact)
+            if not metadata or not os.isfile(file) or
+                not metadata:find("\n" .. artifact .. "=" .. hash.sha256(file) .. "\n", 1, true) then
+                raise("GPU dependency missing or changed: " .. file .. ". Run `xmake lua tools/setup-gpu.lua`.")
+            end
+        end
+        local generator = path.join(os.projectdir(), "tools", "generate_gpu_smoke_shaders.lua")
+        local source = path.join(os.projectdir(), "tools", "gpu_smoke.hlsl")
+        local output = path.join(generated_dir, "gpu_smoke_shaders.hpp")
+        local depend = import("core.project.depend")
+        depend.on_changed(function()
+            os.vrunv(os.programfile(), {"lua", generator, dxc_executable, source, output})
+        end, {files = {generator, manifest, source}, dependfile = output .. ".d", changed = not os.isfile(output)})
+    end)
+    after_build(function(target)
+        os.cp(path.join(gpu_dir, "SDL3.dll"), path.join(target:targetdir(), "SDL3.dll"))
+    end)
+target_end()
+
+target("RecubinPostEffectGlslCheck")
+    set_kind("binary")
+    set_default(false)
+    add_files("tools/PostEffectGlslCheck.cpp", "app/src/Core/PostEffectGlsl.cpp")
+    add_includedirs("app/include")
+    add_undefines("NDEBUG")
+target_end()
+
 target("RecubinCore")
     set_kind("object")
     set_policy("build.fence", true)
@@ -216,7 +263,7 @@ target("Recubin")
               "app/src/Core/User.cpp", "app/src/Core/Renderer.cpp")
     configure_binary(false)
     if is_plat("windows") then
-        add_deps("Watcher", {inherit = false})
+        add_deps("Watcher", "launcher", {inherit = false})
     end
 target_end()
 
@@ -239,6 +286,13 @@ target("RecubinRuntime")
 target_end()
 
 if is_plat("windows") then
+    target("launcher")
+        set_kind("binary")
+        add_files("app/launcher/main.cpp")
+        add_syslinks("shell32", "ole32", "user32", "uuid")
+        add_ldflags("/SUBSYSTEM:WINDOWS")
+    target_end()
+
     target("Watcher")
         set_kind("binary")
         add_files("app/src/watcher.cpp")

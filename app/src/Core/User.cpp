@@ -584,7 +584,9 @@ bool User::processCameraRotation(bool viewportFocused, float deltaTime, bool bui
             if (m_mouseLockEnabled && m_gameViewportCursorCenterValid) {
                 lastMouseX = m_gameViewportCursorCenterX;
                 lastMouseY = m_gameViewportCursorCenterY;
-                m_input->setCursorPos(lastMouseX, lastMouseY);
+                if (!m_input->usesRelativeMouseInput()) {
+                    m_input->setCursorPos(lastMouseX, lastMouseY);
+                }
             } else {
                 m_input->getCursorPos(lastMouseX, lastMouseY);
             }
@@ -592,10 +594,15 @@ bool User::processCameraRotation(bool viewportFocused, float deltaTime, bool bui
             // ロック中(DISABLED+raw)なので画面端クランプ・加速が無く滑らかな差分が得られる。
             // アンカーからの差分で回転したのち、仮想カーソルをアンカーへ戻す。
             // これにより ImGui へは固定位置を見せ、他エディター要素の誤反応を防ぐ。
-            double currentMouseX = 0.0, currentMouseY = 0.0;
-            m_input->getCursorPos(currentMouseX, currentMouseY);
-            const double deltaX = currentMouseX - lastMouseX;
-            const double deltaY = currentMouseY - lastMouseY;
+            double deltaX = 0.0, deltaY = 0.0;
+            if (m_input->usesRelativeMouseInput()) {
+                m_input->consumeRelativeMouseDelta(deltaX, deltaY);
+            } else {
+                double currentMouseX = 0.0, currentMouseY = 0.0;
+                m_input->getCursorPos(currentMouseX, currentMouseY);
+                deltaX = currentMouseX - lastMouseX;
+                deltaY = currentMouseY - lastMouseY;
+            }
             if (deltaX != 0.0 || deltaY != 0.0) {
                 cam.Orientation =
                     Quaternion::fromAxisAngle(Vector3(0, 1, 0), static_cast<float>(-deltaX * mouseRotationSpeed)) *
@@ -605,7 +612,9 @@ bool User::processCameraRotation(bool viewportFocused, float deltaTime, bool bui
                     Quaternion::fromAxisAngle(Vector3(1, 0, 0), static_cast<float>(-deltaY * mouseRotationSpeed));
                 rotated = true;
             }
-            m_input->setCursorPos(lastMouseX, lastMouseY);
+            if (!m_input->usesRelativeMouseInput()) {
+                m_input->setCursorPos(lastMouseX, lastMouseY);
+            }
         }
     } else {
         // ドラッグ終了(ボタン解除 or フォーカス喪失): カーソルロックを解放する
@@ -636,11 +645,15 @@ void User::beginExternalCameraDrag() {
 void User::sampleExternalCameraDrag(double& dx, double& dy) {
     dx = 0.0; dy = 0.0;
     if (!m_externalDragActive) return;
-    double curX = 0.0, curY = 0.0;
-    m_input->getCursorPos(curX, curY);
-    dx = curX - lastMouseX;
-    dy = curY - lastMouseY;
-    m_input->setCursorPos(lastMouseX, lastMouseY);
+    if (m_input->usesRelativeMouseInput()) {
+        m_input->consumeRelativeMouseDelta(dx, dy);
+    } else {
+        double curX = 0.0, curY = 0.0;
+        m_input->getCursorPos(curX, curY);
+        dx = curX - lastMouseX;
+        dy = curY - lastMouseY;
+        m_input->setCursorPos(lastMouseX, lastMouseY);
+    }
 }
 void User::endExternalCameraDrag() {
     if (!m_externalDragActive) return;

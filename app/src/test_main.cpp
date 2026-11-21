@@ -12449,7 +12449,7 @@ static int runSystemExtensionRegression() {
 //  ほぼ全クラスと各種アセットを入れたシーンを生成してパッケージし、パッケージ前（元シーン）と
 //  パッケージ後の両方で RecubinEngine --self-check を実行して、インスタンスツリー・アセットの
 //  解決・ログ・画面を比較する。非表示ウィンドウを開くため、専用テスト一覧には入れない手動モード。
-//  リポジトリのルートで実行し、build/Release の RecubinEngine.exe を使う。
+//  リポジトリのルートで実行し、RecubinTest と同じ出力先の RecubinEngine を使う。
 // ===================================================
 namespace PackageIntegrity {
 
@@ -12784,9 +12784,9 @@ static int runPackageIntegrity(int argc, char* argv[]) {
     const fs::path sourceOut = work / "source";
     const fs::path packagedOut = work / "packaged";
 #ifdef _WIN32
-    const fs::path engine = repo / "build/Release/RecubinEngine.exe";
+    const fs::path engine = fs::absolute(argv[0]).parent_path() / "RecubinEngine.exe";
 #else
-    const fs::path engine = repo / "build-mac/RecubinEngine";
+    const fs::path engine = fs::absolute(argv[0]).parent_path() / "RecubinEngine";
 #endif
     std::error_code error;
     fs::remove_all(work, error);

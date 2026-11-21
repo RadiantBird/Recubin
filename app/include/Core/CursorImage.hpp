@@ -14,7 +14,15 @@ struct CursorImageData {
     int hotspotY = 0;
     std::uint64_t revision = 0;
 
-    bool isValid() const;
+    bool isValid() const {
+        if (width <= 0 || height <= 0 || revision == 0) {
+            return false;
+        }
+        const auto columns = static_cast<std::size_t>(width);
+        const auto rows = static_cast<std::size_t>(height);
+        return columns <= rgba.max_size() / 4 / rows && rgba.size() == columns * rows * 4 &&
+               hotspotX >= 0 && hotspotX < width && hotspotY >= 0 && hotspotY < height;
+    }
 };
 
 class CursorImageProcessor {

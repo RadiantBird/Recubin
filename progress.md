@@ -797,3 +797,12 @@
 - xmake 出力先の初回起動に出た autosave エラーを修正。未作成の .autosave を復元候補なしとして処理。空の出力先からの Studio 非表示起動・状態取得・終了コード0と autosave 回帰を確認。YAML、Box3D、スクリプト拡張の対象回帰も成功。
 - Release の再セットアップで全依存のキャッシュ再利用を確認。検証用 clone では上流取得、CMake 依存と Luar の構築まで確認。旧版の検証が sokol-shdc の MSBuild で止まっていたため、再構築を抑える方針に従い、その検証プロセスだけ停止。
 - 未完了: 最終版のクリーン clone 完走、Debug / macOS の検証、SDK・配布・旧構成の廃止。Debug の初回は Box3D の出力名が box3dd.lib で中断。setup.lua の出力名を修正済み、再構築は未確認。
+
+## 2026-11-22 SDL GPU 移植の第1段階
+
+- master から codex/sdl-gpu を作成。tools/setup-gpu.lua で Windows x64 の SDL3 3.4.0 と DXC 1.8.2505.1 を公式アーカイブの SHA256 で固定。Windows SDK 同梱 DXC は SPIR-V を生成できない。準備済みの本体依存を再構築せずに検証できるよう GPU 用の設定は別タスクに分離。
+- RecubinGpuSmoke で HLSL を SPIR-V と DXIL に生成し、テクスチャ付きメッシュ、深度テスト、後続パスでの深度サンプリング、フェンスを経た PNG 保存を実装。Vulkan と D3D12 のウィンドウ提示とオフスクリーンの両モードを検証。4 枚の PNG は同一 SHA256。ホイールイベントのウィンドウ振り分けと消費も確認。
+- SDL3 入力バックエンドと User の相対入力経路を追加。PostEffectGlsl は GLSL 330 の公開宣言を Vulkan GLSL に変換し元の行番号を保存。Windows/MSVC の単体チェックと Khronos glslang による変換後 SPIR-V コンパイルが成功。SPIRV-Cross CLI で検証用の MSL と HLSL を生成し、DXC で後者を DXIL に変換できることを確認。入力バックエンドは描画検証用ウィンドウに接続済み。
+- xmake に launcher を追加し、Studio 配布スクリプトは xmake 出力と出力先の指定に対応。隔離先に ZIP を生成できることを確認。
+- 現行描画経路で Windows/MSVC Release の Studio・Engine・Test・Runtime ビルドに成功。入力・ビューポート・GUI 自動化・GUI 編集の対象回帰が成功。--package-integrity は RecubinTest と同じ出力先の Engine を使うよう変更し、ソースと配布済みゲームの自己検査、画面の完全一致まで確認。
+- 未完了: Studio・Engine・SDK の SDL ウィンドウ／GPU 描画への切り替え、既存シーン描画パスの移植、実行時 GLSL コンパイル・SDL_shadercross・再読み込み、xmake の MSL 生成、移植後のゲーム配布・SDK 実機検証。次は共通の SDL GPU デバイスとフレーム処理を描画検証から抽出して Engine の経路に接続する。
