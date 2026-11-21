@@ -753,3 +753,47 @@
 - Luau/Luar に `BaseCube:SetKinematicTarget(worldCFrame, durationSeconds?)` を追加。固定ステップで Anchored body を移動し、到達後に停止する。単独床と Weld member は native body の姿勢を読み戻す。
 - Windows/MSVC Release の Studio、Engine、Test、移動床、ホバー、Free 停止、固定ステップ操作、入力平滑化、ラグドール、アバター通信、着席通信の回帰が成功。移動床回帰で Luau 呼び出し・複数ステップの目標到達と停止を確認。Luar の型チェックと `git diff --check` も成功。
 - 次の確認は Studio の Play で回転台の外周や昇降床から歩いて降り、入力の感触を確認すること。GCC は実行環境にないため未実行。ランチャーは `cl.exe` が PATH にないため build.py がスキップした。
+
+## 2026-11-22 xmake 移行作業途中
+
+- ユーザーは Recubin 本体の xmake 化、build.py 廃止、external/modded と lib の分離、setup.lua による取得・構築を指示。外部ビルドには CMake/Cargo を許可。SDK は維持し外部向け CMake package は廃止。sokol-shdc はソースビルド。
+- tools/package.lua に Studio パッケージングの移植を着手。xmake が環境にないため実行未検証であり、本体ビルドへの接続は未実装。既存 build.py は維持中。
+- Luar サブモジュールに多数の未コミット変更が存在。ユーザーは Luar 側へのコミットを許可したが、まだコミット・移動していない。内容を保護し、クリーン clone 用のリモート取得可能性も確認する。
+- xmake と deno は PATH にない。通常サンドボックスの GitHub 接続と Box3D の Git メタデータ読み取りは失敗したが、昇格した読み取りでは成功。sokol-tools 上流のビルドには Deno と再帰サブモジュールが必要。
+- 未完了: 依存の版と独自差分の確定、Submodule 集約、setup.lua、キャッシュ、xmake 本体・SDK・補助処理、文書、既存構成廃止、クリーン clone からの実行検証。次は xmake の実行環境確保と依存版・改変の調査を進める。
+
+## 2026-11-22 xmake 移行再開
+
+- Windows PowerShell 5.1 で保存済み PATH を反映し xmake 3.1.2 と Lua 5.4.6 を確認。xmake.lua の暫定ターゲット定義を追加、xmake configure は成功。依存取得・構築・SDK 統合・実行は未実装。暫定定義は依存 include や shader 生成など要レビュー。
+- tools/package.lua の構文を確認し ZIP のアセンブリ指定を修正。検証中に dist/RecubinStudio が想定外に更新され、dist/.RecubinStudio-archive が残った。autosave ディレクトリは存在し空。パッケージ処理は未検証。
+- ENet ソースは app/src/Network/Vendor/enet に存在。GLFW ヘッダーは 3.3.8。Luar の未コミット変更を保護し、ユーザーは Luar 側のコミットを許可済み。
+- 次: 依存の固定版と改変差分を確定し setup.lua と cache を構築、xmake 定義の不備を修正、クリーン clone でビルド・SDK・パッケージを検証。
+
+## 2026-11-22 依存移行作業
+
+- .gitignore で external を追跡対象、lib を除外。独自改変 ImGuizmo を external/modded に複製し xmake 参照を変更。旧 CMake が使うコピーは維持。
+- xmake に Box3D include、MSVC /MD、Luau 定義を追加。configure 成功、コンパイル未実行。
+- setup.lua は未完成の試作。取得した external 配下は独立 clone であり Git submodule 化されていない。Luar の未コミット変更も含まない。構築・キャッシュは未実装のため冒頭でエラー終了する。lib/manifest.txt は不完全な試作であり再利用禁止。
+- 次: 固定版と submodule を整備し Luar の変更を保持、依存ソースビルドとキャッシュ検証を実装してから基本ビルドを実行する。
+
+## 2026-11-22 依存ビルド継続
+
+- setup.lua に Box3D と Recast/Detour の CMake ソースビルドを追加し Windows x64 Release の 3 ライブラリ生成を確認。GLFW、GLEW、Luau、yaml-cpp、キャッシュ判定は未実装のため最後に失敗を報告する。現在の manifest は完全なキャッシュ判定に使用不可。
+- xmake.lua の shader compiler 不在・実行失敗を明示。xmake configure は成功、本体ビルド未実行。ユーザーが編集した .gitignore は変更していない。
+- 次: 外部依存の固定・submodule 化、Luar 未コミット変更の保護、残る依存の構築と正しいキャッシュ判定、xmake との接続、clean clone 検証。
+
+## 2026-11-22 Submodule 固定と Release セットアップ
+
+- external/ に上流依存を Git Submodule として登録。Recast は同梱のビルド対象と一致する 9f4ce64、GLFW は 3.3.8、GLEW は同版公式配布の生成ソースと一致する glew-cmake 2.3.1。独自 ImGui GLFW バックエンドと ImGuizmo は external/modded/ に保全。
+- Luar の既存変更をローカル cd1b894 に保全。親側の external/modded/Luar/recubin.patch を固定上流版に適用できることを確認。外部リモートへの push は未実施。
+- Windows x64 / MSVC Release の setup.lua が完走。Box3D の /MD 上書き、パッチ適用後の Luar DLL、Deno 2.6.9 と fibs 1.1.5 による sokol-shdc のソースビルドを確認。サンドボックスの Git/MSYS がアクセス拒否になる場合は昇格が必要。
+- xmake は生成済み依存だけを使い、キャッシュ欠落時に停止。新しい sokol-shdc で生成したヘッダーに対して RecubinCore のコンパイルを確認。最初の Engine リンクで不足した ole32 を追加。
+- 未完了: 本体・Studio・Test のリンクと起動、隔離クリーン clone、Debug と macOS の確認、その後の SDK、配布、旧経路の削除。検証用スナップショットは temp_build/migration-clean-e182323b。
+
+### Release 本体ビルドと起動確認
+
+- Recubin / RecubinEngine / RecubinTest / Watcher を Windows x64 Release の xmake でビルド。既存の SDK 定数の誤記と ole32、user32 のリンク、yaml-cpp の静的定義を修正。
+- Luar シーンで欠落していた table.deepcopy は同梱 Luau の独自差分。上流 0.731 に適用するパッチを保存し、Luau だけを再構築。他のキャッシュは成果物のハッシュを照合して再利用。修正後の Luar シーンは5項目すべて成功し、TestGame も描画・自己検査成功。
+- xmake 出力先の初回起動に出た autosave エラーを修正。未作成の .autosave を復元候補なしとして処理。空の出力先からの Studio 非表示起動・状態取得・終了コード0と autosave 回帰を確認。YAML、Box3D、スクリプト拡張の対象回帰も成功。
+- Release の再セットアップで全依存のキャッシュ再利用を確認。検証用 clone では上流取得、CMake 依存と Luar の構築まで確認。旧版の検証が sokol-shdc の MSBuild で止まっていたため、再構築を抑える方針に従い、その検証プロセスだけ停止。
+- 未完了: 最終版のクリーン clone 完走、Debug / macOS の検証、SDK・配布・旧構成の廃止。Debug の初回は Box3D の出力名が box3dd.lib で中断。setup.lua の出力名を修正済み、再構築は未確認。

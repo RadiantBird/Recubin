@@ -7,5 +7,10 @@
 			"path": "Luar Programming Language"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"luau-lsp.analyzeLuaFiles": false,
+		"files.associations": {
+			"*.lua": "lua"
+		}
+	}
 }

@@ -1,0 +1,206 @@
+diff --git a/Analysis/src/BuiltinDefinitions.cpp b/Analysis/src/BuiltinDefinitions.cpp
+index a6b7d2e..409c553 100644
+--- a/Analysis/src/BuiltinDefinitions.cpp
++++ b/Analysis/src/BuiltinDefinitions.cpp
+@@ -502,12 +502,14 @@ void registerBuiltinGlobals(Frontend& frontend, GlobalTypes& globals, bool typeC
+             TypeId idTy = arena.addType(FunctionType{{genericTy}, {}, thePack, thePack});
+ 
+             ttv->props["clone"] = makeProperty(idTy, "@luau/global/table.clone");
++            ttv->props["deepcopy"] = makeProperty(idTy, "@luau/global/table.deepcopy");
+         }
+         else
+         {
+             // tabTy is a generic table type which we can't express via declaration syntax yet
+             ttv->props["freeze"] = makeProperty(makeFunction(arena, std::nullopt, {tabTy}, {tabTy}), "@luau/global/table.freeze");
+             ttv->props["clone"] = makeProperty(makeFunction(arena, std::nullopt, {tabTy}, {tabTy}), "@luau/global/table.clone");
++            ttv->props["deepcopy"] = makeProperty(makeFunction(arena, std::nullopt, {tabTy}, {tabTy}), "@luau/global/table.deepcopy");
+         }
+ 
+         ttv->props["getn"].deprecated = true;
+@@ -517,6 +519,7 @@ void registerBuiltinGlobals(Frontend& frontend, GlobalTypes& globals, bool typeC
+ 
+         attachMagicFunction(*ttv->props["pack"].readTy, std::make_shared<MagicPack>());
+         attachMagicFunction(*ttv->props["clone"].readTy, std::make_shared<MagicClone>());
++        attachMagicFunction(*ttv->props["deepcopy"].readTy, std::make_shared<MagicClone>());
+         attachMagicFunction(*ttv->props["freeze"].readTy, std::make_shared<MagicFreeze>());
+     }
+ 
+diff --git a/VM/src/ltablib.cpp b/VM/src/ltablib.cpp
+index 033b5bf..6510ed4 100644
+--- a/VM/src/ltablib.cpp
++++ b/VM/src/ltablib.cpp
+@@ -595,6 +595,64 @@ static int tclone(lua_State* L)
+     return 1;
+ }
+ 
++static void deepcopyvalue(lua_State* L, int visited);
++
++// Replaces the table at the top of the stack with its deep copy.
++static void deepcopytable(lua_State* L, int visited)
++{
++    luaL_checkstack(L, 4, "table.deepcopy");
++    int source = lua_gettop(L);
++
++    // Register each copy before walking its contents so cycles and shared
++    // references resolve to the same destination table.
++    lua_pushvalue(L, source);
++    lua_rawget(L, visited);
++    if (!lua_isnil(L, -1))
++    {
++        lua_remove(L, source);
++        return;
++    }
++    lua_pop(L, 1);
++
++    lua_newtable(L);
++    int copy = lua_gettop(L);
++    lua_pushvalue(L, source);
++    lua_pushvalue(L, copy);
++    lua_rawset(L, visited);
++
++    lua_pushnil(L);
++    while (lua_next(L, source) != 0)
++    {
++        lua_pushvalue(L, -2);
++        deepcopyvalue(L, visited);
++        lua_pushvalue(L, -2);
++        deepcopyvalue(L, visited);
++        lua_rawset(L, copy);
++        lua_pop(L, 1);
++    }
++
++    // Metatables and the frozen state are intentionally not copied.
++    lua_replace(L, source);
++}
++
++static void deepcopyvalue(lua_State* L, int visited)
++{
++    if (lua_type(L, -1) == LUA_TTABLE)
++        deepcopytable(L, visited);
++}
++
++static int tdeepcopy(lua_State* L)
++{
++    luaL_checktype(L, 1, LUA_TTABLE);
++
++    lua_newtable(L);
++    int visited = lua_gettop(L);
++    lua_pushvalue(L, 1);
++    deepcopyvalue(L, visited);
++
++    return 1;
++}
++
+ static const luaL_Reg tab_funcs[] = {
+     {"concat", tconcat},
+     {"foreach", foreach},
+@@ -613,6 +671,7 @@ static const luaL_Reg tab_funcs[] = {
+     {"freeze", tfreeze},
+     {"isfrozen", tisfrozen},
+     {"clone", tclone},
++    {"deepcopy", tdeepcopy},
+     {NULL, NULL},
+ };
+ 
+diff --git a/tests/Conformance.test.cpp b/tests/Conformance.test.cpp
+index 2e0dabd..c5451f9 100644
+--- a/tests/Conformance.test.cpp
++++ b/tests/Conformance.test.cpp
+@@ -1354,6 +1354,11 @@ TEST_CASE("Locals")
+     runConformance("locals.luau");
+ }
+ 
++TEST_CASE("Const")
++{
++    runConformance("const.luau");
++}
++
+ TEST_CASE("Literals")
+ {
+     runConformance("literals.luau");
+diff --git a/tests/conformance/tables.luau b/tests/conformance/tables.luau
+index 306458f..2670caa 100644
+--- a/tests/conformance/tables.luau
++++ b/tests/conformance/tables.luau
+@@ -973,4 +973,81 @@ do
+   assert(t.a == 99)
+ end
+ 
++-- table.deepcopy recursively copies tables while preserving graph topology.
++do
++  local nested = {value = 42}
++  local source = {1, name = "Luar", left = nested, right = nested}
++  local copy = table.deepcopy(source)
++
++  assert(copy ~= source)
++  assert(copy[1] == 1 and copy.name == "Luar")
++  assert(copy.left ~= nested and copy.left == copy.right)
++
++  copy.left.value = 99
++  assert(nested.value == 42)
++end
++
++-- Table keys are copied and shared references still point at one copied table.
++do
++  local key = {kind = "key"}
++  local source = {[key] = key}
++  local copy = table.deepcopy(source)
++  local copiedKey, copiedValue = next(copy)
++
++  assert(copiedKey ~= key)
++  assert(copiedKey.kind == "key")
++  assert(copiedValue == copiedKey)
++end
++
++-- Self-cycles and mutual cycles resolve entirely inside the copied graph.
++do
++  local first = {}
++  local second = {}
++  first.self = first
++  first.other = second
++  second.other = first
++
++  local copy = table.deepcopy(first)
++  assert(copy ~= first)
++  assert(copy.self == copy)
++  assert(copy.other ~= second)
++  assert(copy.other.other == copy)
++end
++
++-- Metatables and frozen state are not copied.
++do
++  local metatable = {__index = {fallback = true}}
++  local source = table.freeze(setmetatable({value = 1}, metatable))
++  local copy = table.deepcopy(source)
++
++  assert(getmetatable(copy) == nil)
++  assert(not table.isfrozen(copy))
++  copy.value = 2
++  assert(source.value == 1)
++end
++
++-- Values that are not tables retain their identity.
++do
++  local fn = function() return 1 end
++  local userdata = newproxy(true)
++  local thread = coroutine.create(function() end)
++  local lightuserdata = makelud(123)
++  local copy = table.deepcopy({
++    fn = fn,
++    userdata = userdata,
++    thread = thread,
++    lightuserdata = lightuserdata,
++  })
++
++  assert(copy.fn == fn)
++  assert(copy.userdata == userdata)
++  assert(copy.thread == thread)
++  assert(copy.lightuserdata == lightuserdata)
++end
++
++do
++  assert(not pcall(table.deepcopy))
++  assert(not pcall(table.deepcopy, 42))
++end
++
+ return "OK"

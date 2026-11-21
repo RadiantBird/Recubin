@@ -1,0 +1,14 @@
+{
+    depdir = {
+        __sourceinfo_default = {
+            lib = {
+                line = 11,
+                file = [[.\xmake.lua]]
+            }
+        },
+        __sourceinfo_showmenu = { },
+        __scriptdir = [[C:\Users\Ryarta\Documents\Recubin]],
+        default = "lib",
+        showmenu = true
+    }
+}

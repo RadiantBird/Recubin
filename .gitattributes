@@ -1,2 +1,4 @@
 * text=auto eol=lf
 *.luar linguist-language=Luau
+# Unified patches use a leading space for blank context lines.
+external/modded/**/*.patch whitespace=-blank-at-eol,-blank-at-eof

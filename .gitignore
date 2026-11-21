@@ -1,4 +1,4 @@
-external
+/lib/
 build/
 build-mac/
 /build-network-probe/
@@ -70,3 +70,6 @@ TestCases/NetworkTest/RecubinEngine-macos-arm64
 
 # sokol-shdc（プラットフォームごとに取得する。tools/sokol-shdc/<win32|osx_arm64|osx>/）
 tools/sokol-shdc/
+
+# エンジンのテスト用のローカルファイル。
+assets/imported/

@@ -1,3 +1,26 @@
 {
-    "todo-tree.tree.showBadges": true
+    "todo-tree.tree.showBadges": true,
+    "luau-lsp.analyzeLuaFiles": false,
+    "files.associations": {
+        "*.lua": "lua",
+        "**/definitions/xmake.lua": "lua",
+        "**/xmake.lua": "lua",
+        "**/setup.lua": "lua",
+        "**/tools/setup-shdc.lua": "lua",
+        "**/tools/package.lua": "lua",
+        "xmake.lua": "lua",
+        "setup.lua": "lua",
+        "tools/package.lua": "lua",
+        "tools/setup-shdc.lua": "lua",
+        "definitions/xmake.lua": "lua"
+    },
+
+    "luau-lsp.ignoreGlobs": [
+        "**/_Index/**",
+        "**/xmake.lua",
+        "**/setup.lua",
+        "**/tools/setup-shdc.lua",
+        "**/tools/package.lua",
+        "**/definitions/xmake.lua"
+    ]
 }
