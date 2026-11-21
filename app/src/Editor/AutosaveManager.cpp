@@ -439,13 +439,19 @@ bool AutosaveManager::readCandidate(const std::filesystem::path& directory,
 }
 
 std::vector<AutosaveManager::RecoveryCandidate> AutosaveManager::findCrashRecoveries() const {
-    std::vector<RecoveryCandidate> result; std::error_code ec;
+    std::vector<RecoveryCandidate> result;
+    std::error_code ec;
     const auto root = m_storageRoot / ".autosave";
-    if (!std::filesystem::is_directory(root, ec)) {
-        if (ec) {
-            RCBN_ERROR("Autosave: cannot inspect recovery root " << pathString(root) << ": " << ec.message());
-            notifyIoFailure("Scan autosave recoveries", root, ec.message());
-        }
+    const auto rootStatus = std::filesystem::status(root, ec);
+    if (rootStatus.type() == std::filesystem::file_type::not_found &&
+        (!ec || ec == std::errc::no_such_file_or_directory)) {
+        notifyIoSuccess("Scan autosave recoveries", root);
+        return result;
+    }
+    if (ec || !std::filesystem::is_directory(rootStatus)) {
+        const auto reason = ec ? ec.message() : "recovery root is not a directory";
+        RCBN_ERROR("Autosave: cannot inspect recovery root " << pathString(root) << ": " << reason);
+        notifyIoFailure("Scan autosave recoveries", root, reason);
         return result;
     }
     notifyIoSuccess("Scan autosave recoveries", root);

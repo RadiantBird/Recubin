@@ -4,3 +4,69 @@
 [submodule "Luar Programming Language"]
 	path = Luar Programming Language
 	url = https://github.com/RadiantBird/Luar.git
+[submodule "external/box3d"]
+	path = external/box3d
+	url = https://github.com/erincatto/box3d.git
+[submodule "external/imgui"]
+	path = external/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "external/ImGuizmo"]
+	path = external/ImGuizmo
+	url = https://github.com/CedricGuillemet/ImGuizmo.git
+[submodule "external/Luar Programming Language"]
+	path = external/Luar Programming Language
+	url = https://github.com/RadiantBird/Luar.git
+[submodule "external/glfw"]
+	path = external/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "external/luau"]
+	path = external/luau
+	url = https://github.com/luau-lang/luau.git
+[submodule "external/yaml-cpp"]
+	path = external/yaml-cpp
+	url = https://github.com/jbeder/yaml-cpp.git
+[submodule "external/glew"]
+	path = external/glew
+	url = https://github.com/nigels-com/glew.git
+[submodule "external/sokol-tools"]
+	path = external/sokol-tools
+	url = https://github.com/floooh/sokol-tools.git
+[submodule "external/recastnavigation"]
+	path = external/recastnavigation
+	url = https://github.com/recastnavigation/recastnavigation.git
+[submodule "external/signalsmith-stretch"]
+	path = external/signalsmith-stretch
+	url = https://github.com/Signalsmith-Audio/signalsmith-stretch.git
+[submodule "external/signalsmith-linear"]
+	path = external/signalsmith-linear
+	url = https://github.com/Signalsmith-Audio/linear.git
+[submodule "external/cgltf"]
+	path = external/cgltf
+	url = https://github.com/jkuhlmann/cgltf.git
+[submodule "external/nanosvg"]
+	path = external/nanosvg
+	url = https://github.com/memononen/nanosvg.git
+[submodule "external/pugixml"]
+	path = external/pugixml
+	url = https://github.com/zeux/pugixml.git
+[submodule "external/stb"]
+	path = external/stb
+	url = https://github.com/nothings/stb.git
+[submodule "external/sokol"]
+	path = external/sokol
+	url = https://github.com/floooh/sokol.git
+[submodule "external/miniaudio"]
+	path = external/miniaudio
+	url = https://github.com/mackron/miniaudio.git
+[submodule "external/dr_libs"]
+	path = external/dr_libs
+	url = https://github.com/mackron/dr_libs.git
+[submodule "external/enet"]
+	path = external/enet
+	url = https://github.com/lsalzman/enet.git
+[submodule "external/xatlas"]
+	path = external/xatlas
+	url = https://github.com/jpcy/xatlas.git
+[submodule "external/glew-cmake"]
+	path = external/glew-cmake
+	url = https://github.com/Perlmint/glew-cmake.git

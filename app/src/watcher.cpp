@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
 
         TASKDIALOGCONFIG dialogConfig{};
         dialogConfig.cbSize = sizeof(dialogConfig);
-        dialogConfig.dwCommonButtons = TDCBF_OK;
+        dialogConfig.dwCommonButtons = TDCBF_OK_BUTTON;
         dialogConfig.pszWindowTitle = L"Recubin Studio - Error";
         dialogConfig.pszMainIcon = TD_ERROR_ICON;
         dialogConfig.pszContent = msg;

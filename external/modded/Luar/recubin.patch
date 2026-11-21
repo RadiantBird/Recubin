@@ -1,0 +1,535 @@
+diff --git a/docs/design-decisions.md b/docs/design-decisions.md
+index fc764d0..0d49d76 100644
+--- a/docs/design-decisions.md
++++ b/docs/design-decisions.md
+@@ -104,6 +104,10 @@
+ - **理由**: エンジンの`Workspace`のように、型名と実体の名前が同じことがある。以前は`all_names`が1つだったため、クラスと値の同名が`name 'Workspace' is declared more than once`になっていた。値を型と別の名前空間で数えれば足りる。
+ - **注意**: 同名のglobal値を宣言すると、そのクラスの`static`メンバー(`Name.new(...)`など)は未修飾では使えなくなる。意図した隠蔽として警告は出さない。
+ 
++### D20. 関数型の引数名は補助情報
++- **決定**: 関数型の固定引数には任意の名前を付けられ、名前付きと名前なしを混在できる。名前はASTと型の表示に残し、型検査では無視する。可変長引数は従来どおり`...T`と書く。
++- **理由**: 宣言の読みやすさを高めつつ、既存の関数型の意味と互換性を保つ。
++
+ ## 実装方針
+ 
+ ### I1. 正式な実装はRustの`luar-rs`
+diff --git a/docs/language/types.md b/docs/language/types.md
+index 3a6dad0..9b54c34 100644
+--- a/docs/language/types.md
++++ b/docs/language/types.md
+@@ -42,6 +42,8 @@ first(1, "x") -- error: type parameter 'T' was inferred as number but argument 2
+ 
+ 型式は`Name<A, B>`、`mod.Name`、テーブル型`{ id: number, ref: T }`、関数型`(A, B) -> R`、`T?`を書ける。`type`と`export`と`template`は文脈依存のキーワードで、`type(x)`のような既存の識別子の使い方は変わらない。
+ 
++関数型の引数には`(deltaTime: number, string) -> boolean`のように名前を付けられる。名前の有無や違いは型の互換性に影響しない。可変長引数は従来どおり最後に`...T`と書く。
++
+ `.luard`では`declare function`(`declare global function`も可)と`export type`を書ける。`export type`した型は`import type`した後に`mod.MyTable<number>`で参照する。`export`のない`type`は、その`.luard`の中だけで使える。`declare function`は`.luar`では使えない。
+ 
+ ```lua
+diff --git a/docs/progress.md b/docs/progress.md
+index 4365094..1e9ea8f 100644
+--- a/docs/progress.md
++++ b/docs/progress.md
+@@ -121,3 +121,9 @@
+ ### 2. 未解決・注意
+ - 同名のglobal値を宣言すると、そのクラスの`static`メンバーは未修飾では使えなくなる(警告なし)。
+ - `scripts/Recubin.luard`の`-- declare Workspace: Workspace`のコメントは、エンジンに大文字の`Workspace`グローバルが実在するか分からないので、そのままにしてある。
++
++## 2026-11-14 関数型の引数名
++
++- 関数型の固定引数に任意の名前を付けられるようにした。名前はASTと表示に保持し、型検査には使わない(D20)。名前なしとの混在と従来の可変長引数も使える。
++- `.luard`のエディタ用パーサーと両ターゲットの回帰テストを更新した。
++- ホバー用の関数シグネチャにも引数名を引き継ぐ。名前は型の比較には含めない。
+diff --git a/docs/tooling.md b/docs/tooling.md
+index 7e752b5..85538c8 100644
+--- a/docs/tooling.md
++++ b/docs/tooling.md
+@@ -38,6 +38,8 @@ luar complete --stdin --source-path main.luar --offset 123 < main.luar
+ ### ホバー
+ 識別子にカーソルを置くと、VS Codeは`luar hover`で宣言のシグネチャを問い合わせる。型の分かる`local`/`const`/引数/フィールド/メソッド/クラス/`import type`の名前が対象である。補完と同じ仕組み(問い合わせ用の呼び出しに書き換えて通常の解析に通す)で型を求める。
+ 
++関数型や関数宣言に引数名がある場合は、ホバーのシグネチャにも表示する。名前のない引数は型だけを表示する。
++
+ ```powershell
+ luar hover [--target luau|lua54] --stdin --source-path main.luar --offset 123 < main.luar
+ ```
+diff --git a/luar-rs/src/ast.rs b/luar-rs/src/ast.rs
+index ff07b43..220562c 100644
+--- a/luar-rs/src/ast.rs
++++ b/luar-rs/src/ast.rs
+@@ -14,13 +14,25 @@ pub enum TypeExpr {
+     Vararg(Box<TypeExpr>),
+     /// ユニオン型 `A | B`。
+     Union(Vec<TypeExpr>),
+-    /// `(A, B) -> R`
++    /// `(A, name: B) -> R`
+     Function {
+-        params: Vec<TypeExpr>,
++        params: Vec<FunctionTypeParam>,
+         ret: Box<TypeExpr>,
+     },
+ }
+ 
++#[derive(Debug, Clone)]
++pub struct FunctionTypeParam {
++    pub name: Option<String>,
++    pub ty: TypeExpr,
++}
++
++impl PartialEq for FunctionTypeParam {
++    fn eq(&self, other: &Self) -> bool {
++        self.ty == other.ty
++    }
++}
++
+ impl std::fmt::Display for TypeExpr {
+     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+         match self {
+@@ -53,7 +65,15 @@ impl std::fmt::Display for TypeExpr {
+             TypeExpr::Array(element) => write!(f, "{{ {element} }}"),
+             TypeExpr::Vararg(element) => write!(f, "...{element}"),
+             TypeExpr::Function { params, ret } => {
+-                write!(f, "({}) -> {ret}", join_types(params))
++                let params = params
++                    .iter()
++                    .map(|param| match &param.name {
++                        Some(name) => format!("{name}: {}", param.ty),
++                        None => param.ty.to_string(),
++                    })
++                    .collect::<Vec<_>>()
++                    .join(", ");
++                write!(f, "({params}) -> {ret}")
+             }
+         }
+     }
+diff --git a/luar-rs/src/checker.rs b/luar-rs/src/checker.rs
+index 4cc98f6..7e80f0a 100644
+--- a/luar-rs/src/checker.rs
++++ b/luar-rs/src/checker.rs
+@@ -84,10 +84,11 @@ enum ValueType {
+ }
+ 
+ /// 関数の署名。`type_params` はこの関数自身の型引数。
+-#[derive(Clone, Debug, PartialEq, Eq)]
++#[derive(Clone, Debug)]
+ struct FnSig {
+     type_params: Vec<String>,
+     params: Vec<ValueType>,
++    param_names: Vec<Option<String>>,
+     /// 可変長引数 `...T` の要素型。
+     vararg: Option<ValueType>,
+     ret: ValueType,
+@@ -96,6 +97,18 @@ struct FnSig {
+     check_args: bool,
+ }
+ 
++impl PartialEq for FnSig {
++    fn eq(&self, other: &Self) -> bool {
++        self.type_params == other.type_params
++            && self.params == other.params
++            && self.vararg == other.vararg
++            && self.ret == other.ret
++            && self.check_args == other.check_args
++    }
++}
++
++impl Eq for FnSig {}
++
+ impl ValueType {
+     fn is_function(&self) -> bool {
+         matches!(self, Self::Function | Self::FunctionSig(_))
+@@ -156,7 +169,13 @@ impl ValueType {
+             Self::Table | Self::Shape(_) => "table".to_string(),
+             Self::Function => "function".to_string(),
+             Self::FunctionSig(sig) => {
+-                let mut params: Vec<String> = sig.params.iter().map(Self::display).collect();
++                let mut params: Vec<String> = sig.params.iter().enumerate().map(|(index, param)| {
++                    let ty = param.display();
++                    match sig.param_names.get(index).and_then(|name| name.as_ref()) {
++                        Some(name) => format!("{name}: {ty}"),
++                        None => ty,
++                    }
++                }).collect();
+                 if let Some(vararg) = &sig.vararg {
+                     params.push(format!("...{}", vararg.display()));
+                 }
+@@ -907,6 +926,7 @@ impl Checker {
+                         let mut method_sig = (*sig).clone();
+                         if !method_sig.params.is_empty() {
+                             method_sig.params.remove(0);
++                            method_sig.param_names.remove(0);
+                         }
+                         return self.check_call(&method_sig, method, obj, args, &arg_types);
+                     }
+@@ -2446,6 +2466,10 @@ impl Checker {
+                 .filter(|param| matches!(param, Param::Named { .. }))
+                 .map(|_| ValueType::Unknown)
+                 .collect(),
++            param_names: params.iter().filter_map(|param| match param {
++                Param::Named { name, .. } => Some(Some(name.clone())),
++                Param::Vararg => None,
++            }).collect(),
+             vararg: has_vararg.then_some(ValueType::Unknown),
+             ret,
+             check_args: false,
+diff --git a/luar-rs/src/checker/annotation.rs b/luar-rs/src/checker/annotation.rs
+index 6fcd7da..1c5621e 100644
+--- a/luar-rs/src/checker/annotation.rs
++++ b/luar-rs/src/checker/annotation.rs
+@@ -75,18 +75,23 @@ impl Checker {
+             },
+             TypeExpr::Function { params, ret } => {
+                 let mut resolved = Vec::new();
++                let mut param_names = Vec::new();
+                 let mut vararg = None;
+                 for param in params {
+-                    match param {
++                    match &param.ty {
+                         TypeExpr::Vararg(element) => {
+                             vararg = Some(self.resolve_annotation(element, ctx));
+                         }
+-                        other => resolved.push(self.resolve_annotation(other, ctx)),
++                        other => {
++                            resolved.push(self.resolve_annotation(other, ctx));
++                            param_names.push(param.name.clone());
++                        }
+                     }
+                 }
+                 ValueType::FunctionSig(Box::new(FnSig {
+                     type_params: Vec::new(),
+                     params: resolved,
++                    param_names,
+                     vararg,
+                     ret: self.resolve_annotation(ret, ctx),
+                     check_args: true,
+@@ -269,6 +274,7 @@ impl Checker {
+                 ValueType::FunctionSig(Box::new(FnSig {
+                     type_params: sig.type_params.clone(),
+                     params: each(&sig.params, &inner),
++                    param_names: sig.param_names.clone(),
+                     vararg: sig.vararg.as_ref().map(|ty| Self::substitute(ty, &inner)),
+                     ret: Self::substitute(&sig.ret, &inner),
+                     check_args: sig.check_args,
+@@ -463,8 +469,8 @@ impl Checker {
+                 }
+             }
+             TypeExpr::Function { params, ret } => {
+-                for ty in params {
+-                    self.validate_type(ty, validation);
++                for param in params {
++                    self.validate_type(&param.ty, validation);
+                 }
+                 self.validate_type(ret, validation);
+             }
+@@ -532,6 +538,7 @@ impl Checker {
+         let mut sig = FnSig {
+             type_params: type_params.to_vec(),
+             params: Vec::new(),
++            param_names: Vec::new(),
+             vararg: None,
+             ret: return_type
+                 .map(|ty| self.resolve_annotation(ty, &ctx))
+@@ -541,11 +548,12 @@ impl Checker {
+         for param in params {
+             match param {
+                 Param::Vararg => sig.vararg = Some(ValueType::Unknown),
+-                Param::Named { ty, .. } => sig.params.push(
+-                    ty.as_ref()
++                Param::Named { name, ty } => {
++                    sig.param_names.push(Some(name.clone()));
++                    sig.params.push(ty.as_ref()
+                         .map(|ty| self.resolve_annotation(ty, &ctx))
+-                        .unwrap_or(ValueType::Unknown),
+-                ),
++                        .unwrap_or(ValueType::Unknown));
++                }
+             }
+         }
+         sig
+diff --git a/luar-rs/src/checker/hover.rs b/luar-rs/src/checker/hover.rs
+index d6c9e4c..89bb3aa 100644
+--- a/luar-rs/src/checker/hover.rs
++++ b/luar-rs/src/checker/hover.rs
+@@ -29,7 +29,13 @@ impl Checker {
+         } else if name == "self" {
+             format!("self: {text}")
+         } else if let ValueType::FunctionSig(sig) = ty {
+-            let mut params: Vec<String> = sig.params.iter().map(|param| self.describe(param)).collect();
++            let mut params: Vec<String> = sig.params.iter().enumerate().map(|(index, param)| {
++                let ty = self.describe(param);
++                match sig.param_names.get(index).and_then(|name| name.as_ref()) {
++                    Some(name) => format!("{name}: {ty}"),
++                    None => ty,
++                }
++            }).collect();
+             if let Some(vararg) = &sig.vararg {
+                 params.push(format!("...{}", self.describe(vararg)));
+             }
+diff --git a/luar-rs/src/luau_types.rs b/luar-rs/src/luau_types.rs
+index e40d444..1348dc6 100644
+--- a/luar-rs/src/luau_types.rs
++++ b/luar-rs/src/luau_types.rs
+@@ -57,7 +57,15 @@ pub fn render(ty: &TypeExpr, known: &dyn Fn(&str) -> bool) -> String {
+         TypeExpr::Array(element) => format!("{{ {} }}", render(element, known)),
+         TypeExpr::Vararg(element) => format!("...{}", render(element, known)),
+         TypeExpr::Function { params, ret } => {
+-            format!("({}) -> {}", render_list(params, known), render(ret, known))
++            let params = params
++                .iter()
++                .map(|param| match &param.name {
++                    Some(name) => format!("{name}: {}", render(&param.ty, known)),
++                    None => render(&param.ty, known),
++                })
++                .collect::<Vec<_>>()
++                .join(", ");
++            format!("({params}) -> {}", render(ret, known))
+         }
+     }
+ }
+diff --git a/luar-rs/src/parser.rs b/luar-rs/src/parser.rs
+index 608e89a..8552e77 100644
+--- a/luar-rs/src/parser.rs
++++ b/luar-rs/src/parser.rs
+@@ -993,15 +993,21 @@ impl Parser {
+         let mut ty = match self.peek_kind() {
+             TokenKind::LParen => {
+                 self.advance();
+-                let mut types = self.parse_type_list(&TokenKind::RParen)?;
++                let mut params = self.parse_function_type_params()?;
+                 self.eat(&TokenKind::RParen)?;
+                 if self.match_tok(&TokenKind::Arrow) {
+                     let ret = self.parse_type_expr()?;
+                     return Ok(TypeExpr::Function {
+-                        params: types,
++                        params,
+                         ret: Box::new(ret),
+                     });
+                 }
++                if params.iter().any(|param| param.name.is_some()) {
++                    return Err(self.error(
++                        "named parameters are only allowed in a function type".to_string(),
++                    ));
++                }
++                let mut types: Vec<_> = params.drain(..).map(|param| param.ty).collect();
+                 if types.iter().any(|ty| matches!(ty, TypeExpr::Vararg(_))) {
+                     return Err(self.error(
+                         "a variadic type '...T' is only allowed in a function type".to_string(),
+@@ -1028,6 +1034,43 @@ impl Parser {
+         Ok(ty)
+     }
+ 
++    fn parse_function_type_params(&mut self) -> Result<Vec<FunctionTypeParam>, ParseError> {
++        let mut params = Vec::new();
++        if self.peek_kind() == &TokenKind::RParen {
++            return Ok(params);
++        }
++        loop {
++            let name = if matches!(self.peek_kind(), TokenKind::Ident)
++                && matches!(self.peek_n_kind(1), TokenKind::Colon)
++            {
++                let name = self.eat_ident()?;
++                self.eat(&TokenKind::Colon)?;
++                Some(name)
++            } else {
++                None
++            };
++            let ty = if self.match_tok(&TokenKind::DotDotDot) {
++                if name.is_some() {
++                    return Err(self.error(
++                        "a variadic type cannot have a parameter name".to_string(),
++                    ));
++                }
++                params.push(FunctionTypeParam {
++                    name,
++                    ty: TypeExpr::Vararg(Box::new(self.parse_type_expr()?)),
++                });
++                break;
++            } else {
++                self.parse_type_expr()?
++            };
++            params.push(FunctionTypeParam { name, ty });
++            if !self.match_tok(&TokenKind::Comma) {
++                break;
++            }
++        }
++        Ok(params)
++    }
++
+     /// `Name`、`mod.Name`、`Name<A, B>`。
+     fn parse_named_type(&mut self) -> Result<TypeExpr, ParseError> {
+         let mut name = if self.match_tok(&TokenKind::Nil) {
+diff --git a/luar-rs/tests/hover.rs b/luar-rs/tests/hover.rs
+index 9da75bb..7bb55b8 100644
+--- a/luar-rs/tests/hover.rs
++++ b/luar-rs/tests/hover.rs
+@@ -182,6 +182,19 @@ local ext = require(\"./ext\")
+ ";
+     assert_eq!(
+         project.text(&format!("{header}ext.ma|ke(\"a\")")).as_deref(),
+-        Some("(function) make: (string) -> Cube")
++        Some("(function) make: (name: string) -> Cube")
+     );
+ }
++
++#[test]
++fn function_type_hover_preserves_parameter_names() {
++    let project = TempProject::new();
++    project.write("ext.luard", "declare global love: { setMode: (width: number, height: number, settings: any) -> any, plain: (number, string) -> boolean }\n");
++    let header = "import type ext\n";
++    assert_eq!(project.text(&format!("{header}love.setMo|de(1, 2, {{}})")).as_deref(),
++        Some("(function) setMode: (width: number, height: number, settings: unknown) -> unknown"));
++    assert_eq!(project.text("template <T>\ntype Handler = (value: T, string, flag: boolean, ...number) -> T\nlocal obj: { handler: Handler<number> }\nobj.hand|ler(1, 'x', true)").as_deref(),
++        Some("(function) handler: (value: number, string, flag: boolean, ...number) -> number"));
++    assert_eq!(project.text(&format!("{header}love.pl|ain(1, 'x')")).as_deref(),
++        Some("(function) plain: (number, string) -> boolean"));
++}
+diff --git a/luar-rs/tests/luau_types.rs b/luar-rs/tests/luau_types.rs
+index 847e67c..ec44c9b 100644
+--- a/luar-rs/tests/luau_types.rs
++++ b/luar-rs/tests/luau_types.rs
+@@ -72,6 +72,26 @@ fn function_types_and_unions_are_written_in_luau_syntax() {
+     assert!(output.contains("local either: number | (() -> ()) = 1"), "{output}");
+ }
+ 
++#[test]
++fn named_function_type_parameters_render_for_both_targets() {
++    let source = "type Handler = (deltaTime: number, string, key: string, ...number) -> boolean\nlocal handler: Handler = print\nprint(handler)\n";
++    let luau = compile_for(Target::Luau, source);
++    assert!(luau.contains("type Handler = (deltaTime: number, string, key: string, ...number) -> boolean"), "{luau}");
++    let lua = compile_for(Target::Lua54, source);
++    assert!(lua.contains("-- type Handler = (deltaTime: number, string, key: string, ...number) -> boolean"), "{lua}");
++    assert!(lua.contains("local handler = print"), "{lua}");
++}
++
++#[test]
++fn malformed_named_function_type_parameters_are_rejected() {
++    for ty in ["(name:) -> boolean", "(: number) -> boolean", "(name: number)", "(name: ...number) -> boolean", "(name: number, ...string, boolean) -> boolean"] {
++        for target in [Target::Luau, Target::Lua54] {
++            let result = compile_source_with_options(&format!("type Bad = {ty}"), &CompileOptions { target, source_path: None });
++            assert!(result.is_err(), "accepted {ty}");
++        }
++    }
++}
++
+ #[test]
+ fn lua54_still_erases_every_annotation() {
+     let output = compile_for(
+diff --git a/luar-rs/tests/modules_const.rs b/luar-rs/tests/modules_const.rs
+index 33034b4..5c932f8 100644
+--- a/luar-rs/tests/modules_const.rs
++++ b/luar-rs/tests/modules_const.rs
+@@ -260,6 +260,35 @@ mod.run()
+     assert!(!output.contains("import type"));
+ }
+ 
++#[test]
++fn named_function_type_parameters_in_global_records_are_metadata() {
++    let project = TempProject::new();
++    project.definition("love", r#"
++declare global love: {
++    update: (deltaTime: number) -> any,
++    keypressed: (key: string) -> any,
++    mixed: (first: number, string, last: boolean) -> boolean
++}
++"#);
++    let source = "import type love\nlove.update(0.1)\nlove.keypressed('a')\nlove.mixed(1, 'x', true)\n";
++    for target in [Target::Luau, Target::Lua54] {
++        let options = CompileOptions { target, source_path: Some(project.source_path()) };
++        let output = luar_rs::compile_source_with_options(source, &options).unwrap();
++        assert!(output.contains("love.update(0.1)"), "{output}");
++        let errors = luar_rs::compile_source_with_options("import type love\nlove.update('bad')", &options).unwrap_err();
++        assert!(errors.iter().any(|error| error.message.contains("expects number, got string")), "{errors:?}");
++    }
++}
++
++#[test]
++fn function_parameter_names_do_not_change_assignability() {
++    let source = "type A = (x: number, string) -> boolean\ntype B = (number, y: string) -> boolean\nlocal a: A = print\nlocal b: B = a\nlocal c: (number, string) -> boolean = b\nprint(c)\n";
++    for target in [Target::Luau, Target::Lua54] {
++        let options = CompileOptions { target, source_path: None };
++        luar_rs::compile_source_with_options(source, &options).unwrap();
++    }
++}
++
+ #[test]
+ fn top_level_named_functions_compile_with_plain_and_qualified_names() {
+     let output = compile_at(
+diff --git a/luar-rs/tests/oop.rs b/luar-rs/tests/oop.rs
+index 6c0dafb..013d721 100644
+--- a/luar-rs/tests/oop.rs
++++ b/luar-rs/tests/oop.rs
+@@ -254,6 +254,30 @@ end
+     );
+ }
+ 
++#[test]
++fn override_signature_ignores_function_type_parameter_names() {
++    let source = r#"
++class Base is
++    public is
++        function run(callback: (x: number) -> string): (value: number) -> string
++            return callback
++        end
++    end
++end
++class Child is Base
++    public is
++        function run(callback: (number) -> string): (other: number) -> string override
++            return callback
++        end
++    end
++end
++"#;
++    for target in [luar_rs::Target::Luau, luar_rs::Target::Lua54] {
++        let options = luar_rs::CompileOptions { target, source_path: None };
++        luar_rs::compile_source_with_options(source, &options).unwrap();
++    }
++}
++
+ #[test]
+ fn inheritance_and_member_declaration_errors_are_reported() {
+     assert_error(
+diff --git a/luar-vscode/src/language.ts b/luar-vscode/src/language.ts
+index 8211860..f414a7a 100644
+--- a/luar-vscode/src/language.ts
++++ b/luar-vscode/src/language.ts
+@@ -498,7 +498,13 @@ function parseSingleDefinitionType(tokens: Token[], start: number): number {
+   const kind = kindOf(tokens, pos);
+   if (kind === "(") {
+     pos++;
++    let hasNamedParameter = false;
+     while (kindOf(tokens, pos) !== ")") {
++      if (kindOf(tokens, pos) === "Ident" && kindOf(tokens, pos + 1) === ":") {
++        hasNamedParameter = true;
++        pos += 2;
++        if (kindOf(tokens, pos) === "...") return -1;
++      }
+       if (kindOf(tokens, pos) === "...") pos++;
+       const item = parseDefinitionType(tokens, pos);
+       if (item < 0) return -1;
+@@ -510,6 +516,7 @@ function parseSingleDefinitionType(tokens: Token[], start: number): number {
+     if (kindOf(tokens, pos) === "->") {
+       return parseDefinitionType(tokens, pos + 1);
+     }
++    if (hasNamedParameter) return -1;
+   } else if (kind === "{") {
+     pos++;
+     if (kindOf(tokens, pos) === "Ident" && kindOf(tokens, pos + 1) === ":") {
+diff --git a/luar/tests/vscode-language.test.ts b/luar/tests/vscode-language.test.ts
+index 58768d9..dbcd43b 100644
+--- a/luar/tests/vscode-language.test.ts
++++ b/luar/tests/vscode-language.test.ts
+@@ -30,6 +30,13 @@ describe("VS Code module definitions", () => {
+     expect(result.definition?.globals[0]?.name).toBe("workspace");
+   });
+ 
++  it("parses named and mixed function type parameters", () => {
++    const result = parseModuleDefinition("love", "declare global love: { update: (deltaTime: number) -> any, mixed: (number, key: string) -> boolean }\n");
++    expect(result.errors).toEqual([]);
++    expect(result.definition?.globals[0]?.typeText).toContain("(deltaTime: number) -> any");
++    expect(parseModuleDefinition("bad", "declare f: (name: number)\n").errors.length).toBeGreaterThan(0);
++  });
++
+   it("rejects malformed and duplicate declarations", () => {
+     const result = parseModuleDefinition("qaz", "declare value: string\ndeclare value: number\ndeclare broken\ndeclare run: () ->\n");
+ 
