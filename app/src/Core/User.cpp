@@ -891,7 +891,7 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     m_lastViewportFocused = viewportFocused;
 
     // 外部setterで前フレーム間にFree/Programへ切り替えられた場合も、
-    // Character入力が残した水平速度を最初の物理更新前に止める。
+    // Character の歩行指令を最初の物理更新前に解除する。
     if (m_lastProcessedControlMode &&
         *m_lastProcessedControlMode == ControlMode::Character &&
         getControlMode() != ControlMode::Character && humanoid) {
@@ -900,7 +900,7 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     m_lastProcessedControlMode = getControlMode();
 
     // ビューポート外へ入力フォーカスが移ると、以降はキー解放イベントを受け取れない。
-    // 直前の物理入力による水平速度を明示的に止める。スクリプト移動はフォーカス外でも
+    // 直前の歩行指令を解除する。スクリプト移動はフォーカス外でも
     // 継続する仕様のため、この停止対象には含めない。
     if (lostViewportFocus && getControlMode() == ControlMode::Character &&
         !m_hasScriptMoveDirection && humanoid) {
@@ -963,11 +963,10 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
     }
 
     // Lキー切替はこのフレームの入力処理後に発生するため、同じフレーム内で
-    // Characterの水平速度を止める。Y速度とhoverのjump抑制状態は変更しない。
+    // Character の歩行指令を解除し、接地中は摩擦で減速する。
     if (m_lastProcessedControlMode == ControlMode::Character &&
         getControlMode() != ControlMode::Character && humanoid) {
-        // このフレームの processMovement が積んだ移動入力を外す。残すと次の固定stepの
-        // Humanoid::move が歩行速度を入れ直し、摩擦の無いホバー状態のまま滑り続ける
+        // このフレームの processMovement が積んだ入力を次の固定 step へ持ち越さない。
         humanoid->clearControlInput();
         humanoid->stopCharacterMotion(physics);
     }
