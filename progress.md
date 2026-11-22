@@ -813,3 +813,22 @@
 - glslang 15.4.0 を検証用セットアップに追加。エンジン内で呼べる `PostEffectSpirv::compile` が既存 GLSL 330 を変換し、SPIR-V と元ファイルの診断を返す。以前の試作は glslang のリンク完了前にソース情報を書き込む呼び出しでクラッシュしたため、診断はコンパイラのログから取得するよう修正。
 - Windows/MSVC Release の検証ターゲットで、Vulkan と D3D12 の初期化失敗後の再試行、リサイズ後のピクセル寸法、ウィンドウとオフスクリーンでの PNG 一致を確認。GLSL の正常入力、元ファイル4行目のエラー、埋め込み NUL を検証。コンパイルした SPIR-V から実際に Vulkan の SDL GPU fragment shader を生成できることも確認。
 - 未完了: Engine・Studio・SDK からの SDL GPU 描画、カスタム効果の描画パスとホットリロード、SDL_shadercross による DXIL/MSL 変換の組み込み、既存描画パスの撤去。次は Engine のウィンドウと最初のシーン描画をこの SDL GPU ホストに接続する。
+
+## 2026-11-22 RecubinEngine の SDL GPU 基本描画
+
+- SDL GPU ウィンドウ管理と GLSL コンパイルを `92458b6` にコミット。以降は `xmake f -m release --sdl-gpu-preview=y` で `RecubinEngine` に明示指定の SDL GPU プレビューを組み込める。起動は `--gpu-preview --gpu-driver=vulkan --scene <scene.yaml>`。ディレクトリを `--self-check` で指定すると画面を開かず `render.png` を保存する。
+- `SdlScenePreview` が既存 SceneLoader のステージから最初の Workspace の不透明 Cube を集め、ワールド CFrame・サイズ・色を `SdlBasicRenderer` に渡す。HLSL を SPIR-V と DXIL に変換し、深度付きオフスクリーン描画、提示、PNG キャプチャを実装。リサイズ時は描画先と投影を作り直す。
+- Windows/MSVC Release の Engine、Test、GpuSmoke をビルド。起動引数回帰が成功。Vulkan／D3D12 でウィンドウを開いて閉じ、近い Cube・遠い Cube・回転した Cube の PNG を比較。YAML 上の前後 Cube の順序を反転したケースも含め4枚が完全一致。透明 Cube のスキップを確認。既存 OpenGL 経路のゲーム配布整合性も成功。隔離先に作成した Studio 配布物に SDL3.dll が入り、その Engine から Vulkan プレビューを実行できることを確認。
+- 次は MeshCube・Terrain を含む実描画データの経路を追加する。プレビューは固定カメラのシーン表示で、ゲームプレイ、テクスチャ、透明描画、Studio・SDK の切り替え、カスタム効果は未実装。Metal と macOS の実機テストは対象外。
+
+## 2026-11-22 SDL GPU の MeshCube 基本描画
+
+- MeshCube が保持する正規化済みの CPU 頂点・インデックスを読み取り専用で公開。SDL GPU プレビューが頂点位置とインデックスを一度転送し、Cube と同じ深度パスで Instance の色を使って描く。GLB の OpenGL アップロード条件は既存のまま。
+- Windows/MSVC Release の Engine をビルド。GirlTorso.glb と Cube の混在シーンで Vulkan／D3D12 の PNG が全画素一致し、両形状の色を確認。Cube のみの既存プレビュー画像も従来と一致。D3D12 の初回パイプライン作成エラーは頂点セマンティクスを SDL GPU の TEXCOORD0 に揃えて解消。
+- 次は UV・テクスチャ、GLB のマテリアル区間と透過情報を SDL GPU に渡す。モデル差し替え・シーン再読み込みの GPU リソース管理は未実装。
+
+## 2026-11-22 SDL GPU の Studio・ImGui 接続
+
+- `--sdl-gpu-preview=y` で Studio と Engine に共通のシーン描画を組み込んだ。Studio は `xmake run Recubin --gpu-preview --gpu-driver=vulkan --scene <scene.yaml>` で起動し、SDL3／SDL GPU の ImGui バックエンドで Scene パネルに Cube・MeshCube を表示する。両方のプレビューで左右キーがオービット、Home が視点リセット。既存 imgui.ini の読み書きはプレビューから行わない。
+- Studio の `--self-check` は非表示ウィンドウとオフスクリーン合成を使う。最初のドッキングフレームは Scene 画像を含まないため、画像の描画コマンドが出たフレームをフェンス付きで PNG 保存。Studio と Engine の混在シーンを Vulkan／D3D12 で比較し、形状の色を確認。各実行ファイルで両バックエンドの PNG が全画素一致。
+- Windows/MSVC Release で Studio、Engine、Test、Runtime をビルド。Vulkan／D3D12 の Studio プレビューをウィンドウで開いて正常終了を確認。起動引数、ビューポート、入力、現行 GUI 自動化の対象回帰が成功。通常起動・SDK の SDL GPU 切り替え、実際の Studio 編集 UI と分離ウィンドウ、テクスチャ・Terrain、ゲーム GUI、カスタム GLSL の描画、Metal 用シェーダー生成は未完了。

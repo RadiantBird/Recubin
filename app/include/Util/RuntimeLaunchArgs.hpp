@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Core/SdlGpuDriver.hpp>
+
 #include <optional>
 #include <string>
 
@@ -10,6 +12,8 @@ struct RuntimeLaunchArgs {
     std::optional<std::string> uiAutomationSettings;
     // 非表示ウィンドウで固定フレーム描画し、画面とインスタンスツリーをこのフォルダへ書き出して終了する
     std::optional<std::string> selfCheckDir;
+    std::optional<SdlGpuDriver> gpuDriver;
+    bool gpuPreview = false;
     bool editorTest = false;
     bool valid = true;
     std::string error;

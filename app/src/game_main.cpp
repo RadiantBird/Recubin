@@ -25,6 +25,9 @@
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
 #include <Core/SceneRuntime.hpp>
+#ifdef RECUBIN_SDL_GPU_PREVIEW
+#include <Core/SdlScenePreview.hpp>
+#endif
 #include <Core/RuntimeFrame.hpp>
 #include <Core/AudioService.hpp>
 #include <Core/GLFWInputBackend.hpp>
@@ -421,6 +424,24 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     const bool networkRequested = networkModeCount == 1;
+    if (runtimeArgs.gpuDriver && !runtimeArgs.gpuPreview) {
+        RCBN_ERROR("--gpu-driver requires --gpu-preview");
+        return -1;
+    }
+    if (runtimeArgs.gpuPreview) {
+        if (networkRequested || runtimeArgs.editorTest || runtimeArgs.uiAutomationScene ||
+            runtimeArgs.uiAutomationSettings) {
+            RCBN_ERROR("--gpu-preview is a scene preview and requires a standalone launch");
+            return -1;
+        }
+#ifdef RECUBIN_SDL_GPU_PREVIEW
+        return runSdlScenePreview(cfg.startScene, cfg.gameName,
+                                  runtimeArgs.gpuDriver.value_or(SdlGpuDriver::Auto), runtimeArgs.selfCheckDir);
+#else
+        RCBN_ERROR("--gpu-preview requires an xmake build with --sdl-gpu-preview=y");
+        return -1;
+#endif
+    }
     if (runtimeArgs.editorTest &&
         (!runtimeArgs.scenePath.has_value() || !runtimeArgs.windowTitle.has_value() ||
          !netArgs.asDirectClient || netArgs.directHost != "127.0.0.1")) {

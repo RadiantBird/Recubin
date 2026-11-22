@@ -1,23 +1,19 @@
 #pragma once
 
+#include <Core/SdlGpuDriver.hpp>
+
 #include <SDL3/SDL.h>
 
 #include <cstdint>
 #include <string>
 #include <thread>
 
-enum class SdlGpuDriver {
-    Auto,
-    Vulkan,
-    Direct3D12,
-    Metal
-};
-
 struct SdlGpuWindowConfig {
     const char* title = "Recubin";
     int width = 1280;
     int height = 720;
     bool present = true;
+    bool createWindowOffscreen = false;
     bool visible = true;
     bool highPixelDensity = true;
     bool resizable = true;

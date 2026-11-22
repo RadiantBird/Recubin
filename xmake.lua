@@ -11,6 +11,11 @@ option("depdir")
     set_default("lib")
     set_showmenu(true)
 option_end()
+option("sdl-gpu-preview")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Build the SDL GPU Cube scene preview into RecubinEngine")
+option_end()
 
 -- Dependencies are prepared by `xmake lua setup.lua`.  xmake itself must not
 -- download or build third-party code.
@@ -131,6 +136,9 @@ for _, source in ipairs(all_sources) do
        not relative:find("PhysXPhysicsBackend.cpp", 1, true) and
        vendor ~= "app/src/Core/SDLInputBackend.cpp" and
        vendor ~= "app/src/Core/SdlGpuWindow.cpp" and
+       vendor ~= "app/src/Core/SdlBasicRenderer.cpp" and
+       vendor ~= "app/src/Core/SdlScenePreview.cpp" and
+       vendor ~= "app/src/Core/SdlPreviewImGui.cpp" and
        vendor ~= "app/src/Core/PostEffectSpirv.cpp" and
        not vendor:startswith("app/src/imgui/") and
        not vendor:startswith("app/src/Network/Vendor/enet/") and
@@ -221,6 +229,31 @@ local function configure_binary(editor_disabled)
     end)
 end
 
+rule("recubin.sdl-gpu-shaders")
+    before_build(function(target)
+        if not target:is_plat("windows") or not target:is_arch("x64") then
+            raise("The SDL GPU shader build currently supports Windows x64.")
+        end
+        local manifest, error = verify_gpu_dependencies({"include/SDL3/SDL.h", "SDL3.lib", "SDL3.dll",
+            "dxc/dxc.exe", "dxc/dxcompiler.dll", "dxc/dxil.dll"}, io.readfile, hash.sha256)
+        if not manifest then
+            raise(error)
+        end
+        local generator = path.join(os.projectdir(), "tools", "generate_sdl_gpu_shaders.lua")
+        local source = path.join(os.projectdir(), target:values("recubin.gpu_shader_source"))
+        local prefix = target:values("recubin.gpu_shader_prefix")
+        local output_dir = target:values("recubin.gpu_shader_output_dir") or generated_dir
+        local output = path.join(output_dir, prefix .. "_shaders.hpp")
+        local depend = import("core.project.depend")
+        depend.on_changed(function()
+            os.vrunv(os.programfile(), {"lua", generator, dxc_executable, source, output, prefix})
+        end, {files = {generator, manifest, source}, dependfile = output .. ".d", changed = not os.isfile(output)})
+    end)
+    after_build(function(target)
+        os.cp(path.join(gpu_dir, "SDL3.dll"), path.join(target:targetdir(), "SDL3.dll"))
+    end)
+rule_end()
+
 target("RecubinGpuSmoke")
     set_kind("binary")
     set_default(false)
@@ -229,26 +262,9 @@ target("RecubinGpuSmoke")
               "app/src/Core/SDLInputBackend.cpp", "app/src/Core/SdlGpuWindow.cpp")
     add_includedirs("app", "app/include", generated_dir, sdl_include_dir)
     add_links(sdl_lib)
-    before_build(function(target)
-        if not target:is_plat("windows") or not target:is_arch("x64") then
-            raise("The SDL GPU smoke target currently supports Windows x64.")
-        end
-        local manifest, error = verify_gpu_dependencies({"include/SDL3/SDL.h", "SDL3.lib", "SDL3.dll",
-            "dxc/dxc.exe", "dxc/dxcompiler.dll", "dxc/dxil.dll"}, io.readfile, hash.sha256)
-        if not manifest then
-            raise(error)
-        end
-        local generator = path.join(os.projectdir(), "tools", "generate_gpu_smoke_shaders.lua")
-        local source = path.join(os.projectdir(), "tools", "gpu_smoke.hlsl")
-        local output = path.join(generated_dir, "gpu_smoke_shaders.hpp")
-        local depend = import("core.project.depend")
-        depend.on_changed(function()
-            os.vrunv(os.programfile(), {"lua", generator, dxc_executable, source, output})
-        end, {files = {generator, manifest, source}, dependfile = output .. ".d", changed = not os.isfile(output)})
-    end)
-    after_build(function(target)
-        os.cp(path.join(gpu_dir, "SDL3.dll"), path.join(target:targetdir(), "SDL3.dll"))
-    end)
+    set_values("recubin.gpu_shader_source", "tools/gpu_smoke.hlsl")
+    set_values("recubin.gpu_shader_prefix", "gpu_smoke")
+    add_rules("recubin.sdl-gpu-shaders")
 target_end()
 
 target("RecubinPostEffectSpirvCheck")
@@ -299,10 +315,30 @@ target("RecubinCore")
     configure_compilation(false)
 target_end()
 
+local function configure_scene_preview(target_name)
+    local shader_output_dir = path.join(generated_dir, target_name)
+    add_defines("RECUBIN_SDL_GPU_PREVIEW")
+    add_files("app/src/Core/SdlGpuWindow.cpp", "app/src/Core/SdlBasicRenderer.cpp",
+              "app/src/Core/SdlScenePreview.cpp")
+    add_includedirs(sdl_include_dir, shader_output_dir)
+    add_links(sdl_lib)
+    set_values("recubin.gpu_shader_source", "shaders/sdl_gpu/basic.hlsl")
+    set_values("recubin.gpu_shader_prefix", "basic_gpu")
+    set_values("recubin.gpu_shader_output_dir", shader_output_dir)
+    add_rules("recubin.sdl-gpu-shaders")
+end
+
 target("Recubin")
     set_kind("binary")
     add_files("app/src/main.cpp", "app/src/Studio/StudioLaunch.cpp", "app/src/Studio/StudioApplication.cpp",
               "app/src/Core/User.cpp", "app/src/Core/Renderer.cpp")
+    if has_config("sdl-gpu-preview") then
+        configure_scene_preview("studio")
+        add_defines("RECUBIN_SDL_GPU_STUDIO")
+        add_files("app/src/Core/SdlPreviewImGui.cpp",
+                  "external/imgui/backends/imgui_impl_sdl3.cpp",
+                  "external/imgui/backends/imgui_impl_sdlgpu3.cpp")
+    end
     configure_binary(false)
     if is_plat("windows") then
         add_deps("Watcher", "launcher", {inherit = false})
@@ -312,6 +348,9 @@ target_end()
 target("RecubinEngine")
     set_kind("binary")
     add_files("app/src/game_main.cpp", "app/src/Core/User.cpp", "app/src/Core/Renderer.cpp")
+    if has_config("sdl-gpu-preview") then
+        configure_scene_preview("engine")
+    end
     configure_binary(true)
 target_end()
 

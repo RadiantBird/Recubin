@@ -9868,6 +9868,17 @@ int runRuntimeLaunchArgsRegression() {
     expect(!parse({"RecubinEngine", "--ui-automation-scene"}).valid &&
                !parse({"RecubinEngine", "--ui-automation-settings"}).valid,
            "missing GUI automation pair values are rejected");
+    const RuntimeLaunchArgs preview = parse({
+        "RecubinEngine", "--gpu-preview", "--gpu-driver=vulkan"});
+    expect(preview.valid && preview.gpuPreview && preview.gpuDriver == SdlGpuDriver::Vulkan,
+           "SDL GPU preview accepts an explicit driver");
+    expect(parse({"RecubinEngine", "--gpu-preview", "--gpu-driver", "direct3d12"}).gpuDriver ==
+               SdlGpuDriver::Direct3D12,
+           "SDL GPU driver accepts a separately supplied name");
+    expect(!parse({"RecubinEngine", "--gpu-driver=opengl"}).valid &&
+               !parse({"RecubinEngine", "--gpu-driver=auto", "--gpu-driver=metal"}).valid &&
+               !parse({"RecubinEngine", "--gpu-driver"}).valid,
+           "invalid, duplicate, and missing GPU drivers are rejected");
 
     MockPlatform mockPlatform;
     ChildProcessLaunchOptions options;

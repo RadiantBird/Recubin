@@ -1,4 +1,4 @@
--- Generate shader code for the Windows SDL GPU smoke test.
+-- Generate Windows SDL GPU shader code from a shared HLSL vertex/fragment source.
 
 local function compile(dxc, source, output, entry, profile, spirv)
     local args = {"-T", profile, "-E", entry, "-Fo", output, source}
@@ -31,11 +31,11 @@ local function declaration(name, values)
     return table.concat(lines, "\n")
 end
 
-function main(dxc, source, output)
-    if not output or not source or not dxc then
-        raise("usage: xmake lua tools/generate_gpu_smoke_shaders.lua <dxc> <hlsl> <output>")
+function main(dxc, source, output, prefix)
+    if not output or not source or not dxc or not prefix then
+        raise("usage: xmake lua tools/generate_sdl_gpu_shaders.lua <dxc> <hlsl> <output> <prefix>")
     end
-    local work = path.join(path.directory(output), ".gpu-smoke")
+    local work = path.join(path.directory(output), "." .. prefix)
     os.mkdir(work)
     local vsSpirv, fsSpirv = path.join(work, "vertex.spv"), path.join(work, "fragment.spv")
     local vsDxil, fsDxil = path.join(work, "vertex.dxil"), path.join(work, "fragment.dxil")
@@ -45,8 +45,8 @@ function main(dxc, source, output)
     compile(dxc, source, fsDxil, "PSMain", "ps_6_0", false)
     os.mkdir(path.directory(output))
     io.writefile(output, "#pragma once\n#include <cstddef>\n#include <cstdint>\n\n" ..
-        declaration("gpu_smoke_vertex_spirv", bytes(vsSpirv)) .. "\n" ..
-        declaration("gpu_smoke_fragment_spirv", bytes(fsSpirv)) .. "\n" ..
-        declaration("gpu_smoke_vertex_dxil", bytes(vsDxil)) .. "\n" ..
-        declaration("gpu_smoke_fragment_dxil", bytes(fsDxil)) .. "\n")
+        declaration(prefix .. "_vertex_spirv", bytes(vsSpirv)) .. "\n" ..
+        declaration(prefix .. "_fragment_spirv", bytes(fsSpirv)) .. "\n" ..
+        declaration(prefix .. "_vertex_dxil", bytes(vsDxil)) .. "\n" ..
+        declaration(prefix .. "_fragment_dxil", bytes(fsDxil)) .. "\n")
 end

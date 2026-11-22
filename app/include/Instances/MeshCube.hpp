@@ -6,6 +6,7 @@
 #include <include/Math/Vector2.hpp>
 #include <Util/Color4.hpp>
 #include <vector>
+#include <span>
 #include <string>
 #include <include/Core/GfxTexture.hpp>
 
@@ -63,6 +64,8 @@ public:
 
     bool hasGeometry() const { return m_fallbackActive || m_VAO != 0; }
     bool isUsingFallback() const { return m_fallbackActive; }
+    std::span<const MeshVertex> cpuVertices() const { return m_cpuVertices; }
+    std::span<const unsigned int> cpuIndices() const { return m_cpuIndices; }
     unsigned int getVAO() const;
     unsigned int getIndexCount() const;
 

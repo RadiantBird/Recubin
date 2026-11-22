@@ -125,7 +125,7 @@ bool SdlGpuWindow::initialize(const SdlGpuWindowConfig& config, std::string* err
     }
     m_driverName = actualDriver;
 
-    if (config.present) {
+    if (config.present || config.createWindowOffscreen) {
         SDL_WindowFlags flags = 0;
         if (config.resizable) {
             flags |= SDL_WINDOW_RESIZABLE;
@@ -142,12 +142,12 @@ bool SdlGpuWindow::initialize(const SdlGpuWindowConfig& config, std::string* err
             shutdown();
             return result;
         }
-        if (!SDL_ClaimWindowForGPUDevice(m_device, m_window)) {
+        if (config.present && !SDL_ClaimWindowForGPUDevice(m_device, m_window)) {
             const bool result = fail("claim SDL window for GPU device", error);
             shutdown();
             return result;
         }
-        m_claimed = true;
+        m_claimed = config.present;
     }
     return true;
 }
