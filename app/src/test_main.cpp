@@ -7614,6 +7614,42 @@ int runTerrainInstanceRegression() {
     expect(withRamp.indices.size() > cubes.indices.size() && withRamp.physConvexBlocks.size() == 1,
            "ramp is rendered and keeps its convex collision shape");
 
+    {
+        TerrainStreamer streamer(nullptr, nullptr, "build/terrain_cpu_stream_regression", 12345u, true, true);
+        constexpr auto loadTimeout = std::chrono::seconds(15);
+        const auto waitForTerrain = [&](const Vector3& center) {
+            const auto deadline = std::chrono::steady_clock::now() + loadTimeout;
+            do {
+                streamer.update(center);
+                if (streamer.isSettled()) {
+                    return true;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            } while (std::chrono::steady_clock::now() < deadline);
+            return false;
+        };
+        const Vector3 origin(0, 0, 0);
+        expect(waitForTerrain(origin), "CPU-only terrain stream settles without a graphics context");
+        const TerrainStreamer::ChunkKey originKey{0, 0, 0};
+        const auto entry = streamer.getChunks().find(originKey);
+        if (entry == streamer.getChunks().end() || !entry->second.cpuGeometry) {
+            expect(false, "origin chunk has CPU geometry");
+        } else {
+            const auto revision = entry->second.geometryRevision;
+            expect(!entry->second.cpuGeometry->indices.empty() && entry->second.chunk.mesh.VAO == 0,
+                   "streamed chunk contains render geometry without OpenGL buffers");
+            streamer.markDirty(0, 0, 0);
+            expect(waitForTerrain(origin) && streamer.getChunks().at(originKey).geometryRevision > revision,
+                   "dirty chunk publishes a newer mesh revision");
+            constexpr float chunkWidth = CHUNK_SIZE * TerrainStreamer::BLOCK_STUD_SIZE;
+            streamer.update(Vector3((TerrainStreamer::STREAM_RADIUS + 1) * chunkWidth, 0, 0));
+            expect(!streamer.getChunks().contains(originKey),
+                   "moving the streaming center unloads the old chunk");
+            expect(waitForTerrain(origin) && streamer.getChunks().at(originKey).geometryRevision > revision,
+                   "a reloaded chunk has a new mesh revision");
+        }
+    }
+
     auto workspaceA = std::make_shared<Workspace>();
     auto workspaceB = std::make_shared<Workspace>();
     workspaceA->Name = "WorkspaceA";

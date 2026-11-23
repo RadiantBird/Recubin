@@ -846,3 +846,10 @@
 - Terrain の描画頂点・インデックスと物理用データの生成を `buildTerrainChunkGeometry` に分離した。既存の `buildChunkMesh` はこの結果から引き続き OpenGL バッファと物理キャッシュを更新する。SDL GPU の共通頂点に正規化 RGBA8 を追加し、シェーダーで描画色と乗算する。
 - Windows/MSVC Release の xmake で Studio・Engine・Test・Runtime をビルド。Vulkan と D3D12 の両方で既存の Cube と複数マテリアル GLB の PNG が変更前と一致。`--terrain-instance-regression` で OpenGL コンテキストを作らずに空チャンク、共有面の除去、頂点色、ランプと衝突形状を確認。従来の `build.py` は `py` が起動せず未検証。
 - 次は TerrainStreamer がロード・再生成したチャンクを共通レンダラーへ渡し、差し替えとアンロードで古い GPU バッファを解放する。現時点では SDL GPU プレビューへの地形表示、地形編集後の更新、モデル差し替え・シーン再読み込みは未接続。
+
+## 2026-11-23 Terrain の SDL GPU プレビュー接続
+
+- CPU メッシュ生成と頂点色の変更を `1166869` にコミット。Engine と Studio の SDL GPU プレビューに TerrainStreamer の CPU 経路を接続。空チャンクに描画バッファを確保せず、再生成時は新しいバッファを確保してから参照を切り替える。アンロード時は SDL の遅延解放を使う。WASD でストリーミング中心を移動し、PNG キャプチャはチャンクの生成完了を待つ。
+- 最初の検証で既存地形メッシュの頂点順により上面が除外された。地形の描画にカリング無効のパイプラインを使い、地下 Cube が隠れ、地上 Cube が表示されることを Windows の Vulkan／D3D12 で確認した。地形のみの PNG は両アプリで全画素一致。Cube と混在する PNG のバックエンド間で異なる画素は Engine で 23、Studio で 52。既存の GLB の PNG は変更前と一致。
+- xmake の Windows Release で Studio・Engine・Test・Runtime をビルド。対象の `--terrain-instance-regression` で CPU チャンクの生成、更新、アンロード、再ロードを確認。ウィンドウ上の WASD 操作と長時間の GPU メモリ計測は未実施。
+- 次は通常のシーン更新に接続し、地形のライブ編集、MeshCube の差し替え、シーン切り替え時のリソース更新を実際の Engine と Studio で検証する。切り替え時は TerrainStreamer のロード結果の世代も確認する。

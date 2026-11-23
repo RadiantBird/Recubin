@@ -12,6 +12,8 @@
 #include <atomic>
 #include <memory>
 #include <future>
+#include <array>
+#include <optional>
 
 // ================================================================== //
 //  TerrainStreamer
@@ -41,7 +43,7 @@ public:
     // owner: このストリーマーを所有する Terrain インスタンス。
     // チャンクの物理オブジェクトの userData に設定し、レイキャストで地形だと識別できるようにする。
     TerrainStreamer(Workspace* workspace, Instance* owner = nullptr, const std::string& dataDir = "terrain",
-                    uint32_t seed = 12345u, bool flat = false);
+                    uint32_t seed = 12345u, bool flat = false, bool cpuGeometryOnly = false);
 
     ~TerrainStreamer();
 
@@ -59,6 +61,8 @@ public:
 
     // 毎フレーム呼ぶ。playerPos はワールド座標（ブロック単位）。
     void update(const Vector3& playerPos);
+
+    bool isSettled() const;
 
     // チャンクを直接取得（デバッグ・ブラシ用）
     Chunk* getChunk(int32_t cx, int32_t cy, int32_t cz);
@@ -129,6 +133,7 @@ private:
     PerlinNoise m_noise;
     bool        m_flat = false; // true なら平坦地形を生成
 
+public:
     struct ChunkKey {
         int32_t cx, cy, cz;
         bool operator==(const ChunkKey& o) const {
@@ -151,9 +156,14 @@ private:
         Chunk      chunk;
         bool       modified = false;
         ChunkState state    = ChunkState::Loading;
+        std::optional<TerrainChunkGeometry> cpuGeometry;
+        uint64_t geometryRevision = 0;
     };
 
+private:
     std::unordered_map<ChunkKey, ChunkEntry, ChunkKeyHash> m_chunks;
+    const bool m_cpuGeometryOnly;
+    uint64_t m_geometryRevisionCounter = 0;
 
     // ワーカー↔メイン間で受け渡すブロックデータ（Chunk.blocks と同レイアウト）。
     struct BlockGrid {
@@ -223,6 +233,7 @@ private:
     // ==== メインスレッド側 ====
     void releaseChunkResources(Chunk& chunk); // GL/物理リソースを解放（メイン）
     void rebuildIfDirty(ChunkEntry& entry);   // mesh/physics をビルド（メイン）
+    void markAdjacentChunksDirty(int32_t cx, int32_t cy, int32_t cz);
 
     // ノイズから列(wx,wz)の地表Y座標を直接計算する（ブロック未生成時のフォールバック用。const読取りでスレッド安全）
     int32_t surfaceHeightFromNoise(int32_t wx, int32_t wz) const;

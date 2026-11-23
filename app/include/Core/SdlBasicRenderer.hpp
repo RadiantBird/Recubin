@@ -7,6 +7,7 @@
 #include <span>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 struct SdlBasicVertex {
     std::array<float, 3> position{};
@@ -21,6 +22,7 @@ struct SdlBasicCube {
     std::uint32_t texture = 0;
     std::uint32_t firstIndex = 0;
     std::uint32_t indexCount = 0;
+    bool doubleSided = false;
 };
 
 class SdlBasicRenderer final {
@@ -35,6 +37,7 @@ public:
     std::uint32_t uploadMesh(std::span<const SdlBasicVertex> vertices,
                              std::span<const std::uint32_t> indices,
                              std::string& error);
+    bool releaseMesh(std::uint32_t handle, std::string& error);
     std::uint32_t uploadTexture(unsigned width, unsigned height,
                                 std::span<const std::uint8_t> rgba,
                                 std::string& error);
@@ -61,9 +64,11 @@ private:
     SDL_GPUShader* m_fragmentShader = nullptr;
     SDL_GPUSampler* m_sampler = nullptr;
     SDL_GPUGraphicsPipeline* m_pipeline = nullptr;
+    SDL_GPUGraphicsPipeline* m_doubleSidedPipeline = nullptr;
     SDL_GPUTexture* m_colorTarget = nullptr;
     SDL_GPUTexture* m_depthTarget = nullptr;
-    std::vector<Geometry> m_geometries;
+    std::unordered_map<std::uint32_t, Geometry> m_geometries;
+    std::uint32_t m_nextGeometryHandle = 1;
     std::vector<SDL_GPUTexture*> m_textures;
     SDL_GPUTexture* m_whiteTexture = nullptr;
     Geometry m_defaultGeometry{};

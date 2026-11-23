@@ -144,8 +144,9 @@ void rleDecode(const std::vector<RleEntry>& rle, BlockArray& blocks) {
 //  コンストラクタ / デストラクタ
 // ================================================================== //
 TerrainStreamer::TerrainStreamer(Workspace* workspace, Instance* owner, const std::string& dataDir,
-                                 uint32_t seed, bool flat)
-    : m_workspace(workspace), m_owner(owner), m_noise(seed), m_flat(flat)
+                                 uint32_t seed, bool flat, bool cpuGeometryOnly)
+    : m_workspace(workspace), m_owner(owner), m_noise(seed), m_flat(flat),
+      m_cpuGeometryOnly(cpuGeometryOnly)
 {
     terrainDir = AssetPath::normalize(dataDir);
     ensureDir(terrainDir);
@@ -253,9 +254,11 @@ void TerrainStreamer::releaseChunkResources(Chunk& chunk) {
             chunk.physicsHandle = {};
         }
     }
-    if (chunk.mesh.VAO) { glDeleteVertexArrays(1, &chunk.mesh.VAO); chunk.mesh.VAO = 0; }
-    if (chunk.mesh.VBO) { glDeleteBuffers(1, &chunk.mesh.VBO);      chunk.mesh.VBO = 0; }
-    if (chunk.mesh.EBO) { glDeleteBuffers(1, &chunk.mesh.EBO);      chunk.mesh.EBO = 0; }
+    if (!m_cpuGeometryOnly) {
+        if (chunk.mesh.VAO) { glDeleteVertexArrays(1, &chunk.mesh.VAO); chunk.mesh.VAO = 0; }
+        if (chunk.mesh.VBO) { glDeleteBuffers(1, &chunk.mesh.VBO);      chunk.mesh.VBO = 0; }
+        if (chunk.mesh.EBO) { glDeleteBuffers(1, &chunk.mesh.EBO);      chunk.mesh.EBO = 0; }
+    }
     chunk.mesh.indexCount = 0;
 }
 
@@ -307,6 +310,7 @@ void TerrainStreamer::update(const Vector3& playerPos)
         std::memcpy(chunk.blocks, res.grid->data, sizeof(BlockGrid));
         it->second.state = ChunkState::Ready;
         chunk.mesh.dirty = true;
+        markAdjacentChunksDirty(res.cx, res.cy, res.cz);
         // ノイズ生成チャンクはコーナー面取りをメインで分類（既存ファイル由来は形状確定済み）
         if (res.generated) {
             const int worldY0 = chunk.worldOriginY();
@@ -338,6 +342,7 @@ void TerrainStreamer::update(const Vector3& playerPos)
                 enqueueJob(std::move(job));
             }
             releaseChunkResources(it->second.chunk);
+            markAdjacentChunksDirty(key.cx, key.cy, key.cz);
         }
         // Loading のものはプレースホルダを消すだけ（後続の結果はキー不在で破棄される）
         m_chunks.erase(it);
@@ -355,11 +360,49 @@ void TerrainStreamer::update(const Vector3& playerPos)
 void TerrainStreamer::rebuildIfDirty(ChunkEntry& entry)
 {
     if (!entry.chunk.mesh.dirty) return;
+    if (m_cpuGeometryOnly) {
+        auto geometry = buildTerrainChunkGeometry(entry.chunk, this);
+        entry.cpuGeometry.emplace();
+        if (!geometry.indices.empty()) {
+            entry.cpuGeometry->vertices = std::move(geometry.vertices);
+            entry.cpuGeometry->indices = std::move(geometry.indices);
+        }
+        entry.geometryRevision = ++m_geometryRevisionCounter;
+        entry.chunk.mesh.dirty = false;
+        return;
+    }
     buildChunkMesh(entry.chunk, this);
     Physics* phys = getPhysics();
     if (phys) {
         buildChunkPhysics(entry.chunk, *phys, m_owner);
     }
+}
+
+void TerrainStreamer::markAdjacentChunksDirty(int32_t cx, int32_t cy, int32_t cz)
+{
+    if (!m_cpuGeometryOnly) {
+        return;
+    }
+    static constexpr std::array<std::array<int32_t, 3>, 6> directions = {{
+        {{-1, 0, 0}}, {{1, 0, 0}}, {{0, -1, 0}},
+        {{0, 1, 0}}, {{0, 0, -1}}, {{0, 0, 1}}
+    }};
+    for (const auto& direction : directions) {
+        const auto it = m_chunks.find({cx + direction[0], cy + direction[1], cz + direction[2]});
+        if (it != m_chunks.end() && it->second.state == ChunkState::Ready) {
+            it->second.chunk.mesh.dirty = true;
+        }
+    }
+}
+
+bool TerrainStreamer::isSettled() const
+{
+    for (const auto& [key, entry] : m_chunks) {
+        if (entry.state != ChunkState::Ready || entry.chunk.mesh.dirty) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // ================================================================== //

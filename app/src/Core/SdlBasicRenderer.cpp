@@ -48,12 +48,16 @@ void SdlBasicRenderer::releaseResources() {
         g = {};
     };
     release(m_defaultGeometry);
-    for (auto& g : m_geometries) {
-        release(g);
+    for (auto& [handle, geometry] : m_geometries) {
+        release(geometry);
     }
     m_geometries.clear();
+    m_nextGeometryHandle = 1;
     if (m_pipeline) {
         SDL_ReleaseGPUGraphicsPipeline(m_device, m_pipeline);
+    }
+    if (m_doubleSidedPipeline) {
+        SDL_ReleaseGPUGraphicsPipeline(m_device, m_doubleSidedPipeline);
     }
     if (m_vertexShader) {
         SDL_ReleaseGPUShader(m_device, m_vertexShader);
@@ -77,6 +81,7 @@ void SdlBasicRenderer::releaseResources() {
     }
     m_textures.clear();
     m_pipeline = nullptr;
+    m_doubleSidedPipeline = nullptr;
     m_vertexShader = nullptr;
     m_fragmentShader = nullptr;
     m_sampler = nullptr;
@@ -196,6 +201,14 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
         m_device = nullptr;
         return false;
     }
+    pi.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+    m_doubleSidedPipeline = SDL_CreateGPUGraphicsPipeline(&device, &pi);
+    if (!m_doubleSidedPipeline) {
+        error = sdlError("SDL_CreateGPUGraphicsPipeline(double-sided)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
     SDL_GPUSamplerCreateInfo samplerInfo{};
     samplerInfo.min_filter = SDL_GPU_FILTER_LINEAR;
     samplerInfo.mag_filter = SDL_GPU_FILTER_LINEAR;
@@ -216,8 +229,15 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
         m_device = nullptr;
         return false;
     }
-    m_defaultGeometry = m_geometries.back();
-    m_geometries.pop_back();
+    const auto defaultGeometry = m_geometries.find(handle);
+    if (defaultGeometry == m_geometries.end()) {
+        error = "SdlBasicRenderer: default geometry handle was not retained";
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
+    m_defaultGeometry = defaultGeometry->second;
+    m_geometries.erase(defaultGeometry);
     const std::array<std::uint8_t, 4> white = {255, 255, 255, 255};
     const auto whiteHandle = uploadTexture(1, 1, white, error);
     if (!whiteHandle) {
@@ -234,6 +254,10 @@ std::uint32_t SdlBasicRenderer::uploadMesh(std::span<const SdlBasicVertex> verti
     error.clear();
     if (!m_device) {
         error = "SdlBasicRenderer: renderer is not initialized";
+        return 0;
+    }
+    if (m_nextGeometryHandle == 0) {
+        error = "SdlBasicRenderer: geometry handle space exhausted";
         return 0;
     }
     if (vertices.empty() || indices.empty() || indices.size() % 3 != 0) {
@@ -352,8 +376,41 @@ std::uint32_t SdlBasicRenderer::uploadMesh(std::span<const SdlBasicVertex> verti
         error = sdlError("SDL_SubmitGPUCommandBufferAndAcquireFence");
         return 0;
     }
-    m_geometries.push_back(Geometry{vertexBuffer, indexBuffer, static_cast<Uint32>(indices.size())});
-    return static_cast<std::uint32_t>(m_geometries.size());
+    const std::uint32_t handle = m_nextGeometryHandle++;
+    const auto [it, inserted] = m_geometries.emplace(
+        handle, Geometry{vertexBuffer, indexBuffer, static_cast<Uint32>(indices.size())});
+    if (!inserted) {
+        SDL_ReleaseGPUBuffer(m_device, vertexBuffer);
+        SDL_ReleaseGPUBuffer(m_device, indexBuffer);
+        error = "SdlBasicRenderer: geometry handle collision";
+        return 0;
+    }
+    return it->first;
+}
+
+bool SdlBasicRenderer::releaseMesh(std::uint32_t handle, std::string& error) {
+    error.clear();
+    if (!m_device) {
+        error = "SdlBasicRenderer: renderer is not initialized";
+        return false;
+    }
+    if (handle == 0) {
+        error = "SdlBasicRenderer: default geometry cannot be released";
+        return false;
+    }
+    const auto it = m_geometries.find(handle);
+    if (it == m_geometries.end()) {
+        error = "SdlBasicRenderer: invalid geometry handle";
+        return false;
+    }
+    if (it->second.vertexBuffer) {
+        SDL_ReleaseGPUBuffer(m_device, it->second.vertexBuffer);
+    }
+    if (it->second.indexBuffer) {
+        SDL_ReleaseGPUBuffer(m_device, it->second.indexBuffer);
+    }
+    m_geometries.erase(it);
+    return true;
 }
 
 std::uint32_t SdlBasicRenderer::uploadTexture(unsigned width, unsigned height,
@@ -524,15 +581,22 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
     vp.max_depth = 1.0f;
     SDL_SetGPUViewport(pass, &vp);
     SDL_BindGPUGraphicsPipeline(pass, m_pipeline);
+    bool boundDoubleSided = false;
     for (const auto& cube : cubes) {
+        if (cube.doubleSided != boundDoubleSided) {
+            SDL_BindGPUGraphicsPipeline(pass,
+                                        cube.doubleSided ? m_doubleSidedPipeline : m_pipeline);
+            boundDoubleSided = cube.doubleSided;
+        }
         const Geometry* g = &m_defaultGeometry;
         if (cube.geometry) {
-            if (cube.geometry > m_geometries.size()) {
+            const auto geometry = m_geometries.find(cube.geometry);
+            if (geometry == m_geometries.end()) {
                 SDL_EndGPURenderPass(pass);
                 error = "SdlBasicRenderer: invalid geometry handle";
                 return false;
             }
-            g = &m_geometries[cube.geometry - 1];
+            g = &geometry->second;
         }
         SDL_GPUBufferBinding vb{g->vertexBuffer, 0};
         SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);

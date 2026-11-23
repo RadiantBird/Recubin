@@ -2,6 +2,7 @@
 
 #include <Core/SceneRuntime.hpp>
 #include <Core/SdlBasicRenderer.hpp>
+#include <Core/TerrainStreamer.hpp>
 #ifdef RECUBIN_SDL_GPU_STUDIO
 #include <Core/SdlPreviewImGui.hpp>
 #endif
@@ -19,8 +20,10 @@
 #include <filesystem>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <numbers>
 #include <memory>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -30,6 +33,88 @@ constexpr unsigned PREVIEW_HEIGHT = 720;
 struct PreviewGeometry {
     Matrix4 model;
     const MeshCube* mesh;
+};
+
+class PreviewTerrain {
+public:
+    explicit PreviewTerrain(Terrain& terrain)
+        : m_terrain(terrain),
+          m_streamer(nullptr, &terrain, terrain.DataPath, static_cast<uint32_t>(terrain.Seed),
+                     terrain.Flat, true) {}
+
+    float surfaceAtOrigin() const {
+        return m_streamer.findSurfaceY(0, 0) * TerrainStreamer::BLOCK_STUD_SIZE;
+    }
+
+    bool update(const Vector3& center, SdlBasicRenderer& renderer, std::string& error) {
+        m_streamer.update(center);
+        const auto& chunks = m_streamer.getChunks();
+        for (auto it = m_meshes.begin(); it != m_meshes.end();) {
+            if (chunks.contains(it->first)) {
+                ++it;
+                continue;
+            }
+            if (it->second.handle && !renderer.releaseMesh(it->second.handle, error)) {
+                return false;
+            }
+            it = m_meshes.erase(it);
+        }
+        for (const auto& [key, entry] : chunks) {
+            if (!entry.cpuGeometry) {
+                continue;
+            }
+            auto& mesh = m_meshes[key];
+            if (mesh.revision == entry.geometryRevision) {
+                continue;
+            }
+            std::uint32_t replacement = 0;
+            if (!entry.cpuGeometry->indices.empty()) {
+                std::vector<SdlBasicVertex> vertices;
+                vertices.reserve(entry.cpuGeometry->vertices.size());
+                for (const auto& v : entry.cpuGeometry->vertices) {
+                    vertices.push_back({{v.x, v.y, v.z}, {v.u, v.v}, {v.r, v.g, v.b, v.a}});
+                }
+                replacement = renderer.uploadMesh(vertices, entry.cpuGeometry->indices, error);
+                if (!replacement) {
+                    return false;
+                }
+            }
+            if (mesh.handle && !renderer.releaseMesh(mesh.handle, error)) {
+                return false;
+            }
+            mesh = {entry.geometryRevision, replacement};
+        }
+        return true;
+    }
+
+    bool isSettled() const { return m_streamer.isSettled(); }
+    const std::string& name() const { return m_terrain.Name; }
+
+    void appendDraws(const Matrix4& viewProjection, std::vector<SdlBasicCube>& draws) const {
+        for (const auto& [key, mesh] : m_meshes) {
+            if (mesh.handle) {
+                auto& draw = draws.emplace_back();
+                draw.geometry = mesh.handle;
+                // Terrain faces authored for the legacy renderer have mixed winding.
+                draw.doubleSided = true;
+                std::copy_n(viewProjection.m, 16, draw.modelViewProjection.begin());
+            }
+        }
+    }
+
+private:
+    struct Mesh {
+        std::uint64_t revision = 0;
+        std::uint32_t handle = 0;
+    };
+    struct ChunkOrder {
+        bool operator()(const TerrainStreamer::ChunkKey& a, const TerrainStreamer::ChunkKey& b) const {
+            return std::tie(a.cx, a.cy, a.cz) < std::tie(b.cx, b.cy, b.cz);
+        }
+    };
+    Terrain& m_terrain;
+    TerrainStreamer m_streamer;
+    std::map<TerrainStreamer::ChunkKey, Mesh, ChunkOrder> m_meshes;
 };
 
 std::uint32_t uploadEmbeddedTexture(SdlBasicRenderer& renderer,
@@ -206,8 +291,20 @@ int runSdlScenePreview(const std::string& scenePath,
         std::cerr << "SDL scene preview: skipped " << skipped << " unsupported or transparent shapes\n";
     }
 
-    const Vector3 center = cubes.empty() ? Vector3(0, 0, 0) : minBounds * 0.5f + maxBounds * 0.5f;
-    const float radius = cubes.empty() ? 1.0f : std::max(1.0f, (maxBounds - minBounds).length() * 0.5f);
+    std::vector<std::unique_ptr<PreviewTerrain>> terrains;
+    for (Terrain* terrain : SceneRuntime::collectTerrains(workspaces.front().get())) {
+        if (terrain->Enabled && !terrain->DataPath.empty()) {
+            terrains.push_back(std::make_unique<PreviewTerrain>(*terrain));
+        }
+    }
+    Vector3 center = cubes.empty() ? Vector3(0, 0, 0) : minBounds * 0.5f + maxBounds * 0.5f;
+    constexpr float chunkWidth = CHUNK_SIZE * TerrainStreamer::BLOCK_STUD_SIZE;
+    const float radius = cubes.empty() ? (terrains.empty() ? 1.0f : chunkWidth * 0.5f)
+                                       : std::max(1.0f, (maxBounds - minBounds).length() * 0.5f);
+    bool terrainCameraPending = cubes.empty() && !terrains.empty();
+    if (terrainCameraPending) {
+        center.y = terrains.front()->surfaceAtOrigin();
+    }
     if (!std::isfinite(radius)) {
         std::cerr << "SDL scene preview: bounds exceed the supported camera range\n";
         return 1;
@@ -348,6 +445,9 @@ int runSdlScenePreview(const std::string& scenePath,
     unsigned previousHeight = 0;
     float orbitAngle = 0.0f;
     bool cameraDirty = true;
+    Matrix4 viewProjection;
+    const std::size_t staticDrawCount = drawItems.size();
+    const Uint64 streamStart = SDL_GetTicks();
     std::cout << "SDL scene preview (" << window.driverName() << "): " << cubes.size()
               << " opaque Cube/MeshCube instances\n";
     while (running) {
@@ -372,11 +472,44 @@ int runSdlScenePreview(const std::string& scenePath,
                 } else if (event.key.key == SDLK_HOME) {
                     orbitAngle = 0.0f;
                     cameraDirty = true;
+                } else if (!terrains.empty()) {
+                    switch (event.key.key) {
+                    case SDLK_A: center.x -= chunkWidth; break;
+                    case SDLK_D: center.x += chunkWidth; break;
+                    case SDLK_W: center.z -= chunkWidth; break;
+                    case SDLK_S: center.z += chunkWidth; break;
+                    default: continue;
+                    }
+                    terrainCameraPending = false;
+                    cameraDirty = true;
                 }
             }
         }
         if (!running) {
             break;
+        }
+        drawItems.resize(staticDrawCount);
+        bool terrainSettled = true;
+        for (const auto& terrain : terrains) {
+            if (!terrain->update(center, renderer, error)) {
+                std::cerr << "SDL scene preview: Terrain '" << terrain->name() << "': " << error << '\n';
+                return 1;
+            }
+            terrainSettled = terrain->isSettled() && terrainSettled;
+        }
+        if (captureDir && !terrainSettled) {
+            constexpr Uint64 terrainTimeoutMs = 30000;
+            if (SDL_GetTicks() - streamStart >= terrainTimeoutMs) {
+                std::cerr << "SDL scene preview: timed out waiting for Terrain in " << scenePath << '\n';
+                return 1;
+            }
+            SDL_Delay(1);
+            continue;
+        }
+        if (terrainCameraPending && terrainSettled) {
+            center.y = terrains.front()->surfaceAtOrigin();
+            terrainCameraPending = false;
+            cameraDirty = true;
         }
         auto frame = window.beginFrame(&error);
         if (!frame) {
@@ -403,7 +536,7 @@ int runSdlScenePreview(const std::string& scenePath,
             const Matrix4 view = Matrix4::LookAt(eye, center, Vector3(0, 1, 0));
             const Matrix4 projection = previewPerspective(aspect, std::max(0.01f, distance * 0.01f),
                                                           distance * 8.0f);
-            const Matrix4 viewProjection = projection * view;
+            viewProjection = projection * view;
             for (std::size_t index = 0; index < drawItems.size(); ++index) {
                 const Matrix4 mvp = viewProjection * drawModels[index];
                 std::copy_n(mvp.m, 16, drawItems[index].modelViewProjection.begin());
@@ -411,6 +544,9 @@ int runSdlScenePreview(const std::string& scenePath,
             previousWidth = width;
             previousHeight = height;
             cameraDirty = false;
+        }
+        for (const auto& terrain : terrains) {
+            terrain->appendDraws(viewProjection, drawItems);
         }
         if (!renderer.draw(*frame.command, width, height, drawItems, error)) {
             std::cerr << "SDL scene preview: draw failed: " << error << '\n';
