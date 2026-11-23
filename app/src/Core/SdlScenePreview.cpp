@@ -283,8 +283,13 @@ struct SdlLiveScene::State {
     SdlBasicRenderer renderer;
     SdlPostEffects postEffects;
     SDL_GPUTexture* result = nullptr;
-    std::vector<SdlBasicCube> draws;
-    std::vector<Matrix4> models;
+    struct MeshDraw {
+        SdlBasicCube draw;
+        Matrix4 model;
+        const BaseCube* owner; // Borrowed from the Workspace until the next sync.
+    };
+    std::vector<MeshDraw> meshes;
+    std::vector<SdlBasicCube> frameDraws;
     struct MeshCache {
         std::uint32_t handle = 0;
         std::weak_ptr<const Instance> owner;
@@ -324,8 +329,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
         error = "SdlLiveScene: renderer is not initialized";
         return false;
     }
-    m_state->draws.clear();
-    m_state->models.clear();
+    m_state->meshes.clear();
     std::unordered_set<const BaseCube*> active;
     for (BaseCube* cube : workspace.getRenderBaseCubes()) {
         if (!cube) {
@@ -369,8 +373,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
                 draw.castShadow = cube->shouldCastShadow();
                 draw.receiveShadow = !cube->Unlit;
                 draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, cube->Color.a};
-                m_state->draws.push_back(draw);
-                m_state->models.push_back(model);
+                m_state->meshes.push_back({draw, model, cube});
             } else {
                 for (const auto& section : sections) {
                     if (!section.opaque) continue;
@@ -391,8 +394,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
                                   cube->Color.g * section.baseColor.g,
                                   cube->Color.b * section.baseColor.b,
                                   cube->Color.a * section.baseColor.a};
-                    m_state->draws.push_back(draw);
-                    m_state->models.push_back(model);
+                    m_state->meshes.push_back({draw, model, cube});
                 }
             }
             continue;
@@ -402,8 +404,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
         draw.castShadow = cube->shouldCastShadow(mesh && mesh->isUsingFallback());
         draw.receiveShadow = !cube->Unlit;
         draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, cube->Color.a};
-        m_state->draws.push_back(draw);
-        m_state->models.push_back(model);
+        m_state->meshes.push_back({draw, model, cube});
     }
     for (auto it = m_state->meshCache.begin(); it != m_state->meshCache.end();) {
         if (active.contains(it->first)) {
@@ -446,22 +447,27 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
 bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
                         const Vector3& cameraPosition, const Vector3& cameraForward, float effectTime,
                         SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
-                        std::string& error) {
+                        std::string& error, std::span<BaseCube* const> selected) {
     const auto lightProjection = shadowProjection(workspace, cameraPosition, cameraForward);
-    for (std::size_t i = 0; i < m_state->draws.size(); ++i) {
-        const Matrix4 mvp = viewProjection * m_state->models[i];
-        std::copy_n(mvp.m, 16, m_state->draws[i].modelViewProjection.begin());
+    const std::unordered_set<const BaseCube*> selectedSet(selected.begin(), selected.end());
+    auto& draws = m_state->frameDraws;
+    draws.clear();
+    draws.reserve(m_state->meshes.size());
+    for (const auto& mesh : m_state->meshes) {
+        auto& draw = draws.emplace_back(mesh.draw);
+        const Matrix4 mvp = viewProjection * mesh.model;
+        std::copy_n(mvp.m, 16, draw.modelViewProjection.begin());
         if (lightProjection) {
-            const Matrix4 shadowMvp = *lightProjection * m_state->models[i];
-            std::copy_n(shadowMvp.m, 16, m_state->draws[i].shadowModelViewProjection.begin());
+            const Matrix4 shadowMvp = *lightProjection * mesh.model;
+            std::copy_n(shadowMvp.m, 16, draw.shadowModelViewProjection.begin());
         }
+        draw.selected = selectedSet.contains(mesh.owner);
     }
     for (const auto& [terrain, cache] : m_state->terrainCache) {
-        cache.meshes.appendDraws(viewProjection, lightProjection, m_state->draws);
+        cache.meshes.appendDraws(viewProjection, lightProjection, draws);
     }
-    const bool drawn = m_state->renderer.draw(commandBuffer, width, height, m_state->draws,
+    const bool drawn = m_state->renderer.draw(commandBuffer, width, height, draws,
                                                error, lightProjection.has_value());
-    m_state->draws.resize(m_state->models.size());
     return drawn && m_state->postEffects.apply(workspace, commandBuffer, *m_state->renderer.colorTarget(),
                                                 width, height, effectTime, m_state->result, error);
 }

@@ -8,10 +8,12 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <span>
 
 class User;
 class Workspace;
 class SdlBasicRenderer;
+class BaseCube;
 
 class SdlLiveScene final {
 public:
@@ -26,7 +28,7 @@ public:
     bool draw(Workspace& workspace, const Matrix4& viewProjection,
               const Vector3& cameraPosition, const Vector3& cameraForward, float effectTime,
               SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
-              std::string& error);
+              std::string& error, std::span<BaseCube* const> selected = {});
     SDL_GPUTexture* colorTarget() const;
 
 private:

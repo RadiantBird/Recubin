@@ -895,3 +895,13 @@
 - SDL GPU 有効・無効の MSVC 構文検査に成功。隔離バイナリで `--gui-automation-regression`、`--gui-viewport-edit-regression`、`--viewport-helper-regression` が成功。`git diff --check --ignore-submodules=all` も成功した。
 - 初回の隔離ビルドで影が黒つぶれした原因は、隔離ビルドの include 順で古い生成済みヘッダーを使ったこと。本来の xmake と同じく Studio 専用の `build/generated/studio` を先に指定して解消。Visual Studio が MSVC 14.51 から 14.52 に更新されたため、正式な xmake Release 用の依存を再構築した。`temp_build/deno-2.6.9/deno.exe` を `DENO` に設定し、古い sokol-shdc の `.fibs` ビルドキャッシュを退避した。Release の xmake 構成は成功し、本体ビルドは待機箇所を調査中。
 - 次は xmake Release の対象ビルドと回帰を確認し、Studio の選択マスク、Terrain ブラシのガイド、画像プレビュー、Play 時のゲーム GUI、ImGui 分離ウィンドウを移植する。SDL GPU は明示指定時に選択する。SDK と macOS の実機検証は今回の対象外。
+
+`5cb4528` にコミット。正式な xmake ビルドは MSVC の検出直後に待機し、キャッシュ無効・単一ジョブで試すと `cl` が `-e` を受け取り `D8003` を返した。MSVC の直接ビルドと SDL GPU の実行検証は成功。xmake は設定と成果物を隔離した再試行でも MSVC 検出までを確認した。
+
+## 2026-11-23 SDL GPU の Studio 選択アウトライン
+
+- `SdlStudioViewportRenderer` が既存のビューポート選択クエリで BaseCube を集め、`SdlLiveScene` が実際の描画メッシュとマテリアル区間を選択パスへ渡す。`SdlBasicRenderer` はシーン深度を `LOAD` し、深度を書き換えずに R8 マスクを描く。輪郭をシーンカラーへ合成してから既存のポスト処理を通す。
+- xmake のシェーダー生成スクリプトで SPIR-V と DXIL を生成。Windows の隔離 MSVC ビルドでビューポートから Model を選択し、一部が覆われた Cube にだけ輪郭が出ること、完全に遮蔽された Cube と選択解除後に輪郭が出ないことを確認。3 状態すべての PNG が Vulkan と D3D12 の間で全画素一致した。
+- Vulkan／D3D12 とも複数マテリアル付き GLB の輪郭が表示され、ビューポートのリサイズ後に位置と大きさが追従した。
+- xmake の Windows Release を再試行し、SDL GPU 有効・無効の両構成で Studio・Engine・Test・Runtime のビルドが成功。有効構成の Studio で選択と遮蔽の画像比較を再実行し、上記と同じ結果を確認。Engine の太陽の影とカスタム GLSL は両バックエンドとも変更前の PNG と全画素一致した。GUI 自動化、ビューポート編集、ビューポート補助の回帰 3 件が成功。
+- 次は SDL ビューポートのホバー・Weld の強調表示と Terrain ブラシのガイドを移す。その後、ゲーム GUI、ImGui の分離ウィンドウ、未移植のシーン描画パスを続ける。

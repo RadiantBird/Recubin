@@ -26,6 +26,7 @@ struct SdlBasicCube {
     bool doubleSided = false;
     bool castShadow = true;
     bool receiveShadow = true;
+    bool selected = false;
 };
 
 SDL_GPUTexture* uploadSdlRgbaTexture(SDL_GPUDevice& device, unsigned width, unsigned height,
@@ -67,19 +68,30 @@ private:
     void releaseResources();
     bool ensureTargets(unsigned width, unsigned height, std::string& error);
     bool ensureShadowTarget(std::string& error);
+    bool ensureSelectionTarget(unsigned width, unsigned height, std::string& error);
 
     SDL_GPUDevice* m_device = nullptr;
     SDL_GPUShader* m_vertexShader = nullptr;
     SDL_GPUShader* m_fragmentShader = nullptr;
     SDL_GPUShader* m_shadowFragmentShader = nullptr;
+    SDL_GPUShader* m_selectionMaskFragmentShader = nullptr;
+    SDL_GPUShader* m_selectionOutlineVertexShader = nullptr;
+    SDL_GPUShader* m_selectionOutlineFragmentShader = nullptr;
     SDL_GPUSampler* m_sampler = nullptr;
     SDL_GPUSampler* m_shadowSampler = nullptr;
+    SDL_GPUSampler* m_selectionSampler = nullptr;
     SDL_GPUGraphicsPipeline* m_pipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_doubleSidedPipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_shadowPipeline = nullptr;
+    SDL_GPUGraphicsPipeline* m_selectionMaskPipeline = nullptr;
+    SDL_GPUGraphicsPipeline* m_selectionMaskDoubleSidedPipeline = nullptr;
+    SDL_GPUGraphicsPipeline* m_selectionOutlinePipeline = nullptr;
     SDL_GPUTexture* m_colorTarget = nullptr;
     SDL_GPUTexture* m_depthTarget = nullptr;
     SDL_GPUTexture* m_shadowTarget = nullptr;
+    SDL_GPUTexture* m_selectionMaskTarget = nullptr;
+    unsigned m_selectionWidth = 0;
+    unsigned m_selectionHeight = 0;
     std::unordered_map<std::uint32_t, Geometry> m_geometries;
     std::uint32_t m_nextGeometryHandle = 1;
     std::unordered_map<std::uint32_t, SDL_GPUTexture*> m_textures;

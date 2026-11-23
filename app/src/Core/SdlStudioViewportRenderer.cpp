@@ -3,6 +3,8 @@
 #include <Core/SdlScenePreview.hpp>
 #include <Core/SdlBasicRenderer.hpp>
 #include <Core/Renderer.hpp>
+#include <Editor/ViewportSceneQueries.hpp>
+#include <Instances/BaseCube.hpp>
 #include <Math/Matrix4.hpp>
 #include <include/stb_image.h>
 
@@ -11,6 +13,28 @@
 #include <vector>
 
 namespace {
+std::vector<BaseCube*> collectViewportSelection(const ViewportRenderDesc& request) {
+    std::vector<BaseCube*> result;
+    if (!request.renderHighlights) {
+        return result;
+    }
+    auto append = [&](Instance* selected) {
+        if (!selected || selected->Parent.expired() || selected->IsA("Decal")) {
+            return;
+        }
+        result.append_range(ViewportSceneQueries::collectHighlightBaseCubes(*selected));
+    };
+    append(request.primarySelection);
+    if (request.selectionTargets) {
+        for (Instance* selected : *request.selectionTargets) {
+            if (selected != request.primarySelection) {
+                append(selected);
+            }
+        }
+    }
+    return result;
+}
+
 Matrix4 studioViewProjection(const ViewportRenderDesc& request) {
     const float width = static_cast<float>(request.width);
     const float height = static_cast<float>(request.height);
@@ -128,10 +152,11 @@ ImTextureRef SdlStudioViewportRenderer::renderViewport(const ViewportPanel& pane
         return ImTextureRef{};
     }
     const Matrix4 viewProjection = studioViewProjection(request);
+    const std::vector<BaseCube*> selected = collectViewportSelection(request);
     if (!scene.draw(*request.workspace, viewProjection, request.cameraPosition,
                     request.cameraForward, m_elapsed, *m_commandBuffer,
                     static_cast<unsigned>(request.width), static_cast<unsigned>(request.height),
-                    sceneError)) {
+                    sceneError, selected)) {
         reportError("SDL Studio viewport renderer: " + sceneError);
         return ImTextureRef{};
     }
