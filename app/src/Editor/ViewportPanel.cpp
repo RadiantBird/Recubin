@@ -434,18 +434,21 @@ bool ViewportPanel::updateTerrainBrush(const ViewportLayout& layout) {
             if (terrainHit) {
                 // ヒット位置にブラシ範囲のガイドリングを描画（シーン描画済みFBOへ追記）。
                 // クリック前でも「どこに当たるか」が見えるようマウス押下に関係なく毎フレーム描く。
-                if (!m_sceneRenderer && Renderer::instance && framebuffer) {
+                Vector3 brushNormal(0.0f, 0.0f, 0.0f);
+                if (hitAxis == 0) brushNormal.x = (float)hitSign;
+                else if (hitAxis == 1) brushNormal.y = (float)hitSign;
+                else brushNormal.z = (float)hitSign;
+
+                if (m_sceneRenderer) {
+                    m_sceneRenderer->renderTerrainGuide(
+                        *this, hitPos, brushNormal, m_terrainBrush->radius);
+                } else if (Renderer::instance && framebuffer) {
                     float   aspect = (h > 0) ? (float)w / (float)h : 1.0f;
                     Matrix4 proj   = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
                     Matrix4 view   = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
                     GLint prevFBO = 0; GLint prevVp[4] = {};
                     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
                     glGetIntegerv(GL_VIEWPORT, prevVp);
-                    Vector3 brushNormal(0.0f, 0.0f, 0.0f);
-                    if (hitAxis == 0) brushNormal.x = (float)hitSign;
-                    else if (hitAxis == 1) brushNormal.y = (float)hitSign;
-                    else brushNormal.z = (float)hitSign;
-
                     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
                     glViewport(0, 0, fbWidth, fbHeight);
                     Renderer::instance->renderBrushMarker(view, proj, hitPos, m_terrainBrush->radius, camPos(), brushNormal);
@@ -497,7 +500,10 @@ bool ViewportPanel::updateWeldMode(const ViewportLayout& layout) {
                 *workspace, ray, ViewportSceneQueries::PickerTargetType::BaseCube);
         BaseCube* hoveredCube = hoverHit.hit ? static_cast<BaseCube*>(hoverHit.target) : nullptr;
 
-        if (hoveredCube && !m_sceneRenderer && Renderer::instance && framebuffer) {
+        if (hoveredCube && m_sceneRenderer) {
+            m_sceneRenderer->renderOutline(*this, {&hoveredCube, 1},
+                                           Color4(0.15f, 1.0f, 0.25f, 1.0f), 3.0f);
+        } else if (hoveredCube && Renderer::instance && framebuffer) {
             const float aspect = h > 0 ? static_cast<float>(w) / static_cast<float>(h) : 1.0f;
             const Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
             const Matrix4 view = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
@@ -1179,7 +1185,7 @@ void ViewportPanel::drawHoverHighlight(const ViewportLayout& layout) {
     const int h = layout.height;
     if ((!isSelectMode() && !isGizmoMode()) || !isHoveringViewport || ImGuizmo::IsUsing()
             || (isGizmoMode() && ImGuizmo::IsOver(gizmoOp)) || !user || !workspace
-            || m_sceneRenderer || !Renderer::instance || !framebuffer
+            || (!m_sceneRenderer && (!Renderer::instance || !framebuffer))
             || (m_weldMode && m_weldMode->active)
             || (m_terrainBrush && m_terrainBrush->active)
             || (m_picker && m_picker->active)
@@ -1218,12 +1224,17 @@ void ViewportPanel::drawHoverHighlight(const ViewportLayout& layout) {
         return;
     }
 
-    const float aspect = h > 0 ? static_cast<float>(w) / static_cast<float>(h) : 1.0f;
-    const Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
-    const Matrix4 view = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
     const std::vector<BaseCube*> hoverTargets =
         ViewportSceneQueries::collectHighlightBaseCubes(*hoverTarget);
     FrameProfiler::Scope hoverOutline("ui.viewportHoverOutline");
+    if (m_sceneRenderer) {
+        m_sceneRenderer->renderOutline(*this, hoverTargets,
+                                       Color4(1.0f, 1.0f, 1.0f, 0.45f), 1.5f);
+        return;
+    }
+    const float aspect = h > 0 ? static_cast<float>(w) / static_cast<float>(h) : 1.0f;
+    const Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
+    const Matrix4 view = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
     Renderer::instance->renderSelectionOutline(
         hoverTargets, framebuffer, w, h, view, projection,
         Color4(1.0f, 1.0f, 1.0f, 0.45f), 1.5f);

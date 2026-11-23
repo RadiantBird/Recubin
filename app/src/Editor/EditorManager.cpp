@@ -1458,12 +1458,15 @@ void EditorManager::renderToolbarTabs() {
     const ImVec2 tabBtnSz = ImVec2(110.0f * m_uiLayoutScale,
                                     30.0f * m_uiLayoutScale);
 
-    auto tabButton = [&](Loc::LocKey key, ToolbarCategory cat) {
+    auto tabButton = [&](Loc::LocKey key, ToolbarCategory cat, const char* automationId = nullptr) {
         ImGui::PushStyleColor(ImGuiCol_Button,
             (m_toolbarCategory == cat) ? colors.toolbarActive : colors.toolbarInactive);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colors.toolbarHover);
         if (drawIconButton(nullptr, Loc::t(key), tabBtnSz, m_toolbarCategory == cat)) {
             m_toolbarCategory = cat;
+        }
+        if (automationId) {
+            GuiAutomation::registerLastItem(automationId);
         }
         ImGui::PopStyleColor(2);
         ImGui::SameLine();
@@ -1471,8 +1474,8 @@ void EditorManager::renderToolbarTabs() {
 
     tabButton(Loc::LocKey::ToolbarTabBasic,     ToolbarCategory::Basic);
     tabButton(Loc::LocKey::ToolbarTabCubes,     ToolbarCategory::Cubes);
-    tabButton(Loc::LocKey::ToolbarTabTerrain,   ToolbarCategory::Terrain);
-    tabButton(Loc::LocKey::ToolbarTabPhysics,   ToolbarCategory::Physics);
+    tabButton(Loc::LocKey::ToolbarTabTerrain,   ToolbarCategory::Terrain, "Editor/Toolbar/TerrainTab");
+    tabButton(Loc::LocKey::ToolbarTabPhysics,   ToolbarCategory::Physics, "Editor/Toolbar/PhysicsTab");
     tabButton(Loc::LocKey::ToolbarTabCharacter, ToolbarCategory::Character);
     tabButton(Loc::LocKey::ToolbarTabGui,       ToolbarCategory::Gui);
 
@@ -1818,6 +1821,7 @@ void EditorManager::renderToolbarTerrain() {
     if (drawIconButton(ICON_TERRAINBRUSH_TOGGLE, Loc::t(Loc::LocKey::TerrainBrushEdit), btnSz,
                        m_terrainBrush.active))
         m_terrainBrush.active = !m_terrainBrush.active;
+    GuiAutomation::registerLastItem("Editor/Toolbar/TerrainBrush");
     ImGui::PopStyleColor(2);
 
     if (!m_terrainBrush.active) return;
@@ -1879,6 +1883,7 @@ void EditorManager::renderToolbarPhysics() {
         m_weldMode.active = !m_weldMode.active;
         m_weldMode.cube0.reset();
     }
+    GuiAutomation::registerLastItem("Editor/Toolbar/WeldMode");
     ImGui::PopStyleColor();
     ImGui::SameLine();
 

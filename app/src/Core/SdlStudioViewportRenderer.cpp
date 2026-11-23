@@ -72,6 +72,7 @@ void SdlStudioViewportRenderer::beginFrame(SDL_GPUCommandBuffer& commandBuffer, 
     m_commandBuffer = &commandBuffer;
     m_elapsed = elapsed;
     m_error.clear();
+    m_renderedPanes.clear();
     m_frameActive = true;
 }
 
@@ -166,10 +167,12 @@ ImTextureRef SdlStudioViewportRenderer::renderViewport(const ViewportPanel& pane
         reportError("SDL Studio viewport renderer: scene produced no color target");
         return ImTextureRef{};
     }
+    m_renderedPanes.insert(&panel);
     return ImTextureRef(static_cast<ImTextureID>(reinterpret_cast<std::uintptr_t>(texture)));
 }
 
 void SdlStudioViewportRenderer::removeViewport(const ViewportPanel& panel) {
+    m_renderedPanes.erase(&panel);
     const auto it = m_scenes.find(&panel);
     if (it == m_scenes.end()) {
         return;
@@ -178,6 +181,44 @@ void SdlStudioViewportRenderer::removeViewport(const ViewportPanel& panel) {
         m_retiredScenes.push_back(std::move(it->second));
     }
     m_scenes.erase(it);
+}
+
+void SdlStudioViewportRenderer::renderOutline(const ViewportPanel& panel,
+                                              std::span<BaseCube* const> targets,
+                                              const Color4& color, float thickness) {
+    auto* scene = findOverlayScene(panel);
+    if (!scene) {
+        return;
+    }
+    std::string error;
+    if (!scene->drawOutline(*m_commandBuffer, targets, color, thickness, error)) {
+        reportError("SDL Studio viewport renderer: " + error);
+    }
+}
+
+void SdlStudioViewportRenderer::renderTerrainGuide(const ViewportPanel& panel,
+                                                   const Vector3& center,
+                                                   const Vector3& normal,
+                                                   float radius) {
+    auto* scene = findOverlayScene(panel);
+    if (!scene) {
+        return;
+    }
+    std::string error;
+    if (!scene->drawTerrainGuide(*m_commandBuffer, center, normal, radius, error)) {
+        reportError("SDL Studio viewport renderer: " + error);
+    }
+}
+
+SdlLiveScene* SdlStudioViewportRenderer::findOverlayScene(const ViewportPanel& panel) {
+    if (!m_frameActive || !m_commandBuffer) {
+        reportError("SDL Studio viewport renderer: overlay requested outside a frame");
+        return nullptr;
+    }
+    if (!m_renderedPanes.contains(&panel)) {
+        return nullptr;
+    }
+    return m_scenes.at(&panel).get();
 }
 
 const std::string& SdlStudioViewportRenderer::error() const {

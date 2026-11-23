@@ -1,10 +1,12 @@
 #include "Core/SdlBasicRenderer.hpp"
+#include <Util/Color4.hpp>
 #include <algorithm>
 #include <array>
 #include <basic_gpu_shaders.hpp>
 #include <selection_mask_gpu_shaders.hpp>
 #include <selection_outline_gpu_shaders.hpp>
 #include <post_effect_gpu_shaders.hpp>
+#include <terrain_guide_gpu_shaders.hpp>
 #include <shadow_gpu_shaders.hpp>
 #include <cmath>
 #include <cstddef>
@@ -16,6 +18,7 @@ namespace {
 constexpr SDL_GPUTextureFormat COLOR_FORMAT = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
 constexpr SDL_GPUTextureFormat DEPTH_FORMAT = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
 constexpr unsigned SHADOW_MAP_SIZE = 2048;
+constexpr Uint32 TERRAIN_GUIDE_VERTEX_COUNT = 2 * (48 + 1); // terrain_guide.hlsl
 std::string sdlError(std::string_view operation) {
     std::string message(operation);
     const char* detail = SDL_GetError();
@@ -159,6 +162,7 @@ void SdlBasicRenderer::releaseResources() {
     if (m_selectionOutlinePipeline) {
         SDL_ReleaseGPUGraphicsPipeline(m_device, m_selectionOutlinePipeline);
     }
+    if (m_terrainGuidePipeline) SDL_ReleaseGPUGraphicsPipeline(m_device, m_terrainGuidePipeline);
     if (m_vertexShader) {
         SDL_ReleaseGPUShader(m_device, m_vertexShader);
     }
@@ -177,6 +181,8 @@ void SdlBasicRenderer::releaseResources() {
     if (m_selectionOutlineFragmentShader) {
         SDL_ReleaseGPUShader(m_device, m_selectionOutlineFragmentShader);
     }
+    if (m_terrainGuideVertexShader) SDL_ReleaseGPUShader(m_device, m_terrainGuideVertexShader);
+    if (m_terrainGuideFragmentShader) SDL_ReleaseGPUShader(m_device, m_terrainGuideFragmentShader);
     if (m_sampler) {
         SDL_ReleaseGPUSampler(m_device, m_sampler);
     }
@@ -211,12 +217,15 @@ void SdlBasicRenderer::releaseResources() {
     m_selectionMaskPipeline = nullptr;
     m_selectionMaskDoubleSidedPipeline = nullptr;
     m_selectionOutlinePipeline = nullptr;
+    m_terrainGuidePipeline = nullptr;
     m_vertexShader = nullptr;
     m_fragmentShader = nullptr;
     m_shadowFragmentShader = nullptr;
     m_selectionMaskFragmentShader = nullptr;
     m_selectionOutlineVertexShader = nullptr;
     m_selectionOutlineFragmentShader = nullptr;
+    m_terrainGuideVertexShader = nullptr;
+    m_terrainGuideFragmentShader = nullptr;
     m_sampler = nullptr;
     m_shadowSampler = nullptr;
     m_selectionSampler = nullptr;
@@ -478,6 +487,54 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     m_selectionOutlinePipeline = SDL_CreateGPUGraphicsPipeline(&device, &outlinePi);
     if (!m_selectionOutlinePipeline) {
         error = sdlError("SDL_CreateGPUGraphicsPipeline(selection outline)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
+    SDL_GPUShaderCreateInfo guideVertexInfo{};
+    guideVertexInfo.format = fi.format;
+    guideVertexInfo.entrypoint = "VSMain";
+    guideVertexInfo.stage = SDL_GPU_SHADERSTAGE_VERTEX;
+    guideVertexInfo.num_uniform_buffers = 1;
+    SDL_GPUShaderCreateInfo guideFragmentInfo{};
+    guideFragmentInfo.format = fi.format;
+    guideFragmentInfo.entrypoint = "PSMain";
+    guideFragmentInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
+    if (fi.format == SDL_GPU_SHADERFORMAT_DXIL) {
+        guideVertexInfo.code = terrain_guide_gpu_vertex_dxil;
+        guideVertexInfo.code_size = sizeof(terrain_guide_gpu_vertex_dxil);
+        guideFragmentInfo.code = terrain_guide_gpu_fragment_dxil;
+        guideFragmentInfo.code_size = sizeof(terrain_guide_gpu_fragment_dxil);
+    } else {
+        guideVertexInfo.code = terrain_guide_gpu_vertex_spirv;
+        guideVertexInfo.code_size = sizeof(terrain_guide_gpu_vertex_spirv);
+        guideFragmentInfo.code = terrain_guide_gpu_fragment_spirv;
+        guideFragmentInfo.code_size = sizeof(terrain_guide_gpu_fragment_spirv);
+    }
+    m_terrainGuideVertexShader = SDL_CreateGPUShader(&device, &guideVertexInfo);
+    m_terrainGuideFragmentShader = SDL_CreateGPUShader(&device, &guideFragmentInfo);
+    if (!m_terrainGuideVertexShader || !m_terrainGuideFragmentShader) {
+        error = sdlError("SDL_CreateGPUShader(terrain guide)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
+    SDL_GPUGraphicsPipelineCreateInfo guidePi{};
+    guidePi.vertex_shader = m_terrainGuideVertexShader;
+    guidePi.fragment_shader = m_terrainGuideFragmentShader;
+    guidePi.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLESTRIP;
+    guidePi.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+    guidePi.rasterizer_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
+    guidePi.depth_stencil_state.enable_depth_test = true;
+    guidePi.depth_stencil_state.enable_depth_write = false;
+    guidePi.depth_stencil_state.compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL;
+    guidePi.target_info.num_color_targets = 1;
+    guidePi.target_info.color_target_descriptions = &ct;
+    guidePi.target_info.depth_stencil_format = DEPTH_FORMAT;
+    guidePi.target_info.has_depth_stencil_target = true;
+    m_terrainGuidePipeline = SDL_CreateGPUGraphicsPipeline(&device, &guidePi);
+    if (!m_terrainGuidePipeline) {
+        error = sdlError("SDL_CreateGPUGraphicsPipeline(terrain guide)");
         releaseResources();
         m_device = nullptr;
         return false;
@@ -840,6 +897,35 @@ bool SdlBasicRenderer::ensureSelectionTarget(unsigned width, unsigned height, st
     return true;
 }
 
+bool SdlBasicRenderer::drawMesh(SDL_GPURenderPass& pass, const SdlBasicCube& cube,
+                                std::string& error) const {
+    const Geometry* geometry = &m_defaultGeometry;
+    if (cube.geometry) {
+        const auto it = m_geometries.find(cube.geometry);
+        if (it == m_geometries.end()) {
+            error = "SdlBasicRenderer: invalid geometry handle " + std::to_string(cube.geometry);
+            return false;
+        }
+        geometry = &it->second;
+    }
+    if (cube.firstIndex >= geometry->indexCount || cube.firstIndex % 3 != 0) {
+        error = "SdlBasicRenderer: draw does not start at a triangle in the geometry";
+        return false;
+    }
+    const auto remaining = geometry->indexCount - cube.firstIndex;
+    const auto count = cube.indexCount ? cube.indexCount : remaining;
+    if (count > remaining || count % 3 != 0) {
+        error = "SdlBasicRenderer: draw index range is outside geometry";
+        return false;
+    }
+    SDL_GPUBufferBinding vertex{geometry->vertexBuffer, 0};
+    SDL_BindGPUVertexBuffers(&pass, 0, &vertex, 1);
+    SDL_GPUBufferBinding index{geometry->indexBuffer, 0};
+    SDL_BindGPUIndexBuffer(&pass, &index, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+    SDL_DrawGPUIndexedPrimitives(&pass, count, 1, cube.firstIndex, 0, 0);
+    return true;
+}
+
 bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
                             std::span<const SdlBasicCube> cubes, std::string& error, bool shadows) {
     error.clear();
@@ -853,10 +939,9 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
     if (shadows && !ensureShadowTarget(error)) {
         return false;
     }
-    enum class Pass { Scene, Shadow, Selection };
+    enum class Pass { Scene, Shadow };
     const auto drawPass = [&](SDL_GPURenderPass* pass, Pass kind) -> bool {
         const bool shadowPass = kind == Pass::Shadow;
-        const bool selectionPass = kind == Pass::Selection;
         SDL_GPUViewport vp{};
         vp.w = shadowPass ? static_cast<float>(SHADOW_MAP_SIZE) : static_cast<float>(width);
         vp.h = shadowPass ? static_cast<float>(SHADOW_MAP_SIZE) : static_cast<float>(height);
@@ -866,43 +951,16 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
         SDL_GPUGraphicsPipeline* doubleSidedPipeline = m_doubleSidedPipeline;
         if (shadowPass) {
             pipeline = m_shadowPipeline;
-        } else if (selectionPass) {
-            pipeline = m_selectionMaskPipeline;
-            doubleSidedPipeline = m_selectionMaskDoubleSidedPipeline;
         }
         SDL_BindGPUGraphicsPipeline(pass, pipeline);
         bool boundDoubleSided = false;
         for (const auto& cube : cubes) {
-            if ((shadowPass && !cube.castShadow) || (selectionPass && !cube.selected)) {
+            if (shadowPass && !cube.castShadow) {
                 continue;
             }
             if (!shadowPass && cube.doubleSided != boundDoubleSided) {
                 SDL_BindGPUGraphicsPipeline(pass, cube.doubleSided ? doubleSidedPipeline : pipeline);
                 boundDoubleSided = cube.doubleSided;
-            }
-            const Geometry* g = &m_defaultGeometry;
-            if (cube.geometry) {
-                const auto geometry = m_geometries.find(cube.geometry);
-                if (geometry == m_geometries.end()) {
-                    error = "SdlBasicRenderer: invalid geometry handle";
-                    return false;
-                }
-                g = &geometry->second;
-            }
-            SDL_GPUBufferBinding vb{g->vertexBuffer, 0};
-            SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);
-            SDL_GPUBufferBinding ib{g->indexBuffer, 0};
-            SDL_BindGPUIndexBuffer(pass, &ib, SDL_GPU_INDEXELEMENTSIZE_32BIT);
-            const std::uint32_t firstIndex = cube.firstIndex;
-            if (firstIndex >= g->indexCount || firstIndex % 3 != 0) {
-                error = "SdlBasicRenderer: draw does not start at a triangle in the geometry";
-                return false;
-            }
-            const std::uint32_t remainingIndices = g->indexCount - firstIndex;
-            const std::uint32_t indexCount = cube.indexCount == 0 ? remainingIndices : cube.indexCount;
-            if (indexCount > remainingIndices || indexCount % 3 != 0) {
-                error = "SdlBasicRenderer: draw index range is outside geometry";
-                return false;
             }
             if (kind == Pass::Scene) {
                 SDL_GPUTexture* texture = m_whiteTexture;
@@ -933,7 +991,9 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                 SDL_PushGPUFragmentUniformData(&commandBuffer, 0, shadowParams.data(),
                                                sizeof(shadowParams));
             }
-            SDL_DrawGPUIndexedPrimitives(pass, indexCount, 1, firstIndex, 0, 0);
+            if (!drawMesh(*pass, cube, error)) {
+                return false;
+            }
         }
         return true;
     };
@@ -980,51 +1040,120 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
     if (!mainDrawn) {
         return false;
     }
-    if (std::ranges::none_of(cubes, &SdlBasicCube::selected)) {
-        return true;
-    }
-    if (!ensureSelectionTarget(width, height, error)) {
+    return true;
+}
+SDL_GPUTexture* SdlBasicRenderer::colorTarget() const { return m_colorTarget; }
+
+bool SdlBasicRenderer::drawOutline(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUTexture& destination,
+                                   std::span<const SdlBasicCube> draws, const Color4& color,
+                                   float thickness, std::string& error) {
+    error.clear();
+    if (!m_device || !m_depthTarget || !m_selectionMaskPipeline || !m_selectionOutlinePipeline) {
+        error = "SdlBasicRenderer: outline resources are not initialized";
         return false;
     }
-
+    if (draws.empty()) return true;
+    if (!std::isfinite(thickness) || thickness <= 0.0f) {
+        error = "SdlBasicRenderer: outline thickness must be positive and finite";
+        return false;
+    }
+    if (!ensureSelectionTarget(m_width, m_height, error)) return false;
     SDL_GPUColorTargetInfo maskColor{};
     maskColor.texture = m_selectionMaskTarget;
     maskColor.load_op = SDL_GPU_LOADOP_CLEAR;
     maskColor.store_op = SDL_GPU_STOREOP_STORE;
-    maskColor.clear_color = SDL_FColor{0.0f, 0.0f, 0.0f, 0.0f};
-    SDL_GPUDepthStencilTargetInfo maskDepth{};
-    maskDepth.texture = m_depthTarget;
-    maskDepth.load_op = SDL_GPU_LOADOP_LOAD;
-    maskDepth.store_op = SDL_GPU_STOREOP_STORE;
-    maskDepth.stencil_load_op = SDL_GPU_LOADOP_DONT_CARE;
-    maskDepth.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
-    SDL_GPURenderPass* maskPass = SDL_BeginGPURenderPass(&commandBuffer, &maskColor, 1, &maskDepth);
-    if (!maskPass) {
-        error = sdlError("SDL_BeginGPURenderPass(selection mask)");
+    maskColor.clear_color = SDL_FColor{0, 0, 0, 0};
+    SDL_GPUDepthStencilTargetInfo depth{};
+    depth.texture = m_depthTarget;
+    depth.load_op = SDL_GPU_LOADOP_LOAD;
+    depth.store_op = SDL_GPU_STOREOP_STORE;
+    depth.stencil_load_op = SDL_GPU_LOADOP_DONT_CARE;
+    depth.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
+    SDL_GPURenderPass* mask = SDL_BeginGPURenderPass(&commandBuffer, &maskColor, 1, &depth);
+    if (!mask) {
+        error = sdlError("SDL_BeginGPURenderPass(outline mask)");
         return false;
     }
-    const bool maskDrawn = drawPass(maskPass, Pass::Selection);
-    SDL_EndGPURenderPass(maskPass);
-    if (!maskDrawn) {
-        return false;
+    SDL_GPUViewport viewport{};
+    viewport.w = static_cast<float>(m_width);
+    viewport.h = static_cast<float>(m_height);
+    viewport.max_depth = 1.0f;
+    SDL_SetGPUViewport(mask, &viewport);
+    bool valid = true;
+    for (const auto& cube : draws) {
+        SDL_BindGPUGraphicsPipeline(mask, cube.doubleSided ? m_selectionMaskDoubleSidedPipeline
+                                                            : m_selectionMaskPipeline);
+        std::array<float, 40> uniforms{};
+        std::copy(cube.modelViewProjection.begin(), cube.modelViewProjection.end(), uniforms.begin());
+        SDL_PushGPUVertexUniformData(&commandBuffer, 0, uniforms.data(), sizeof(uniforms));
+        if (!drawMesh(*mask, cube, error)) {
+            valid = false;
+            break;
+        }
     }
+    SDL_EndGPURenderPass(mask);
+    if (!valid) return false;
 
-    SDL_GPUColorTargetInfo outlineColor{};
-    outlineColor.texture = m_colorTarget;
-    outlineColor.load_op = SDL_GPU_LOADOP_LOAD;
-    outlineColor.store_op = SDL_GPU_STOREOP_STORE;
-    SDL_GPURenderPass* outlinePass = SDL_BeginGPURenderPass(&commandBuffer, &outlineColor, 1, nullptr);
-    if (!outlinePass) {
-        error = sdlError("SDL_BeginGPURenderPass(selection outline)");
+    SDL_GPUColorTargetInfo target{};
+    target.texture = &destination;
+    target.load_op = SDL_GPU_LOADOP_LOAD;
+    target.store_op = SDL_GPU_STOREOP_STORE;
+    SDL_GPURenderPass* outline = SDL_BeginGPURenderPass(&commandBuffer, &target, 1, nullptr);
+    if (!outline) {
+        error = sdlError("SDL_BeginGPURenderPass(outline)");
         return false;
     }
-    SDL_BindGPUGraphicsPipeline(outlinePass, m_selectionOutlinePipeline);
-    SDL_GPUTextureSamplerBinding outlineBinding{m_selectionMaskTarget, m_selectionSampler};
-    SDL_BindGPUFragmentSamplers(outlinePass, 0, &outlineBinding, 1);
-    const std::array<float, 4> texelSize = {1.0f / width, 1.0f / height, 0.0f, 0.0f};
-    SDL_PushGPUFragmentUniformData(&commandBuffer, 0, texelSize.data(), sizeof(texelSize));
-    SDL_DrawGPUPrimitives(outlinePass, 3, 1, 0, 0);
-    SDL_EndGPURenderPass(outlinePass);
+    SDL_SetGPUViewport(outline, &viewport);
+    SDL_BindGPUGraphicsPipeline(outline, m_selectionOutlinePipeline);
+    SDL_GPUTextureSamplerBinding binding{m_selectionMaskTarget, m_selectionSampler};
+    SDL_BindGPUFragmentSamplers(outline, 0, &binding, 1);
+    const std::array<float, 8> uniforms = {
+        1.0f / static_cast<float>(m_width), 1.0f / static_cast<float>(m_height), thickness,
+        0.0f, color.r, color.g, color.b, color.a};
+    SDL_PushGPUFragmentUniformData(&commandBuffer, 0, uniforms.data(), sizeof(uniforms));
+    SDL_DrawGPUPrimitives(outline, 3, 1, 0, 0);
+    SDL_EndGPURenderPass(outline);
     return true;
 }
-SDL_GPUTexture* SdlBasicRenderer::colorTarget() const { return m_colorTarget; }
+
+bool SdlBasicRenderer::drawTerrainGuide(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUTexture& destination,
+                                        const std::array<float, 16>& viewProjectionFromGuide,
+                                        float radius, std::string& error) {
+    error.clear();
+    if (!m_device || !m_depthTarget || !m_terrainGuidePipeline) {
+        error = "SdlBasicRenderer: terrain guide resources are not initialized";
+        return false;
+    }
+    if (!std::isfinite(radius) || radius <= 0.0f) {
+        error = "SdlBasicRenderer: terrain guide radius must be positive and finite";
+        return false;
+    }
+    SDL_GPUColorTargetInfo target{};
+    target.texture = &destination;
+    target.load_op = SDL_GPU_LOADOP_LOAD;
+    target.store_op = SDL_GPU_STOREOP_STORE;
+    SDL_GPUDepthStencilTargetInfo depth{};
+    depth.texture = m_depthTarget;
+    depth.load_op = SDL_GPU_LOADOP_LOAD;
+    depth.store_op = SDL_GPU_STOREOP_STORE;
+    depth.stencil_load_op = SDL_GPU_LOADOP_DONT_CARE;
+    depth.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
+    SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(&commandBuffer, &target, 1, &depth);
+    if (!pass) {
+        error = sdlError("SDL_BeginGPURenderPass(terrain guide)");
+        return false;
+    }
+    SDL_GPUViewport viewport{};
+    viewport.w = static_cast<float>(m_width);
+    viewport.h = static_cast<float>(m_height);
+    viewport.max_depth = 1.0f;
+    SDL_SetGPUViewport(pass, &viewport);
+    SDL_BindGPUGraphicsPipeline(pass, m_terrainGuidePipeline);
+    std::array<float, 20> uniforms{};
+    std::copy(viewProjectionFromGuide.begin(), viewProjectionFromGuide.end(), uniforms.begin());
+    uniforms[16] = radius;
+    SDL_PushGPUVertexUniformData(&commandBuffer, 0, uniforms.data(), sizeof(uniforms));
+    SDL_DrawGPUPrimitives(pass, TERRAIN_GUIDE_VERTEX_COUNT, 1, 0, 0);
+    SDL_EndGPURenderPass(pass);
+    return true;
+}

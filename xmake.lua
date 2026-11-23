@@ -266,6 +266,7 @@ rule("recubin.sdl-gpu-shaders")
             generate("shaders/sdl_gpu/shadow.hlsl", "shadow_gpu", "fragment")
             generate("shaders/sdl_gpu/selection_mask.hlsl", "selection_mask_gpu", "fragment")
             generate("shaders/sdl_gpu/selection_outline.hlsl", "selection_outline_gpu", "fragment")
+            generate("shaders/sdl_gpu/terrain_guide.hlsl", "terrain_guide_gpu")
         end
     end)
     after_build(function(target)

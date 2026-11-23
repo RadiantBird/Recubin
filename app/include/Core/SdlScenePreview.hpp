@@ -14,6 +14,7 @@ class User;
 class Workspace;
 class SdlBasicRenderer;
 class BaseCube;
+struct Color4;
 
 class SdlLiveScene final {
 public:
@@ -29,9 +30,17 @@ public:
               const Vector3& cameraPosition, const Vector3& cameraForward, float effectTime,
               SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
               std::string& error, std::span<BaseCube* const> selected = {});
+    bool drawOutline(SDL_GPUCommandBuffer& commandBuffer,
+                     std::span<BaseCube* const> targets,
+                     const Color4& color, float thickness, std::string& error);
+    bool drawTerrainGuide(SDL_GPUCommandBuffer& commandBuffer, const Vector3& center,
+                          const Vector3& normal, float radius, std::string& error);
     SDL_GPUTexture* colorTarget() const;
 
 private:
+    bool recordOutline(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUTexture& destination,
+                       std::span<BaseCube* const> targets, const Color4& color,
+                       float thickness, std::string& error);
     struct State;
     std::unique_ptr<State> m_state;
 };

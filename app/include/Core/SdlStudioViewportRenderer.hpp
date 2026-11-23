@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 class SdlLiveScene;
@@ -28,6 +29,10 @@ public:
 
     ImTextureRef renderViewport(const ViewportPanel& panel,
                                 const ViewportRenderDesc& request) override;
+    void renderOutline(const ViewportPanel& panel, std::span<BaseCube* const> targets,
+                       const Color4& color, float thickness) override;
+    void renderTerrainGuide(const ViewportPanel& panel, const Vector3& center,
+                            const Vector3& normal, float radius) override;
     void removeViewport(const ViewportPanel& panel) override;
     const std::string& error() const;
 
@@ -38,8 +43,10 @@ private:
     bool m_frameActive = false;
     std::string m_error;
     std::unordered_map<const ViewportPanel*, std::unique_ptr<SdlLiveScene>> m_scenes;
+    std::unordered_set<const ViewportPanel*> m_renderedPanes;
     std::vector<std::unique_ptr<SdlLiveScene>> m_retiredScenes;
     std::vector<SDL_GPUTexture*> m_ownedTextures;
 
     void reportError(const std::string& message);
+    SdlLiveScene* findOverlayScene(const ViewportPanel& panel);
 };

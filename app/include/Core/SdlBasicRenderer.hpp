@@ -9,6 +9,8 @@
 #include <vector>
 #include <unordered_map>
 
+struct Color4;
+
 struct SdlBasicVertex {
     std::array<float, 3> position{};
     std::array<float, 2> uv{};
@@ -26,7 +28,6 @@ struct SdlBasicCube {
     bool doubleSided = false;
     bool castShadow = true;
     bool receiveShadow = true;
-    bool selected = false;
 };
 
 SDL_GPUTexture* uploadSdlRgbaTexture(SDL_GPUDevice& device, unsigned width, unsigned height,
@@ -55,6 +56,12 @@ public:
               std::span<const SdlBasicCube> cubes,
               std::string& error,
               bool shadows = false);
+    bool drawOutline(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUTexture& destination,
+                     std::span<const SdlBasicCube> draws, const Color4& color, float thickness,
+                     std::string& error);
+    bool drawTerrainGuide(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUTexture& destination,
+                          const std::array<float, 16>& viewProjectionFromGuide, float radius,
+                          std::string& error);
 
     [[nodiscard]] SDL_GPUTexture* colorTarget() const;
 
@@ -69,6 +76,7 @@ private:
     bool ensureTargets(unsigned width, unsigned height, std::string& error);
     bool ensureShadowTarget(std::string& error);
     bool ensureSelectionTarget(unsigned width, unsigned height, std::string& error);
+    bool drawMesh(SDL_GPURenderPass& pass, const SdlBasicCube& cube, std::string& error) const;
 
     SDL_GPUDevice* m_device = nullptr;
     SDL_GPUShader* m_vertexShader = nullptr;
@@ -86,6 +94,9 @@ private:
     SDL_GPUGraphicsPipeline* m_selectionMaskPipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_selectionMaskDoubleSidedPipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_selectionOutlinePipeline = nullptr;
+    SDL_GPUShader* m_terrainGuideVertexShader = nullptr;
+    SDL_GPUShader* m_terrainGuideFragmentShader = nullptr;
+    SDL_GPUGraphicsPipeline* m_terrainGuidePipeline = nullptr;
     SDL_GPUTexture* m_colorTarget = nullptr;
     SDL_GPUTexture* m_depthTarget = nullptr;
     SDL_GPUTexture* m_shadowTarget = nullptr;

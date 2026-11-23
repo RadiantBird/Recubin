@@ -8,6 +8,7 @@
 #include <Core/SdlPreviewImGui.hpp>
 #endif
 #include <Instances/BaseCube.hpp>
+#include <Util/Color4.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/Sun.hpp>
@@ -290,6 +291,9 @@ struct SdlLiveScene::State {
     };
     std::vector<MeshDraw> meshes;
     std::vector<SdlBasicCube> frameDraws;
+    std::vector<SdlBasicCube> outlineDraws;
+    Matrix4 viewProjection;
+    bool frameSucceeded = false;
     struct MeshCache {
         std::uint32_t handle = 0;
         std::weak_ptr<const Instance> owner;
@@ -448,8 +452,9 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
                         const Vector3& cameraPosition, const Vector3& cameraForward, float effectTime,
                         SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
                         std::string& error, std::span<BaseCube* const> selected) {
+    m_state->viewProjection = viewProjection;
+    m_state->frameSucceeded = false;
     const auto lightProjection = shadowProjection(workspace, cameraPosition, cameraForward);
-    const std::unordered_set<const BaseCube*> selectedSet(selected.begin(), selected.end());
     auto& draws = m_state->frameDraws;
     draws.clear();
     draws.reserve(m_state->meshes.size());
@@ -461,15 +466,90 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
             const Matrix4 shadowMvp = *lightProjection * mesh.model;
             std::copy_n(shadowMvp.m, 16, draw.shadowModelViewProjection.begin());
         }
-        draw.selected = selectedSet.contains(mesh.owner);
     }
     for (const auto& [terrain, cache] : m_state->terrainCache) {
         cache.meshes.appendDraws(viewProjection, lightProjection, draws);
     }
     const bool drawn = m_state->renderer.draw(commandBuffer, width, height, draws,
                                                error, lightProjection.has_value());
-    return drawn && m_state->postEffects.apply(workspace, commandBuffer, *m_state->renderer.colorTarget(),
-                                                width, height, effectTime, m_state->result, error);
+    if (!drawn) {
+        return false;
+    }
+    if (!recordOutline(commandBuffer, *m_state->renderer.colorTarget(), selected,
+                       Color4(0.25f, 0.9f, 1.0f, 1.0f), 2.0f, error) ||
+        !m_state->postEffects.apply(workspace, commandBuffer,
+                                               *m_state->renderer.colorTarget(), width, height,
+                                               effectTime, m_state->result, error)) {
+        return false;
+    }
+    m_state->frameSucceeded = true;
+    return true;
+}
+
+bool SdlLiveScene::drawOutline(SDL_GPUCommandBuffer& commandBuffer,
+                               std::span<BaseCube* const> targets,
+                               const Color4& color, float thickness, std::string& error) {
+    if (!m_state->frameSucceeded || !m_state->result) {
+        error = "SDL scene outline requested before a successful scene frame";
+        return false;
+    }
+    return recordOutline(commandBuffer, *m_state->result, targets, color, thickness, error);
+}
+
+bool SdlLiveScene::recordOutline(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUTexture& destination,
+                                std::span<BaseCube* const> targets, const Color4& color,
+                                float thickness, std::string& error) {
+    if (targets.empty()) {
+        return true;
+    }
+    const std::unordered_set<const BaseCube*> targetSet(targets.begin(), targets.end());
+    auto& selected = m_state->outlineDraws;
+    selected.clear();
+    for (std::size_t index = 0; index < m_state->meshes.size(); ++index) {
+        if (targetSet.contains(m_state->meshes[index].owner)) {
+            selected.push_back(m_state->frameDraws[index]);
+        }
+    }
+    return selected.empty() || m_state->renderer.drawOutline(commandBuffer, destination, selected,
+                                                              color, thickness, error);
+}
+
+bool SdlLiveScene::drawTerrainGuide(SDL_GPUCommandBuffer& commandBuffer, const Vector3& center,
+                                    const Vector3& normal, float radius, std::string& error) {
+    if (!m_state->frameSucceeded || !m_state->result) {
+        error = "SDL terrain guide requested before a successful scene frame";
+        return false;
+    }
+    const Vector3 n = normal.normalize();
+    if (!std::isfinite(n.length()) || n.length() < 0.5f) {
+        error = "SDL terrain guide requires a finite nonzero normal";
+        return false;
+    }
+    const Vector3 worldUp(0.0f, 1.0f, 0.0f);
+    const Vector3 worldForward(0.0f, 0.0f, 1.0f);
+    const Vector3 reference = std::abs(Vector3::Dot(n, worldUp)) > 0.99f
+        ? worldForward : worldUp;
+    const Vector3 tangentU = Vector3::Cross(reference, n).normalize();
+    const Vector3 tangentV = Vector3::Cross(n, tangentU);
+    const Vector3 origin = center + n * 0.05f;
+    Matrix4 model;
+    model.m[0] = tangentU.x;
+    model.m[1] = tangentU.y;
+    model.m[2] = tangentU.z;
+    model.m[4] = tangentV.x;
+    model.m[5] = tangentV.y;
+    model.m[6] = tangentV.z;
+    model.m[8] = n.x;
+    model.m[9] = n.y;
+    model.m[10] = n.z;
+    model.m[12] = origin.x;
+    model.m[13] = origin.y;
+    model.m[14] = origin.z;
+    const Matrix4 guideMvp = m_state->viewProjection * model;
+    std::array<float, 16> transform;
+    std::copy_n(guideMvp.m, transform.size(), transform.begin());
+    return m_state->renderer.drawTerrainGuide(commandBuffer, *m_state->result,
+                                               transform, radius, error);
 }
 
 SDL_GPUTexture* SdlLiveScene::colorTarget() const {
