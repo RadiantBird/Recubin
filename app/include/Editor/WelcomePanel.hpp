@@ -20,10 +20,13 @@ public:
     WelcomePanel();
     ~WelcomePanel() override;
     void onRender() override;
+    // The caller owns the texture and keeps it alive through rendering.
+    void setLogoImage(ImTextureRef image, int width, int height);
 
 private:
     void loadLogo();
     TextureHandle m_logoTexture;
+    ImTextureRef m_logoImage;
     int m_logoWidth = 0;
     int m_logoHeight = 0;
     bool m_logoLoadAttempted = false;

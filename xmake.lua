@@ -14,7 +14,7 @@ option_end()
 option("sdl-gpu-preview")
     set_default(false)
     set_showmenu(true)
-    set_description("Build the SDL GPU Cube scene preview into RecubinEngine")
+    set_description("Enable SDL GPU rendering in Studio and Engine")
 option_end()
 
 -- Dependencies are prepared by `xmake lua setup.lua`.  xmake itself must not
@@ -142,6 +142,7 @@ for _, source in ipairs(all_sources) do
        vendor ~= "app/src/Core/SdlScenePreview.cpp" and
        vendor ~= "app/src/Core/SdlPreviewImGui.cpp" and
        vendor ~= "app/src/Core/SdlImGuiBackend.cpp" and
+       vendor ~= "app/src/Core/SdlStudioViewportRenderer.cpp" and
        vendor ~= "app/src/Core/PostEffectSpirv.cpp" and
        not vendor:startswith("app/src/imgui/") and
        not vendor:startswith("app/src/Network/Vendor/enet/") and
@@ -384,6 +385,7 @@ target("Recubin")
         configure_scene_preview("studio")
         add_defines("RECUBIN_SDL_GPU_STUDIO")
         add_files("app/src/Core/SdlPreviewImGui.cpp", "app/src/Core/SdlImGuiBackend.cpp",
+                  "app/src/Core/SdlStudioViewportRenderer.cpp",
                   "external/imgui/backends/imgui_impl_sdl3.cpp",
                   "external/imgui/backends/imgui_impl_sdlgpu3.cpp")
     end

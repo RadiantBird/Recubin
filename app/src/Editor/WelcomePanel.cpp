@@ -20,6 +20,13 @@ WelcomePanel::~WelcomePanel() {
     GfxTextures::destroy(m_logoTexture);
 }
 
+void WelcomePanel::setLogoImage(ImTextureRef image, int width, int height) {
+    m_logoImage = image;
+    m_logoWidth = width;
+    m_logoHeight = height;
+    m_logoLoadAttempted = true;
+}
+
 void WelcomePanel::loadLogo() {
     if (m_logoLoadAttempted) return;
     m_logoLoadAttempted = true;
@@ -77,7 +84,9 @@ void WelcomePanel::onRender() {
     loadLogo();
 
     const ImVec2 available = ImGui::GetContentRegionAvail();
-    const float logoWidth = m_logoTexture
+    const bool nativeLogo = m_logoImage.GetTexID() != ImTextureID_Invalid;
+    const bool hasLogo = nativeLogo || static_cast<bool>(m_logoTexture);
+    const float logoWidth = hasLogo
         ? std::min(500.0f, std::max(0.0f, available.x)) : 0.0f;
     const float logoHeight = logoWidth * static_cast<float>(m_logoHeight) /
         static_cast<float>(m_logoWidth == 0 ? 1 : m_logoWidth);
@@ -99,10 +108,13 @@ void WelcomePanel::onRender() {
         ImGui::GetCursorPosY() + std::max(0.0f, (available.y - groupHeight) * 0.5f)));
 
     ImGui::BeginGroup();
-    if (m_logoTexture) {
+    if (hasLogo) {
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (groupWidth - logoWidth) * 0.5f);
-        ImGui::Image(static_cast<ImTextureID>(m_logoTexture.glName()),
-            ImVec2(logoWidth, logoHeight), ImVec2(0.0f, 1.0f), ImVec2(1.0f, 0.0f));
+        const ImTextureRef texture = nativeLogo ? m_logoImage
+            : ImTextureRef(static_cast<ImTextureID>(m_logoTexture.glName()));
+        const ImVec2 uv0(0.0f, nativeLogo ? 0.0f : 1.0f);
+        const ImVec2 uv1(1.0f, nativeLogo ? 1.0f : 0.0f);
+        ImGui::Image(texture, ImVec2(logoWidth, logoHeight), uv0, uv1);
     }
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (groupWidth - cardWidth) * 0.5f);
     const bool lightSurface = EditorUi::glassPalette().lightSurface;

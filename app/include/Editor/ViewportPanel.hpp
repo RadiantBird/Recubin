@@ -1,6 +1,7 @@
 #pragma once
 #include <Editor/EditorPanel.hpp>
 #include <Editor/ViewportGeometry.hpp>
+#include <Editor/ViewportSceneRenderer.hpp>
 #include <memory>
 struct PickerState;        // PropertiesPanel.hpp で定義
 struct TerrainBrushState;  // PropertiesPanel.hpp で定義
@@ -83,6 +84,7 @@ public:
     DecalPlaceState*   m_decalPlace   = nullptr;
     WeldModeState*      m_weldMode     = nullptr;
     GuiEditState*       m_guiEdit      = nullptr;
+    ViewportSceneRenderer* m_sceneRenderer = nullptr;
     double m_lastTerrainBrushTime = -1.0; // ブラシの連続適用を間引くための前回適用時刻
     std::vector<TerrainStreamer::VoxelDiffEntry> m_terrainBrushDiff;   // 現在のストロークで変更されたブロックの差分
     std::shared_ptr<Terrain> m_terrainBrushStrokeTarget;               // ストローク中のTerrainインスタンス（Undo用に保持）
@@ -180,6 +182,9 @@ public:
 
     ViewportPanel();
     ~ViewportPanel();
+
+    void setSceneRenderer(ViewportSceneRenderer* renderer) { m_sceneRenderer = renderer; }
+    ViewportSceneRenderer* sceneRenderer() const { return m_sceneRenderer; }
 
     void initFBO(int w, int h);
     void resizeFBO(int w, int h);

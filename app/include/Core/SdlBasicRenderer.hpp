@@ -28,6 +28,9 @@ struct SdlBasicCube {
     bool receiveShadow = true;
 };
 
+SDL_GPUTexture* uploadSdlRgbaTexture(SDL_GPUDevice& device, unsigned width, unsigned height,
+                                     std::span<const std::uint8_t> rgba, std::string& error);
+
 class SdlBasicRenderer final {
 public:
     SdlBasicRenderer() = default;

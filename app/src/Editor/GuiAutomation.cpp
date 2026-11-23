@@ -344,6 +344,57 @@ void beforeNewFrame() {
 }
 void afterNewFrame(){if(!enabledFlag)return;std::lock_guard l(mutex);current.clear();if(activeValid&&active.kind==Kind::Focus){ImGui::SetWindowFocus(active.text.c_str());report(true,"focus_window");activeValid=false;}}
 void registerLastItem(std::string_view id){if(!enabledFlag)return;ImVec2 a=ImGui::GetItemRectMin(),b=ImGui::GetItemRectMax();current[std::string(id)]={a,b,ImGui::GetItemID(),ImGui::IsItemVisible()&&b.x>=a.x&&b.y>=a.y,frame};}
-void afterRender(GLFWwindow* window){if(!enabledFlag)return;std::lock_guard l(mutex);published=current;if(activeValid&&active.kind==Kind::Capture&&window){int w=0,h=0;glfwGetFramebufferSize(window,&w,&h);std::vector<std::uint8_t> p((size_t)std::max(w,0)*(size_t)std::max(h,0)*4);GLint f=0,b=0,a=0;glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&f);glGetIntegerv(GL_READ_BUFFER,&b);glGetIntegerv(GL_PACK_ALIGNMENT,&a);glBindFramebuffer(GL_READ_FRAMEBUFFER,0);glReadBuffer(GL_BACK);glPixelStorei(GL_PACK_ALIGNMENT,1);glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,p.data());glBindFramebuffer(GL_READ_FRAMEBUFFER,f);glReadBuffer(b);glPixelStorei(GL_PACK_ALIGNMENT,a);std::string e;if(!PngWriter::writeRgba8(active.path,w,h,p,&e))report(false,e.empty()?"capture failed":e);else report(true,"capture "+active.path);activeValid=false;}if(quitFlag.exchange(false)&&window)glfwSetWindowShouldClose(window,GLFW_TRUE);}
+RenderRequest finishRender() {
+    RenderRequest request;
+    if (!enabledFlag) return request;
+    std::lock_guard lock(mutex);
+    published = current;
+    if (activeValid && active.kind == Kind::Capture) {
+        request.capturePath = active.path;
+        activeValid = false;
+    }
+    request.quit = quitFlag.exchange(false);
+    return request;
+}
+
+void completeCapture(std::string_view path, bool success, std::string_view error) {
+    if (success) {
+        report(true, "capture " + std::string(path));
+    } else {
+        report(false, error.empty() ? "capture failed" : std::string(error));
+    }
+}
+
+void afterRender(GLFWwindow* window) {
+    const auto request = finishRender();
+    if (request.capturePath) {
+        if (window) {
+            int width = 0;
+            int height = 0;
+            glfwGetFramebufferSize(window, &width, &height);
+            std::vector<std::uint8_t> pixels(
+                static_cast<std::size_t>(std::max(width, 0)) * std::max(height, 0) * 4);
+            GLint framebuffer = 0;
+            GLint readBuffer = 0;
+            GLint packAlignment = 0;
+            glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &framebuffer);
+            glGetIntegerv(GL_READ_BUFFER, &readBuffer);
+            glGetIntegerv(GL_PACK_ALIGNMENT, &packAlignment);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+            glReadBuffer(GL_BACK);
+            glPixelStorei(GL_PACK_ALIGNMENT, 1);
+            glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
+            glReadBuffer(readBuffer);
+            glPixelStorei(GL_PACK_ALIGNMENT, packAlignment);
+            std::string error;
+            const bool captured = PngWriter::writeRgba8(*request.capturePath, width, height, pixels, &error);
+            completeCapture(*request.capturePath, captured, error);
+        } else {
+            completeCapture(*request.capturePath, false, "capture requires a window");
+        }
+    }
+    if (request.quit && window) glfwSetWindowShouldClose(window, GLFW_TRUE);
+}
 bool enabled(){return enabledFlag.load();}
 }

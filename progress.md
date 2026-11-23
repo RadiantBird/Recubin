@@ -886,3 +886,12 @@
 - Studio プレビューが使う SDL3 イベントと SDL GPU ImGui 描画を `SdlImGuiBackend` に抽出。呼び出し側がコンテキストとフレームを所有し、バックエンドは `PrepareDrawData` をパス開始前に記録する。
 - Windows xmake Release で Studio・Test をビルド。ビューポート、GUI 編集、GUI 自動化の対象回帰が通過。通常 Studio で自動化からシーン表示・Explorer の選択・PNG を確認。SDL GPU プレビューのカスタム GLSL と影の PNG は、Vulkan／D3D12 それぞれで変更前とバイト単位で一致した。
 - 通常 Studio のウィンドウ・イベント・GPU フレーム提出とビューポート画像の SDL GPU 接続は未完了。次は StudioApplication に SDL ホストと既存の EditorManager を接続し、各ビューポートで共通レンダラーを使う。GUI のキャプチャ、画像プレビュー、Terrain ブラシ等の直接 OpenGL 操作も移行対象。
+
+## 2026-11-23 Studio の通常ループを SDL GPU に接続
+
+- Studio のフレーム分離を `3a96aae` にコミット。SDL GPU を含むビルドの `Recubin --gpu-driver=vulkan|direct3d12|auto` から、通常の Studio 編集 UI を SDL3 と SDL GPU の ImGui バックエンドで起動する。各ビューポートは Engine と同じ `SdlLiveScene` を使い、カメラとオフスクリーン描画先を個別に持つ。Studio の地形ストリーミングも CPU メッシュ生成を選ぶ。
+- Studio は ImGui を RGBA8 ターゲットに合成し、可視ウィンドウへ提示する。GUI 自動化では同じ画像をフェンス付きで PNG に保存する。非表示の通常フレームも提出し、ImGui のフォント転送を確定する。日本語とコード用フォント、Welcome の画像、メニューからの終了確定を SDL に接続した。
+- Windows の隔離 MSVC ビルドで Vulkan／D3D12 の可視・非表示起動、Explorer のクリック、最終合成の PNG、Play・描画・Stop 復帰を確認。カスタム GLSL の上下判定と太陽の影の有無を比較し、シーンごとのバックエンド間 PNG は全画素一致。影の比較では地面が 255 から 115 に暗くなる箇所を確認。最小化後の復帰とリサイズでは両方の取得画像が 1600×900 から 1482×903 に変化した。ドライバー指定なしの OpenGL 起動と `metal` 明示時のエラーも確認した。
+- SDL GPU 有効・無効の MSVC 構文検査に成功。隔離バイナリで `--gui-automation-regression`、`--gui-viewport-edit-regression`、`--viewport-helper-regression` が成功。`git diff --check --ignore-submodules=all` も成功した。
+- 初回の隔離ビルドで影が黒つぶれした原因は、隔離ビルドの include 順で古い生成済みヘッダーを使ったこと。本来の xmake と同じく Studio 専用の `build/generated/studio` を先に指定して解消。Visual Studio が MSVC 14.51 から 14.52 に更新されたため、正式な xmake Release 用の依存を再構築した。`temp_build/deno-2.6.9/deno.exe` を `DENO` に設定し、古い sokol-shdc の `.fibs` ビルドキャッシュを退避した。Release の xmake 構成は成功し、本体ビルドは待機箇所を調査中。
+- 次は xmake Release の対象ビルドと回帰を確認し、Studio の選択マスク、Terrain ブラシのガイド、画像プレビュー、Play 時のゲーム GUI、ImGui 分離ウィンドウを移植する。SDL GPU は明示指定時に選択する。SDK と macOS の実機検証は今回の対象外。

@@ -1,8 +1,11 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <variant>
+
+#include <Core/SdlGpuDriver.hpp>
 
 namespace StudioMain {
 
@@ -16,6 +19,9 @@ struct LaunchOptions {
     std::filesystem::path autosaveRoot;
     std::filesystem::path settingsPath;
     std::string initialScenePath;
+    // SDL GPU is selected only when the SDL Studio build is enabled.  An
+    // absent value preserves the legacy OpenGL Studio launch path.
+    std::optional<SdlGpuDriver> gpuDriver;
 };
 
 std::variant<int, LaunchOptions> prepareLaunch(int argc, char* argv[]);

@@ -21,14 +21,14 @@ void chunk(std::vector<std::uint8_t>& out, const char* type, const std::vector<s
 }
 }
 namespace PngWriter {
-bool writeRgba8(const std::string& path, int width, int height, const std::vector<std::uint8_t>& rgba, std::string* error) {
+bool writeRgba8(const std::filesystem::path& path, int width, int height, const std::vector<std::uint8_t>& rgba, std::string* error) {
     if (path.empty()) { if (error) *error = "PNG path is empty"; return false; }
     if (width <= 0 || height <= 0) { if(error)*error="invalid RGBA dimensions"; return false; }
     const auto w = static_cast<std::size_t>(width), h = static_cast<std::size_t>(height);
     if (w > std::numeric_limits<std::size_t>::max() / 4u || h > std::numeric_limits<std::size_t>::max() / (w * 4u)) { if(error)*error="image size overflow"; return false; }
     const std::size_t expected = w * h * 4u;
     if (rgba.size() != expected) { if(error)*error="invalid RGBA dimensions"; return false; }
-    std::error_code ec; const auto parent = std::filesystem::path(path).parent_path();
+    std::error_code ec; const auto parent = path.parent_path();
     if (!parent.empty()) std::filesystem::create_directories(parent, ec);
     if (ec) { if(error)*error="cannot create PNG directory"; return false; }
     std::vector<std::uint8_t> png = {137,80,78,71,13,10,26,10};

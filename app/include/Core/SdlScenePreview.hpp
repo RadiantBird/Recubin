@@ -5,6 +5,7 @@
 #include <Math/Matrix4.hpp>
 
 #include <optional>
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -39,6 +40,9 @@ void blitSdlSceneFrame(SDL_GPUCommandBuffer& command, SDL_GPUTexture& source,
 bool captureSdlSceneFrame(SdlGpuWindow& window, SdlGpuWindow::Frame& frame,
                          SDL_GPUTexture* source, unsigned width, unsigned height,
                          const std::string& outputDir, std::string& error);
+bool captureSdlFrameToPng(SdlGpuWindow& window, SdlGpuWindow::Frame& frame,
+                          SDL_GPUTexture* source, unsigned width, unsigned height,
+                          const std::filesystem::path& outputPath, std::string& error);
 
 int runSdlScenePreview(const std::string& scenePath,
                        const std::string& title,

@@ -35,6 +35,89 @@ constexpr std::array<std::uint32_t, 36> CUBE_INDICES = {{4, 5, 6, 4, 6, 7, 1, 0,
                                                          3, 7, 6, 3, 6, 2, 0, 1, 5, 0, 5, 4}};
 } // namespace
 
+SDL_GPUTexture* uploadSdlRgbaTexture(SDL_GPUDevice& device, unsigned width, unsigned height,
+                                     std::span<const std::uint8_t> rgba, std::string& error) {
+    error.clear();
+    if (width == 0 || height == 0) {
+        error = "SDL texture dimensions must be non-zero";
+        return nullptr;
+    }
+    constexpr std::size_t bytesPerPixel = 4;
+    if (width > std::numeric_limits<std::size_t>::max() / bytesPerPixel ||
+        height > std::numeric_limits<std::size_t>::max() / (width * bytesPerPixel)) {
+        error = "SDL texture dimensions overflow";
+        return nullptr;
+    }
+    const std::size_t bytes = static_cast<std::size_t>(width) * height * bytesPerPixel;
+    if (rgba.size() != bytes || bytes > std::numeric_limits<Uint32>::max()) {
+        error = "RGBA texture data has an unexpected size";
+        return nullptr;
+    }
+    SDL_GPUTextureCreateInfo textureInfo{};
+    textureInfo.type = SDL_GPU_TEXTURETYPE_2D;
+    textureInfo.format = COLOR_FORMAT;
+    textureInfo.width = width;
+    textureInfo.height = height;
+    textureInfo.layer_count_or_depth = 1;
+    textureInfo.num_levels = 1;
+    textureInfo.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+    SDL_GPUTexture* texture = SDL_CreateGPUTexture(&device, &textureInfo);
+    if (!texture) {
+        error = sdlError("SDL_CreateGPUTexture(texture)");
+        return nullptr;
+    }
+    SDL_GPUTransferBufferCreateInfo transferInfo{};
+    transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+    transferInfo.size = static_cast<Uint32>(bytes);
+    SDL_GPUTransferBuffer* transfer = SDL_CreateGPUTransferBuffer(&device, &transferInfo);
+    if (!transfer) {
+        SDL_ReleaseGPUTexture(&device, texture);
+        error = sdlError("SDL_CreateGPUTransferBuffer(texture)");
+        return nullptr;
+    }
+    void* mapped = SDL_MapGPUTransferBuffer(&device, transfer, false);
+    if (!mapped) {
+        SDL_ReleaseGPUTransferBuffer(&device, transfer);
+        SDL_ReleaseGPUTexture(&device, texture);
+        error = sdlError("SDL_MapGPUTransferBuffer(texture)");
+        return nullptr;
+    }
+    std::memcpy(mapped, rgba.data(), bytes);
+    SDL_UnmapGPUTransferBuffer(&device, transfer);
+    SDL_GPUCommandBuffer* command = SDL_AcquireGPUCommandBuffer(&device);
+    if (!command) {
+        SDL_ReleaseGPUTransferBuffer(&device, transfer);
+        SDL_ReleaseGPUTexture(&device, texture);
+        error = sdlError("SDL_AcquireGPUCommandBuffer(texture)");
+        return nullptr;
+    }
+    SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(command);
+    if (!copy) {
+        SDL_CancelGPUCommandBuffer(command);
+        SDL_ReleaseGPUTransferBuffer(&device, transfer);
+        SDL_ReleaseGPUTexture(&device, texture);
+        error = sdlError("SDL_BeginGPUCopyPass(texture)");
+        return nullptr;
+    }
+    SDL_GPUTextureTransferInfo source{};
+    source.transfer_buffer = transfer;
+    source.pixels_per_row = width;
+    source.rows_per_layer = height;
+    SDL_GPUTextureRegion destination{texture, 0, 0, 0, 0, 0, width, height, 1};
+    SDL_UploadToGPUTexture(copy, &source, &destination, false);
+    SDL_EndGPUCopyPass(copy);
+    SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(command);
+    const bool uploaded = fence != nullptr && SDL_WaitForGPUFences(&device, true, &fence, 1);
+    if (fence) SDL_ReleaseGPUFence(&device, fence);
+    SDL_ReleaseGPUTransferBuffer(&device, transfer);
+    if (!uploaded) {
+        SDL_ReleaseGPUTexture(&device, texture);
+        error = sdlError("SDL_SubmitGPUCommandBufferAndAcquireFence(texture)");
+        return nullptr;
+    }
+    return texture;
+}
+
 SdlBasicRenderer::~SdlBasicRenderer() { releaseResources(); }
 void SdlBasicRenderer::releaseResources() {
     if (m_device != nullptr) {
@@ -490,83 +573,9 @@ std::uint32_t SdlBasicRenderer::uploadTexture(unsigned width, unsigned height,
         error = "SdlBasicRenderer: texture handle space exhausted";
         return 0;
     }
-    if (width == 0 || height == 0) {
-        error = "SdlBasicRenderer: texture dimensions must be non-zero";
-        return 0;
-    }
-    constexpr std::size_t bytesPerPixel = 4;
-    if (width > std::numeric_limits<std::size_t>::max() / bytesPerPixel ||
-        height > std::numeric_limits<std::size_t>::max() / (width * bytesPerPixel)) {
-        error = "SdlBasicRenderer: texture dimensions overflow";
-        return 0;
-    }
-    const std::size_t bytes = static_cast<std::size_t>(width) * height * bytesPerPixel;
-    if (rgba.size() != bytes || bytes > std::numeric_limits<Uint32>::max()) {
-        error = "SdlBasicRenderer: RGBA texture data has an unexpected size";
-        return 0;
-    }
-    SDL_GPUTextureCreateInfo textureInfo{};
-    textureInfo.type = SDL_GPU_TEXTURETYPE_2D;
-    textureInfo.format = COLOR_FORMAT;
-    textureInfo.width = width;
-    textureInfo.height = height;
-    textureInfo.layer_count_or_depth = 1;
-    textureInfo.num_levels = 1;
-    textureInfo.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
-    SDL_GPUTexture* texture = SDL_CreateGPUTexture(m_device, &textureInfo);
+    SDL_GPUTexture* texture = uploadSdlRgbaTexture(*m_device, width, height, rgba, error);
     if (!texture) {
-        error = sdlError("SDL_CreateGPUTexture(texture)");
-        return 0;
-    }
-    SDL_GPUTransferBufferCreateInfo transferInfo{};
-    transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-    transferInfo.size = static_cast<Uint32>(bytes);
-    SDL_GPUTransferBuffer* transfer = SDL_CreateGPUTransferBuffer(m_device, &transferInfo);
-    if (!transfer) {
-        SDL_ReleaseGPUTexture(m_device, texture);
-        error = sdlError("SDL_CreateGPUTransferBuffer(texture)");
-        return 0;
-    }
-    void* mapped = SDL_MapGPUTransferBuffer(m_device, transfer, false);
-    if (!mapped) {
-        SDL_ReleaseGPUTransferBuffer(m_device, transfer);
-        SDL_ReleaseGPUTexture(m_device, texture);
-        error = sdlError("SDL_MapGPUTransferBuffer(texture)");
-        return 0;
-    }
-    std::memcpy(mapped, rgba.data(), bytes);
-    SDL_UnmapGPUTransferBuffer(m_device, transfer);
-    SDL_GPUCommandBuffer* command = SDL_AcquireGPUCommandBuffer(m_device);
-    if (!command) {
-        SDL_ReleaseGPUTransferBuffer(m_device, transfer);
-        SDL_ReleaseGPUTexture(m_device, texture);
-        error = sdlError("SDL_AcquireGPUCommandBuffer(texture)");
-        return 0;
-    }
-    SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(command);
-    if (!copy) {
-        SDL_CancelGPUCommandBuffer(command);
-        SDL_ReleaseGPUTransferBuffer(m_device, transfer);
-        SDL_ReleaseGPUTexture(m_device, texture);
-        error = sdlError("SDL_BeginGPUCopyPass(texture)");
-        return 0;
-    }
-    SDL_GPUTextureTransferInfo source{};
-    source.transfer_buffer = transfer;
-    source.pixels_per_row = width;
-    source.rows_per_layer = height;
-    SDL_GPUTextureRegion destination{texture, 0, 0, 0, 0, 0, width, height, 1};
-    SDL_UploadToGPUTexture(copy, &source, &destination, false);
-    SDL_EndGPUCopyPass(copy);
-    SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(command);
-    const bool uploaded = fence != nullptr && SDL_WaitForGPUFences(m_device, true, &fence, 1);
-    if (fence) {
-        SDL_ReleaseGPUFence(m_device, fence);
-    }
-    SDL_ReleaseGPUTransferBuffer(m_device, transfer);
-    if (!uploaded) {
-        SDL_ReleaseGPUTexture(m_device, texture);
-        error = sdlError("SDL_SubmitGPUCommandBufferAndAcquireFence(texture)");
+        error = "SdlBasicRenderer: " + error;
         return 0;
     }
     const auto handle = m_nextTextureHandle++;

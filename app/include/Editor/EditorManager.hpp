@@ -115,6 +115,9 @@ public:
 
     // Stop 後の workspace リロード時に全パネルのポインタを一括更新する
     void setWorkspace(Workspace* ws);
+    // Host-owned renderer shared by primary and secondary viewports.
+    void setViewportSceneRenderer(ViewportSceneRenderer* renderer);
+    bool consumeConfirmedClose();
     // Runtime TextFile overlay service is owned by LuauEngine and may be
     // replaced when a scene is loaded; the code editor keeps only a borrow.
     void setRuntimeFileSystem(RuntimeFileSystem* runtimeFileSystem) {
@@ -236,6 +239,8 @@ public:
 private:
 
     // 未保存ダイアログ関連
+    void confirmClose(GLFWwindow* window);
+    bool m_confirmedClose = false;
     bool        m_showSaveDialog   = false;
     GLFWwindow* m_dialogWindow     = nullptr;
     double      m_saveDialogOpenedAt = 0.0;

@@ -12,12 +12,18 @@
 int main(int argc, char* argv[])
 {
     const auto runtime = parseRuntimeLaunchArgs(argc, argv);
-    if (runtime.gpuPreview || runtime.gpuDriver) {
-        if (!runtime.valid) {
-            std::cerr << runtime.error << '\n';
-            return 1;
-        }
-        if (!runtime.gpuPreview || !runtime.scenePath) {
+    if (!runtime.valid) {
+        std::cerr << runtime.error << '\n';
+        return 1;
+    }
+#ifndef RECUBIN_SDL_GPU_STUDIO
+    if (runtime.gpuDriver && !runtime.gpuPreview) {
+        std::cerr << "--gpu-driver requires an xmake build with --sdl-gpu-preview=y\n";
+        return 1;
+    }
+#endif
+    if (runtime.gpuPreview) {
+        if (!runtime.scenePath) {
             std::cerr << "Studio SDL GPU preview requires --gpu-preview and --scene <path>\n";
             return 1;
         }

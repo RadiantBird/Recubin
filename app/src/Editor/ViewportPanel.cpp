@@ -32,11 +32,14 @@
 
 ViewportPanel::ViewportPanel()
     : EditorPanel("Viewport") {
-    initFBO(fbWidth, fbHeight);
 }
 
 ViewportPanel::~ViewportPanel() {
     if (m_ownCamDragging && user) user->endExternalCameraDrag();
+    if (m_sceneRenderer) {
+        m_sceneRenderer->removeViewport(*this);
+        m_sceneRenderer = nullptr;
+    }
     destroyFBO();
 }
 
@@ -84,7 +87,7 @@ void ViewportPanel::initOwnCameraFrom(const User& u) {
 }
 
 void ViewportPanel::resizeFBO(int w, int h) {
-    if (w == fbWidth && h == fbHeight) return;
+    if (framebuffer && w == fbWidth && h == fbHeight) return;
     destroyFBO();
     initFBO(w, h);
 }
@@ -96,12 +99,14 @@ void ViewportPanel::destroyFBO() {
 }
 
 void ViewportPanel::beginRender() {
+    if (m_sceneRenderer) return;
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     glViewport(0, 0, fbWidth, fbHeight);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 void ViewportPanel::endRenderAndDisplay() {
+    if (m_sceneRenderer) return;
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
@@ -186,8 +191,15 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
     sceneRequest.workspace          = workspace;
     sceneRequest.primarySelection   = selectedInstance ? *selectedInstance : nullptr;
     sceneRequest.selectionTargets   = selectedInstances;
-    sceneRequest.width              = w;
-    sceneRequest.height             = h;
+    const ImVec2 framebufferScale = ImGui::GetIO().DisplayFramebufferScale;
+    const float dpiScaleX = m_sceneRenderer && framebufferScale.x > 0.0f
+        ? framebufferScale.x : 1.0f;
+    const float dpiScaleY = m_sceneRenderer && framebufferScale.y > 0.0f
+        ? framebufferScale.y : 1.0f;
+    sceneRequest.width              = m_sceneRenderer
+        ? (std::max)(1, static_cast<int>(std::lround(w * dpiScaleX))) : w;
+    sceneRequest.height             = m_sceneRenderer
+        ? (std::max)(1, static_cast<int>(std::lround(h * dpiScaleY))) : h;
     sceneRequest.renderHighlights  = true;
     if (user || m_useOwnCamera) {
         sceneRequest.cameraPosition = camPos();
@@ -219,10 +231,16 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
 
     // FBO のカラーテクスチャを表示
     ImGui::SetCursorScreenPos(contentOrigin);
-    ImGui::Image(image.texture, ImVec2((float)w, (float)h), image.uv0, image.uv1);
+    if (image.texture.GetTexID() == ImTextureID_Invalid) {
+        // A workspace may not be available during the first editor frame.  Do
+        // not submit the backend's invalid texture sentinel as a draw command.
+        ImGui::Dummy(ImVec2((float)w, (float)h));
+    } else {
+        ImGui::Image(image.texture, ImVec2((float)w, (float)h), image.uv0, image.uv1);
+    }
 
     // ゲーム内 GUI をビューポート上に重ねて描画
-    if (workspace && Renderer::instance) {
+    if (workspace && Renderer::instance && !m_sceneRenderer) {
         const GameGuiRenderContext guiContext = Renderer::makeGameGuiRenderContext(
             contentOrigin.x, contentOrigin.y, static_cast<float>(w), static_cast<float>(h),
             camPos(), camForward(), camRight(), camUp(),
@@ -258,6 +276,14 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
 }
 
 ViewportPanel::ViewportImage ViewportPanel::renderScene(const ViewportRenderDesc& request) {
+    if (m_sceneRenderer) {
+        ViewportImage image;
+        image.texture = m_sceneRenderer->renderViewport(*this, request);
+        image.uv0 = ImVec2(0.0f, 0.0f);
+        image.uv1 = ImVec2(1.0f, 1.0f);
+        return image;
+    }
+
     resizeFBO(request.width, request.height);
 
     if (request.workspace && user && Renderer::instance) {
@@ -408,7 +434,7 @@ bool ViewportPanel::updateTerrainBrush(const ViewportLayout& layout) {
             if (terrainHit) {
                 // ヒット位置にブラシ範囲のガイドリングを描画（シーン描画済みFBOへ追記）。
                 // クリック前でも「どこに当たるか」が見えるようマウス押下に関係なく毎フレーム描く。
-                if (Renderer::instance && framebuffer) {
+                if (!m_sceneRenderer && Renderer::instance && framebuffer) {
                     float   aspect = (h > 0) ? (float)w / (float)h : 1.0f;
                     Matrix4 proj   = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
                     Matrix4 view   = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
@@ -471,7 +497,7 @@ bool ViewportPanel::updateWeldMode(const ViewportLayout& layout) {
                 *workspace, ray, ViewportSceneQueries::PickerTargetType::BaseCube);
         BaseCube* hoveredCube = hoverHit.hit ? static_cast<BaseCube*>(hoverHit.target) : nullptr;
 
-        if (hoveredCube && Renderer::instance && framebuffer) {
+        if (hoveredCube && !m_sceneRenderer && Renderer::instance && framebuffer) {
             const float aspect = h > 0 ? static_cast<float>(w) / static_cast<float>(h) : 1.0f;
             const Matrix4 projection = Matrix4::Perspective(45.0f, aspect, 0.1f, 10000.0f);
             const Matrix4 view = Matrix4::LookAt(camPos(), camPos() + camForward(), camUp());
@@ -1153,7 +1179,7 @@ void ViewportPanel::drawHoverHighlight(const ViewportLayout& layout) {
     const int h = layout.height;
     if ((!isSelectMode() && !isGizmoMode()) || !isHoveringViewport || ImGuizmo::IsUsing()
             || (isGizmoMode() && ImGuizmo::IsOver(gizmoOp)) || !user || !workspace
-            || !Renderer::instance || !framebuffer
+            || m_sceneRenderer || !Renderer::instance || !framebuffer
             || (m_weldMode && m_weldMode->active)
             || (m_terrainBrush && m_terrainBrush->active)
             || (m_picker && m_picker->active)

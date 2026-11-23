@@ -251,7 +251,7 @@ bool finishReadback(SDL_GPUDevice* device, SDL_GPUTransferBuffer* transfer,
     SDL_UnmapGPUTransferBuffer(device, transfer);
     SDL_ReleaseGPUFence(device, fence);
     SDL_ReleaseGPUTransferBuffer(device, transfer);
-    return PngWriter::writeRgba8(path.string(), static_cast<int>(width), static_cast<int>(height), pixels, &error);
+    return PngWriter::writeRgba8(path, static_cast<int>(width), static_cast<int>(height), pixels, &error);
 }
 
 #ifdef RECUBIN_SDL_GPU_STUDIO
@@ -488,10 +488,17 @@ void blitSdlSceneFrame(SDL_GPUCommandBuffer& command, SDL_GPUTexture& source,
 bool captureSdlSceneFrame(SdlGpuWindow& window, SdlGpuWindow::Frame& frame,
                          SDL_GPUTexture* source, unsigned width, unsigned height,
                          const std::string& outputDir, std::string& error) {
+    return captureSdlFrameToPng(window, frame, source, width, height,
+        std::filesystem::u8path(outputDir) / "render.png", error);
+}
+
+bool captureSdlFrameToPng(SdlGpuWindow& window, SdlGpuWindow::Frame& frame,
+                          SDL_GPUTexture* source, unsigned width, unsigned height,
+                          const std::filesystem::path& outputPath, std::string& error) {
     auto* transfer = recordReadback(window.device(), frame.command, source, width, height, error);
     if (!transfer) {
         std::string retireError;
-        if (!window.cancel(frame, &retireError)) {
+        if (!window.submit(frame, nullptr, &retireError)) {
             error += "; " + retireError;
         }
         return false;
@@ -502,7 +509,7 @@ bool captureSdlSceneFrame(SdlGpuWindow& window, SdlGpuWindow::Frame& frame,
         return false;
     }
     return finishReadback(window.device(), transfer, fence, width, height,
-                          std::filesystem::u8path(outputDir) / "render.png", error);
+                          outputPath, error);
 }
 
 int runSdlScenePreview(const std::string& scenePath,

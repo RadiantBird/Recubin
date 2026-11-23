@@ -310,6 +310,7 @@ std::variant<int, LaunchOptions> prepareLaunch(int argc, char* argv[])
 
     LaunchOptions options;
     options.initialScenePath = runtimeArgs.uiAutomationScene.value_or("");
+    options.gpuDriver = runtimeArgs.gpuDriver;
     options.settingsPath = hasAutomationScene
         ? AssetPath::fromStored(*runtimeArgs.uiAutomationSettings)
         : std::filesystem::path("editor_settings.yaml");

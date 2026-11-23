@@ -361,6 +361,9 @@ void EditorManager::setNetworkClientCount(int count) {
 void EditorManager::setVSyncEnabled(bool enabled, GLFWwindow* window) {
     m_vsyncEnabled = enabled;
     if (!window) {
+        if (viewportPanel && viewportPanel->sceneRenderer()) {
+            return;
+        }
         RCBN_ERROR("Cannot apply VSync: target GLFW window is null");
         return;
     }
@@ -467,7 +470,7 @@ void EditorManager::render(GLFWwindow* window) {
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuQuit), "Alt+F4")) {
                 if (m_isDirty) requestSaveDialog(window);
                 else if (hasDirtyCodeEditors()) requestCodeEditorSaveDialog(window);
-                else if (window) glfwSetWindowShouldClose(window, GLFW_TRUE);
+                else confirmClose(window);
             }
             ImGui::EndMenu();
         }
@@ -605,6 +608,7 @@ void EditorManager::openSecondaryViewport(Workspace* ws) {
     if (!ws) return;
     auto wsSp = std::static_pointer_cast<Workspace>(ws->shared_from_this());
     auto panel = std::make_unique<ViewportPanel>();
+    panel->setSceneRenderer(viewportPanel ? viewportPanel->sceneRenderer() : nullptr);
     panel->workspace = ws;
     panel->user = m_user;
     panel->selectedInstance = &hierarchyPanel->selectedInstance;
@@ -1175,6 +1179,20 @@ void EditorManager::requestSaveDialog(GLFWwindow* window) {
     m_saveDialogOpenedAt = ImGui::GetTime();
 }
 
+void EditorManager::confirmClose(GLFWwindow* window) {
+    if (window) {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+        return;
+    }
+    m_confirmedClose = true;
+}
+
+bool EditorManager::consumeConfirmedClose() {
+    const bool confirmed = m_confirmedClose;
+    m_confirmedClose = false;
+    return confirmed;
+}
+
 bool EditorManager::hasDirtyCodeEditors() const {
     for (const auto& panel : m_codeEditors) {
         if (panel && panel->isDirty()) return true;
@@ -1216,16 +1234,14 @@ void EditorManager::renderCodeEditorSaveDialog() {
     if (EditorUi::dangerButton(Loc::t(Loc::LocKey::SaveAndQuit),
                                m_codeEditorSaveDialogOpenedAt, quitCooldown)) {
         if (saveDirtyCodeEditors()) {
-            if (m_codeEditorDialogWindow)
-                glfwSetWindowShouldClose(m_codeEditorDialogWindow, GLFW_TRUE);
+            confirmClose(m_codeEditorDialogWindow);
             ImGui::CloseCurrentPopup();
         }
     }
     ImGui::SameLine();
     if (EditorUi::dangerButton(Loc::t(Loc::LocKey::QuitWithoutSaving),
                                m_codeEditorSaveDialogOpenedAt, quitCooldown)) {
-        if (m_codeEditorDialogWindow)
-            glfwSetWindowShouldClose(m_codeEditorDialogWindow, GLFW_TRUE);
+        confirmClose(m_codeEditorDialogWindow);
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
@@ -1260,7 +1276,7 @@ void EditorManager::renderSaveDialog() {
             hierarchyPanel->selectedInstances.clear();
             m_history.clear();
             m_clipboard.clear();
-            if (m_dialogWindow) glfwSetWindowShouldClose(m_dialogWindow, GLFW_TRUE);
+            confirmClose(m_dialogWindow);
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
@@ -1271,7 +1287,7 @@ void EditorManager::renderSaveDialog() {
             hierarchyPanel->selectedInstances.clear();
             m_history.clear();
             m_clipboard.clear();
-            if (m_dialogWindow) glfwSetWindowShouldClose(m_dialogWindow, GLFW_TRUE);
+            confirmClose(m_dialogWindow);
             ImGui::CloseCurrentPopup();
         }
         if (quitWithoutSavingReady)
@@ -2069,6 +2085,15 @@ void EditorManager::setWorkspace(Workspace* ws) {
     m_isDirty = false;
 }
 
+void EditorManager::setViewportSceneRenderer(ViewportSceneRenderer* renderer) {
+    if (viewportPanel) {
+        viewportPanel->setSceneRenderer(renderer);
+    }
+    for (auto& panel : secondaryViewports) {
+        if (panel) panel->setSceneRenderer(renderer);
+    }
+}
+
 void EditorManager::beginViewportRender() {
     viewportPanel->beginRender();
 }
@@ -2083,6 +2108,7 @@ void EditorManager::getViewportSize(GLFWwindow*, int& w, int& h) {
 }
 
 unsigned int EditorManager::getViewportFBO() {
+    if (viewportPanel && viewportPanel->sceneRenderer()) return 0;
     return viewportPanel->framebuffer;
 }
 

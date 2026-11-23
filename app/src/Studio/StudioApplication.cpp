@@ -12,6 +12,16 @@
 #include <Core/LuauEngine.hpp>
 #include <Core/Physics.hpp>
 #include <Core/Renderer.hpp>
+#ifdef RECUBIN_SDL_GPU_STUDIO
+#include <Core/SdlGpuWindow.hpp>
+#include <Core/SdlImGuiBackend.hpp>
+#include <Core/SdlScenePreview.hpp>
+#include <Core/SdlStudioViewportRenderer.hpp>
+#include <Core/SDLInputBackend.hpp>
+#include <Editor/IconsDef.hpp>
+#include <SDL3/SDL.h>
+#include <include/imgui/imgui.h>
+#endif
 #include <Core/SceneRuntime.hpp>
 #include <Core/SystemState.hpp>
 #include <Editor/EditorManager.hpp>
@@ -420,11 +430,12 @@ void EditorSettings::saveEditorPreferences(EditorManager* ed, User* user) {
 
 
 // ウィンドウタイトルに現在開いているシーンのファイル名を付加する
-static void updateWindowTitle(GLFWwindow* window, const std::string& scenePath, bool dirty = false) {
-    std::string fileName = std::filesystem::path(scenePath).filename().string();
+static std::string studioWindowTitle(const std::string& scenePath, bool dirty) {
+    const auto filename = std::filesystem::u8path(scenePath).filename().u8string();
+    const std::string fileName(filename.begin(), filename.end());
     std::string title = fileName.empty() ? "Recubin Studio" : ("Recubin Studio - " + fileName);
     if (dirty) title = "*" + title;  // 未保存マーク
-    glfwSetWindowTitle(window, title.c_str());
+    return title;
 }
 
 class EditorInteractionTracker {
@@ -515,6 +526,11 @@ public:
 
         runLoop();
         shutdown();
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_sdlRenderFailed) {
+            return -1;
+        }
+#endif
         return 0;
     }
 
@@ -532,6 +548,11 @@ private:
 
     bool initialize()
     {
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_options.gpuDriver) {
+            return initializeSdl();
+        }
+#endif
         m_window = createWindow();
         if (!m_window) {
             return false;
@@ -559,29 +580,147 @@ private:
         return initializeSceneAndEditor();
     }
 
+#ifdef RECUBIN_SDL_GPU_STUDIO
+    bool initializeSdl()
+    {
+        SdlGpuWindowConfig config;
+        config.title = "Recubin Studio";
+        config.width = 1600;
+        config.height = 900;
+        config.driver = *m_options.gpuDriver;
+        config.visible = !GuiAutomation::hiddenWindow();
+        config.present = config.visible;
+        config.createWindowOffscreen = !config.visible;
+        std::string error;
+        if (!m_sdlWindow.initialize(config, &error)) {
+            RCBN_ERROR("SDL Studio window initialization failed: " << error);
+            return false;
+        }
+        RCBN_LOG("Studio SDL GPU driver: " << m_sdlWindow.driverName());
+        m_user = std::make_shared<User>(std::make_unique<SDLInputBackend>(m_sdlWindow.window()));
+        m_user->setControlMode(User::ControlMode::Free);
+        m_audio = std::make_unique<AudioService>();
+        m_system = std::make_shared<System>();
+        m_luau = std::make_unique<LuauEngine>();
+        if (!m_audio->initialize()) {
+            RCBN_ERROR("AudioService initialization failed.");
+            return false;
+        }
+        m_sdlImGuiContext = ImGui::CreateContext();
+        if (!m_sdlImGuiContext) {
+            RCBN_ERROR("ImGui context creation failed for SDL Studio.");
+            return false;
+        }
+        ImGui::SetCurrentContext(m_sdlImGuiContext);
+        ImGuiIO& io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+        io.ConfigDpiScaleFonts = true;
+        if (GuiAutomation::enabled()) {
+            io.IniFilename = nullptr;
+        }
+        ImGui::StyleColorsDark();
+        initializeSdlFonts(io);
+        if (!m_sdlImGui.initialize(*m_sdlImGuiContext, *m_sdlWindow.window(),
+                                   *m_sdlWindow.device(), SDL_COLOR_FORMAT, error)) {
+            RCBN_ERROR("SDL Studio ImGui initialization failed: " << error);
+            return false;
+        }
+        m_sdlViewportRenderer = std::make_unique<SdlStudioViewportRenderer>(*m_sdlWindow.device());
+        Physics::s_touchCallback = [this](BaseCube* a, BaseCube* b) { m_luau->onTouched(a, b); };
+        Physics::s_touchEndCallback = [this](BaseCube* a, BaseCube* b) { m_luau->onTouchEnded(a, b); };
+        return initializeSceneAndEditor();
+    }
+
+    void initializeSdlFonts(ImGuiIO& io)
+    {
+        constexpr auto japaneseFont = "assets/fonts/MPLUS1p-Regular.ttf";
+        constexpr auto codeFont = "assets/fonts/JetBrainsMono-Medium.ttf";
+        constexpr auto iconFont = "assets/fonts/fa-solid-900.ttf";
+        ImFont* uiFont = std::filesystem::exists(japaneseFont)
+            ? io.Fonts->AddFontFromFileTTF(japaneseFont, 22.0f, nullptr,
+                                           io.Fonts->GetGlyphRangesJapanese()) : nullptr;
+        if (!uiFont) {
+            RCBN_WARN("SDL Studio UI font unavailable: " << japaneseFont);
+            uiFont = io.Fonts->AddFontDefault();
+        }
+        io.FontDefault = uiFont;
+        if (std::filesystem::exists(iconFont)) {
+            ImFontConfig config;
+            config.MergeMode = true;
+            config.PixelSnapH = true;
+            config.DstFont = uiFont;
+            static constexpr ImWchar iconRanges[]{ICON_MIN_FA, ICON_MAX_FA, 0};
+            io.Fonts->AddFontFromFileTTF(iconFont, 18.0f, &config, iconRanges);
+        } else {
+            RCBN_WARN("SDL Studio icon font unavailable: " << iconFont);
+        }
+        if (std::filesystem::exists(codeFont)) {
+            m_sdlCodeFont = io.Fonts->AddFontFromFileTTF(codeFont, 17.0f);
+        }
+        if (!m_sdlCodeFont) {
+            RCBN_WARN("SDL Studio code font unavailable: " << codeFont);
+            m_sdlCodeFont = uiFont;
+        } else if (std::filesystem::exists(japaneseFont)) {
+            ImFontConfig config;
+            config.MergeMode = true;
+            config.DstFont = m_sdlCodeFont;
+            io.Fonts->AddFontFromFileTTF(japaneseFont, 17.0f, &config,
+                                         io.Fonts->GetGlyphRangesJapanese());
+        }
+    }
+#endif
+
     bool initializeSceneAndEditor()
     {
         const auto lastScenePath = m_settings.loadLastScenePath();
-        updateWindowTitle(m_window, m_options.initialScenePath);
+        updateWindowTitle(m_options.initialScenePath, false);
         auto bound = SceneRuntime::loadAndBind(
-            m_options.initialScenePath, m_system, m_user, *m_luau, m_window);
+            m_options.initialScenePath, m_system, m_user, *m_luau,
+#ifdef RECUBIN_SDL_GPU_STUDIO
+            m_options.gpuDriver ? nullptr : m_window);
+#else
+            m_window);
+#endif
         const auto metadata = bound.metadata;
         if (!installScene(std::move(bound), false)) {
             return false;
         }
         migrateLegacyLighting(m_system, m_workspace, m_workspaces);
 
-        m_renderer->m_onButtonActivated = [this](GuiButton* button) {
-            m_luau->onGuiButtonActivated(button);
-        };
+        if (m_renderer) {
+            m_renderer->m_onButtonActivated = [this](GuiButton* button) {
+                m_luau->onGuiButtonActivated(button);
+            };
+        }
 
+        ImFont* codeFont = m_renderer ? m_renderer->codeEditorFont() : nullptr;
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_sdlImGuiContext) {
+            codeFont = m_sdlCodeFont;
+        }
+#endif
         auto editor = std::make_unique<EditorManager>(
             m_workspace.get(), m_user.get(), m_system.get(), m_options.autosaveRoot,
-            m_renderer->codeEditorFont(), m_luau->runtimeFileSystem());
+            codeFont, m_luau->runtimeFileSystem());
         m_editor = editor.get();
         m_editor->setSceneMetadata(metadata);
         m_editor->engineExePath = m_options.executablePath.string();
         m_editor->scenePath = m_options.initialScenePath;
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_sdlViewportRenderer) {
+            m_editor->setViewportSceneRenderer(m_sdlViewportRenderer.get());
+            ImTextureRef logo;
+            int logoWidth = 0;
+            int logoHeight = 0;
+            std::string logoError;
+            if (m_sdlViewportRenderer->loadWelcomeLogo(logo, logoWidth, logoHeight, logoError)) {
+                m_editor->welcomePanel->setLogoImage(logo, logoWidth, logoHeight);
+            } else {
+                m_editor->welcomePanel->setLogoImage(ImTextureRef{}, 0, 0);
+                RCBN_WARN("SDL Studio welcome logo unavailable: " << logoError);
+            }
+        }
+#endif
         m_editor->initializeAutosaveRecovery();
         m_settings.loadPanelVisibility(m_editor);
         m_settings.loadEditorPreferences(m_editor, m_user.get(), m_window);
@@ -593,13 +732,23 @@ private:
         m_editor->hierarchyPanel->onOpenSecondaryViewport = [this](Workspace* workspace) {
             m_editor->openSecondaryViewport(workspace);
         };
-        m_renderer->editor = std::move(editor);
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_sdlViewportRenderer) {
+            m_editorOwner = std::move(editor);
+        } else
+#endif
+        {
+            m_renderer->editor = std::move(editor);
+        }
         RCBN_LOG("Editor initialized.");
 
-        m_lastFrame = glfwGetTime();
+        m_lastFrame = currentTime();
         m_lastTitlePath = m_editor->scenePath;
-        m_lastEditorInteraction = glfwGetTime();
-        m_interactionTracker.emplace(m_window);
+        m_lastEditorInteraction = m_lastFrame;
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (!m_options.gpuDriver)
+#endif
+            m_interactionTracker.emplace(m_window);
         return true;
     }
 
@@ -752,6 +901,43 @@ private:
 
     bool beginFrame(FrameState& frame)
     {
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_options.gpuDriver) {
+            if (m_sdlRenderFailed || m_sdlAutomationDone) {
+                return false;
+            }
+            SDL_Event event;
+            while (SDL_PollEvent(&event)) {
+                m_sdlImGui.processEvent(event);
+                SDLInputBackend::processEvent(event);
+                if (event.type == SDL_EVENT_QUIT ||
+                    event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+                    m_sdlShouldClose = true;
+                }
+            }
+            if (m_editor->consumeConfirmedClose()) {
+                return false;
+            }
+            if (m_sdlShouldClose && checkExit()) {
+                return false;
+            }
+            frame.windowInactive = m_sdlWindow.window() == nullptr ||
+                !(SDL_GetWindowFlags(m_sdlWindow.window()) & SDL_WINDOW_INPUT_FOCUS) ||
+                (SDL_GetWindowFlags(m_sdlWindow.window()) & SDL_WINDOW_MINIMIZED);
+            frame.now = currentTime();
+            frame.deltaTime = static_cast<float>(std::clamp(frame.now - m_lastFrame, 0.0, 0.25));
+            m_lastFrame = frame.now;
+            pollNetworkClientCleanup(frame.now);
+            auto& state = SystemState::get();
+            state.deltaTime = frame.deltaTime;
+            m_luau->pollPathfindingRequests();
+            frame.navMeshBusy = PathfindingService::IsBuildActive();
+            frame.isPlaying = state.isPlaying = !m_editor->isEditMode();
+            frame.isPaused = state.isPaused = m_editor->isPauseMode();
+            state.inputState = frame.isPlaying ? InputState::Gameplay : InputState::Editor;
+            return true;
+        }
+#endif
         frame.windowInactive = glfwGetWindowAttrib(m_window, GLFW_FOCUSED) == GLFW_FALSE ||
             glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) == GLFW_TRUE;
         if (!m_wasPlaying && !PathfindingService::IsBuildActive() &&
@@ -769,7 +955,7 @@ private:
             return false;
         }
 
-        frame.now = glfwGetTime();
+        frame.now = currentTime();
         frame.deltaTime = static_cast<float>(std::max(0.0, frame.now - m_lastFrame));
         m_lastFrame = frame.now;
         pollNetworkClientCleanup(frame.now);
@@ -785,6 +971,30 @@ private:
         return true;
     }
 
+    double currentTime() const
+    {
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_options.gpuDriver) {
+            return static_cast<double>(SDL_GetTicks()) / 1000.0;
+        }
+#endif
+        return glfwGetTime();
+    }
+
+    void updateWindowTitle(const std::string& path, bool dirty)
+    {
+        const auto title = studioWindowTitle(path, dirty);
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_options.gpuDriver) {
+            if (!SDL_SetWindowTitle(m_sdlWindow.window(), title.c_str())) {
+                RCBN_WARN("Could not set SDL Studio window title: " << SDL_GetError());
+            }
+            return;
+        }
+#endif
+        glfwSetWindowTitle(m_window, title.c_str());
+    }
+
     bool checkExit()
     {
         if (m_editor->isDirty()) {
@@ -794,6 +1004,11 @@ private:
         } else {
             return true;
         }
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_options.gpuDriver) {
+            m_sdlShouldClose = false;
+        } else
+#endif
         glfwSetWindowShouldClose(m_window, GLFW_FALSE);
         return false;
     }
@@ -805,7 +1020,7 @@ private:
         if (dirty == m_lastDirty && path == m_lastTitlePath) {
             return;
         }
-        updateWindowTitle(m_window, path, dirty);
+        updateWindowTitle(path, dirty);
         if (path != m_lastTitlePath && !path.empty()) {
             m_settings.saveLastScenePath(path);
         }
@@ -915,7 +1130,7 @@ private:
                     center = root->getWorldCFrame().Position;
                 }
             }
-            SceneRuntime::updateTerrains(m_workspace.get(), center);
+            SceneRuntime::updateTerrains(m_workspace.get(), center, m_options.gpuDriver.has_value());
         }
         {
             // ParticleEmitter より先に風と発生源位置を反映する。
@@ -931,6 +1146,12 @@ private:
 
     void recordEditorInteraction(const FrameState& frame)
     {
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_options.gpuDriver) {
+            m_lastEditorInteraction = frame.now;
+            return;
+        }
+#endif
         // A held key does not continuously wake the editor from energy-saving mode.
         const bool interaction = m_interactionTracker->detect(m_window, frame.windowInactive);
         const double now = glfwGetTime();
@@ -1181,7 +1402,9 @@ private:
             m_chat->onSendRequested = [](const std::string& text) {
                 NetworkManager::get().sendChatMessage(text);
             };
-            m_renderer->setChatService(m_chat);
+            if (m_renderer) {
+                m_renderer->setChatService(m_chat);
+            }
         }
         m_replication = std::make_unique<ReplicationManager>(m_workspace, m_user, m_system.get());
         network.onGameMessage = [this](uint8_t type, const uint8_t* payload, size_t len, PeerId senderId) {
@@ -1274,7 +1497,9 @@ private:
         if (m_chat) {
             m_chat->onSendRequested = nullptr;
         }
-        m_renderer->setChatService(nullptr);
+        if (m_renderer) {
+            m_renderer->setChatService(nullptr);
+        }
         m_chat.reset();
         m_replication.reset();
         network.shutdown();
@@ -1296,7 +1521,7 @@ private:
             return;
         }
         requestNetworkClientsClose();
-        m_networkCleanupDeadline = glfwGetTime() + 2.0;
+        m_networkCleanupDeadline = currentTime() + 2.0;
         m_editor->setExternalPlayCleanup(true);
     }
 
@@ -1348,8 +1573,141 @@ private:
     }
 
 
+#ifdef RECUBIN_SDL_GPU_STUDIO
+    bool ensureSdlColorTarget(unsigned width, unsigned height, std::string& error)
+    {
+        if (m_sdlColorTarget && width == m_sdlColorWidth && height == m_sdlColorHeight) {
+            return true;
+        }
+        SDL_GPUTextureCreateInfo info{};
+        info.type = SDL_GPU_TEXTURETYPE_2D;
+        info.format = SDL_COLOR_FORMAT;
+        info.width = width;
+        info.height = height;
+        info.layer_count_or_depth = 1;
+        info.num_levels = 1;
+        info.usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER;
+        SDL_GPUDevice* device = m_sdlWindow.device();
+        auto* target = SDL_CreateGPUTexture(device, &info);
+        if (!target) {
+            error = std::string("offscreen target creation failed: ") + SDL_GetError();
+            return false;
+        }
+        if (m_sdlColorTarget) {
+            SDL_ReleaseGPUTexture(device, m_sdlColorTarget);
+        }
+        m_sdlColorTarget = target;
+        m_sdlColorWidth = width;
+        m_sdlColorHeight = height;
+        return true;
+    }
+
+    bool renderSdlFrame(std::string& error)
+    {
+        const bool hidden = GuiAutomation::hiddenWindow();
+        if (!hidden) {
+            applySdlVSync();
+        }
+        auto frame = m_sdlWindow.beginFrame(&error);
+        if (!frame) {
+            return false;
+        }
+        if (!frame.swapchain && !hidden) {
+            SDL_Delay(16);
+            return m_sdlWindow.cancel(frame, &error);
+        }
+        const auto retireFailure = [&] {
+            std::string retireError;
+            const bool retired = frame.swapchain ? m_sdlWindow.submit(frame, nullptr, &retireError)
+                                                 : m_sdlWindow.cancel(frame, &retireError);
+            if (!retired) {
+                error += "; " + retireError;
+            }
+            return false;
+        };
+        if (!frame.swapchain) {
+            int width = 0;
+            int height = 0;
+            if (!SDL_GetWindowSizeInPixels(m_sdlWindow.window(), &width, &height)) {
+                error = std::string("could not query hidden window pixel size: ") + SDL_GetError();
+                return retireFailure();
+            }
+            if (width <= 0 || height <= 0) {
+                error = "hidden Studio window has invalid pixel dimensions";
+                return retireFailure();
+            }
+            frame.width = static_cast<unsigned>(width);
+            frame.height = static_cast<unsigned>(height);
+        }
+        if (!ensureSdlColorTarget(frame.width, frame.height, error) ||
+            !m_sdlImGui.beginFrame(error)) {
+            return retireFailure();
+        }
+        m_sdlViewportRenderer->beginFrame(*frame.command, static_cast<float>(m_lastFrame));
+        m_editor->beginImGuiFrame();
+        m_editor->renderImGuiPanels(nullptr);
+        ImDrawData* drawData = m_editor->finishImGuiFrame();
+        error = m_sdlViewportRenderer->error();
+        if (error.empty() && !drawData) {
+            error = "ImGui did not produce draw data";
+        }
+        if (!error.empty() || !m_sdlImGui.render(*drawData, *frame.command, *m_sdlColorTarget, error)) {
+            retireFailure();
+            m_sdlViewportRenderer->endFrame();
+            return false;
+        }
+        if (frame.swapchain) {
+            blitSdlSceneFrame(*frame.command, *m_sdlColorTarget, *frame.swapchain, frame.width, frame.height);
+        }
+        const auto request = GuiAutomation::finishRender();
+        bool submitted = false;
+        if (request.capturePath) {
+            submitted = captureSdlFrameToPng(m_sdlWindow, frame, m_sdlColorTarget,
+                frame.width, frame.height, std::filesystem::u8path(*request.capturePath), error);
+            GuiAutomation::completeCapture(*request.capturePath, submitted, error);
+        } else {
+            submitted = m_sdlWindow.submit(frame, nullptr, &error);
+        }
+        m_sdlViewportRenderer->endFrame();
+        m_sdlAutomationDone = request.quit;
+        return submitted;
+    }
+
+    void applySdlVSync()
+    {
+        const bool enabled = m_editor->vsyncEnabled();
+        if (m_sdlLastVSyncRequest == enabled) {
+            return;
+        }
+        m_sdlLastVSyncRequest = enabled;
+        auto* device = m_sdlWindow.device();
+        auto* window = m_sdlWindow.window();
+        const auto mode = enabled ? SDL_GPU_PRESENTMODE_VSYNC : SDL_GPU_PRESENTMODE_IMMEDIATE;
+        if (!SDL_WindowSupportsGPUPresentMode(device, window, mode)) {
+            RCBN_WARN("SDL Studio GPU driver " << m_sdlWindow.driverName()
+                      << " does not support immediate presentation");
+            return;
+        }
+        if (!SDL_SetGPUSwapchainParameters(device, window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, mode)) {
+            RCBN_WARN("Could not change SDL Studio presentation mode: " << SDL_GetError());
+        }
+    }
+#endif
+
     void renderFrame()
     {
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_options.gpuDriver) {
+            std::string error;
+            if (!renderSdlFrame(error)) {
+                RCBN_ERROR("SDL Studio rendering failed: " << error);
+                m_sdlRenderFailed = true;
+            }
+            m_audio->updateSounds(m_user->cpos, m_user->right);
+            FrameProfiler::get().endFrame();
+            return;
+        }
+#endif
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         m_renderer->render(*m_user, m_window, *m_workspace);
         m_audio->updateSounds(m_user->cpos, m_user->right);
@@ -1358,7 +1716,11 @@ private:
 
     void shutdown()
     {
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (!m_window && !m_sdlWindow.device()) {
+#else
         if (!m_window) {
+#endif
             return;
         }
         RCBN_LOG("Shutting down...");
@@ -1371,9 +1733,16 @@ private:
         }
 
         // Workspace の物理と GL が有効な間に Editor の参照をすべて解放する。
-        m_renderer->editor.reset();
+        if (m_renderer) {
+            m_renderer->editor.reset();
+        }
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        m_editorOwner.reset();
+#endif
         m_editor = nullptr;
-        m_renderer->m_onButtonActivated = nullptr;
+        if (m_renderer) {
+            m_renderer->m_onButtonActivated = nullptr;
+        }
 
         if (m_luau && m_system) {
             releaseSceneRuntime();
@@ -1396,11 +1765,28 @@ private:
         m_user.reset();
         m_system.reset();
         m_audio.reset();
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_sdlColorTarget && m_sdlWindow.device()) {
+            SDL_ReleaseGPUTexture(m_sdlWindow.device(), m_sdlColorTarget);
+            m_sdlColorTarget = nullptr;
+        }
+        if (m_sdlImGuiContext) {
+            ImGui::SetCurrentContext(m_sdlImGuiContext);
+            m_sdlImGui.shutdown();
+            ImGui::DestroyContext(m_sdlImGuiContext);
+            m_sdlImGuiContext = nullptr;
+        }
+        m_sdlViewportRenderer.reset();
+        if (m_sdlWindow.device()) {
+            m_sdlWindow.shutdown();
+        }
+#endif
         m_renderer.reset();
-
-        glfwDestroyWindow(m_window);
-        m_window = nullptr;
-        glfwTerminate();
+        if (m_window) {
+            glfwDestroyWindow(m_window);
+            m_window = nullptr;
+            glfwTerminate();
+        }
     }
 
     LaunchOptions m_options;
@@ -1414,13 +1800,29 @@ private:
     std::shared_ptr<ChatService> m_chat;
     GLFWwindow* m_window = nullptr;
     std::unique_ptr<Renderer> m_renderer;
+#ifdef RECUBIN_SDL_GPU_STUDIO
+    static constexpr SDL_GPUTextureFormat SDL_COLOR_FORMAT = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    SdlGpuWindow m_sdlWindow;
+    SdlImGuiBackend m_sdlImGui;
+    ImGuiContext* m_sdlImGuiContext = nullptr;
+    ImFont* m_sdlCodeFont = nullptr;
+    std::unique_ptr<SdlStudioViewportRenderer> m_sdlViewportRenderer;
+    std::unique_ptr<EditorManager> m_editorOwner;
+    SDL_GPUTexture* m_sdlColorTarget = nullptr;
+    unsigned m_sdlColorWidth = 0;
+    unsigned m_sdlColorHeight = 0;
+    bool m_sdlShouldClose = false;
+    bool m_sdlRenderFailed = false;
+    bool m_sdlAutomationDone = false;
+    bool m_sdlLastVSyncRequest = true;
+#endif
     std::unique_ptr<AudioService> m_audio;
     std::shared_ptr<System> m_system;
     std::unique_ptr<LuauEngine> m_luau;
     std::shared_ptr<User> m_user;
     std::shared_ptr<Workspace> m_workspace;
     std::vector<std::shared_ptr<Workspace>> m_workspaces;
-    EditorManager* m_editor = nullptr; // Renderer が所有する。
+    EditorManager* m_editor = nullptr; // SDL または OpenGL ホストが所有する Editor を参照する。
     double m_lastFrame = 0.0;
     std::string m_lastTitlePath;
     bool m_lastDirty = false;
