@@ -1,8 +1,6 @@
 #include "Core/SdlPreviewImGui.hpp"
 
 #include "imgui.h"
-#include "backends/imgui_impl_sdl3.h"
-#include "backends/imgui_impl_sdlgpu3.h"
 
 SdlPreviewImGui::~SdlPreviewImGui()
 {
@@ -17,8 +15,6 @@ bool SdlPreviewImGui::initialize(SDL_Window& window,
     cleanup();
     error.clear();
 
-    m_window = &window;
-    m_device = &device;
     m_previousContext = ImGui::GetCurrentContext();
     m_context = ImGui::CreateContext();
     if (m_context == nullptr)
@@ -33,41 +29,24 @@ bool SdlPreviewImGui::initialize(SDL_Window& window,
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.IniFilename = nullptr;
 
-    if (!ImGui_ImplSDL3_InitForSDLGPU(m_window))
+    if (!m_backend.initialize(*m_context, window, device, colorTargetFormat, error))
     {
-        error = "ImGui SDL3 platform initialization failed";
         cleanup();
         return false;
     }
-    m_platformInitialized = true;
 
-    ImGui_ImplSDLGPU3_InitInfo initInfo{};
-    initInfo.Device = m_device;
-    initInfo.ColorTargetFormat = colorTargetFormat;
-    if (!ImGui_ImplSDLGPU3_Init(&initInfo))
-    {
-        error = "ImGui SDL GPU renderer initialization failed";
-        cleanup();
-        return false;
-    }
-    m_rendererInitialized = true;
-
-    m_initialized = true;
     ImGui::SetCurrentContext(m_previousContext);
     return true;
 }
 
 void SdlPreviewImGui::processEvent(const SDL_Event& event)
 {
-    if (!m_initialized || m_context == nullptr)
+    if (!m_backend.isInitialized() || m_context == nullptr)
     {
         return;
     }
 
-    ImGuiContext* previousContext = ImGui::GetCurrentContext();
-    ImGui::SetCurrentContext(m_context);
-    ImGui_ImplSDL3_ProcessEvent(&event);
-    ImGui::SetCurrentContext(previousContext);
+    m_backend.processEvent(event);
 }
 
 bool SdlPreviewImGui::draw(SDL_GPUCommandBuffer& commandBuffer,
@@ -76,7 +55,7 @@ bool SdlPreviewImGui::draw(SDL_GPUCommandBuffer& commandBuffer,
                            std::string& error)
 {
     error.clear();
-    if (!m_initialized || m_context == nullptr)
+    if (!m_backend.isInitialized() || m_context == nullptr)
     {
         error = "ImGui SDL GPU renderer is not initialized";
         return false;
@@ -85,8 +64,12 @@ bool SdlPreviewImGui::draw(SDL_GPUCommandBuffer& commandBuffer,
     ImGuiContext* previousContext = ImGui::GetCurrentContext();
     ImGui::SetCurrentContext(m_context);
 
-    ImGui_ImplSDL3_NewFrame();
-    ImGui_ImplSDLGPU3_NewFrame();
+    if (!m_backend.beginFrame(error))
+    {
+        ImGui::SetCurrentContext(previousContext);
+        return false;
+    }
+    ImGui::SetCurrentContext(m_context);
     ImGui::NewFrame();
     m_wantsKeyboard = ImGui::GetIO().WantCaptureKeyboard;
     const ImGuiID dockspaceId = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
@@ -133,27 +116,17 @@ bool SdlPreviewImGui::draw(SDL_GPUCommandBuffer& commandBuffer,
             }
         }
     }
-    ImGui_ImplSDLGPU3_PrepareDrawData(drawData, &commandBuffer);
-
-    SDL_GPUColorTargetInfo targetInfo{};
-    targetInfo.texture = &destination;
-    targetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
-    targetInfo.clear_color = SDL_FColor{0.0f, 0.0f, 0.0f, 1.0f};
-    targetInfo.store_op = SDL_GPU_STOREOP_STORE;
-    SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(&commandBuffer, &targetInfo, 1, nullptr);
-    if (renderPass == nullptr)
+    if (drawData == nullptr)
     {
-        error = SDL_GetError();
-        if (error.empty())
-        {
-            error = "SDL_BeginGPURenderPass failed for ImGui";
-        }
+        error = "ImGui draw data is not available";
         ImGui::SetCurrentContext(previousContext);
         return false;
     }
-
-    ImGui_ImplSDLGPU3_RenderDrawData(drawData, &commandBuffer, renderPass);
-    SDL_EndGPURenderPass(renderPass);
+    if (!m_backend.render(*drawData, commandBuffer, destination, error))
+    {
+        ImGui::SetCurrentContext(previousContext);
+        return false;
+    }
     ImGui::SetCurrentContext(previousContext);
     return true;
 }
@@ -162,33 +135,16 @@ void SdlPreviewImGui::cleanup()
 {
     if (m_context == nullptr)
     {
-        m_window = nullptr;
-        m_device = nullptr;
+        m_previousContext = nullptr;
         return;
     }
 
     ImGuiContext* currentContext = ImGui::GetCurrentContext();
     ImGui::SetCurrentContext(m_context);
-    if (m_device != nullptr)
-    {
-        SDL_WaitForGPUIdle(m_device);
-    }
-    if (m_rendererInitialized)
-    {
-        ImGui_ImplSDLGPU3_Shutdown();
-        m_rendererInitialized = false;
-    }
-    if (m_platformInitialized)
-    {
-        ImGui_ImplSDL3_Shutdown();
-        m_platformInitialized = false;
-    }
+    m_backend.shutdown();
     const bool currentContextWasDestroyed = currentContext == m_context;
     ImGui::DestroyContext(m_context);
     m_context = nullptr;
-    m_initialized = false;
     ImGui::SetCurrentContext(currentContextWasDestroyed ? m_previousContext : currentContext);
     m_previousContext = nullptr;
-    m_window = nullptr;
-    m_device = nullptr;
 }

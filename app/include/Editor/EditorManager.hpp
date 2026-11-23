@@ -136,6 +136,11 @@ public:
     bool ownsSceneRender() override;
     void renderUI(User& user, GLFWwindow* window, Workspace& workspace) override;
 
+    // ImGui frame phases shared by the legacy OpenGL host and future SDL hosts.
+    void beginImGuiFrame();
+    void renderImGuiPanels(GLFWwindow* dialogParent);
+    ImDrawData* finishImGuiFrame();
+
     // 現在のモード取得
     bool isEditMode()  const { return mode == EditorMode::Edit;  }
     bool isPlayMode()  const { return mode == EditorMode::Play;  }

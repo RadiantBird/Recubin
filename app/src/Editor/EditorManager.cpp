@@ -2107,22 +2107,33 @@ void EditorManager::clearForImGui(GLFWwindow* window) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
+void EditorManager::beginImGuiFrame() {
+    GuiAutomation::beforeNewFrame();
+    ImGui::NewFrame();
+    GuiAutomation::afterNewFrame();
+    ImGuizmo::BeginFrame();
+}
+
+void EditorManager::renderImGuiPanels(GLFWwindow* dialogParent) {
+    FrameProfiler::Scope panels("ui.renderPanels");
+    render(dialogParent);
+}
+
+ImDrawData* EditorManager::finishImGuiFrame() {
+    ImGui::Render();
+    return ImGui::GetDrawData();
+}
+
 void EditorManager::renderUI(User& user, GLFWwindow* window, Workspace& workspace) {
     {
         FrameProfiler::Scope newFrame("ui.newFrame");
         if (Renderer::instance) Renderer::instance->prepareGuiFonts(workspace);
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
-        GuiAutomation::beforeNewFrame();
-        ImGui::NewFrame();
-        GuiAutomation::afterNewFrame();
-        ImGuizmo::BeginFrame();
+        beginImGuiFrame();
     }
 
-    {
-        FrameProfiler::Scope panels("ui.renderPanels");
-        render(window);
-    }
+    renderImGuiPanels(window);
 
     // ImGui restores its own cursor during NewFrame; apply the game's cursor
     // at the end of the frame only while the primary gameplay viewport is hot.
@@ -2143,8 +2154,8 @@ void EditorManager::renderUI(User& user, GLFWwindow* window, Workspace& workspac
 
     {
         FrameProfiler::Scope drawData("ui.imguiRenderDrawData");
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        ImDrawData* imguiDrawData = finishImGuiFrame();
+        ImGui_ImplOpenGL3_RenderDrawData(imguiDrawData);
     }
     GuiAutomation::afterRender(window);
 

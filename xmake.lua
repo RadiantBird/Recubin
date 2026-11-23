@@ -141,6 +141,7 @@ for _, source in ipairs(all_sources) do
        vendor ~= "app/src/Core/SdlPostEffectDxil.cpp" and
        vendor ~= "app/src/Core/SdlScenePreview.cpp" and
        vendor ~= "app/src/Core/SdlPreviewImGui.cpp" and
+       vendor ~= "app/src/Core/SdlImGuiBackend.cpp" and
        vendor ~= "app/src/Core/PostEffectSpirv.cpp" and
        not vendor:startswith("app/src/imgui/") and
        not vendor:startswith("app/src/Network/Vendor/enet/") and
@@ -382,7 +383,7 @@ target("Recubin")
     if has_config("sdl-gpu-preview") then
         configure_scene_preview("studio")
         add_defines("RECUBIN_SDL_GPU_STUDIO")
-        add_files("app/src/Core/SdlPreviewImGui.cpp",
+        add_files("app/src/Core/SdlPreviewImGui.cpp", "app/src/Core/SdlImGuiBackend.cpp",
                   "external/imgui/backends/imgui_impl_sdl3.cpp",
                   "external/imgui/backends/imgui_impl_sdlgpu3.cpp")
     end

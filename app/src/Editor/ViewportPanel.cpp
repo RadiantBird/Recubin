@@ -182,30 +182,22 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
     int h = useFixedResolution ? (int)(baseH * letterboxScale) : (int)avail.y;
     if (w < 1) w = 1;
     if (h < 1) h = 1;
-    resizeFBO(w, h);
-
-    if (workspace && user && Renderer::instance) {
-        ViewportRenderDesc desc;
-        desc.workspace         = workspace;          // 有効なワークスペース
-        desc.primarySelection  = selectedInstance ? *selectedInstance : nullptr;
-        desc.selectionTargets  = selectedInstances;
-        desc.fbo               = framebuffer;       // ログでCompleteだったこのパネルのFBOテクスチャ
-        desc.width             = w;
-        desc.height            = h;
-        desc.cameraPosition    = camPos();           // 有効なユーザーカメラ位置
-        desc.cameraForward     = camForward();
-        desc.cameraUp          = camUp();
-        desc.renderShadows     = true;
-        desc.renderConstraints = true;
-        desc.renderHighlights  = true;              // サブ側は一旦ハイライトなし
-        desc.renderPhysicsDebug = showPhysicsDebug;
-        desc.renderRenderingDebug = showRenderingDebug;
-        desc.isFocused         = isViewportFocused;
-
-        // レンダラーにこのサブテクスチャへ描き込ませる！
-        FrameProfiler::Scope viewportScene("ui.viewportScene");
-        Renderer::instance->renderViewport(desc);
+    ViewportRenderDesc sceneRequest;
+    sceneRequest.workspace          = workspace;
+    sceneRequest.primarySelection   = selectedInstance ? *selectedInstance : nullptr;
+    sceneRequest.selectionTargets   = selectedInstances;
+    sceneRequest.width              = w;
+    sceneRequest.height             = h;
+    sceneRequest.renderHighlights  = true;
+    if (user || m_useOwnCamera) {
+        sceneRequest.cameraPosition = camPos();
+        sceneRequest.cameraForward  = camForward();
+        sceneRequest.cameraUp       = camUp();
     }
+    sceneRequest.renderPhysicsDebug   = showPhysicsDebug;
+    sceneRequest.renderRenderingDebug = showRenderingDebug;
+    sceneRequest.isFocused            = isViewportFocused;
+    const ViewportImage image = renderScene(sceneRequest);
 
     // パネルの画面座標原点（タイトルバー分を除いた正確な左上）
     ImVec2 panelOrigin;
@@ -226,10 +218,8 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
         panelOrigin.y + (avail.y - (float)h) * 0.5f);
 
     // FBO のカラーテクスチャを表示
-    // ImTextureRef で GLuint を包む（v1.92 以降の API）
     ImGui::SetCursorScreenPos(contentOrigin);
-    ImTextureRef texRef((ImTextureID)(uintptr_t)colorTexture.glName());
-    ImGui::Image(texRef, ImVec2((float)w, (float)h), ImVec2(0, 1), ImVec2(1, 0)); // Y 反転
+    ImGui::Image(image.texture, ImVec2((float)w, (float)h), image.uv0, image.uv1);
 
     // ゲーム内 GUI をビューポート上に重ねて描画
     if (workspace && Renderer::instance) {
@@ -265,6 +255,24 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
     layout.height = h;
     layout.uniformGuiScale = !useFixedResolution;
     return layout;
+}
+
+ViewportPanel::ViewportImage ViewportPanel::renderScene(const ViewportRenderDesc& request) {
+    resizeFBO(request.width, request.height);
+
+    if (request.workspace && user && Renderer::instance) {
+        ViewportRenderDesc desc = request;
+        desc.fbo = framebuffer;
+
+        FrameProfiler::Scope viewportScene("ui.viewportScene");
+        Renderer::instance->renderViewport(desc);
+    }
+
+    ViewportImage image;
+    image.texture = ImTextureRef((ImTextureID)(uintptr_t)colorTexture.glName());
+    image.uv0 = ImVec2(0.0f, 1.0f);
+    image.uv1 = ImVec2(1.0f, 0.0f);
+    return image;
 }
 
 void ViewportPanel::updateViewportFocus() {

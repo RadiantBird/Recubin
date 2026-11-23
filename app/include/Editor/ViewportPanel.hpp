@@ -8,6 +8,7 @@ struct DecalPlaceState;    // PropertiesPanel.hpp で定義
 class CommandHistory;
 class BaseCube;
 class ScreenGuiObject;
+struct ViewportRenderDesc;
 
 struct WeldModeState {
     bool active = false;
@@ -201,7 +202,14 @@ private:
         bool uniformGuiScale = false;  // 非固定解像度: Pixel単位の画面GUIを縦横同率で拡大する
     };
 
+    struct ViewportImage {
+        ImTextureRef texture{(ImTextureID)0};
+        ImVec2 uv0 = ImVec2(0.0f, 0.0f);
+        ImVec2 uv1 = ImVec2(1.0f, 1.0f);
+    };
+
     ViewportLayout renderLayoutAndScene();
+    ViewportImage renderScene(const ViewportRenderDesc& request);
     void updateViewportFocus();
     void updateOwnCameraInput();
     bool updateTerrainBrush(const ViewportLayout& layout);

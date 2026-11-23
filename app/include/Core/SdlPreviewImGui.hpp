@@ -3,6 +3,8 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
 
+#include "Core/SdlImGuiBackend.hpp"
+
 #include <cstdint>
 #include <string>
 
@@ -32,13 +34,9 @@ public:
 private:
     void cleanup();
 
-    SDL_Window* m_window = nullptr;
-    SDL_GPUDevice* m_device = nullptr;
     ImGuiContext* m_context = nullptr;
     ImGuiContext* m_previousContext = nullptr;
-    bool m_platformInitialized = false;
-    bool m_rendererInitialized = false;
-    bool m_initialized = false;
+    SdlImGuiBackend m_backend;
     bool m_wantsKeyboard = false;
     bool m_hasSceneImage = false;
 };

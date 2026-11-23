@@ -878,3 +878,11 @@
 - Windows の xmake Release で Engine・Studio と GLSL コンパイル検証をビルド。両 GPU で GLSL の上下、`ZIndex` 順、初回エラーの素通し、Engine の実行中の編集と直前の成功版維持を確認。隔離した Studio 配布物から Engine を起動してカスタム GLSL を描画した。
 - Engine と Studio プレビューの比較シーンで `CastShadow` の切り替えに応じて影が現れ、各アプリで Vulkan／D3D12 の PNG が全画素一致した。Studio プレビューの影の範囲はオービットカメラではなくシーン中央を基準にする。
 - Studio の通常編集画面は GLFW/OpenGL のまま。次はフレーム開始・提出を StudioApplication に分け、EditorManager の ImGui パネル描画と ViewportPanel の描画先を SDL3／SDL GPU に切り替える。旧カスケード影、組み込みポスト効果、ゲーム GUI、Metal は未移植。
+
+## 2026-11-23 Studio のフレーム処理を分離
+
+- カスタム GLSL と太陽の影を `343c08c` にコミット。
+- EditorManager の ImGui フレーム開始、パネル描画、`ImDrawData` の確定を分離し、既存の OpenGL アダプターから呼び出す。ViewportPanel ではシーン描画と FBO をバックエンド側へ寄せ、レイアウトは返された ImGui テクスチャと UV を使う。選択表示、レターボックス、ギズモと入力座標の既存処理を維持した。
+- Studio プレビューが使う SDL3 イベントと SDL GPU ImGui 描画を `SdlImGuiBackend` に抽出。呼び出し側がコンテキストとフレームを所有し、バックエンドは `PrepareDrawData` をパス開始前に記録する。
+- Windows xmake Release で Studio・Test をビルド。ビューポート、GUI 編集、GUI 自動化の対象回帰が通過。通常 Studio で自動化からシーン表示・Explorer の選択・PNG を確認。SDL GPU プレビューのカスタム GLSL と影の PNG は、Vulkan／D3D12 それぞれで変更前とバイト単位で一致した。
+- 通常 Studio のウィンドウ・イベント・GPU フレーム提出とビューポート画像の SDL GPU 接続は未完了。次は StudioApplication に SDL ホストと既存の EditorManager を接続し、各ビューポートで共通レンダラーを使う。GUI のキャプチャ、画像プレビュー、Terrain ブラシ等の直接 OpenGL 操作も移行対象。
