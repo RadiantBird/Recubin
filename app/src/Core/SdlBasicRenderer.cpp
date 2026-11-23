@@ -74,12 +74,13 @@ void SdlBasicRenderer::releaseResources() {
     if (m_depthTarget) {
         SDL_ReleaseGPUTexture(m_device, m_depthTarget);
     }
-    for (auto* texture : m_textures) {
+    for (const auto& [handle, texture] : m_textures) {
         if (texture) {
             SDL_ReleaseGPUTexture(m_device, texture);
         }
     }
     m_textures.clear();
+    m_nextTextureHandle = 1;
     m_pipeline = nullptr;
     m_doubleSidedPipeline = nullptr;
     m_vertexShader = nullptr;
@@ -245,7 +246,7 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
         m_device = nullptr;
         return false;
     }
-    m_whiteTexture = m_textures[whiteHandle - 1];
+    m_whiteTexture = m_textures.at(whiteHandle);
     return true;
 }
 
@@ -421,6 +422,10 @@ std::uint32_t SdlBasicRenderer::uploadTexture(unsigned width, unsigned height,
         error = "SdlBasicRenderer: renderer is not initialized";
         return 0;
     }
+    if (m_nextTextureHandle == 0) {
+        error = "SdlBasicRenderer: texture handle space exhausted";
+        return 0;
+    }
     if (width == 0 || height == 0) {
         error = "SdlBasicRenderer: texture dimensions must be non-zero";
         return 0;
@@ -500,8 +505,25 @@ std::uint32_t SdlBasicRenderer::uploadTexture(unsigned width, unsigned height,
         error = sdlError("SDL_SubmitGPUCommandBufferAndAcquireFence(texture)");
         return 0;
     }
-    m_textures.push_back(texture);
-    return static_cast<std::uint32_t>(m_textures.size());
+    const auto handle = m_nextTextureHandle++;
+    m_textures.emplace(handle, texture);
+    return handle;
+}
+
+bool SdlBasicRenderer::releaseTexture(std::uint32_t handle, std::string& error) {
+    error.clear();
+    if (!m_device) {
+        error = "SdlBasicRenderer: renderer is not initialized";
+        return false;
+    }
+    const auto it = m_textures.find(handle);
+    if (it == m_textures.end() || it->second == m_whiteTexture) {
+        error = "SdlBasicRenderer: invalid texture handle";
+        return false;
+    }
+    SDL_ReleaseGPUTexture(m_device, it->second);
+    m_textures.erase(it);
+    return true;
 }
 
 bool SdlBasicRenderer::ensureTargets(unsigned width, unsigned height, std::string& error) {
@@ -617,12 +639,13 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
         }
         SDL_GPUTexture* texture = m_whiteTexture;
         if (cube.texture != 0) {
-            if (cube.texture > m_textures.size()) {
+            const auto it = m_textures.find(cube.texture);
+            if (it == m_textures.end()) {
                 SDL_EndGPURenderPass(pass);
                 error = "SdlBasicRenderer: invalid texture handle";
                 return false;
             }
-            texture = m_textures[cube.texture - 1];
+            texture = it->second;
         }
         SDL_GPUTextureSamplerBinding samplerBinding{texture, m_sampler};
         SDL_BindGPUFragmentSamplers(pass, 0, &samplerBinding, 1);

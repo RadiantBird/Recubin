@@ -84,6 +84,7 @@ public:
     std::span<const unsigned int> cpuIndices() const { return m_cpuIndices; }
     std::span<const MeshMaterialSection> cpuMaterialSections() const { return m_materialSections; }
     std::span<const MeshEmbeddedTexture> cpuEmbeddedTextures() const { return m_embeddedTextures; }
+    std::uint64_t cpuGeometryRevision() const { return m_cpuGeometryRevision; }
     unsigned int getVAO() const;
     unsigned int getIndexCount() const;
 
@@ -120,6 +121,7 @@ private:
     std::vector<unsigned int> m_cpuIndices;
     std::vector<MeshMaterialSection> m_materialSections;
     std::vector<MeshEmbeddedTexture> m_embeddedTextures;
+    std::uint64_t m_cpuGeometryRevision = 0;
     std::vector<float>        m_highlightEdgeVerts;
 
     // ローカル空間AABB(uploadToGPUで算出)。Face貼りDecalの射影範囲に使用する

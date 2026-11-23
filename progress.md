@@ -853,3 +853,19 @@
 - 最初の検証で既存地形メッシュの頂点順により上面が除外された。地形の描画にカリング無効のパイプラインを使い、地下 Cube が隠れ、地上 Cube が表示されることを Windows の Vulkan／D3D12 で確認した。地形のみの PNG は両アプリで全画素一致。Cube と混在する PNG のバックエンド間で異なる画素は Engine で 23、Studio で 52。既存の GLB の PNG は変更前と一致。
 - xmake の Windows Release で Studio・Engine・Test・Runtime をビルド。対象の `--terrain-instance-regression` で CPU チャンクの生成、更新、アンロード、再ロードを確認。ウィンドウ上の WASD 操作と長時間の GPU メモリ計測は未実施。
 - 次は通常のシーン更新に接続し、地形のライブ編集、MeshCube の差し替え、シーン切り替え時のリソース更新を実際の Engine と Studio で検証する。切り替え時は TerrainStreamer のロード結果の世代も確認する。
+
+## 2026-11-23 Terrain の非同期ロード切り替え
+
+- Terrain の SDL GPU プレビュー接続を `5532c94` にコミット。
+- TerrainStreamer の同じ座標がアンロード後に再登録されると、旧ロード結果が新しいチャンクに入る経路があった。メインスレッドでロード要求 ID を割り当て、ワーカーの結果と照合するよう変更。データパス切り替えや再生成でも現在の要求に対応する結果だけ採用する。
+- `--terrain-instance-regression` で旧結果をキューに残したままデータパスを切り替え、新しい保存データの色を確認した。再生成では同じ座標に旧保存データが混入せず、生成し直した地表になることを確認した。
+- Windows の xmake Release で Studio・Engine・Test・Runtime が成功。Engine と Studio の Terrain PNG は Vulkan と D3D12 のいずれも変更前と一致した。
+- 次はロード済みシーンと GPU 描画リソースの切り替えを通常ループへ接続し、モデル差し替え、シーン再読み込み、ライブ地形編集を実際の Engine と Studio で検証する。
+
+## 2026-11-23 Engine の通常ループを SDL GPU に接続
+
+- xmake の `--sdl-gpu-preview=y` ビルドで、`RecubinEngine --gpu-driver=vulkan|direct3d12|auto` が SDL ウィンドウと入力を使用して通常のスタンドアロンゲームループを実行する。ゲームカメラと、Luau・物理・Workspace 更新後のシーンから不透明 Cube、GLB テクスチャ付き MeshCube、Terrain を描画する。GLB の変更は CPU メッシュの版で識別し、GPU リソースを差し替える。Terrain は同じストリーマーから描画用データと物理形状を作る。
+- `--self-check` は固定フレームのシミュレーション後に未処理の Terrain を取り込み、オフスクリーンの合成結果をフェンス付きで PNG 保存する。新しい起動経路は GLSL ポスト効果やゲーム GUI をまだ描画しない。SDL ドライバーを明示したときはスタンドアロン対象とし、既存のネットワーク・Editor Test の起動は従来経路を使う。
+- Windows の xmake Release で Studio・Engine・Test・Runtime をビルドし、起動引数・ビューポート・Terrain の対象回帰が成功。Vulkan／D3D12 の通常ウィンドウ起動と Luau からの終了、Cube の移動・色変更、GLB 差し替え、Workspace 切り替え後の描画を確認。後者二つの検証シーンはバックエンド間で PNG が全画素一致。GPU 指定なしの OpenGL 自己検査、`auto` のドライバー選択、Windows での `metal` 明示指定エラーも確認。
+- 保存済み Terrain を通常ループから描画し、地上の Cube が表示されて地下の Cube が隠れることを確認。この PNG も Vulkan／D3D12 間で全画素一致した。手動での SDL 入力操作、DPI 変更、最小化復帰は未検証。
+- Studio の通常編集画面と SDK の `step()`／`run()` への接続、ゲーム GUI、シーンファイル全体の再読込は未完了。次は Studio の通常ビューポートと ImGui フレームから共通シーン描画を呼ぶ。

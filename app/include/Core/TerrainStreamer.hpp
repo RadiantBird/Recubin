@@ -156,6 +156,7 @@ public:
         Chunk      chunk;
         bool       modified = false;
         ChunkState state    = ChunkState::Loading;
+        uint64_t loadRequestId = 0;
         std::optional<TerrainChunkGeometry> cpuGeometry;
         uint64_t geometryRevision = 0;
     };
@@ -164,6 +165,7 @@ private:
     std::unordered_map<ChunkKey, ChunkEntry, ChunkKeyHash> m_chunks;
     const bool m_cpuGeometryOnly;
     uint64_t m_geometryRevisionCounter = 0;
+    uint64_t m_loadRequestCounter = 0;
 
     // ワーカー↔メイン間で受け渡すブロックデータ（Chunk.blocks と同レイアウト）。
     struct BlockGrid {
@@ -208,6 +210,7 @@ private:
     struct Job {
         JobType type;
         int32_t cx = 0, cy = 0, cz = 0;
+        uint64_t loadRequestId = 0;
         std::unique_ptr<BlockGrid> grid; // Save 用
         std::string dir;                 // SetDir 用
         uint32_t seed = 0;               // Regenerate 用
@@ -216,6 +219,7 @@ private:
     };
     struct LoadResult {
         int32_t cx, cy, cz;
+        uint64_t loadRequestId;
         std::unique_ptr<BlockGrid> grid;
         bool generated; // ノイズ生成なら true（メインで reclassify が必要）
     };

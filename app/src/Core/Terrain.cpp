@@ -704,7 +704,7 @@ std::shared_ptr<Instance> Terrain::clone() const {
     return result;
 }
 
-void Terrain::update(const Vector3& centerPos) {
+void Terrain::update(const Vector3& centerPos, bool cpuRenderGeometry) {
     if (!Enabled || DataPath.empty()) {
         releaseStreamer();
         return;
@@ -720,9 +720,15 @@ void Terrain::update(const Vector3& centerPos) {
         releaseStreamer();
         m_workspaceOwner = workspace;
     }
+    if (streamer && cpuRenderGeometry != m_cpuRenderGeometry) {
+        releaseStreamer();
+    }
     if (!streamer) {
         streamer = std::make_unique<TerrainStreamer>(workspace, this, DataPath,
-                                                     static_cast<uint32_t>(Seed), Flat);
+                                                     static_cast<uint32_t>(Seed), Flat,
+                                                     cpuRenderGeometry);
+        m_cpuRenderGeometry = cpuRenderGeometry;
+        ++m_streamerRevision;
         m_appliedDataPath = DataPath;
     }
 

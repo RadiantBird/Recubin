@@ -2,8 +2,42 @@
 
 #include <Core/SdlGpuWindow.hpp>
 
+#include <Math/Matrix4.hpp>
+
 #include <optional>
+#include <memory>
 #include <string>
+
+class User;
+class Workspace;
+class SdlBasicRenderer;
+
+class SdlLiveScene final {
+public:
+    SdlLiveScene();
+    ~SdlLiveScene();
+
+    SdlLiveScene(const SdlLiveScene&) = delete;
+    SdlLiveScene& operator=(const SdlLiveScene&) = delete;
+
+    bool initialize(SDL_GPUDevice& device, std::string& error);
+    bool sync(Workspace& workspace, std::string& error);
+    bool draw(Workspace& workspace, const Matrix4& viewProjection,
+              SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
+              std::string& error);
+    SDL_GPUTexture* colorTarget() const;
+
+private:
+    struct State;
+    std::unique_ptr<State> m_state;
+};
+
+Matrix4 sdlSceneViewProjection(const User& user, float aspect);
+void blitSdlSceneFrame(SDL_GPUCommandBuffer& command, SDL_GPUTexture& source,
+                       SDL_GPUTexture& destination, unsigned width, unsigned height);
+bool captureSdlSceneFrame(SdlGpuWindow& window, SdlGpuWindow::Frame& frame,
+                         SDL_GPUTexture* source, unsigned width, unsigned height,
+                         const std::string& outputDir, std::string& error);
 
 int runSdlScenePreview(const std::string& scenePath,
                        const std::string& title,

@@ -319,7 +319,7 @@ local function configure_scene_preview(target_name)
     local shader_output_dir = path.join(generated_dir, target_name)
     add_defines("RECUBIN_SDL_GPU_PREVIEW")
     add_files("app/src/Core/SdlGpuWindow.cpp", "app/src/Core/SdlBasicRenderer.cpp",
-              "app/src/Core/SdlScenePreview.cpp")
+              "app/src/Core/SdlScenePreview.cpp", "app/src/Core/SDLInputBackend.cpp")
     add_includedirs(sdl_include_dir, shader_output_dir)
     add_links(sdl_lib)
     set_values("recubin.gpu_shader_source", "shaders/sdl_gpu/basic.hlsl")

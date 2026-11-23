@@ -199,7 +199,7 @@ void TerrainStreamer::setDataPath(const std::string& dir) {
     }
     m_chunks.clear();
     { Job job; job.type = JobType::SetDir; job.dir = AssetPath::normalize(dir); enqueueJob(std::move(job)); }
-    // 結果キューに残る旧チャンクの結果はキー不在で破棄される
+    // 旧チャンクの結果は、同じ座標を再ロードしても要求 ID が一致しない。
 }
 
 void TerrainStreamer::regenerate(uint32_t seed, bool flat) {
@@ -290,8 +290,14 @@ void TerrainStreamer::update(const Vector3& playerPos)
         entry.chunk.cx = key.cx; entry.chunk.cy = key.cy; entry.chunk.cz = key.cz;
         entry.state    = ChunkState::Loading;
         entry.modified = false;
+        ++m_loadRequestCounter;
+        if (m_loadRequestCounter == 0) {
+            ++m_loadRequestCounter;
+        }
+        entry.loadRequestId = m_loadRequestCounter;
         Job job; job.type = JobType::Load;
         job.cx = key.cx; job.cy = key.cy; job.cz = key.cz;
+        job.loadRequestId = entry.loadRequestId;
         enqueueJob(std::move(job));
     }
 
@@ -305,7 +311,10 @@ void TerrainStreamer::update(const Vector3& playerPos)
             m_resultQueue.pop_front();
         }
         auto it = m_chunks.find({res.cx, res.cy, res.cz});
-        if (it == m_chunks.end() || it->second.state != ChunkState::Loading) continue; // 既に不要
+        if (it == m_chunks.end() || it->second.state != ChunkState::Loading ||
+            it->second.loadRequestId != res.loadRequestId) {
+            continue; // 既に不要、または別世代のロード結果
+        }
         Chunk& chunk = it->second.chunk;
         std::memcpy(chunk.blocks, res.grid->data, sizeof(BlockGrid));
         it->second.state = ChunkState::Ready;
@@ -344,7 +353,7 @@ void TerrainStreamer::update(const Vector3& playerPos)
             releaseChunkResources(it->second.chunk);
             markAdjacentChunksDirty(key.cx, key.cy, key.cz);
         }
-        // Loading のものはプレースホルダを消すだけ（後続の結果はキー不在で破棄される）
+        // Loading のものはプレースホルダを消すだけ。結果は要求 ID で照合する。
         m_chunks.erase(it);
     }
 
@@ -369,9 +378,14 @@ void TerrainStreamer::rebuildIfDirty(ChunkEntry& entry)
         }
         entry.geometryRevision = ++m_geometryRevisionCounter;
         entry.chunk.mesh.dirty = false;
-        return;
+        if (m_workspace) {
+            entry.chunk.physVerts = std::move(geometry.physVerts);
+            entry.chunk.physIndices = std::move(geometry.physIndices);
+            entry.chunk.physConvexBlocks = std::move(geometry.physConvexBlocks);
+        }
+    } else {
+        buildChunkMesh(entry.chunk, this);
     }
-    buildChunkMesh(entry.chunk, this);
     Physics* phys = getPhysics();
     if (phys) {
         buildChunkPhysics(entry.chunk, *phys, m_owner);
@@ -573,7 +587,7 @@ void TerrainStreamer::workerLoop()
             auto grid = std::make_unique<BlockGrid>();
             bool found = decodeChunkFromRegion(job.cx, job.cy, job.cz, *grid);
             if (!found) generateRawGrid(job.cx, job.cy, job.cz, *grid);
-            LoadResult res{ job.cx, job.cy, job.cz, std::move(grid), !found };
+            LoadResult res{ job.cx, job.cy, job.cz, job.loadRequestId, std::move(grid), !found };
             {
                 std::lock_guard<std::mutex> lk(m_resultMutex);
                 m_resultQueue.push_back(std::move(res));

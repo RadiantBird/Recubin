@@ -66,6 +66,7 @@ void MeshCube::activateFallback(const std::string& requestedPath) {
     m_highlightEdgeVerts.clear();
     m_localBoundsMin = Vector3(-h, -h, -h);
     m_localBoundsMax = Vector3( h,  h,  h);
+    ++m_cpuGeometryRevision;
 }
 
 unsigned int MeshCube::getVAO() const {
@@ -371,6 +372,7 @@ bool MeshCube::regenerateUV() {
 
     m_cpuVertices = std::move(newVertices);
     m_cpuIndices  = std::move(newIndices);
+    ++m_cpuGeometryRevision;
     return true;
 }
 
@@ -434,6 +436,7 @@ bool MeshCube::loadFromGLB(const std::string& path) {
         m_localBoundsMin = Vector3{};
         m_localBoundsMax = Vector3{};
         m_fallbackActive = false;
+        ++m_cpuGeometryRevision;
         return false;
     }
     const std::string normalizedPath = AssetPath::normalize(path);
@@ -677,6 +680,7 @@ bool MeshCube::loadFromGLB(const std::string& path) {
         }
     }
 
+    ++m_cpuGeometryRevision;
     if (Renderer::instance) uploadToGPU();
 
     return true;

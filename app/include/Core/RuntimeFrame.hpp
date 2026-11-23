@@ -17,7 +17,9 @@ bool processInput(User& user, Workspace& workspace, System& system,
                   bool viewportHovered, bool gameplayInput,
                   bool wantsTextInput);
 
+void updateTerrainForUser(User& user, Workspace& workspace, bool cpuTerrainGeometry);
+
 void simulateAfterInput(User& user, Workspace& workspace, float deltaSeconds,
-                        Physics* physics);
+                        Physics* physics, bool cpuTerrainGeometry = false);
 
 } // namespace RuntimeFrame

@@ -7650,6 +7650,63 @@ int runTerrainInstanceRegression() {
         }
     }
 
+    {
+        namespace fs = std::filesystem;
+        const auto fixtureRoot = fs::path("build") / ("terrain_switch_regression_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()));
+        const auto previousPath = fixtureRoot / "previous";
+        const auto nextPath = fixtureRoot / "next";
+        fs::create_directories(previousPath);
+        fs::create_directories(nextPath);
+        // FIFO validation of a separate malformed region drains the worker's previous
+        // Load jobs without consuming their results on the main thread.
+        std::ofstream(previousPath / "r_99_99.yaml") << "chunks: [\n";
+        std::ofstream(nextPath / "r_99_99.yaml") << "chunks: [\n";
+        std::ofstream(nextPath / "r_0_0.yaml")
+            << "chunks:\n"
+            << "  - cx: 0\n"
+            << "    cy: 0\n"
+            << "    cz: 0\n"
+            << "    blocks:\n"
+            << "      - [4096, 1, 2, 17, 33, 91]\n";
+        {
+            TerrainStreamer streamer(nullptr, nullptr, previousPath.string(), 12345u, true, true);
+            const Vector3 origin(0, 0, 0);
+            const auto waitForCurrentTerrain = [&] {
+                const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+                do {
+                    streamer.update(origin);
+                    if (streamer.isSettled()) {
+                        return true;
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                } while (std::chrono::steady_clock::now() < deadline);
+                return false;
+            };
+            streamer.update(origin);
+            expect(streamer.validateRegionLoadFailure(99, 99),
+                   "old terrain load results were queued before the switch");
+            streamer.setDataPath(nextPath.string());
+            const bool switched = waitForCurrentTerrain();
+            const Block* block = streamer.getBlockGlobal(0, 0, 0);
+            expect(switched && block && block->r == 17 && block->g == 33 && block->b == 91,
+                   "switch accepts only the current path's result for the same chunk coordinates");
+
+            streamer.clear();
+            streamer.update(origin);
+            expect(streamer.validateRegionLoadFailure(99, 99),
+                   "saved terrain load results were queued before regeneration");
+            streamer.regenerate(12345u, true);
+            const bool regenerated = waitForCurrentTerrain();
+            const Block* surface = streamer.getBlockGlobal(0, 8, 0);
+            expect(regenerated && surface && surface->material == BlockMaterial::Grass,
+                   "regeneration accepts the new terrain instead of an old saved chunk");
+        }
+        std::error_code cleanupError;
+        fs::remove_all(fixtureRoot, cleanupError);
+        expect(!cleanupError, "terrain switch fixture was cleaned up");
+    }
+
     auto workspaceA = std::make_shared<Workspace>();
     auto workspaceB = std::make_shared<Workspace>();
     workspaceA->Name = "WorkspaceA";

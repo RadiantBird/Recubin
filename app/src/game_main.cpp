@@ -27,6 +27,8 @@
 #include <Core/SceneRuntime.hpp>
 #ifdef RECUBIN_SDL_GPU_PREVIEW
 #include <Core/SdlScenePreview.hpp>
+#include <Core/SdlInputBackend.hpp>
+#include <Core/TerrainStreamer.hpp>
 #endif
 #include <Core/RuntimeFrame.hpp>
 #include <Core/AudioService.hpp>
@@ -424,10 +426,18 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     const bool networkRequested = networkModeCount == 1;
-    if (runtimeArgs.gpuDriver && !runtimeArgs.gpuPreview) {
-        RCBN_ERROR("--gpu-driver requires --gpu-preview");
+    const bool sdlRuntime = runtimeArgs.gpuDriver && !runtimeArgs.gpuPreview;
+    if (sdlRuntime && (networkRequested || runtimeArgs.editorTest ||
+                       runtimeArgs.uiAutomationScene || runtimeArgs.uiAutomationSettings)) {
+        RCBN_ERROR("--gpu-driver currently supports standalone play");
         return -1;
     }
+#ifndef RECUBIN_SDL_GPU_PREVIEW
+    if (sdlRuntime) {
+        RCBN_ERROR("--gpu-driver requires an xmake build with --sdl-gpu-preview=y");
+        return -1;
+    }
+#endif
     if (runtimeArgs.gpuPreview) {
         if (networkRequested || runtimeArgs.editorTest || runtimeArgs.uiAutomationScene ||
             runtimeArgs.uiAutomationSettings) {
@@ -479,35 +489,72 @@ int main(int argc, char* argv[]) {
         SetProcessDPIAware();
     }
 #endif
-    if (!glfwInit()) return -1;
-    // Mac対応: OpenGL 4.1 Core Profileを明示指定（macOSは未指定だとレガシー2.1しか得られない）
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-    // --self-check: 非表示ウィンドウ・固定サイズで描画し、結果を書き出して終了する
     const bool selfCheck = runtimeArgs.selfCheckDir.has_value();
-    if (selfCheck) glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    GLFWwindow* window = selfCheck
-        ? glfwCreateWindow(SELF_CHECK_WIDTH, SELF_CHECK_HEIGHT, cfg.gameName.c_str(), nullptr, nullptr)
-        : glfwCreateWindow(1280, 720, cfg.gameName.c_str(), nullptr, nullptr);
-    if (!window) { glfwTerminate(); return -1; }
-    glfwMakeContextCurrent(window);
-    glfwSwapInterval(selfCheck ? 0 : 1);
-    glewExperimental = GL_TRUE; // Core Profileで必要
-    if (glewInit() != GLEW_OK) return -1;
+    GLFWwindow* window = nullptr;
+    std::unique_ptr<IInputBackend> input;
+#ifdef RECUBIN_SDL_GPU_PREVIEW
+    std::unique_ptr<SdlGpuWindow> sdlWindow;
+    std::unique_ptr<SdlLiveScene> sdlScene;
+    if (sdlRuntime) {
+        sdlWindow = std::make_unique<SdlGpuWindow>();
+        SdlGpuWindowConfig config;
+        config.title = cfg.gameName.c_str();
+        config.width = selfCheck ? SELF_CHECK_WIDTH : 1280;
+        config.height = selfCheck ? SELF_CHECK_HEIGHT : 720;
+        config.visible = !selfCheck;
+        config.present = !selfCheck;
+        config.createWindowOffscreen = selfCheck;
+        config.driver = *runtimeArgs.gpuDriver;
+        config.shaderFormats = SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL;
+        std::string error;
+        if (!sdlWindow->initialize(config, &error)) {
+            RCBN_ERROR("SDL GPU runtime initialization failed: " << error);
+            return -1;
+        }
+        sdlScene = std::make_unique<SdlLiveScene>();
+        if (!sdlScene->initialize(*sdlWindow->device(), error)) {
+            RCBN_ERROR("SDL GPU scene initialization failed: " << error);
+            return -1;
+        }
+        input = std::make_unique<SDLInputBackend>(sdlWindow->window());
+        RCBN_LOG("SDL GPU runtime: " << sdlWindow->driverName());
+    }
+#endif
+    if (!sdlRuntime) {
+        if (!glfwInit()) return -1;
+        // Mac対応: OpenGL 4.1 Core Profileを明示指定（macOSは未指定だとレガシー2.1しか得られない）
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+        // --self-check: 非表示ウィンドウ・固定サイズで描画し、結果を書き出して終了する
+        if (selfCheck) glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        window = selfCheck
+            ? glfwCreateWindow(SELF_CHECK_WIDTH, SELF_CHECK_HEIGHT, cfg.gameName.c_str(), nullptr, nullptr)
+            : glfwCreateWindow(1280, 720, cfg.gameName.c_str(), nullptr, nullptr);
+        if (!window) { glfwTerminate(); return -1; }
+        glfwMakeContextCurrent(window);
+        glfwSwapInterval(selfCheck ? 0 : 1);
+        glewExperimental = GL_TRUE; // Core Profileで必要
+        if (glewInit() != GLEW_OK) return -1;
+        input = std::make_unique<GLFWInputBackend>(window);
+    }
 
     // ---- コアシステム初期化 ----
-    auto renderer     = std::make_unique<Renderer>();
+    std::unique_ptr<Renderer> renderer;
     auto audioService = std::make_unique<AudioService>();
     auto system       = std::make_shared<System>();
     auto luauEngine   = std::make_unique<LuauEngine>();
-    auto user         = std::make_shared<User>(std::make_unique<GLFWInputBackend>(window));
+    auto user         = std::make_shared<User>(std::move(input));
 
-    renderer->init(window);
-    auto runtimeEditor = std::make_unique<NullEditorManager>();
-    NullEditorManager* runtimeEditorPtr = runtimeEditor.get();
-    renderer->editor = std::move(runtimeEditor);
+    NullEditorManager* runtimeEditorPtr = nullptr;
+    if (window) {
+        renderer = std::make_unique<Renderer>();
+        renderer->init(window);
+        auto runtimeEditor = std::make_unique<NullEditorManager>();
+        runtimeEditorPtr = runtimeEditor.get();
+        renderer->editor = std::move(runtimeEditor);
+    }
 
     if (!audioService->initialize()) {
         RCBN_LOG("[ERROR] Failed to initialize AudioService.");
@@ -554,6 +601,32 @@ int main(int argc, char* argv[]) {
             }
             bool continueRuntime = false;
             bool quitRuntime = false;
+#ifdef RECUBIN_SDL_GPU_PREVIEW
+            if (sdlWindow) {
+                std::string message = "This game requests the following system extensions:";
+                if (permissions.io) message += "\nI/O API: read and write game data files.";
+                if (permissions.ipc) message += "\nIPC API: communicate with external processes.";
+                if (permissions.external) message += "\nExternal File Access: access files outside the game data directory.";
+                const SDL_MessageBoxButtonData buttons[] = {
+                    {0, 1, "Continue"},
+                    {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Quit"}
+                };
+                SDL_MessageBoxData dialog{};
+                dialog.flags = SDL_MESSAGEBOX_WARNING;
+                dialog.window = sdlWindow->window();
+                dialog.title = "System extensions";
+                dialog.message = message.c_str();
+                dialog.numbuttons = 2;
+                dialog.buttons = buttons;
+                int selected = 0;
+                if (!SDL_ShowMessageBox(&dialog, &selected)) {
+                    RCBN_ERROR("System extension consent dialog failed: " << SDL_GetError());
+                    return -1;
+                }
+                continueRuntime = selected == 1;
+                quitRuntime = !continueRuntime;
+            }
+#endif
             while (!continueRuntime && !quitRuntime && !glfwWindowShouldClose(window)) {
                 glfwPollEvents();
                 ImGui_ImplOpenGL3_NewFrame();
@@ -580,8 +653,10 @@ int main(int argc, char* argv[]) {
                 glfwSwapBuffers(window);
             }
             if (!continueRuntime) {
-                glfwDestroyWindow(window);
-                glfwTerminate();
+                if (window) {
+                    glfwDestroyWindow(window);
+                    glfwTerminate();
+                }
                 return 0;
             }
             if (!SystemExtensionConsent::write(applicationRoot, permissions))
@@ -683,7 +758,7 @@ int main(int argc, char* argv[]) {
         chatService->onSendRequested = [](const std::string& text) {
             NetworkManager::get().sendChatMessage(text);
         };
-        renderer->setChatService(chatService);
+        if (renderer) renderer->setChatService(chatService);
     }
 
     SceneRuntime::applyDefaultCameraMode(*system, *user);
@@ -743,9 +818,11 @@ int main(int argc, char* argv[]) {
         luauEngine->fireNetworkRoleChanged(oldRole, newRole);
         replication.onNetworkRoleChanged(oldRole, newRole);
     };
-    renderer->m_onButtonActivated = [&](GuiButton* btn) {
-        luauEngine->onGuiButtonActivated(btn);
-    };
+    if (renderer) {
+        renderer->m_onButtonActivated = [&](GuiButton* btn) {
+            luauEngine->onGuiButtonActivated(btn);
+        };
+    }
 
     auto syncCharacterWorkspace = [&] {
         Workspace* characterWorkspace = user->getCharacterWorkspace();
@@ -775,7 +852,8 @@ int main(int argc, char* argv[]) {
     SystemState::get().viewportFocused = true;
     SystemState::get().inputState      = InputState::Gameplay;
 
-    double lastFrame = glfwGetTime();
+    using FrameClock = std::chrono::steady_clock;
+    auto lastFrame = FrameClock::now();
     int networkExitCode = 0;
 
     // --self-check: 固定カメラ・固定dtで SELF_CHECK_FRAMES フレーム進め、最後のフレームを読み出す
@@ -784,7 +862,7 @@ int main(int argc, char* argv[]) {
     bool selfCheckCaptureOk = false;
     if (selfCheck) {
         user->setControlMode(User::ControlMode::Program);
-        renderer->m_beforeSwap = [&](GLFWwindow* target) {
+        if (renderer) renderer->m_beforeSwap = [&](GLFWwindow* target) {
             if (selfCheckFrame + 1 < SELF_CHECK_FRAMES || selfCheckCaptured) return;
             selfCheckCaptured = true;
             selfCheckCaptureOk = writeSelfCheckImage(*runtimeArgs.selfCheckDir, target);
@@ -792,12 +870,43 @@ int main(int argc, char* argv[]) {
     }
 
     // ---- メインループ（常にプレイ状態） ----
-    while (!glfwWindowShouldClose(window)) {
-        double now = glfwGetTime();
-        float deltaTime = static_cast<float>(std::max(0.0, now - lastFrame));
+    while (!window || !glfwWindowShouldClose(window)) {
+        auto now = FrameClock::now();
+        float deltaTime = std::chrono::duration<float>(now - lastFrame).count();
         lastFrame       = now;
         if (selfCheck) deltaTime = 1.0f / 60.0f;  // 実行時間に左右されない固定dt
         SystemState::get().deltaTime = deltaTime;
+        bool focused = true;
+        bool hovered = true;
+#ifdef RECUBIN_SDL_GPU_PREVIEW
+        if (sdlWindow) {
+            SDL_Window* nativeWindow = sdlWindow->window();
+            const auto windowId = SDL_GetWindowID(nativeWindow);
+            bool closing = false;
+            SDL_Event event;
+            while (SDL_PollEvent(&event)) {
+                SDLInputBackend::processEvent(event);
+                closing = closing || event.type == SDL_EVENT_QUIT ||
+                    (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == windowId);
+            }
+            if (closing) break;
+            const auto flags = SDL_GetWindowFlags(nativeWindow);
+            focused = (flags & SDL_WINDOW_INPUT_FOCUS) != 0;
+            hovered = (flags & SDL_WINDOW_MOUSE_FOCUS) != 0;
+            int width = 0;
+            int height = 0;
+            int pixelWidth = 0;
+            int pixelHeight = 0;
+            if (SDL_GetWindowSize(nativeWindow, &width, &height) && width > 0 && height > 0 &&
+                SDL_GetWindowSizeInPixels(nativeWindow, &pixelWidth, &pixelHeight) &&
+                pixelWidth > 0 && pixelHeight > 0) {
+                user->setGameViewport(0, 0, static_cast<float>(width), static_cast<float>(height),
+                    static_cast<float>(pixelWidth) / pixelHeight, user->cpos,
+                    user->forward, user->right, user->up,
+                    width * 0.5, height * 0.5, focused);
+            }
+        }
+#endif
         syncCharacterWorkspace();
 
         // ---- ネットワークポーリング（物理更新より前＝受信内容を反映してからシミュレートする） ----
@@ -841,9 +950,10 @@ int main(int argc, char* argv[]) {
         if (replication.hasFatalIdentityError()) break;
 
         const bool debugInput = runtimeEditorPtr && runtimeEditorPtr->isDebugCapturingKeyboard();
-        const bool chatInput = renderer->isChatCapturingKeyboard() || ImGui::GetIO().WantTextInput;
+        const bool chatInput = renderer &&
+            (renderer->isChatCapturingKeyboard() || ImGui::GetIO().WantTextInput);
         const bool uiInput = chatInput || debugInput;
-        SystemState::get().viewportFocused = !uiInput;
+        SystemState::get().viewportFocused = focused && !uiInput;
 
         if (!navMeshBusy) {
             FrameProfiler::get().beginSection("simulation");
@@ -863,7 +973,7 @@ int main(int argc, char* argv[]) {
         // gameplay input, matching the original runtime loop.
         if (!RuntimeFrame::processInput(
                 *user, *workspace, *system, deltaTime,
-                !uiInput, !uiInput, !uiInput, uiInput)) break;
+                focused && !uiInput, hovered && !uiInput, focused && !uiInput, uiInput)) break;
 
         // ---- Workspace切り替え（User:RequestWorkspaceSwitch）。System.AllowWorkspaceSwitch が false なら要求を捨てる ----
         if (!navMeshBusy && user->consumeWorkspaceSwitchRequest() && system->AllowWorkspaceSwitch) {
@@ -889,11 +999,79 @@ int main(int argc, char* argv[]) {
         // workspace内の全Humanoid(NPC含む)が対象
         if (!navMeshBusy)
             RuntimeFrame::simulateAfterInput(*user, *workspace, deltaTime,
-                                             workspace->getPhysicsEngine());
+                                             workspace->getPhysicsEngine(), sdlRuntime);
 
         if (selfCheck) user->setCameraCFrame(selfCheckCamera());
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        renderer->render(*user, window, *workspace);
+#ifdef RECUBIN_SDL_GPU_PREVIEW
+        if (sdlWindow) {
+            std::string error;
+            if (selfCheck && selfCheckFrame + 1 >= SELF_CHECK_FRAMES) {
+                const auto terrainDeadline = FrameClock::now() + std::chrono::seconds(30);
+                const auto terrainSettled = [](const Terrain* terrain) {
+                    return !terrain || !terrain->Enabled || terrain->DataPath.empty() ||
+                           (terrain->streamer && terrain->streamer->isSettled());
+                };
+                // Finish async geometry without advancing the fixed simulation frames.
+                while (!std::ranges::all_of(workspace->getRenderTerrains(), terrainSettled)) {
+                    RuntimeFrame::updateTerrainForUser(*user, *workspace, true);
+                    if (FrameClock::now() >= terrainDeadline) {
+                        RCBN_ERROR("SDL GPU runtime capture timed out waiting for Terrain");
+                        networkExitCode = -1;
+                        break;
+                    }
+                    SDL_Delay(1);
+                }
+                if (networkExitCode != 0) break;
+            }
+            if (!sdlScene->sync(*workspace, error)) {
+                RCBN_ERROR("SDL GPU scene update failed: " << error);
+                networkExitCode = -1;
+                break;
+            }
+            auto frame = sdlWindow->beginFrame(&error);
+            if (!frame) {
+                RCBN_ERROR("SDL GPU frame acquisition failed: " << error);
+                networkExitCode = -1;
+                break;
+            }
+            if (!selfCheck && !frame.swapchain) {
+                if (!sdlWindow->cancel(frame, &error)) {
+                    RCBN_ERROR("SDL GPU frame cancellation failed: " << error);
+                    networkExitCode = -1;
+                    break;
+                }
+                SDL_Delay(16);
+                FrameProfiler::get().endFrame();
+                continue;
+            }
+            const unsigned width = selfCheck ? SELF_CHECK_WIDTH : frame.width;
+            const unsigned height = selfCheck ? SELF_CHECK_HEIGHT : frame.height;
+            const Matrix4 projection = sdlSceneViewProjection(*user, static_cast<float>(width) / height);
+            if (!sdlScene->draw(*workspace, projection, *frame.command, width, height, error)) {
+                RCBN_ERROR("SDL GPU scene draw failed: " << error);
+                if (!sdlWindow->submit(frame, nullptr, &error)) RCBN_ERROR(error);
+                networkExitCode = -1;
+                break;
+            }
+            if (frame.swapchain) {
+                blitSdlSceneFrame(*frame.command, *sdlScene->colorTarget(), *frame.swapchain, width, height);
+            }
+            if (selfCheck && selfCheckFrame + 1 >= SELF_CHECK_FRAMES) {
+                selfCheckCaptured = true;
+                selfCheckCaptureOk = captureSdlSceneFrame(*sdlWindow, frame, sdlScene->colorTarget(),
+                    width, height, *runtimeArgs.selfCheckDir, error);
+                if (!selfCheckCaptureOk) RCBN_ERROR("SDL GPU capture failed: " << error);
+            } else if (!sdlWindow->submit(frame, nullptr, &error)) {
+                RCBN_ERROR("SDL GPU frame submission failed: " << error);
+                networkExitCode = -1;
+                break;
+            }
+        } else
+#endif
+        {
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            renderer->render(*user, window, *workspace);
+        }
         if (selfCheck && selfCheckCaptured) {
             if (!selfCheckCaptureOk) networkExitCode = -1;
             break;
@@ -922,6 +1100,6 @@ int main(int argc, char* argv[]) {
     workspaces.clear();
     system.reset();
 
-    glfwTerminate();
+    if (window) glfwTerminate();
     return networkExitCode;
 }

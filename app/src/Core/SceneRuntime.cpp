@@ -195,13 +195,13 @@ std::vector<Terrain*> collectTerrains(Instance* root) {
     return result;
 }
 
-void updateTerrains(Workspace* workspace, const Vector3& centerPos) {
+void updateTerrains(Workspace* workspace, const Vector3& centerPos, bool cpuRenderGeometry) {
     if (!workspace) return;
     // Workspaceが登録時に集めたリストを使う（毎フレーム全ツリーをIsAで走査しない）。
     // update中のツリー変更に備えてコピーに対して回す。
     const std::vector<Terrain*> terrains = workspace->getRenderTerrains();
     for (Terrain* terrain : terrains) {
-        if (terrain) terrain->update(centerPos);
+        if (terrain) terrain->update(centerPos, cpuRenderGeometry);
     }
 }
 

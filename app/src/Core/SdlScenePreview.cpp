@@ -9,6 +9,7 @@
 #include <Instances/BaseCube.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/Workspace.hpp>
+#include <Core/User.hpp>
 #include <Math/Matrix4.hpp>
 #include <Util/PngWriter.hpp>
 #include <include/stb_image.h>
@@ -24,6 +25,8 @@
 #include <numbers>
 #include <memory>
 #include <tuple>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace {
@@ -35,20 +38,18 @@ struct PreviewGeometry {
     const MeshCube* mesh;
 };
 
-class PreviewTerrain {
+class TerrainGpuMeshes {
 public:
-    explicit PreviewTerrain(Terrain& terrain)
-        : m_terrain(terrain),
-          m_streamer(nullptr, &terrain, terrain.DataPath, static_cast<uint32_t>(terrain.Seed),
-                     terrain.Flat, true) {}
-
-    float surfaceAtOrigin() const {
-        return m_streamer.findSurfaceY(0, 0) * TerrainStreamer::BLOCK_STUD_SIZE;
+    bool release(SdlBasicRenderer& renderer, std::string& error) {
+        for (const auto& [key, mesh] : m_meshes) {
+            if (mesh.handle && !renderer.releaseMesh(mesh.handle, error)) return false;
+        }
+        m_meshes.clear();
+        return true;
     }
 
-    bool update(const Vector3& center, SdlBasicRenderer& renderer, std::string& error) {
-        m_streamer.update(center);
-        const auto& chunks = m_streamer.getChunks();
+    bool sync(const TerrainStreamer& streamer, SdlBasicRenderer& renderer, std::string& error) {
+        const auto& chunks = streamer.getChunks();
         for (auto it = m_meshes.begin(); it != m_meshes.end();) {
             if (chunks.contains(it->first)) {
                 ++it;
@@ -87,9 +88,6 @@ public:
         return true;
     }
 
-    bool isSettled() const { return m_streamer.isSettled(); }
-    const std::string& name() const { return m_terrain.Name; }
-
     void appendDraws(const Matrix4& viewProjection, std::vector<SdlBasicCube>& draws) const {
         for (const auto& [key, mesh] : m_meshes) {
             if (mesh.handle) {
@@ -112,9 +110,33 @@ private:
             return std::tie(a.cx, a.cy, a.cz) < std::tie(b.cx, b.cy, b.cz);
         }
     };
+    std::map<TerrainStreamer::ChunkKey, Mesh, ChunkOrder> m_meshes;
+};
+
+class PreviewTerrain {
+public:
+    explicit PreviewTerrain(Terrain& terrain)
+        : m_terrain(terrain),
+          m_streamer(nullptr, &terrain, terrain.DataPath, static_cast<uint32_t>(terrain.Seed),
+                     terrain.Flat, true) {}
+
+    float surfaceAtOrigin() const {
+        return m_streamer.findSurfaceY(0, 0) * TerrainStreamer::BLOCK_STUD_SIZE;
+    }
+    bool update(const Vector3& center, SdlBasicRenderer& renderer, std::string& error) {
+        m_streamer.update(center);
+        return m_meshes.sync(m_streamer, renderer, error);
+    }
+    bool isSettled() const { return m_streamer.isSettled(); }
+    const std::string& name() const { return m_terrain.Name; }
+    void appendDraws(const Matrix4& viewProjection, std::vector<SdlBasicCube>& draws) const {
+        m_meshes.appendDraws(viewProjection, draws);
+    }
+
+private:
     Terrain& m_terrain;
     TerrainStreamer m_streamer;
-    std::map<TerrainStreamer::ChunkKey, Mesh, ChunkOrder> m_meshes;
+    TerrainGpuMeshes m_meshes;
 };
 
 std::uint32_t uploadEmbeddedTexture(SdlBasicRenderer& renderer,
@@ -137,12 +159,12 @@ std::uint32_t uploadEmbeddedTexture(SdlBasicRenderer& renderer,
     return renderer.uploadTexture(width, height, {pixels.get(), bytes}, error);
 }
 
-Matrix4 previewPerspective(float aspect, float nearPlane, float farPlane) {
+Matrix4 sdlPerspective(float fovY, float aspect, float nearPlane, float farPlane) {
     // Convert the engine projection's [-1, 1] clip depth to SDL GPU's [0, 1].
     Matrix4 depthRange;
     depthRange.m[10] = 0.5f;
     depthRange.m[14] = 0.5f;
-    return depthRange * Matrix4::Perspective(60.0f, aspect, nearPlane, farPlane);
+    return depthRange * Matrix4::Perspective(fovY, aspect, nearPlane, farPlane);
 }
 
 SDL_GPUTransferBuffer* recordReadback(SDL_GPUDevice* device, SDL_GPUCommandBuffer* command,
@@ -223,6 +245,215 @@ struct StudioTextureDeleter {
     }
 };
 #endif
+}
+
+struct SdlLiveScene::State {
+    SdlBasicRenderer renderer;
+    std::vector<SdlBasicCube> draws;
+    std::vector<Matrix4> models;
+    struct MeshCache {
+        std::uint32_t handle = 0;
+        std::weak_ptr<const Instance> owner;
+        std::uint64_t revision = 0;
+        std::vector<std::uint32_t> textures;
+    };
+    std::unordered_map<const BaseCube*, MeshCache> meshCache;
+    struct TerrainCache {
+        TerrainGpuMeshes meshes;
+        std::weak_ptr<const Instance> owner;
+        std::uint64_t streamRevision = 0;
+    };
+    std::unordered_map<const Terrain*, TerrainCache> terrainCache;
+    bool initialized = false;
+
+    bool releaseCache(MeshCache& cache, std::string& error) {
+        if (cache.handle && !renderer.releaseMesh(cache.handle, error)) return false;
+        for (auto texture : cache.textures) {
+            if (texture && !renderer.releaseTexture(texture, error)) return false;
+        }
+        return true;
+    }
+};
+
+SdlLiveScene::SdlLiveScene() : m_state(std::make_unique<State>()) {}
+SdlLiveScene::~SdlLiveScene() = default;
+
+bool SdlLiveScene::initialize(SDL_GPUDevice& device, std::string& error) {
+    if (!m_state->renderer.initialize(device, error)) return false;
+    m_state->initialized = true;
+    return true;
+}
+
+bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
+    if (!m_state->initialized) {
+        error = "SdlLiveScene: renderer is not initialized";
+        return false;
+    }
+    m_state->draws.clear();
+    m_state->models.clear();
+    std::unordered_set<const BaseCube*> active;
+    for (BaseCube* cube : workspace.getRenderBaseCubes()) {
+        if (!cube) {
+            error = "Workspace contains an empty render entry";
+            return false;
+        }
+        if (cube->Color.a < 1.0f) continue;
+        const auto* mesh = dynamic_cast<const MeshCube*>(cube);
+        if (!mesh && cube->renderShapeIndex() != 0) continue;
+        const Matrix4 model = cube->getWorldCFrame().toMatrix4() *
+                              Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
+        if (mesh && !mesh->isUsingFallback() && !mesh->cpuVertices().empty() &&
+            !mesh->cpuIndices().empty()) {
+            active.insert(cube);
+            auto& cache = m_state->meshCache[cube];
+            if (!cache.handle || cache.owner.expired() || cache.revision != mesh->cpuGeometryRevision()) {
+                std::vector<SdlBasicVertex> vertices;
+                vertices.reserve(mesh->cpuVertices().size());
+                for (const auto& vertex : mesh->cpuVertices()) {
+                    vertices.push_back({{vertex.Position.x, vertex.Position.y, vertex.Position.z},
+                                        {vertex.U, 1.0f - vertex.V}});
+                }
+                State::MeshCache replacement;
+                replacement.handle = m_state->renderer.uploadMesh(vertices, mesh->cpuIndices(), error);
+                if (!replacement.handle) return false;
+                replacement.owner = mesh->weak_from_this();
+                replacement.revision = mesh->cpuGeometryRevision();
+                for (const auto& image : mesh->cpuEmbeddedTextures()) {
+                    const auto texture = uploadEmbeddedTexture(m_state->renderer, image, error);
+                    if (!texture) return false;
+                    replacement.textures.push_back(texture);
+                }
+                if (!m_state->releaseCache(cache, error)) return false;
+                cache = std::move(replacement);
+            }
+            const auto geometry = cache.handle;
+            const auto sections = mesh->cpuMaterialSections();
+            if (sections.empty()) {
+                SdlBasicCube draw;
+                draw.geometry = geometry;
+                draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, cube->Color.a};
+                m_state->draws.push_back(draw);
+                m_state->models.push_back(model);
+            } else {
+                for (const auto& section : sections) {
+                    if (!section.opaque) continue;
+                    SdlBasicCube draw;
+                    draw.geometry = geometry;
+                    draw.firstIndex = section.firstIndex;
+                    draw.indexCount = section.indexCount;
+                    if (section.textureIndex > cache.textures.size()) {
+                        error = "MeshCube '" + mesh->Name + "' has an invalid material texture index";
+                        return false;
+                    }
+                    if (section.textureIndex) {
+                        draw.texture = cache.textures[section.textureIndex - 1];
+                    }
+                    draw.color = {cube->Color.r * section.baseColor.r,
+                                  cube->Color.g * section.baseColor.g,
+                                  cube->Color.b * section.baseColor.b,
+                                  cube->Color.a * section.baseColor.a};
+                    m_state->draws.push_back(draw);
+                    m_state->models.push_back(model);
+                }
+            }
+            continue;
+        }
+        if (mesh && !mesh->isUsingFallback()) continue;
+        SdlBasicCube draw;
+        draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, cube->Color.a};
+        m_state->draws.push_back(draw);
+        m_state->models.push_back(model);
+    }
+    for (auto it = m_state->meshCache.begin(); it != m_state->meshCache.end();) {
+        if (active.contains(it->first)) {
+            ++it;
+            continue;
+        }
+        if (!m_state->releaseCache(it->second, error)) return false;
+        it = m_state->meshCache.erase(it);
+    }
+    std::unordered_set<const Terrain*> activeTerrains;
+    for (const Terrain* terrain : workspace.getRenderTerrains()) {
+        if (!terrain) {
+            error = "Workspace contains an empty Terrain render entry";
+            return false;
+        }
+        if (!terrain->Enabled || !terrain->streamer) continue;
+        activeTerrains.insert(terrain);
+        auto& cache = m_state->terrainCache[terrain];
+        if (cache.owner.expired() || cache.streamRevision != terrain->streamerRevision()) {
+            if (!cache.meshes.release(m_state->renderer, error)) return false;
+            cache.owner = terrain->weak_from_this();
+            cache.streamRevision = terrain->streamerRevision();
+        }
+        if (!cache.meshes.sync(*terrain->streamer, m_state->renderer, error)) {
+            error = "Terrain '" + terrain->Name + "': " + error;
+            return false;
+        }
+    }
+    for (auto it = m_state->terrainCache.begin(); it != m_state->terrainCache.end();) {
+        if (activeTerrains.contains(it->first)) {
+            ++it;
+            continue;
+        }
+        if (!it->second.meshes.release(m_state->renderer, error)) return false;
+        it = m_state->terrainCache.erase(it);
+    }
+    return true;
+}
+
+bool SdlLiveScene::draw(Workspace&, const Matrix4& viewProjection,
+                        SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
+                        std::string& error) {
+    for (std::size_t i = 0; i < m_state->draws.size(); ++i) {
+        const Matrix4 mvp = viewProjection * m_state->models[i];
+        std::copy_n(mvp.m, 16, m_state->draws[i].modelViewProjection.begin());
+    }
+    for (const auto& [terrain, cache] : m_state->terrainCache) {
+        cache.meshes.appendDraws(viewProjection, m_state->draws);
+    }
+    const bool drawn = m_state->renderer.draw(commandBuffer, width, height, m_state->draws, error);
+    m_state->draws.resize(m_state->models.size());
+    return drawn;
+}
+
+SDL_GPUTexture* SdlLiveScene::colorTarget() const {
+    return m_state->renderer.colorTarget();
+}
+
+Matrix4 sdlSceneViewProjection(const User& user, float aspect) {
+    return sdlPerspective(45.0f, aspect, 0.1f, 10000.0f) *
+           Matrix4::LookAt(user.cpos, user.cpos + user.forward, user.up);
+}
+
+void blitSdlSceneFrame(SDL_GPUCommandBuffer& command, SDL_GPUTexture& source,
+                       SDL_GPUTexture& destination, unsigned width, unsigned height) {
+    SDL_GPUBlitInfo blit{};
+    blit.source = {&source, 0, 0, 0, 0, width, height};
+    blit.destination = {&destination, 0, 0, 0, 0, width, height};
+    blit.load_op = SDL_GPU_LOADOP_DONT_CARE;
+    blit.filter = SDL_GPU_FILTER_LINEAR;
+    SDL_BlitGPUTexture(&command, &blit);
+}
+
+bool captureSdlSceneFrame(SdlGpuWindow& window, SdlGpuWindow::Frame& frame,
+                         SDL_GPUTexture* source, unsigned width, unsigned height,
+                         const std::string& outputDir, std::string& error) {
+    auto* transfer = recordReadback(window.device(), frame.command, source, width, height, error);
+    if (!transfer) {
+        std::string retireError;
+        if (!window.cancel(frame, &retireError)) {
+            error += "; " + retireError;
+        }
+        return false;
+    }
+    SDL_GPUFence* fence = nullptr;
+    if (!window.submit(frame, &fence, &error)) {
+        SDL_ReleaseGPUTransferBuffer(window.device(), transfer);
+        return false;
+    }
+    return finishReadback(window.device(), transfer, fence, width, height,
+                          std::filesystem::u8path(outputDir) / "render.png", error);
 }
 
 int runSdlScenePreview(const std::string& scenePath,
@@ -534,7 +765,7 @@ int runSdlScenePreview(const std::string& scenePath,
             const Vector3 eye = center +
                 Vector3(1.35f * cosine + 1.65f * sine, 0.9f, 1.65f * cosine - 1.35f * sine) * distance;
             const Matrix4 view = Matrix4::LookAt(eye, center, Vector3(0, 1, 0));
-            const Matrix4 projection = previewPerspective(aspect, std::max(0.01f, distance * 0.01f),
+            const Matrix4 projection = sdlPerspective(60.0f, aspect, std::max(0.01f, distance * 0.01f),
                                                           distance * 8.0f);
             viewProjection = projection * view;
             for (std::size_t index = 0; index < drawItems.size(); ++index) {
@@ -574,12 +805,7 @@ int runSdlScenePreview(const std::string& scenePath,
         } else
 #endif
         if (frame.swapchain) {
-            SDL_GPUBlitInfo blit{};
-            blit.source = {resultTexture, 0, 0, 0, 0, width, height};
-            blit.destination = {frame.swapchain, 0, 0, 0, 0, width, height};
-            blit.load_op = SDL_GPU_LOADOP_DONT_CARE;
-            blit.filter = SDL_GPU_FILTER_LINEAR;
-            SDL_BlitGPUTexture(frame.command, &blit);
+            blitSdlSceneFrame(*frame.command, *resultTexture, *frame.swapchain, width, height);
         }
 
         if (!captureDir || !captureReady) {
@@ -593,23 +819,7 @@ int runSdlScenePreview(const std::string& scenePath,
             }
             continue;
         }
-        SDL_GPUTransferBuffer* transfer = recordReadback(window.device(), frame.command,
-                                                        resultTexture, width, height, error);
-        if (!transfer) {
-            std::cerr << "SDL scene preview: capture recording failed: " << error << '\n';
-            if (!window.cancel(frame, &error)) {
-                std::cerr << "SDL scene preview: cannot cancel capture frame: " << error << '\n';
-            }
-            return 1;
-        }
-        SDL_GPUFence* fence = nullptr;
-        if (!window.submit(frame, &fence, &error)) {
-            SDL_ReleaseGPUTransferBuffer(window.device(), transfer);
-            std::cerr << "SDL scene preview: capture submission failed: " << error << '\n';
-            return 1;
-        }
-        if (!finishReadback(window.device(), transfer, fence, width, height,
-                            std::filesystem::u8path(*captureDir) / "render.png", error)) {
+        if (!captureSdlSceneFrame(window, frame, resultTexture, width, height, *captureDir, error)) {
             std::cerr << "SDL scene preview: capture failed: " << error << '\n';
             return 1;
         }

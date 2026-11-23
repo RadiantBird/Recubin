@@ -69,7 +69,7 @@ namespace SceneRuntime {
 
     // Workspace配下のFolder/Modelを含めて全Terrainを列挙する。
     std::vector<Terrain*> collectTerrains(Instance* root);
-    void updateTerrains(Workspace* workspace, const Vector3& centerPos);
+    void updateTerrains(Workspace* workspace, const Vector3& centerPos, bool cpuRenderGeometry = false);
     void releaseTerrainStreamers(const std::vector<std::shared_ptr<Workspace>>& workspaces);
 
     void applyAppIcon(GLFWwindow* window, Instance* root);

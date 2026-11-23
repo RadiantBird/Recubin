@@ -38,6 +38,7 @@ public:
                              std::span<const std::uint32_t> indices,
                              std::string& error);
     bool releaseMesh(std::uint32_t handle, std::string& error);
+    bool releaseTexture(std::uint32_t handle, std::string& error);
     std::uint32_t uploadTexture(unsigned width, unsigned height,
                                 std::span<const std::uint8_t> rgba,
                                 std::string& error);
@@ -69,7 +70,8 @@ private:
     SDL_GPUTexture* m_depthTarget = nullptr;
     std::unordered_map<std::uint32_t, Geometry> m_geometries;
     std::uint32_t m_nextGeometryHandle = 1;
-    std::vector<SDL_GPUTexture*> m_textures;
+    std::unordered_map<std::uint32_t, SDL_GPUTexture*> m_textures;
+    std::uint32_t m_nextTextureHandle = 1;
     SDL_GPUTexture* m_whiteTexture = nullptr;
     Geometry m_defaultGeometry{};
     unsigned m_width = 0;

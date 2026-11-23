@@ -52,16 +52,20 @@ bool processInput(User& user, Workspace& workspace, System& system,
     return !user.consumeExitRequest();
 }
 
-void simulateAfterInput(User& user, Workspace& workspace, float deltaSeconds,
-                        Physics* physics) {
-    if (PathfindingService::IsBuildActive()) return;
-    Humanoid::updateAll(workspace.getRenderHumanoids(), deltaSeconds, physics);
+void updateTerrainForUser(User& user, Workspace& workspace, bool cpuTerrainGeometry) {
     Vector3 terrainCenter = user.cpos;
     if (user.humanoid) {
         if (auto root = user.humanoid->getRootPart())
             terrainCenter = root->getWorldCFrame().Position;
     }
-    SceneRuntime::updateTerrains(&workspace, terrainCenter);
+    SceneRuntime::updateTerrains(&workspace, terrainCenter, cpuTerrainGeometry);
+}
+
+void simulateAfterInput(User& user, Workspace& workspace, float deltaSeconds,
+                        Physics* physics, bool cpuTerrainGeometry) {
+    if (PathfindingService::IsBuildActive()) return;
+    Humanoid::updateAll(workspace.getRenderHumanoids(), deltaSeconds, physics);
+    updateTerrainForUser(user, workspace, cpuTerrainGeometry);
     Weather::updateAll(&workspace, workspace.getRenderWeathers(), deltaSeconds,
                        user.cpos);
     ParticleEmitter::updateAll(workspace.getRenderParticleEmitters(), deltaSeconds);

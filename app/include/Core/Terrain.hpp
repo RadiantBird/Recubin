@@ -139,10 +139,13 @@ public:
     void setEnabled(bool enabled);
     void setDataPath(const std::string& path);
     void releaseStreamer();
-    void update(const Vector3& centerPos);
+    void update(const Vector3& centerPos, bool cpuRenderGeometry = false);
+    std::uint64_t streamerRevision() const { return m_streamerRevision; }
 
 private:
     // 直近 streamer に適用した DataPath。変更検出に使う。
     std::string m_appliedDataPath;
+    bool m_cpuRenderGeometry = false;
+    std::uint64_t m_streamerRevision = 0;
     Workspace* m_workspaceOwner = nullptr;
 };
