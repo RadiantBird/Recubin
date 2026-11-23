@@ -832,3 +832,10 @@
 - `--sdl-gpu-preview=y` で Studio と Engine に共通のシーン描画を組み込んだ。Studio は `xmake run Recubin --gpu-preview --gpu-driver=vulkan --scene <scene.yaml>` で起動し、SDL3／SDL GPU の ImGui バックエンドで Scene パネルに Cube・MeshCube を表示する。両方のプレビューで左右キーがオービット、Home が視点リセット。既存 imgui.ini の読み書きはプレビューから行わない。
 - Studio の `--self-check` は非表示ウィンドウとオフスクリーン合成を使う。最初のドッキングフレームは Scene 画像を含まないため、画像の描画コマンドが出たフレームをフェンス付きで PNG 保存。Studio と Engine の混在シーンを Vulkan／D3D12 で比較し、形状の色を確認。各実行ファイルで両バックエンドの PNG が全画素一致。
 - Windows/MSVC Release で Studio、Engine、Test、Runtime をビルド。Vulkan／D3D12 の Studio プレビューをウィンドウで開いて正常終了を確認。起動引数、ビューポート、入力、現行 GUI 自動化の対象回帰が成功。通常起動・SDK の SDL GPU 切り替え、実際の Studio 編集 UI と分離ウィンドウ、テクスチャ・Terrain、ゲーム GUI、カスタム GLSL の描画、Metal 用シェーダー生成は未完了。
+
+## 2026-11-22 SDL GPU の GLB マテリアル描画
+
+- 既存の Engine・Studio プレビューを `6c9e3cb` にコミット。続く変更では MeshCube が GLB のプリミティブごとのインデックス区間とベースカラー、埋め込み画像を保持する。xatlas は出力のインデックスを元の面の位置に書き戻すため、UV 再生成後も区間を再利用できる。
+- 共通レンダラーが UV と RGBA8 テクスチャを転送し、不透明な区間ごとにベースカラーを適用。GLB の UV と画像の行順を揃え、無地の区間には白テクスチャを使う。マスク・ブレンド区間の件数はログに出す。現段階のサンプリングは線形・リピート固定。
+- Windows/MSVC Release の xmake で Studio・Engine・Test・Runtime をビルド。明示した Vulkan と D3D12 で、赤が上・青が下の埋め込み画像と緑の別マテリアルを同じ GLB で描画。両バックエンドの PNG は Studio・Engine それぞれで全画素一致。Cube 単体のシーンも前回の PNG と一致。`--meshcube-fallback-regression`、`--viewport-helper-regression`、`git diff --check --ignore-submodules=all` は成功。従来の `cmd.exe /d /c py build.py build` は py が起動せず未検証。
+- 次は Terrain の CPU ジオメトリを共通経路へ渡し、モデル差し替えとシーン再読み込み時に新しい GPU リソースへ切り替える。透過、通常起動と SDK、分離ウィンドウ、ゲーム GUI、カスタム GLSL の描画も未完了。

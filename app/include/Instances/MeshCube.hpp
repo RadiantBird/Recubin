@@ -8,6 +8,7 @@
 #include <vector>
 #include <span>
 #include <string>
+#include <cstdint>
 #include <include/Core/GfxTexture.hpp>
 
 class MainShaderState;
@@ -35,6 +36,21 @@ struct MeshVertex {
     Vector3 Normal;
     float U, V;
     float MatAlpha = 1.0f; // マテリアルのbaseColorFactor.a (透過素材対応)
+};
+
+// CPU-side material ranges used by the SDL GPU renderer.  firstIndex and
+// indexCount refer to the MeshCube index array.  textureIndex is one-based;
+// zero means that the material has no embedded base-color image.
+struct MeshMaterialSection {
+    std::uint32_t firstIndex = 0;
+    std::uint32_t indexCount = 0;
+    Color4 baseColor;
+    std::uint32_t textureIndex = 0;
+    bool opaque = true;
+};
+
+struct MeshEmbeddedTexture {
+    std::vector<unsigned char> bytes;
 };
 
 class MeshCube : public Named<MeshCube, BaseCube> {
@@ -66,6 +82,8 @@ public:
     bool isUsingFallback() const { return m_fallbackActive; }
     std::span<const MeshVertex> cpuVertices() const { return m_cpuVertices; }
     std::span<const unsigned int> cpuIndices() const { return m_cpuIndices; }
+    std::span<const MeshMaterialSection> cpuMaterialSections() const { return m_materialSections; }
+    std::span<const MeshEmbeddedTexture> cpuEmbeddedTextures() const { return m_embeddedTextures; }
     unsigned int getVAO() const;
     unsigned int getIndexCount() const;
 
@@ -100,6 +118,8 @@ private:
 
     std::vector<MeshVertex>   m_cpuVertices;
     std::vector<unsigned int> m_cpuIndices;
+    std::vector<MeshMaterialSection> m_materialSections;
+    std::vector<MeshEmbeddedTexture> m_embeddedTextures;
     std::vector<float>        m_highlightEdgeVerts;
 
     // ローカル空間AABB(uploadToGPUで算出)。Face貼りDecalの射影範囲に使用する

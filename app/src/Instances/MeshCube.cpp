@@ -44,6 +44,8 @@ void MeshCube::activateFallback(const std::string& requestedPath) {
         {-h, -h,  h}, { h, -h,  h}, { h,  h,  h}, {-h,  h,  h},
     };
     m_cpuVertices.clear();
+    m_materialSections.clear();
+    m_embeddedTextures.clear();
     m_cpuVertices.reserve(8);
     for (const Vector3& position : positions) {
         MeshVertex vertex;
@@ -348,8 +350,21 @@ bool MeshCube::regenerateUV() {
 
     std::vector<unsigned int> newIndices;
     newIndices.reserve(outMesh.indexCount);
+    // xatlas writes each remapped triangle back to its source face offset.
+    // Material sections therefore retain their index offsets.
+    if (outMesh.indexCount != m_cpuIndices.size()) {
+        RCBN_WARN("MeshCube: xatlas出力のインデックス数が入力と一致しません");
+        xatlas::Destroy(atlas);
+        return false;
+    }
     for (uint32_t i = 0; i < outMesh.indexCount; ++i) {
-        newIndices.push_back(outMesh.indexArray[i]);
+        const uint32_t outputVertex = outMesh.indexArray[i];
+        if (outputVertex >= outMesh.vertexCount) {
+            RCBN_WARN("MeshCube: xatlasのインデックスが頂点数を超えています");
+            xatlas::Destroy(atlas);
+            return false;
+        }
+        newIndices.push_back(outputVertex);
     }
 
     xatlas::Destroy(atlas);
@@ -413,6 +428,8 @@ bool MeshCube::loadFromGLB(const std::string& path) {
         releaseGPU();
         m_cpuVertices.clear();
         m_cpuIndices.clear();
+        m_materialSections.clear();
+        m_embeddedTextures.clear();
         m_highlightEdgeVerts.clear();
         m_localBoundsMin = Vector3{};
         m_localBoundsMax = Vector3{};
@@ -453,6 +470,9 @@ bool MeshCube::loadFromGLB(const std::string& path) {
 
     std::vector<MeshVertex>   vertices;
     std::vector<unsigned int> indices;
+    std::vector<MeshMaterialSection> materialSections;
+    std::vector<MeshEmbeddedTexture> embeddedTextures;
+    std::vector<const cgltf_image*> embeddedImages;
     std::vector<char>         normalMissing; // vertices と同期。NORMAL属性が無く算出が必要な頂点はtrue
     TextureHandle loadedTexture;
     bool needNormals = false; // NORMAL属性の無い頂点が1つでもあればtrue
@@ -525,6 +545,7 @@ bool MeshCube::loadFromGLB(const std::string& path) {
                 normalMissing.push_back(hasNormals ? 0 : 1);
             }
 
+            const auto firstIndex = indices.size();
             if (prim.indices) {
                 const cgltf_size indexCount = prim.indices->count;
                 indices.reserve(indices.size() + indexCount);
@@ -549,17 +570,41 @@ bool MeshCube::loadFromGLB(const std::string& path) {
                 }
             }
 
-            // 最初に見つかった埋め込みテクスチャのみ使用する(複数マテリアルは対象外)
-            if (!loadedTexture && prim.material && prim.material->has_pbr_metallic_roughness) {
+            MeshMaterialSection materialSection;
+            materialSection.firstIndex = static_cast<std::uint32_t>(firstIndex);
+            materialSection.indexCount = static_cast<std::uint32_t>(indices.size() - firstIndex);
+            if (prim.material) {
+                materialSection.opaque = prim.material->alpha_mode == cgltf_alpha_mode_opaque;
+            }
+            if (prim.material && prim.material->has_pbr_metallic_roughness) {
+                const auto& factor = prim.material->pbr_metallic_roughness.base_color_factor;
+                materialSection.baseColor = Color4(factor[0], factor[1], factor[2], factor[3]);
                 const cgltf_texture* tex = prim.material->pbr_metallic_roughness.base_color_texture.texture;
-                if (tex && tex->image && tex->image->buffer_view) {
-                    const cgltf_buffer_view* bv = tex->image->buffer_view;
-                    const unsigned char* bytes = static_cast<const unsigned char*>(bv->buffer->data) + bv->offset;
-                    if (Renderer::instance) {
-                        loadedTexture = Renderer::instance->loadTextureFromMemory(bytes, bv->size);
+                const cgltf_image* image = tex ? tex->image : nullptr;
+                const cgltf_buffer_view* bv = image ? image->buffer_view : nullptr;
+                if (image && bv && bv->buffer && bv->buffer->data &&
+                    bv->offset <= bv->buffer->size && bv->size <= bv->buffer->size - bv->offset) {
+                    const auto* begin = static_cast<const unsigned char*>(bv->buffer->data) + bv->offset;
+                    auto found = std::find(embeddedImages.begin(), embeddedImages.end(), image);
+                    if (found == embeddedImages.end()) {
+                        MeshEmbeddedTexture embedded;
+                        embedded.bytes.assign(begin, begin + bv->size);
+                        embeddedTextures.push_back(std::move(embedded));
+                        embeddedImages.push_back(image);
+                        materialSection.textureIndex = static_cast<std::uint32_t>(embeddedTextures.size());
+                    } else {
+                        materialSection.textureIndex = static_cast<std::uint32_t>(
+                            std::distance(embeddedImages.begin(), found) + 1);
                     }
+                    // 既存の描画経路では最初の埋め込み画像のみを使う。
+                    if (!loadedTexture && Renderer::instance) {
+                        loadedTexture = Renderer::instance->loadTextureFromMemory(begin, bv->size);
+                    }
+                } else if (image && bv) {
+                    RCBN_WARN("MeshCube: 埋め込みテクスチャの範囲が不正です: " << path);
                 }
             }
+            materialSections.push_back(materialSection);
         }
     }
 
@@ -616,6 +661,8 @@ bool MeshCube::loadFromGLB(const std::string& path) {
     releaseGPU();
     m_cpuVertices = std::move(vertices);
     m_cpuIndices  = std::move(indices);
+    m_materialSections = std::move(materialSections);
+    m_embeddedTextures = std::move(embeddedTextures);
     m_textureID   = loadedTexture;
     m_fallbackActive = false;
     MeshFile = path;

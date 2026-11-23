@@ -1,10 +1,12 @@
 struct VSInput {
     float3 position : TEXCOORD0;
+    float2 uv : TEXCOORD1;
 };
 
 struct VSOutput {
     float4 position : SV_Position;
     nointerpolation float4 color : TEXCOORD0;
+    float2 uv : TEXCOORD1;
 };
 
 cbuffer BasicUniforms : register(b0, space1) {
@@ -16,9 +18,19 @@ VSOutput VSMain(VSInput input) {
     VSOutput output;
     output.position = mul(modelViewProjection, float4(input.position, 1.0));
     output.color = color;
+    output.uv = input.uv;
     return output;
 }
 
+#ifdef __spirv__
+[[vk::combinedImageSampler]]
+#endif
+Texture2D<float4> diffuseTexture : register(t0, space2);
+#ifdef __spirv__
+[[vk::combinedImageSampler]]
+#endif
+SamplerState diffuseSampler : register(s0, space2);
+
 float4 PSMain(VSOutput input) : SV_Target0 {
-    return input.color;
+    return input.color * diffuseTexture.Sample(diffuseSampler, input.uv);
 }

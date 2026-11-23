@@ -8,10 +8,18 @@
 #include <string>
 #include <vector>
 
+struct SdlBasicVertex {
+    std::array<float, 3> position{};
+    std::array<float, 2> uv{};
+};
+
 struct SdlBasicCube {
     std::array<float, 16> modelViewProjection{};
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
     std::uint32_t geometry = 0;
+    std::uint32_t texture = 0;
+    std::uint32_t firstIndex = 0;
+    std::uint32_t indexCount = 0;
 };
 
 class SdlBasicRenderer final {
@@ -23,9 +31,12 @@ public:
     SdlBasicRenderer& operator=(const SdlBasicRenderer&) = delete;
 
     bool initialize(SDL_GPUDevice& device, std::string& error);
-    std::uint32_t uploadMesh(std::span<const std::array<float, 3>> vertices,
+    std::uint32_t uploadMesh(std::span<const SdlBasicVertex> vertices,
                              std::span<const std::uint32_t> indices,
                              std::string& error);
+    std::uint32_t uploadTexture(unsigned width, unsigned height,
+                                std::span<const std::uint8_t> rgba,
+                                std::string& error);
     bool draw(SDL_GPUCommandBuffer& commandBuffer,
               unsigned width,
               unsigned height,
@@ -47,10 +58,13 @@ private:
     SDL_GPUDevice* m_device = nullptr;
     SDL_GPUShader* m_vertexShader = nullptr;
     SDL_GPUShader* m_fragmentShader = nullptr;
+    SDL_GPUSampler* m_sampler = nullptr;
     SDL_GPUGraphicsPipeline* m_pipeline = nullptr;
     SDL_GPUTexture* m_colorTarget = nullptr;
     SDL_GPUTexture* m_depthTarget = nullptr;
     std::vector<Geometry> m_geometries;
+    std::vector<SDL_GPUTexture*> m_textures;
+    SDL_GPUTexture* m_whiteTexture = nullptr;
     Geometry m_defaultGeometry{};
     unsigned m_width = 0;
     unsigned m_height = 0;

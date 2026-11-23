@@ -10,6 +10,7 @@
 #include <Instances/Workspace.hpp>
 #include <Math/Matrix4.hpp>
 #include <Util/PngWriter.hpp>
+#include <include/stb_image.h>
 
 #include <SDL3/SDL.h>
 
@@ -30,6 +31,26 @@ struct PreviewGeometry {
     Matrix4 model;
     const MeshCube* mesh;
 };
+
+std::uint32_t uploadEmbeddedTexture(SdlBasicRenderer& renderer,
+                                    const MeshEmbeddedTexture& texture, std::string& error) {
+    if (texture.bytes.empty() || texture.bytes.size() > std::numeric_limits<int>::max()) {
+        error = "invalid embedded image size";
+        return 0;
+    }
+    int width = 0;
+    int height = 0;
+    std::unique_ptr<stbi_uc, decltype(&stbi_image_free)> pixels(
+        stbi_load_from_memory(texture.bytes.data(), static_cast<int>(texture.bytes.size()),
+                              &width, &height, nullptr, STBI_rgb_alpha), stbi_image_free);
+    if (!pixels || width <= 0 || height <= 0) {
+        const char* reason = stbi_failure_reason();
+        error = reason ? reason : "could not decode the embedded image";
+        return 0;
+    }
+    const auto bytes = static_cast<std::size_t>(width) * height * 4;
+    return renderer.uploadTexture(width, height, {pixels.get(), bytes}, error);
+}
 
 Matrix4 previewPerspective(float aspect, float nearPlane, float farPlane) {
     // Convert the engine projection's [-1, 1] clip depth to SDL GPU's [0, 1].
@@ -212,23 +233,73 @@ int runSdlScenePreview(const std::string& scenePath,
         std::cerr << "SDL scene preview: renderer initialization failed: " << error << '\n';
         return 1;
     }
+    std::vector<SdlBasicCube> drawItems;
+    std::vector<Matrix4> drawModels;
     for (std::size_t index = 0; index < geometrySources.size(); ++index) {
         const MeshCube* mesh = geometrySources[index].mesh;
+        auto item = cubes[index];
+        const Matrix4& model = geometrySources[index].model;
         if (!mesh || mesh->isUsingFallback()) {
+            drawItems.push_back(item);
+            drawModels.push_back(model);
             continue;
         }
-        std::vector<std::array<float, 3>> positions;
-        positions.reserve(mesh->cpuVertices().size());
+        std::vector<SdlBasicVertex> vertices;
+        vertices.reserve(mesh->cpuVertices().size());
         for (const MeshVertex& vertex : mesh->cpuVertices()) {
-            positions.push_back({vertex.Position.x, vertex.Position.y, vertex.Position.z});
+            // MeshCube keeps GL-oriented UVs. The decoded SDL texture starts at its top row.
+            vertices.push_back({{vertex.Position.x, vertex.Position.y, vertex.Position.z},
+                                {vertex.U, 1.0f - vertex.V}});
         }
-        const auto geometry = renderer.uploadMesh(positions, mesh->cpuIndices(), error);
+        const auto geometry = renderer.uploadMesh(vertices, mesh->cpuIndices(), error);
         if (geometry == 0) {
             std::cerr << "SDL scene preview: could not upload MeshCube '" << mesh->Name
                       << "': " << error << '\n';
             return 1;
         }
-        cubes[index].geometry = geometry;
+        item.geometry = geometry;
+        const auto sections = mesh->cpuMaterialSections();
+        const auto images = mesh->cpuEmbeddedTextures();
+        std::vector<std::uint32_t> uploadedTextures(images.size());
+        if (sections.empty()) {
+            drawItems.push_back(item);
+            drawModels.push_back(model);
+        }
+        std::size_t translucentSections = 0;
+        for (const MeshMaterialSection& section : sections) {
+            if (!section.opaque) {
+                ++translucentSections;
+                continue;
+            }
+            auto draw = item;
+            draw.firstIndex = section.firstIndex;
+            draw.indexCount = section.indexCount;
+            draw.color[0] *= section.baseColor.r;
+            draw.color[1] *= section.baseColor.g;
+            draw.color[2] *= section.baseColor.b;
+            if (section.textureIndex != 0) {
+                if (section.textureIndex > uploadedTextures.size()) {
+                    std::cerr << "SDL scene preview: invalid material texture index on '" << mesh->Name << "'\n";
+                    return 1;
+                }
+                auto& handle = uploadedTextures[section.textureIndex - 1];
+                if (handle == 0) {
+                    handle = uploadEmbeddedTexture(renderer, images[section.textureIndex - 1], error);
+                    if (handle == 0) {
+                        std::cerr << "SDL scene preview: texture upload failed on '" << mesh->Name
+                                  << "': " << error << '\n';
+                        return 1;
+                    }
+                }
+                draw.texture = handle;
+            }
+            drawItems.push_back(draw);
+            drawModels.push_back(model);
+        }
+        if (translucentSections != 0) {
+            std::cerr << "SDL scene preview: skipped " << translucentSections
+                      << " mask/blend material sections on '" << mesh->Name << "'\n";
+        }
     }
 
 #ifdef RECUBIN_SDL_GPU_STUDIO
@@ -333,15 +404,15 @@ int runSdlScenePreview(const std::string& scenePath,
             const Matrix4 projection = previewPerspective(aspect, std::max(0.01f, distance * 0.01f),
                                                           distance * 8.0f);
             const Matrix4 viewProjection = projection * view;
-            for (std::size_t index = 0; index < cubes.size(); ++index) {
-                const Matrix4 mvp = viewProjection * geometrySources[index].model;
-                std::copy_n(mvp.m, 16, cubes[index].modelViewProjection.begin());
+            for (std::size_t index = 0; index < drawItems.size(); ++index) {
+                const Matrix4 mvp = viewProjection * drawModels[index];
+                std::copy_n(mvp.m, 16, drawItems[index].modelViewProjection.begin());
             }
             previousWidth = width;
             previousHeight = height;
             cameraDirty = false;
         }
-        if (!renderer.draw(*frame.command, width, height, cubes, error)) {
+        if (!renderer.draw(*frame.command, width, height, drawItems, error)) {
             std::cerr << "SDL scene preview: draw failed: " << error << '\n';
             if (!window.submit(frame, nullptr, &error)) {
                 std::cerr << "SDL scene preview: cannot retire failed frame: " << error << '\n';
