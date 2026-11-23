@@ -23,6 +23,7 @@ public:
     bool initialize(SDL_GPUDevice& device, std::string& error);
     bool sync(Workspace& workspace, std::string& error);
     bool draw(Workspace& workspace, const Matrix4& viewProjection,
+              const Vector3& cameraPosition, const Vector3& cameraForward, float effectTime,
               SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
               std::string& error);
     SDL_GPUTexture* colorTarget() const;

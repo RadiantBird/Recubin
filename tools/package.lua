@@ -171,9 +171,11 @@ function main(config, output_root)
         if not copy_tree(built_dll_dir, path.join(package_dir, "dlls")) then
             raise("built DLL directory not found: " .. built_dll_dir)
         end
-        -- SDL3 is an import of the optional GPU preview build. Windows finds
-        -- it beside RecubinEngine before the runtime configures its DLL paths.
-        copy_optional(path.join(build_dir, "SDL3.dll"), path.join(package_dir, "SDL3.dll"))
+        -- Keep optional SDL GPU runtime and shader compiler DLLs beside the executables.
+        for _, library in ipairs({"SDL3.dll", "glslang.dll", "glslang-default-resource-limits.dll",
+                                  "dxcompiler.dll", "dxil.dll"}) do
+            copy_optional(path.join(build_dir, library), path.join(package_dir, library))
+        end
     end
     copy_tree(shaders_source, path.join(package_dir, "shaders"))
     copy_tree(fonts_source, path.join(package_dir, "assets", "fonts"))

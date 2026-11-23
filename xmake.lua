@@ -137,6 +137,8 @@ for _, source in ipairs(all_sources) do
        vendor ~= "app/src/Core/SDLInputBackend.cpp" and
        vendor ~= "app/src/Core/SdlGpuWindow.cpp" and
        vendor ~= "app/src/Core/SdlBasicRenderer.cpp" and
+       vendor ~= "app/src/Core/SdlPostEffects.cpp" and
+       vendor ~= "app/src/Core/SdlPostEffectDxil.cpp" and
        vendor ~= "app/src/Core/SdlScenePreview.cpp" and
        vendor ~= "app/src/Core/SdlPreviewImGui.cpp" and
        vendor ~= "app/src/Core/PostEffectSpirv.cpp" and
@@ -240,17 +242,38 @@ rule("recubin.sdl-gpu-shaders")
             raise(error)
         end
         local generator = path.join(os.projectdir(), "tools", "generate_sdl_gpu_shaders.lua")
-        local source = path.join(os.projectdir(), target:values("recubin.gpu_shader_source"))
-        local prefix = target:values("recubin.gpu_shader_prefix")
         local output_dir = target:values("recubin.gpu_shader_output_dir") or generated_dir
-        local output = path.join(output_dir, prefix .. "_shaders.hpp")
         local depend = import("core.project.depend")
-        depend.on_changed(function()
-            os.vrunv(os.programfile(), {"lua", generator, dxc_executable, source, output, prefix})
-        end, {files = {generator, manifest, source}, dependfile = output .. ".d", changed = not os.isfile(output)})
+        local function generate(relative_source, prefix, stage)
+            local source = path.join(os.projectdir(), relative_source)
+            local output = path.join(output_dir, prefix .. "_shaders.hpp")
+            depend.on_changed(function()
+                os.vrunv(os.programfile(), {"lua", generator, dxc_executable, source, output, prefix, stage})
+            end, {files = {generator, manifest, source}, dependfile = output .. ".d", changed = not os.isfile(output)})
+        end
+        generate(target:values("recubin.gpu_shader_source"), target:values("recubin.gpu_shader_prefix"))
+        if target:values("recubin.gpu_post_effects") then
+            local glslang_manifest, glslang_error = verify_gpu_dependencies({
+                "glslang/include/glslang/Include/glslang_c_interface.h",
+                "glslang/lib/glslang.lib", "glslang/lib/glslang-default-resource-limits.lib",
+                "glslang/bin/glslang.dll", "glslang/bin/glslang-default-resource-limits.dll"}, io.readfile, hash.sha256)
+            if not glslang_manifest then
+                raise(glslang_error)
+            end
+            generate("shaders/sdl_gpu/post_effect.hlsl", "post_effect_gpu", "vertex")
+            generate("shaders/sdl_gpu/shadow.hlsl", "shadow_gpu", "fragment")
+        end
     end)
     after_build(function(target)
         os.cp(path.join(gpu_dir, "SDL3.dll"), path.join(target:targetdir(), "SDL3.dll"))
+        if target:values("recubin.gpu_post_effects") then
+            for _, library in ipairs({"glslang.dll", "glslang-default-resource-limits.dll"}) do
+                os.cp(path.join(glslang_dir, "bin", library), path.join(target:targetdir(), library))
+            end
+            for _, library in ipairs({"dxcompiler.dll", "dxil.dll"}) do
+                os.cp(path.join(gpu_dir, "dxc", library), path.join(target:targetdir(), library))
+            end
+        end
     end)
 rule_end()
 
@@ -315,13 +338,37 @@ target("RecubinCore")
     configure_compilation(false)
 target_end()
 
+local spirv_cross_dir = "external/sokol-tools/ext/SPIRV-Cross"
+target("RecubinSpirvCross")
+    set_kind("static")
+    set_default(false)
+    set_languages("cxx17")
+    add_files(path.join(spirv_cross_dir, "spirv_cfg.cpp"),
+              path.join(spirv_cross_dir, "spirv_cross.cpp"),
+              path.join(spirv_cross_dir, "spirv_cross_parsed_ir.cpp"),
+              path.join(spirv_cross_dir, "spirv_glsl.cpp"),
+              path.join(spirv_cross_dir, "spirv_hlsl.cpp"),
+              path.join(spirv_cross_dir, "spirv_parser.cpp"),
+              path.join(spirv_cross_dir, "spirv_cross_util.cpp"))
+    if is_plat("windows") then
+        set_runtimes("MD")
+        add_cxxflags("/EHsc")
+    end
+target_end()
+
 local function configure_scene_preview(target_name)
     local shader_output_dir = path.join(generated_dir, target_name)
     add_defines("RECUBIN_SDL_GPU_PREVIEW")
     add_files("app/src/Core/SdlGpuWindow.cpp", "app/src/Core/SdlBasicRenderer.cpp",
-              "app/src/Core/SdlScenePreview.cpp", "app/src/Core/SDLInputBackend.cpp")
-    add_includedirs(sdl_include_dir, shader_output_dir)
-    add_links(sdl_lib)
+              "app/src/Core/SdlScenePreview.cpp", "app/src/Core/SDLInputBackend.cpp",
+              "app/src/Core/SdlPostEffects.cpp", "app/src/Core/SdlPostEffectDxil.cpp",
+              "app/src/Core/PostEffectSpirv.cpp")
+    add_deps("RecubinSpirvCross")
+    add_includedirs(sdl_include_dir, shader_output_dir, path.join(glslang_dir, "include"), spirv_cross_dir)
+    add_links(sdl_lib, path.join(glslang_dir, "lib", "glslang.lib"),
+              path.join(glslang_dir, "lib", "glslang-default-resource-limits.lib"))
+    add_defines("GLSLANG_IS_SHARED_LIBRARY")
+    set_values("recubin.gpu_post_effects", true)
     set_values("recubin.gpu_shader_source", "shaders/sdl_gpu/basic.hlsl")
     set_values("recubin.gpu_shader_prefix", "basic_gpu")
     set_values("recubin.gpu_shader_output_dir", shader_output_dir)

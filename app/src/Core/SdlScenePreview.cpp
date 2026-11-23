@@ -2,12 +2,15 @@
 
 #include <Core/SceneRuntime.hpp>
 #include <Core/SdlBasicRenderer.hpp>
+#include <Core/SdlPostEffects.hpp>
 #include <Core/TerrainStreamer.hpp>
 #ifdef RECUBIN_SDL_GPU_STUDIO
 #include <Core/SdlPreviewImGui.hpp>
 #endif
 #include <Instances/BaseCube.hpp>
 #include <Instances/MeshCube.hpp>
+#include <Instances/Lighting.hpp>
+#include <Instances/Sun.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
 #include <Math/Matrix4.hpp>
@@ -88,7 +91,8 @@ public:
         return true;
     }
 
-    void appendDraws(const Matrix4& viewProjection, std::vector<SdlBasicCube>& draws) const {
+    void appendDraws(const Matrix4& viewProjection, const std::optional<Matrix4>& shadowProjection,
+                     std::vector<SdlBasicCube>& draws) const {
         for (const auto& [key, mesh] : m_meshes) {
             if (mesh.handle) {
                 auto& draw = draws.emplace_back();
@@ -96,6 +100,9 @@ public:
                 // Terrain faces authored for the legacy renderer have mixed winding.
                 draw.doubleSided = true;
                 std::copy_n(viewProjection.m, 16, draw.modelViewProjection.begin());
+                if (shadowProjection) {
+                    std::copy_n(shadowProjection->m, 16, draw.shadowModelViewProjection.begin());
+                }
             }
         }
     }
@@ -129,8 +136,9 @@ public:
     }
     bool isSettled() const { return m_streamer.isSettled(); }
     const std::string& name() const { return m_terrain.Name; }
-    void appendDraws(const Matrix4& viewProjection, std::vector<SdlBasicCube>& draws) const {
-        m_meshes.appendDraws(viewProjection, draws);
+    void appendDraws(const Matrix4& viewProjection, const std::optional<Matrix4>& shadowProjection,
+                     std::vector<SdlBasicCube>& draws) const {
+        m_meshes.appendDraws(viewProjection, shadowProjection, draws);
     }
 
 private:
@@ -159,12 +167,36 @@ std::uint32_t uploadEmbeddedTexture(SdlBasicRenderer& renderer,
     return renderer.uploadTexture(width, height, {pixels.get(), bytes}, error);
 }
 
-Matrix4 sdlPerspective(float fovY, float aspect, float nearPlane, float farPlane) {
+Matrix4 sdlClipDepth(const Matrix4& projection) {
     // Convert the engine projection's [-1, 1] clip depth to SDL GPU's [0, 1].
     Matrix4 depthRange;
     depthRange.m[10] = 0.5f;
     depthRange.m[14] = 0.5f;
-    return depthRange * Matrix4::Perspective(fovY, aspect, nearPlane, farPlane);
+    return depthRange * projection;
+}
+
+Matrix4 sdlPerspective(float fovY, float aspect, float nearPlane, float farPlane) {
+    return sdlClipDepth(Matrix4::Perspective(fovY, aspect, nearPlane, farPlane));
+}
+
+std::optional<Matrix4> shadowProjection(const Workspace& workspace, const Vector3& position,
+                                       const Vector3& forward) {
+    const auto& lightings = workspace.getRenderLightings();
+    if (lightings.empty() || !lightings.front()) return std::nullopt;
+    const float distance = lightings.front()->shadowDistance;
+    if (!std::isfinite(distance) || distance <= 0.1f) return std::nullopt;
+    for (const CelestialBody* body : workspace.getRenderCelestialBodies()) {
+        const auto* sun = dynamic_cast<const Sun*>(body);
+        if (!sun) continue;
+        const Vector3 direction = Sun::directionFromAngle(sun->Angle);
+        const Vector3 focus = position + forward * (distance * 0.3f);
+        const Vector3 up = std::abs(direction.y) > 0.98f ? Vector3(0, 0, 1) : Vector3(0, 1, 0);
+        const float extent = distance * 0.5f;
+        const Matrix4 lightView = Matrix4::LookAt(focus + direction * distance, focus, up);
+        return sdlClipDepth(Matrix4::Ortho(-extent, extent, -extent, extent, 0.05f, distance * 2.0f))
+             * lightView;
+    }
+    return std::nullopt;
 }
 
 SDL_GPUTransferBuffer* recordReadback(SDL_GPUDevice* device, SDL_GPUCommandBuffer* command,
@@ -249,6 +281,8 @@ struct StudioTextureDeleter {
 
 struct SdlLiveScene::State {
     SdlBasicRenderer renderer;
+    SdlPostEffects postEffects;
+    SDL_GPUTexture* result = nullptr;
     std::vector<SdlBasicCube> draws;
     std::vector<Matrix4> models;
     struct MeshCache {
@@ -280,6 +314,7 @@ SdlLiveScene::~SdlLiveScene() = default;
 
 bool SdlLiveScene::initialize(SDL_GPUDevice& device, std::string& error) {
     if (!m_state->renderer.initialize(device, error)) return false;
+    if (!m_state->postEffects.initialize(device, error)) return false;
     m_state->initialized = true;
     return true;
 }
@@ -331,6 +366,8 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
             if (sections.empty()) {
                 SdlBasicCube draw;
                 draw.geometry = geometry;
+                draw.castShadow = cube->shouldCastShadow();
+                draw.receiveShadow = !cube->Unlit;
                 draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, cube->Color.a};
                 m_state->draws.push_back(draw);
                 m_state->models.push_back(model);
@@ -339,6 +376,8 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
                     if (!section.opaque) continue;
                     SdlBasicCube draw;
                     draw.geometry = geometry;
+                    draw.castShadow = cube->shouldCastShadow();
+                    draw.receiveShadow = !cube->Unlit;
                     draw.firstIndex = section.firstIndex;
                     draw.indexCount = section.indexCount;
                     if (section.textureIndex > cache.textures.size()) {
@@ -360,6 +399,8 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
         }
         if (mesh && !mesh->isUsingFallback()) continue;
         SdlBasicCube draw;
+        draw.castShadow = cube->shouldCastShadow(mesh && mesh->isUsingFallback());
+        draw.receiveShadow = !cube->Unlit;
         draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, cube->Color.a};
         m_state->draws.push_back(draw);
         m_state->models.push_back(model);
@@ -402,23 +443,31 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
     return true;
 }
 
-bool SdlLiveScene::draw(Workspace&, const Matrix4& viewProjection,
+bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
+                        const Vector3& cameraPosition, const Vector3& cameraForward, float effectTime,
                         SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
                         std::string& error) {
+    const auto lightProjection = shadowProjection(workspace, cameraPosition, cameraForward);
     for (std::size_t i = 0; i < m_state->draws.size(); ++i) {
         const Matrix4 mvp = viewProjection * m_state->models[i];
         std::copy_n(mvp.m, 16, m_state->draws[i].modelViewProjection.begin());
+        if (lightProjection) {
+            const Matrix4 shadowMvp = *lightProjection * m_state->models[i];
+            std::copy_n(shadowMvp.m, 16, m_state->draws[i].shadowModelViewProjection.begin());
+        }
     }
     for (const auto& [terrain, cache] : m_state->terrainCache) {
-        cache.meshes.appendDraws(viewProjection, m_state->draws);
+        cache.meshes.appendDraws(viewProjection, lightProjection, m_state->draws);
     }
-    const bool drawn = m_state->renderer.draw(commandBuffer, width, height, m_state->draws, error);
+    const bool drawn = m_state->renderer.draw(commandBuffer, width, height, m_state->draws,
+                                               error, lightProjection.has_value());
     m_state->draws.resize(m_state->models.size());
-    return drawn;
+    return drawn && m_state->postEffects.apply(workspace, commandBuffer, *m_state->renderer.colorTarget(),
+                                                width, height, effectTime, m_state->result, error);
 }
 
 SDL_GPUTexture* SdlLiveScene::colorTarget() const {
-    return m_state->renderer.colorTarget();
+    return m_state->result;
 }
 
 Matrix4 sdlSceneViewProjection(const User& user, float aspect) {
@@ -517,6 +566,8 @@ int runSdlScenePreview(const std::string& scenePath,
         maxBounds.z = std::max(maxBounds.z, world.Position.z + half.z);
         geometrySources.push_back({model, mesh});
         cubes.push_back({{}, {color.r, color.g, color.b, color.a}});
+        cubes.back().castShadow = cube->shouldCastShadow(mesh && mesh->isUsingFallback());
+        cubes.back().receiveShadow = !cube->Unlit;
     }
     if (skipped != 0) {
         std::cerr << "SDL scene preview: skipped " << skipped << " unsupported or transparent shapes\n";
@@ -559,6 +610,11 @@ int runSdlScenePreview(const std::string& scenePath,
     SdlBasicRenderer renderer;
     if (!renderer.initialize(*window.device(), error)) {
         std::cerr << "SDL scene preview: renderer initialization failed: " << error << '\n';
+        return 1;
+    }
+    SdlPostEffects postEffects;
+    if (!postEffects.initialize(*window.device(), error)) {
+        std::cerr << "SDL scene preview: post processing initialization failed: " << error << '\n';
         return 1;
     }
     std::vector<SdlBasicCube> drawItems;
@@ -677,6 +733,7 @@ int runSdlScenePreview(const std::string& scenePath,
     float orbitAngle = 0.0f;
     bool cameraDirty = true;
     Matrix4 viewProjection;
+    std::optional<Matrix4> lightProjection;
     const std::size_t staticDrawCount = drawItems.size();
     const Uint64 streamStart = SDL_GetTicks();
     std::cout << "SDL scene preview (" << window.driverName() << "): " << cubes.size()
@@ -765,28 +822,37 @@ int runSdlScenePreview(const std::string& scenePath,
             const Vector3 eye = center +
                 Vector3(1.35f * cosine + 1.65f * sine, 0.9f, 1.65f * cosine - 1.35f * sine) * distance;
             const Matrix4 view = Matrix4::LookAt(eye, center, Vector3(0, 1, 0));
+            // The orbit preview frames the loaded scene, so center its shadow coverage there.
+            lightProjection = shadowProjection(*workspaces.front(), center, Vector3{});
             const Matrix4 projection = sdlPerspective(60.0f, aspect, std::max(0.01f, distance * 0.01f),
                                                           distance * 8.0f);
             viewProjection = projection * view;
             for (std::size_t index = 0; index < drawItems.size(); ++index) {
                 const Matrix4 mvp = viewProjection * drawModels[index];
                 std::copy_n(mvp.m, 16, drawItems[index].modelViewProjection.begin());
+                if (lightProjection) {
+                    const Matrix4 shadowMvp = *lightProjection * drawModels[index];
+                    std::copy_n(shadowMvp.m, 16, drawItems[index].shadowModelViewProjection.begin());
+                }
             }
             previousWidth = width;
             previousHeight = height;
             cameraDirty = false;
         }
         for (const auto& terrain : terrains) {
-            terrain->appendDraws(viewProjection, drawItems);
+            terrain->appendDraws(viewProjection, lightProjection, drawItems);
         }
-        if (!renderer.draw(*frame.command, width, height, drawItems, error)) {
+        SDL_GPUTexture* resultTexture = nullptr;
+        const float effectTime = captureDir ? 0.0f : static_cast<float>(SDL_GetTicks() - streamStart) / 1000.0f;
+        if (!renderer.draw(*frame.command, width, height, drawItems, error, lightProjection.has_value()) ||
+            !postEffects.apply(*workspaces.front(), *frame.command, *renderer.colorTarget(),
+                               width, height, effectTime, resultTexture, error)) {
             std::cerr << "SDL scene preview: draw failed: " << error << '\n';
             if (!window.submit(frame, nullptr, &error)) {
                 std::cerr << "SDL scene preview: cannot retire failed frame: " << error << '\n';
             }
             return 1;
         }
-        SDL_GPUTexture* resultTexture = renderer.colorTarget();
         bool captureReady = true;
 #ifdef RECUBIN_SDL_GPU_STUDIO
         if (studioUi) {

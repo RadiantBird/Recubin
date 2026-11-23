@@ -854,6 +854,7 @@ int main(int argc, char* argv[]) {
 
     using FrameClock = std::chrono::steady_clock;
     auto lastFrame = FrameClock::now();
+    float effectTime = 0.0f;
     int networkExitCode = 0;
 
     // --self-check: 固定カメラ・固定dtで SELF_CHECK_FRAMES フレーム進め、最後のフレームを読み出す
@@ -875,6 +876,7 @@ int main(int argc, char* argv[]) {
         float deltaTime = std::chrono::duration<float>(now - lastFrame).count();
         lastFrame       = now;
         if (selfCheck) deltaTime = 1.0f / 60.0f;  // 実行時間に左右されない固定dt
+        effectTime += deltaTime;
         SystemState::get().deltaTime = deltaTime;
         bool focused = true;
         bool hovered = true;
@@ -1047,7 +1049,8 @@ int main(int argc, char* argv[]) {
             const unsigned width = selfCheck ? SELF_CHECK_WIDTH : frame.width;
             const unsigned height = selfCheck ? SELF_CHECK_HEIGHT : frame.height;
             const Matrix4 projection = sdlSceneViewProjection(*user, static_cast<float>(width) / height);
-            if (!sdlScene->draw(*workspace, projection, *frame.command, width, height, error)) {
+            if (!sdlScene->draw(*workspace, projection, user->cpos, user->forward, effectTime,
+                                *frame.command, width, height, error)) {
                 RCBN_ERROR("SDL GPU scene draw failed: " << error);
                 if (!sdlWindow->submit(frame, nullptr, &error)) RCBN_ERROR(error);
                 networkExitCode = -1;

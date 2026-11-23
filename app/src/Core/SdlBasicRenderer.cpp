@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <array>
 #include <basic_gpu_shaders.hpp>
+#include <shadow_gpu_shaders.hpp>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -11,6 +12,7 @@
 namespace {
 constexpr SDL_GPUTextureFormat COLOR_FORMAT = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
 constexpr SDL_GPUTextureFormat DEPTH_FORMAT = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+constexpr unsigned SHADOW_MAP_SIZE = 2048;
 std::string sdlError(std::string_view operation) {
     std::string message(operation);
     const char* detail = SDL_GetError();
@@ -59,20 +61,32 @@ void SdlBasicRenderer::releaseResources() {
     if (m_doubleSidedPipeline) {
         SDL_ReleaseGPUGraphicsPipeline(m_device, m_doubleSidedPipeline);
     }
+    if (m_shadowPipeline) {
+        SDL_ReleaseGPUGraphicsPipeline(m_device, m_shadowPipeline);
+    }
     if (m_vertexShader) {
         SDL_ReleaseGPUShader(m_device, m_vertexShader);
     }
     if (m_fragmentShader) {
         SDL_ReleaseGPUShader(m_device, m_fragmentShader);
     }
+    if (m_shadowFragmentShader) {
+        SDL_ReleaseGPUShader(m_device, m_shadowFragmentShader);
+    }
     if (m_sampler) {
         SDL_ReleaseGPUSampler(m_device, m_sampler);
+    }
+    if (m_shadowSampler) {
+        SDL_ReleaseGPUSampler(m_device, m_shadowSampler);
     }
     if (m_colorTarget) {
         SDL_ReleaseGPUTexture(m_device, m_colorTarget);
     }
     if (m_depthTarget) {
         SDL_ReleaseGPUTexture(m_device, m_depthTarget);
+    }
+    if (m_shadowTarget) {
+        SDL_ReleaseGPUTexture(m_device, m_shadowTarget);
     }
     for (const auto& [handle, texture] : m_textures) {
         if (texture) {
@@ -83,12 +97,16 @@ void SdlBasicRenderer::releaseResources() {
     m_nextTextureHandle = 1;
     m_pipeline = nullptr;
     m_doubleSidedPipeline = nullptr;
+    m_shadowPipeline = nullptr;
     m_vertexShader = nullptr;
     m_fragmentShader = nullptr;
+    m_shadowFragmentShader = nullptr;
     m_sampler = nullptr;
+    m_shadowSampler = nullptr;
     m_whiteTexture = nullptr;
     m_colorTarget = nullptr;
     m_depthTarget = nullptr;
+    m_shadowTarget = nullptr;
     m_width = 0;
     m_height = 0;
 }
@@ -147,7 +165,8 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     fi.entrypoint = "PSMain";
     fi.format = format;
     fi.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
-    fi.num_samplers = 1;
+    fi.num_samplers = 2;
+    fi.num_uniform_buffers = 1;
     m_fragmentShader = SDL_CreateGPUShader(&device, &fi);
     if (!m_fragmentShader) {
         error = sdlError("SDL_CreateGPUShader(PSMain)");
@@ -210,6 +229,37 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
         m_device = nullptr;
         return false;
     }
+    SDL_GPUGraphicsPipelineCreateInfo shadowPi = pi;
+    SDL_GPUShaderCreateInfo shadowShaderInfo{};
+    shadowShaderInfo.format = fi.format;
+    shadowShaderInfo.entrypoint = "PSMain";
+    shadowShaderInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
+    if (fi.format == SDL_GPU_SHADERFORMAT_DXIL) {
+        shadowShaderInfo.code = shadow_gpu_fragment_dxil;
+        shadowShaderInfo.code_size = sizeof(shadow_gpu_fragment_dxil);
+    } else {
+        shadowShaderInfo.code = shadow_gpu_fragment_spirv;
+        shadowShaderInfo.code_size = sizeof(shadow_gpu_fragment_spirv);
+    }
+    m_shadowFragmentShader = SDL_CreateGPUShader(&device, &shadowShaderInfo);
+    if (!m_shadowFragmentShader) {
+        error = sdlError("SDL_CreateGPUShader(shadow fragment)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
+    shadowPi.fragment_shader = m_shadowFragmentShader;
+    shadowPi.target_info.num_color_targets = 0;
+    shadowPi.target_info.color_target_descriptions = nullptr;
+    // Chunks include faces with the legacy terrain winding.
+    shadowPi.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+    m_shadowPipeline = SDL_CreateGPUGraphicsPipeline(&device, &shadowPi);
+    if (!m_shadowPipeline) {
+        error = sdlError("SDL_CreateGPUGraphicsPipeline(shadow)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
     SDL_GPUSamplerCreateInfo samplerInfo{};
     samplerInfo.min_filter = SDL_GPU_FILTER_LINEAR;
     samplerInfo.mag_filter = SDL_GPU_FILTER_LINEAR;
@@ -220,6 +270,20 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     m_sampler = SDL_CreateGPUSampler(&device, &samplerInfo);
     if (!m_sampler) {
         error = sdlError("SDL_CreateGPUSampler");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
+    SDL_GPUSamplerCreateInfo shadowSamplerInfo{};
+    shadowSamplerInfo.min_filter = SDL_GPU_FILTER_NEAREST;
+    shadowSamplerInfo.mag_filter = SDL_GPU_FILTER_NEAREST;
+    shadowSamplerInfo.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST;
+    shadowSamplerInfo.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+    shadowSamplerInfo.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+    shadowSamplerInfo.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+    m_shadowSampler = SDL_CreateGPUSampler(&device, &shadowSamplerInfo);
+    if (!m_shadowSampler) {
+        error = sdlError("SDL_CreateGPUSampler(shadow)");
         releaseResources();
         m_device = nullptr;
         return false;
@@ -570,8 +634,26 @@ bool SdlBasicRenderer::ensureTargets(unsigned width, unsigned height, std::strin
     return true;
 }
 
+bool SdlBasicRenderer::ensureShadowTarget(std::string& error) {
+    if (m_shadowTarget) return true;
+    SDL_GPUTextureCreateInfo info{};
+    info.type = SDL_GPU_TEXTURETYPE_2D;
+    info.format = DEPTH_FORMAT;
+    info.width = SHADOW_MAP_SIZE;
+    info.height = SHADOW_MAP_SIZE;
+    info.layer_count_or_depth = 1;
+    info.num_levels = 1;
+    info.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER;
+    m_shadowTarget = SDL_CreateGPUTexture(m_device, &info);
+    if (!m_shadowTarget) {
+        error = sdlError("SDL_CreateGPUTexture(shadow)");
+        return false;
+    }
+    return true;
+}
+
 bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
-                            std::span<const SdlBasicCube> cubes, std::string& error) {
+                            std::span<const SdlBasicCube> cubes, std::string& error, bool shadows) {
     error.clear();
     if (!m_device || !m_pipeline || !m_defaultGeometry.vertexBuffer) {
         error = "SdlBasicRenderer: renderer is not initialized";
@@ -580,6 +662,104 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
     if (!ensureTargets(width, height, error)) {
         return false;
     }
+    if (shadows && !ensureShadowTarget(error)) {
+        return false;
+    }
+    const auto drawPass = [&](SDL_GPURenderPass* pass, bool shadowPass) -> bool {
+        SDL_GPUViewport vp{};
+        vp.w = shadowPass ? static_cast<float>(SHADOW_MAP_SIZE) : static_cast<float>(width);
+        vp.h = shadowPass ? static_cast<float>(SHADOW_MAP_SIZE) : static_cast<float>(height);
+        vp.max_depth = 1.0f;
+        SDL_SetGPUViewport(pass, &vp);
+        SDL_BindGPUGraphicsPipeline(pass, shadowPass ? m_shadowPipeline : m_pipeline);
+        bool boundDoubleSided = false;
+        for (const auto& cube : cubes) {
+            if (shadowPass && !cube.castShadow) {
+                continue;
+            }
+            if (!shadowPass && cube.doubleSided != boundDoubleSided) {
+                SDL_BindGPUGraphicsPipeline(pass,
+                                            cube.doubleSided ? m_doubleSidedPipeline : m_pipeline);
+                boundDoubleSided = cube.doubleSided;
+            }
+            const Geometry* g = &m_defaultGeometry;
+            if (cube.geometry) {
+                const auto geometry = m_geometries.find(cube.geometry);
+                if (geometry == m_geometries.end()) {
+                    error = "SdlBasicRenderer: invalid geometry handle";
+                    return false;
+                }
+                g = &geometry->second;
+            }
+            SDL_GPUBufferBinding vb{g->vertexBuffer, 0};
+            SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);
+            SDL_GPUBufferBinding ib{g->indexBuffer, 0};
+            SDL_BindGPUIndexBuffer(pass, &ib, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+            const std::uint32_t firstIndex = cube.firstIndex;
+            if (firstIndex >= g->indexCount || firstIndex % 3 != 0) {
+                error = "SdlBasicRenderer: draw does not start at a triangle in the geometry";
+                return false;
+            }
+            const std::uint32_t remainingIndices = g->indexCount - firstIndex;
+            const std::uint32_t indexCount = cube.indexCount == 0 ? remainingIndices : cube.indexCount;
+            if (indexCount > remainingIndices || indexCount % 3 != 0) {
+                error = "SdlBasicRenderer: draw index range is outside geometry";
+                return false;
+            }
+            if (!shadowPass) {
+                SDL_GPUTexture* texture = m_whiteTexture;
+                if (cube.texture != 0) {
+                    const auto it = m_textures.find(cube.texture);
+                    if (it == m_textures.end()) {
+                        error = "SdlBasicRenderer: invalid texture handle";
+                        return false;
+                    }
+                    texture = it->second;
+                }
+                const std::array<SDL_GPUTextureSamplerBinding, 2> samplerBindings = {
+                    SDL_GPUTextureSamplerBinding{texture, m_sampler},
+                    SDL_GPUTextureSamplerBinding{shadows ? m_shadowTarget : m_whiteTexture, m_shadowSampler}};
+                SDL_BindGPUFragmentSamplers(pass, 0, samplerBindings.data(),
+                                            static_cast<Uint32>(samplerBindings.size()));
+            }
+            std::array<float, 40> u{};
+            std::copy(cube.modelViewProjection.begin(), cube.modelViewProjection.end(), u.begin());
+            std::copy(cube.shadowModelViewProjection.begin(), cube.shadowModelViewProjection.end(),
+                      u.begin() + 16);
+            std::copy(cube.color.begin(), cube.color.end(), u.begin() + 32);
+            u[36] = shadowPass ? 1.0f : 0.0f;
+            SDL_PushGPUVertexUniformData(&commandBuffer, 0, u.data(), sizeof(u));
+            const std::array<float, 4> shadowParams = {
+                (!shadowPass && shadows && cube.receiveShadow) ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f};
+            if (!shadowPass) {
+                SDL_PushGPUFragmentUniformData(&commandBuffer, 0, shadowParams.data(),
+                                               sizeof(shadowParams));
+            }
+            SDL_DrawGPUIndexedPrimitives(pass, indexCount, 1, firstIndex, 0, 0);
+        }
+        return true;
+    };
+
+    if (shadows) {
+        SDL_GPUDepthStencilTargetInfo shadowDepth{};
+        shadowDepth.texture = m_shadowTarget;
+        shadowDepth.load_op = SDL_GPU_LOADOP_CLEAR;
+        shadowDepth.store_op = SDL_GPU_STOREOP_STORE;
+        shadowDepth.stencil_load_op = SDL_GPU_LOADOP_DONT_CARE;
+        shadowDepth.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
+        shadowDepth.clear_depth = 1.0f;
+        SDL_GPURenderPass* shadowPass = SDL_BeginGPURenderPass(&commandBuffer, nullptr, 0, &shadowDepth);
+        if (!shadowPass) {
+            error = sdlError("SDL_BeginGPURenderPass(shadow)");
+            return false;
+        }
+        const bool shadowDrawn = drawPass(shadowPass, true);
+        SDL_EndGPURenderPass(shadowPass);
+        if (!shadowDrawn) {
+            return false;
+        }
+    }
+
     SDL_GPUColorTargetInfo ci{};
     ci.texture = m_colorTarget;
     ci.load_op = SDL_GPU_LOADOP_CLEAR;
@@ -597,65 +777,8 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
         error = sdlError("SDL_BeginGPURenderPass");
         return false;
     }
-    SDL_GPUViewport vp{};
-    vp.w = static_cast<float>(width);
-    vp.h = static_cast<float>(height);
-    vp.max_depth = 1.0f;
-    SDL_SetGPUViewport(pass, &vp);
-    SDL_BindGPUGraphicsPipeline(pass, m_pipeline);
-    bool boundDoubleSided = false;
-    for (const auto& cube : cubes) {
-        if (cube.doubleSided != boundDoubleSided) {
-            SDL_BindGPUGraphicsPipeline(pass,
-                                        cube.doubleSided ? m_doubleSidedPipeline : m_pipeline);
-            boundDoubleSided = cube.doubleSided;
-        }
-        const Geometry* g = &m_defaultGeometry;
-        if (cube.geometry) {
-            const auto geometry = m_geometries.find(cube.geometry);
-            if (geometry == m_geometries.end()) {
-                SDL_EndGPURenderPass(pass);
-                error = "SdlBasicRenderer: invalid geometry handle";
-                return false;
-            }
-            g = &geometry->second;
-        }
-        SDL_GPUBufferBinding vb{g->vertexBuffer, 0};
-        SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);
-        SDL_GPUBufferBinding ib{g->indexBuffer, 0};
-        SDL_BindGPUIndexBuffer(pass, &ib, SDL_GPU_INDEXELEMENTSIZE_32BIT);
-        const std::uint32_t firstIndex = cube.firstIndex;
-        if (firstIndex >= g->indexCount || firstIndex % 3 != 0) {
-            SDL_EndGPURenderPass(pass);
-            error = "SdlBasicRenderer: draw does not start at a triangle in the geometry";
-            return false;
-        }
-        const std::uint32_t remainingIndices = g->indexCount - firstIndex;
-        const std::uint32_t indexCount = cube.indexCount == 0 ? remainingIndices : cube.indexCount;
-        if (indexCount > remainingIndices || indexCount % 3 != 0) {
-            SDL_EndGPURenderPass(pass);
-            error = "SdlBasicRenderer: draw index range is outside geometry";
-            return false;
-        }
-        SDL_GPUTexture* texture = m_whiteTexture;
-        if (cube.texture != 0) {
-            const auto it = m_textures.find(cube.texture);
-            if (it == m_textures.end()) {
-                SDL_EndGPURenderPass(pass);
-                error = "SdlBasicRenderer: invalid texture handle";
-                return false;
-            }
-            texture = it->second;
-        }
-        SDL_GPUTextureSamplerBinding samplerBinding{texture, m_sampler};
-        SDL_BindGPUFragmentSamplers(pass, 0, &samplerBinding, 1);
-        std::array<float, 20> u{};
-        std::copy(cube.modelViewProjection.begin(), cube.modelViewProjection.end(), u.begin());
-        std::copy(cube.color.begin(), cube.color.end(), u.begin() + cube.modelViewProjection.size());
-        SDL_PushGPUVertexUniformData(&commandBuffer, 0, u.data(), sizeof(u));
-        SDL_DrawGPUIndexedPrimitives(pass, indexCount, 1, firstIndex, 0, 0);
-    }
+    const bool mainDrawn = drawPass(pass, false);
     SDL_EndGPURenderPass(pass);
-    return true;
+    return mainDrawn;
 }
 SDL_GPUTexture* SdlBasicRenderer::colorTarget() const { return m_colorTarget; }

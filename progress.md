@@ -869,3 +869,12 @@
 - Windows の xmake Release で Studio・Engine・Test・Runtime をビルドし、起動引数・ビューポート・Terrain の対象回帰が成功。Vulkan／D3D12 の通常ウィンドウ起動と Luau からの終了、Cube の移動・色変更、GLB 差し替え、Workspace 切り替え後の描画を確認。後者二つの検証シーンはバックエンド間で PNG が全画素一致。GPU 指定なしの OpenGL 自己検査、`auto` のドライバー選択、Windows での `metal` 明示指定エラーも確認。
 - 保存済み Terrain を通常ループから描画し、地上の Cube が表示されて地下の Cube が隠れることを確認。この PNG も Vulkan／D3D12 間で全画素一致した。手動での SDL 入力操作、DPI 変更、最小化復帰は未検証。
 - Studio の通常編集画面と SDK の `step()`／`run()` への接続、ゲーム GUI、シーンファイル全体の再読込は未完了。次は Studio の通常ビューポートと ImGui フレームから共通シーン描画を呼ぶ。
+
+## 2026-11-23 SDL GPU のカスタム GLSL と太陽の影
+
+- Engine の通常ループを `59bafd4` にコミット。SDK は仕様変更予定のため以降の移行対象から外す。
+- Engine の通常ループと Studio の SDL GPU プレビューにカスタム PostEffect を接続した。既存の GLSL 330 を実行時にコンパイルし、Vulkan は SPIR-V、D3D12 は同梱済みの SPIRV-Cross と DXC で DXIL を使う。連続するカスタム効果の前後で上下を変換し、`TexCoord` と `gl_FragCoord` の下原点を維持する。
+- Sun の方向と Lighting の `ShadowDistance` を使う単一の深度シャドウマップを追加。不透明 Cube、MeshCube、Terrain の描画データを使い、`CastShadow` と `Unlit` を適用する。初回の深度専用パスのクラッシュはフラグメントシェーダーを明示して解消し、D3D12 のカスタムパイプライン作成失敗は SPIRV-Cross が出す入力シグネチャに頂点出力の順序を揃えて解消した。
+- Windows の xmake Release で Engine・Studio と GLSL コンパイル検証をビルド。両 GPU で GLSL の上下、`ZIndex` 順、初回エラーの素通し、Engine の実行中の編集と直前の成功版維持を確認。隔離した Studio 配布物から Engine を起動してカスタム GLSL を描画した。
+- Engine と Studio プレビューの比較シーンで `CastShadow` の切り替えに応じて影が現れ、各アプリで Vulkan／D3D12 の PNG が全画素一致した。Studio プレビューの影の範囲はオービットカメラではなくシーン中央を基準にする。
+- Studio の通常編集画面は GLFW/OpenGL のまま。次はフレーム開始・提出を StudioApplication に分け、EditorManager の ImGui パネル描画と ViewportPanel の描画先を SDL3／SDL GPU に切り替える。旧カスケード影、組み込みポスト効果、ゲーム GUI、Metal は未移植。

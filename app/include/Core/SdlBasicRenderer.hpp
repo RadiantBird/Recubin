@@ -17,12 +17,15 @@ struct SdlBasicVertex {
 
 struct SdlBasicCube {
     std::array<float, 16> modelViewProjection{};
+    std::array<float, 16> shadowModelViewProjection{};
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
     std::uint32_t geometry = 0;
     std::uint32_t texture = 0;
     std::uint32_t firstIndex = 0;
     std::uint32_t indexCount = 0;
     bool doubleSided = false;
+    bool castShadow = true;
+    bool receiveShadow = true;
 };
 
 class SdlBasicRenderer final {
@@ -46,7 +49,8 @@ public:
               unsigned width,
               unsigned height,
               std::span<const SdlBasicCube> cubes,
-              std::string& error);
+              std::string& error,
+              bool shadows = false);
 
     [[nodiscard]] SDL_GPUTexture* colorTarget() const;
 
@@ -59,15 +63,20 @@ private:
 
     void releaseResources();
     bool ensureTargets(unsigned width, unsigned height, std::string& error);
+    bool ensureShadowTarget(std::string& error);
 
     SDL_GPUDevice* m_device = nullptr;
     SDL_GPUShader* m_vertexShader = nullptr;
     SDL_GPUShader* m_fragmentShader = nullptr;
+    SDL_GPUShader* m_shadowFragmentShader = nullptr;
     SDL_GPUSampler* m_sampler = nullptr;
+    SDL_GPUSampler* m_shadowSampler = nullptr;
     SDL_GPUGraphicsPipeline* m_pipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_doubleSidedPipeline = nullptr;
+    SDL_GPUGraphicsPipeline* m_shadowPipeline = nullptr;
     SDL_GPUTexture* m_colorTarget = nullptr;
     SDL_GPUTexture* m_depthTarget = nullptr;
+    SDL_GPUTexture* m_shadowTarget = nullptr;
     std::unordered_map<std::uint32_t, Geometry> m_geometries;
     std::uint32_t m_nextGeometryHandle = 1;
     std::unordered_map<std::uint32_t, SDL_GPUTexture*> m_textures;
