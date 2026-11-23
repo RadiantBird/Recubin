@@ -839,3 +839,10 @@
 - 共通レンダラーが UV と RGBA8 テクスチャを転送し、不透明な区間ごとにベースカラーを適用。GLB の UV と画像の行順を揃え、無地の区間には白テクスチャを使う。マスク・ブレンド区間の件数はログに出す。現段階のサンプリングは線形・リピート固定。
 - Windows/MSVC Release の xmake で Studio・Engine・Test・Runtime をビルド。明示した Vulkan と D3D12 で、赤が上・青が下の埋め込み画像と緑の別マテリアルを同じ GLB で描画。両バックエンドの PNG は Studio・Engine それぞれで全画素一致。Cube 単体のシーンも前回の PNG と一致。`--meshcube-fallback-regression`、`--viewport-helper-regression`、`git diff --check --ignore-submodules=all` は成功。従来の `cmd.exe /d /c py build.py build` は py が起動せず未検証。
 - 次は Terrain の CPU ジオメトリを共通経路へ渡し、モデル差し替えとシーン再読み込み時に新しい GPU リソースへ切り替える。透過、通常起動と SDK、分離ウィンドウ、ゲーム GUI、カスタム GLSL の描画も未完了。
+
+## 2026-11-23 SDL GPU の Terrain 移植準備
+
+- GLB の複数マテリアルと埋め込み画像の描画を `25e6c9c` にコミット。
+- Terrain の描画頂点・インデックスと物理用データの生成を `buildTerrainChunkGeometry` に分離した。既存の `buildChunkMesh` はこの結果から引き続き OpenGL バッファと物理キャッシュを更新する。SDL GPU の共通頂点に正規化 RGBA8 を追加し、シェーダーで描画色と乗算する。
+- Windows/MSVC Release の xmake で Studio・Engine・Test・Runtime をビルド。Vulkan と D3D12 の両方で既存の Cube と複数マテリアル GLB の PNG が変更前と一致。`--terrain-instance-regression` で OpenGL コンテキストを作らずに空チャンク、共有面の除去、頂点色、ランプと衝突形状を確認。従来の `build.py` は `py` が起動せず未検証。
+- 次は TerrainStreamer がロード・再生成したチャンクを共通レンダラーへ渡し、差し替えとアンロードで古い GPU バッファを解放する。現時点では SDL GPU プレビューへの地形表示、地形編集後の更新、モデル差し替え・シーン再読み込みは未接続。

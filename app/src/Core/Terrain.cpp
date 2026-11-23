@@ -352,16 +352,17 @@ static void pushVertex(std::vector<TerrainVertex>& verts,
 } // namespace
 
 // ================================================================== //
-//  buildChunkMesh
-//  描画用 VAO/VBO/EBO を生成し、同時に physVerts / physIndices を埋める。
+//  buildTerrainChunkGeometry
+//  描画用と物理用の CPU メッシュを生成する。
 // ================================================================== //
-void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
+TerrainChunkGeometry buildTerrainChunkGeometry(const Chunk& chunk, const TerrainStreamer* streamer)
 {
-    std::vector<TerrainVertex>    verts;
-    std::vector<uint32_t>         indices;
-    std::vector<Vector3>          physVerts;
-    std::vector<uint32_t>         physIndices;
-    std::vector<ConvexBlock>      physConvexBlocks;
+    TerrainChunkGeometry geometry;
+    auto& verts = geometry.vertices;
+    auto& indices = geometry.indices;
+    auto& physVerts = geometry.physVerts;
+    auto& physIndices = geometry.physIndices;
+    auto& physConvexBlocks = geometry.physConvexBlocks;
 
     verts.reserve(4096);
     indices.reserve(8192);
@@ -510,7 +511,16 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
         }
     }
 
-    // ---- GPU アップロード ----
+    return geometry;
+}
+
+// ================================================================== //
+//  buildChunkMesh
+//  描画用 VAO/VBO/EBO を生成し、同時に physVerts / physIndices を埋める。
+// ================================================================== //
+void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
+{
+    TerrainChunkGeometry geometry = buildTerrainChunkGeometry(chunk, streamer);
     TerrainMesh& m = chunk.mesh;
     if (m.VAO == 0) glGenVertexArrays(1, &m.VAO);
     if (m.VBO == 0) glGenBuffers(1, &m.VBO);
@@ -520,13 +530,13 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
 
     glBindBuffer(GL_ARRAY_BUFFER, m.VBO);
     glBufferData(GL_ARRAY_BUFFER,
-                 (GLsizeiptr)(verts.size() * sizeof(TerrainVertex)),
-                 verts.data(), GL_DYNAMIC_DRAW);
+                 (GLsizeiptr)(geometry.vertices.size() * sizeof(TerrainVertex)),
+                 geometry.vertices.data(), GL_DYNAMIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 (GLsizeiptr)(indices.size() * sizeof(uint32_t)),
-                 indices.data(), GL_DYNAMIC_DRAW);
+                 (GLsizeiptr)(geometry.indices.size() * sizeof(uint32_t)),
+                 geometry.indices.data(), GL_DYNAMIC_DRAW);
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(TerrainVertex),
@@ -543,13 +553,13 @@ void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer)
 
     glBindVertexArray(0);
 
-    m.indexCount = (uint32_t)indices.size();
+    m.indexCount = (uint32_t)geometry.indices.size();
     m.dirty      = false;
 
     // ---- CPU 物理キャッシュを保存 ----
-    chunk.physVerts        = std::move(physVerts);
-    chunk.physIndices      = std::move(physIndices);
-    chunk.physConvexBlocks = std::move(physConvexBlocks);
+    chunk.physVerts        = std::move(geometry.physVerts);
+    chunk.physIndices      = std::move(geometry.physIndices);
+    chunk.physConvexBlocks = std::move(geometry.physConvexBlocks);
 }
 
 // ================================================================== //

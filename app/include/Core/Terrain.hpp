@@ -70,6 +70,14 @@ struct ConvexBlock {
     Vector3 localCenter;
 };
 
+struct TerrainChunkGeometry {
+    std::vector<TerrainVertex> vertices;
+    std::vector<uint32_t> indices;
+    std::vector<Vector3> physVerts;
+    std::vector<uint32_t> physIndices;
+    std::vector<ConvexBlock> physConvexBlocks;
+};
+
 struct Chunk {
     Block   blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE]; // [x][y][z]  約20KB
     int32_t cx = 0, cy = 0, cz = 0;
@@ -99,6 +107,9 @@ class Workspace;
 // 同時に physVerts / physIndices を埋める。
 // OpenGL コンテキストが有効なスレッドから呼ぶこと。
 void buildChunkMesh(Chunk& chunk, const TerrainStreamer* streamer = nullptr);
+
+TerrainChunkGeometry buildTerrainChunkGeometry(const Chunk& chunk,
+                                               const TerrainStreamer* streamer = nullptr);
 
 // チャンクの物理形状を（再）生成する。
 // buildChunkMesh() の後に呼ぶこと（physVerts/physIndices を参照するため）。

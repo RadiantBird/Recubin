@@ -11,6 +11,7 @@
 struct SdlBasicVertex {
     std::array<float, 3> position{};
     std::array<float, 2> uv{};
+    std::array<std::uint8_t, 4> color{255, 255, 255, 255};
 };
 
 struct SdlBasicCube {

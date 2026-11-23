@@ -1,11 +1,12 @@
 struct VSInput {
     float3 position : TEXCOORD0;
     float2 uv : TEXCOORD1;
+    float4 color : TEXCOORD2;
 };
 
 struct VSOutput {
     float4 position : SV_Position;
-    nointerpolation float4 color : TEXCOORD0;
+    float4 color : TEXCOORD0;
     float2 uv : TEXCOORD1;
 };
 
@@ -17,7 +18,7 @@ cbuffer BasicUniforms : register(b0, space1) {
 VSOutput VSMain(VSInput input) {
     VSOutput output;
     output.position = mul(modelViewProjection, float4(input.position, 1.0));
-    output.color = color;
+    output.color = color * input.color;
     output.uv = input.uv;
     return output;
 }

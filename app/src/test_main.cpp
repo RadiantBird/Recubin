@@ -7586,6 +7586,34 @@ int runTerrainInstanceRegression() {
         if (!condition) ++failures;
     };
 
+    Chunk chunk;
+    chunk.cx = 1;
+    const auto emptyGeometry = buildTerrainChunkGeometry(chunk);
+    expect(emptyGeometry.vertices.empty() && emptyGeometry.indices.empty(),
+           "empty chunk produces no CPU render geometry");
+    chunk.blocks[0][1][0] = {BlockShape::Cube, BlockMaterial::Grass, 12, 34, 56};
+    chunk.blocks[1][1][0] = {BlockShape::Cube, BlockMaterial::Grass, 12, 34, 56};
+    const auto cubes = buildTerrainChunkGeometry(chunk);
+    expect(cubes.vertices.size() == 40 && cubes.indices.size() == 60,
+           "CPU terrain geometry removes the shared faces of adjacent cubes");
+    expect(std::ranges::all_of(cubes.indices, [&](uint32_t index) {
+               return index < cubes.vertices.size();
+           }), "CPU terrain indices reference valid vertices");
+    const float originX = chunk.worldOriginX() * TerrainStreamer::BLOCK_STUD_SIZE;
+    const float halfBlock = TerrainStreamer::BLOCK_STUD_SIZE * 0.5f;
+    expect(!cubes.vertices.empty() && std::ranges::all_of(cubes.vertices, [&](const TerrainVertex& vertex) {
+               return vertex.r == 12 && vertex.g == 34 && vertex.b == 56 && vertex.a == 255 &&
+                      vertex.x >= originX - halfBlock && vertex.x <= originX + 3 * halfBlock;
+           }), "CPU terrain vertices retain world position and block color");
+    expect(cubes.physVerts.size() == 40 && cubes.physIndices.size() == 60 &&
+               std::ranges::all_of(cubes.physVerts, [&](const Vector3& vertex) {
+                   return vertex.x >= -halfBlock && vertex.x <= 3 * halfBlock;
+               }), "terrain collision vertices remain relative to the chunk");
+    chunk.blocks[4][1][0] = {BlockShape::Ramp_N, BlockMaterial::Stone, 78, 90, 123};
+    const auto withRamp = buildTerrainChunkGeometry(chunk);
+    expect(withRamp.indices.size() > cubes.indices.size() && withRamp.physConvexBlocks.size() == 1,
+           "ramp is rendered and keeps its convex collision shape");
+
     auto workspaceA = std::make_shared<Workspace>();
     auto workspaceB = std::make_shared<Workspace>();
     workspaceA->Name = "WorkspaceA";

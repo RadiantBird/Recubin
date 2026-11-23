@@ -163,6 +163,11 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     uvAttribute.buffer_slot = 0;
     uvAttribute.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2;
     uvAttribute.offset = offsetof(SdlBasicVertex, uv);
+    SDL_GPUVertexAttribute colorAttribute{};
+    colorAttribute.location = 2;
+    colorAttribute.buffer_slot = 0;
+    colorAttribute.format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM;
+    colorAttribute.offset = offsetof(SdlBasicVertex, color);
     SDL_GPUColorTargetDescription ct{};
     ct.format = COLOR_FORMAT;
     SDL_GPUGraphicsPipelineCreateInfo pi{};
@@ -171,7 +176,7 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     pi.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
     pi.vertex_input_state.vertex_buffer_descriptions = &vb;
     pi.vertex_input_state.num_vertex_buffers = 1;
-    const std::array<SDL_GPUVertexAttribute, 2> attributes = {va, uvAttribute};
+    const std::array<SDL_GPUVertexAttribute, 3> attributes = {va, uvAttribute, colorAttribute};
     pi.vertex_input_state.vertex_attributes = attributes.data();
     pi.vertex_input_state.num_vertex_attributes = static_cast<Uint32>(attributes.size());
     pi.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_BACK;
