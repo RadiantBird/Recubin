@@ -277,7 +277,8 @@ std::variant<int, LaunchOptions> prepareLaunch(int argc, char* argv[])
 
     const bool hasAutomationScene = runtimeArgs.uiAutomationScene.has_value() ||
                                     runtimeArgs.uiAutomationSettings.has_value();
-    if (hasAutomationScene && !GuiAutomation::enabled()) {
+    const bool hasAutomationFixture = hasAutomationScene || runtimeArgs.uiAutomationLayout.has_value();
+    if (hasAutomationFixture && !GuiAutomation::enabled()) {
         RCBN_ERROR("UI automation fixture arguments require --ui-automation");
         return -1;
     }
@@ -291,6 +292,18 @@ std::variant<int, LaunchOptions> prepareLaunch(int argc, char* argv[])
         if (!std::filesystem::is_regular_file(*runtimeArgs.uiAutomationScene, error)) {
             RCBN_ERROR("Invalid --ui-automation-scene path: "
                        << *runtimeArgs.uiAutomationScene);
+            return -1;
+        }
+    }
+    if (runtimeArgs.uiAutomationLayout) {
+        if (!runtimeArgs.gpuDriver) {
+            RCBN_ERROR("--ui-automation-layout requires an SDL GPU Studio driver");
+            return -1;
+        }
+        std::error_code error;
+        if (!std::filesystem::is_regular_file(*runtimeArgs.uiAutomationLayout, error)) {
+            RCBN_ERROR("Invalid --ui-automation-layout path: "
+                       << *runtimeArgs.uiAutomationLayout);
             return -1;
         }
     }
@@ -310,6 +323,7 @@ std::variant<int, LaunchOptions> prepareLaunch(int argc, char* argv[])
 
     LaunchOptions options;
     options.initialScenePath = runtimeArgs.uiAutomationScene.value_or("");
+    options.automationLayoutPath = runtimeArgs.uiAutomationLayout;
     options.gpuDriver = runtimeArgs.gpuDriver;
     options.settingsPath = hasAutomationScene
         ? AssetPath::fromStored(*runtimeArgs.uiAutomationSettings)

@@ -19,6 +19,7 @@ struct LaunchOptions {
     std::filesystem::path autosaveRoot;
     std::filesystem::path settingsPath;
     std::string initialScenePath;
+    std::optional<std::filesystem::path> automationLayoutPath;
     // SDL GPU is selected only when the SDL Studio build is enabled.  An
     // absent value preserves the legacy OpenGL Studio launch path.
     std::optional<SdlGpuDriver> gpuDriver;

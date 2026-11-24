@@ -11320,6 +11320,7 @@ static int runGuiAutomationRegression() {
     expect(validateGuiAutomationCommand("click Picker") &&
                validateGuiAutomationCommand("right_click Picker") &&
                validateGuiAutomationCommand("capture output.png") &&
+               validateGuiAutomationCommand("capture_window \"Scene Viewport\" \"output path.png\"") &&
                validateGuiAutomationCommand("key ctrl+shift+a") &&
                validateGuiAutomationCommand("state") &&
                validateGuiAutomationCommand("profile") &&
@@ -11329,6 +11330,7 @@ static int runGuiAutomationRegression() {
                validateGuiAutomationCommand("quit"),
            "valid GUI automation commands are accepted");
     expect(!validateGuiAutomationCommand("click Picker extra") &&
+               !validateGuiAutomationCommand("capture_window Viewport") &&
                !validateGuiAutomationCommand("key Ctrl+") &&
                !validateGuiAutomationCommand("quit extra") &&
                !validateGuiAutomationCommand("state extra") &&

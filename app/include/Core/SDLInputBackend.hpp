@@ -17,6 +17,10 @@ public:
     SDLInputBackend(const SDLInputBackend&) = delete;
     SDLInputBackend& operator=(const SDLInputBackend&) = delete;
 
+    // Rebind this provider to a newly-created SDL window without retaining
+    // the old window pointer or its relative-mouse state.
+    bool setWindow(SDL_Window* window);
+
     bool isKeyDown(KeyCode key) const;
     bool isMouseButtonDown(MouseButton button) const;
     void getCursorPos(double& x, double& y) const;
@@ -33,13 +37,14 @@ private:
     static SDL_Scancode toScancode(KeyCode key);
     static Uint8 toMouseButton(MouseButton button);
     void resetMotion();
+    void applyMouseCapture(bool focused);
 
-    SDL_Window* m_window = nullptr;
     SDL_WindowID m_windowId = 0;
     double m_pendingScrollY = 0.0;
     double m_pendingRelativeX = 0.0;
     double m_pendingRelativeY = 0.0;
     bool m_captured = false;
+    bool m_captureRequested = false;
     SDL_Cursor* m_activeCursor = nullptr;
     std::array<SDL_Cursor*, 10> m_cursorCache{};
     std::array<std::uint64_t, 10> m_cursorRevisions{};

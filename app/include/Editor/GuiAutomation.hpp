@@ -7,6 +7,7 @@ struct GLFWwindow;
 namespace GuiAutomation {
 struct RenderRequest {
     std::optional<std::string> capturePath;
+    std::optional<std::string> captureWindowTitle;
     bool quit = false;
 };
 // Syntax-only parser hook used by regression tests; does not affect the live queue.

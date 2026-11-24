@@ -5,30 +5,55 @@
 
 std::unordered_map<SDL_WindowID, SDLInputBackend*> SDLInputBackend::s_instances;
 
-SDLInputBackend::SDLInputBackend(SDL_Window* window) : m_window(window) {
-    if (!m_window) {
+SDLInputBackend::SDLInputBackend(SDL_Window* window) {
+    if (!window) {
         RCBN_ERROR("SDLInputBackend: cannot attach to a null SDL_Window");
         return;
     }
-    m_windowId = SDL_GetWindowID(m_window);
-    if (m_windowId == 0) {
-        RCBN_ERROR("SDLInputBackend: SDL_GetWindowID failed: " << SDL_GetError());
-        return;
-    }
-    if (!s_instances.emplace(m_windowId, this).second) {
-        RCBN_ERROR("SDLInputBackend: duplicate window id " << m_windowId);
-        m_windowId = 0;
-    }
+    setWindow(window);
 }
 
 SDLInputBackend::~SDLInputBackend() {
-    if (m_windowId != 0) s_instances.erase(m_windowId);
-    if (m_captured && m_window) SDL_SetWindowRelativeMouseMode(m_window, false);
+    setWindow(nullptr);
     for (SDL_Cursor*& cursor : m_cursorCache) {
         if (cursor) SDL_DestroyCursor(cursor);
         cursor = nullptr;
     }
     m_activeCursor = nullptr;
+}
+
+bool SDLInputBackend::setWindow(SDL_Window* window) {
+    const SDL_WindowID nextId = window ? SDL_GetWindowID(window) : 0;
+    if (window && nextId == 0) {
+        RCBN_ERROR("SDLInputBackend: SDL_GetWindowID failed: " << SDL_GetError());
+        return false;
+    }
+    if (nextId != 0) {
+        const auto existing = s_instances.find(nextId);
+        if (existing != s_instances.end() && existing->second != this) {
+            RCBN_ERROR("SDLInputBackend: duplicate window id " << nextId);
+            return false;
+        }
+    }
+    if (nextId == m_windowId) return true;
+
+    if (m_windowId != 0) {
+        const auto registered = s_instances.find(m_windowId);
+        if (registered != s_instances.end() && registered->second == this) {
+            s_instances.erase(registered);
+        }
+        applyMouseCapture(false);
+    }
+    m_windowId = 0;
+    m_captured = false;
+    resetMotion();
+    m_pendingScrollY = 0.0;
+
+    if (!window) return true;
+    m_windowId = nextId;
+    s_instances.emplace(m_windowId, this);
+    applyMouseCapture(SDL_GetKeyboardFocus() == window);
+    return true;
 }
 
 SDL_Scancode SDLInputBackend::toScancode(KeyCode key) {
@@ -72,7 +97,8 @@ Uint8 SDLInputBackend::toMouseButton(MouseButton button) {
 }
 
 bool SDLInputBackend::isKeyDown(KeyCode key) const {
-    if (m_windowId == 0 || SDL_GetKeyboardFocus() != m_window) {
+    auto* focus = SDL_GetKeyboardFocus();
+    if (!focus || SDL_GetWindowID(focus) != m_windowId) {
         return false;
     }
     int count = 0;
@@ -82,7 +108,8 @@ bool SDLInputBackend::isKeyDown(KeyCode key) const {
 }
 
 bool SDLInputBackend::isMouseButtonDown(MouseButton button) const {
-    if (m_windowId == 0 || SDL_GetMouseFocus() != m_window) {
+    auto* focus = SDL_GetMouseFocus();
+    if (!focus || SDL_GetWindowID(focus) != m_windowId) {
         return false;
     }
     const SDL_MouseButtonFlags state = SDL_GetMouseState(nullptr, nullptr);
@@ -97,13 +124,30 @@ void SDLInputBackend::getCursorPos(double& x, double& y) const {
 }
 
 void SDLInputBackend::setCursorPos(double x, double y) {
-    if (!m_window) return;
-    SDL_WarpMouseInWindow(m_window, static_cast<float>(x), static_cast<float>(y));
+    if (m_windowId == 0) return;
+    SDL_Window* window = SDL_GetWindowFromID(m_windowId);
+    if (!window) return;
+    SDL_WarpMouseInWindow(window, static_cast<float>(x), static_cast<float>(y));
 }
 
 void SDLInputBackend::setMouseCaptured(bool captured) {
-    if (!m_window) return;
-    if (!SDL_SetWindowRelativeMouseMode(m_window, captured)) {
+    m_captureRequested = captured;
+    auto* focus = SDL_GetKeyboardFocus();
+    applyMouseCapture(focus && SDL_GetWindowID(focus) == m_windowId);
+}
+
+void SDLInputBackend::applyMouseCapture(bool focused) {
+    const bool captured = m_captureRequested && focused;
+    if (captured == m_captured) {
+        return;
+    }
+    SDL_Window* window = SDL_GetWindowFromID(m_windowId);
+    if (!window) {
+        m_captured = false;
+        resetMotion();
+        return;
+    }
+    if (!SDL_SetWindowRelativeMouseMode(window, captured)) {
         RCBN_ERROR("SDLInputBackend: relative mouse mode failed for window " << m_windowId
                    << ": " << SDL_GetError());
         return;
@@ -113,7 +157,7 @@ void SDLInputBackend::setMouseCaptured(bool captured) {
 }
 
 bool SDLInputBackend::setCustomCursor(const CursorImageData& imageData) {
-    if (!m_window || !imageData.isValid()) return false;
+    if (!m_windowId || !SDL_GetWindowFromID(m_windowId) || !imageData.isValid()) return false;
     if (m_failedCursorRevisions.contains(imageData.revision)) return false;
     for (std::size_t i = 0; i < m_cursorCache.size(); ++i) {
         if (m_cursorCache[i] && m_cursorRevisions[i] == imageData.revision) {
@@ -190,7 +234,10 @@ bool SDLInputBackend::processEvent(const SDL_Event& event) {
         case SDL_EVENT_WINDOW_FOCUS_LOST:
             backend.resetMotion();
             backend.m_pendingScrollY = 0.0;
-            if (backend.m_captured) backend.setMouseCaptured(false);
+            backend.applyMouseCapture(false);
+            return true;
+        case SDL_EVENT_WINDOW_FOCUS_GAINED:
+            backend.applyMouseCapture(true);
             return true;
         default:
             return false;

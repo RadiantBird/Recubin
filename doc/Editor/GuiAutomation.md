@@ -20,6 +20,12 @@ Editorだけが標準入力を行単位で読み取り、結果を `[UIAUTO] OK 
 | `wheel` | `<x> <y>` |
 | `focus_window` | `<ImGui window name>` |
 | `capture` | `<output path>` |
+| `capture_window` | `<SDL ウィンドウのタイトル> <output path>` |
+
+SDL GPU Studio の `capture` は本体ウィンドウの合成テクスチャを保存します。
+`capture_window "Viewport" "viewport.png"` は `Viewport` というタイトルの分離ウィンドウの合成テクスチャを保存します。
+分離済みのレイアウトを検証する場合は、`--ui-automation` と `--gpu-driver` に加えて
+`--ui-automation-layout <imgui.ini>` でレイアウトを読み込めます。指定した INI には書き戻しません。
 
 ## 状態の取得（`state`）
 

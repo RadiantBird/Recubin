@@ -191,7 +191,10 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
     sceneRequest.workspace          = workspace;
     sceneRequest.primarySelection   = selectedInstance ? *selectedInstance : nullptr;
     sceneRequest.selectionTargets   = selectedInstances;
-    const ImVec2 framebufferScale = ImGui::GetIO().DisplayFramebufferScale;
+    const ImGuiViewport* currentViewport = ImGui::GetWindowViewport();
+    m_platformHandle = currentViewport ? currentViewport->PlatformHandle : nullptr;
+    const ImVec2 framebufferScale = currentViewport
+        ? currentViewport->FramebufferScale : ImVec2(1.0f, 1.0f);
     const float dpiScaleX = m_sceneRenderer && framebufferScale.x > 0.0f
         ? framebufferScale.x : 1.0f;
     const float dpiScaleY = m_sceneRenderer && framebufferScale.y > 0.0f

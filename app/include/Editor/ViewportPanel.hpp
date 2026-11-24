@@ -85,6 +85,7 @@ public:
     WeldModeState*      m_weldMode     = nullptr;
     GuiEditState*       m_guiEdit      = nullptr;
     ViewportSceneRenderer* m_sceneRenderer = nullptr;
+    void* m_platformHandle = nullptr;
     double m_lastTerrainBrushTime = -1.0; // ブラシの連続適用を間引くための前回適用時刻
     std::vector<TerrainStreamer::VoxelDiffEntry> m_terrainBrushDiff;   // 現在のストロークで変更されたブロックの差分
     std::shared_ptr<Terrain> m_terrainBrushStrokeTarget;               // ストローク中のTerrainインスタンス（Undo用に保持）
@@ -185,6 +186,7 @@ public:
 
     void setSceneRenderer(ViewportSceneRenderer* renderer) { m_sceneRenderer = renderer; }
     ViewportSceneRenderer* sceneRenderer() const { return m_sceneRenderer; }
+    void* platformHandle() const { return m_platformHandle; }
 
     void initFBO(int w, int h);
     void resizeFBO(int w, int h);

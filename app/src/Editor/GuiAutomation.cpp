@@ -177,6 +177,11 @@ bool parseCommand(std::string_view line, Action& parsedAction,
     } else if (t[0] == "wheel" && t.size() == 3) { action.kind = Kind::Wheel; ok = floatValue(t[1], action.x) && floatValue(t[2], action.y); }
     else if (t[0] == "focus_window" && t.size() == 2) { action.kind = Kind::Focus; action.text = t[1]; }
     else if (t[0] == "capture" && t.size() == 2) { action.kind = Kind::Capture; action.path = t[1]; }
+    else if (t[0] == "capture_window" && t.size() == 3) {
+        action.kind = Kind::Capture;
+        action.text = t[1];
+        action.path = t[2];
+    }
     else ok = false;
     if (!ok) return false;
     parsedAction = std::move(action);
@@ -194,7 +199,7 @@ bool enqueueCommand(std::string_view line) {
         return false;
     }
     if (immediateCommand == "help") {
-        report(true, "help targets state profile script_profile wait_frames wait move click right_click type key mouse mouse_down mouse_up wheel focus_window capture quit");
+        report(true, "help targets state profile script_profile wait_frames wait move click right_click type key mouse mouse_down mouse_up wheel focus_window capture capture_window quit");
         return true;
     }
     if (immediateCommand == "targets") {
@@ -351,6 +356,7 @@ RenderRequest finishRender() {
     published = current;
     if (activeValid && active.kind == Kind::Capture) {
         request.capturePath = active.path;
+        if (!active.text.empty()) request.captureWindowTitle = active.text;
         activeValid = false;
     }
     request.quit = quitFlag.exchange(false);
@@ -368,6 +374,12 @@ void completeCapture(std::string_view path, bool success, std::string_view error
 void afterRender(GLFWwindow* window) {
     const auto request = finishRender();
     if (request.capturePath) {
+        if (request.captureWindowTitle) {
+            completeCapture(*request.capturePath, false,
+                            "capture_window is unsupported by the legacy GLFW backend");
+            if (request.quit && window) glfwSetWindowShouldClose(window, GLFW_TRUE);
+            return;
+        }
         if (window) {
             int width = 0;
             int height = 0;

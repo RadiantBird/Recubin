@@ -544,6 +544,9 @@ private:
         bool navMeshBusy = false;
         bool runtimeFrameOk = true;
         bool playTransitionAccepted = true;
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        SDL_WindowID sdlFocusedWindowId = 0;
+#endif
     };
 
     bool initialize()
@@ -597,7 +600,9 @@ private:
             return false;
         }
         RCBN_LOG("Studio SDL GPU driver: " << m_sdlWindow.driverName());
-        m_user = std::make_shared<User>(std::make_unique<SDLInputBackend>(m_sdlWindow.window()));
+        auto input = std::make_unique<SDLInputBackend>(m_sdlWindow.window());
+        m_sdlInputBackend = input.get();
+        m_user = std::make_shared<User>(std::move(input));
         m_user->setControlMode(User::ControlMode::Free);
         m_audio = std::make_unique<AudioService>();
         m_system = std::make_shared<System>();
@@ -614,9 +619,18 @@ private:
         ImGui::SetCurrentContext(m_sdlImGuiContext);
         ImGuiIO& io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+        if (!GuiAutomation::hiddenWindow()) {
+            io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+            io.ConfigDpiScaleViewports = true;
+            io.ConfigViewportsNoDecoration = false;
+        }
         io.ConfigDpiScaleFonts = true;
         if (GuiAutomation::enabled()) {
             io.IniFilename = nullptr;
+            if (m_options.automationLayoutPath) {
+                const auto path = AssetPath::toStored(*m_options.automationLayoutPath);
+                ImGui::LoadIniSettingsFromDisk(path.c_str());
+            }
         }
         ImGui::StyleColorsDark();
         initializeSdlFonts(io);
@@ -625,6 +639,7 @@ private:
             RCBN_ERROR("SDL Studio ImGui initialization failed: " << error);
             return false;
         }
+        m_sdlMainWindowId = SDL_GetWindowID(m_sdlWindow.window());
         m_sdlViewportRenderer = std::make_unique<SdlStudioViewportRenderer>(*m_sdlWindow.device());
         Physics::s_touchCallback = [this](BaseCube* a, BaseCube* b) { m_luau->onTouched(a, b); };
         Physics::s_touchEndCallback = [this](BaseCube* a, BaseCube* b) { m_luau->onTouchEnded(a, b); };
@@ -909,11 +924,29 @@ private:
             SDL_Event event;
             while (SDL_PollEvent(&event)) {
                 m_sdlImGui.processEvent(event);
-                SDLInputBackend::processEvent(event);
                 if (event.type == SDL_EVENT_QUIT ||
-                    event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+                    (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
+                     event.window.windowID == m_sdlMainWindowId)) {
                     m_sdlShouldClose = true;
                 }
+                if (event.type == SDL_EVENT_WINDOW_FOCUS_GAINED) {
+                    if (SDL_Window* focused = SDL_GetWindowFromID(event.window.windowID);
+                        focused && m_sdlImGui.ownsWindow(focused)) {
+                        if (!m_sdlInputBackend->setWindow(focused)) {
+                            m_sdlRenderFailed = true;
+                            return false;
+                        }
+                    }
+                }
+                SDLInputBackend::processEvent(event);
+            }
+            auto* focused = SDL_GetKeyboardFocus();
+            if (!m_sdlImGui.ownsWindow(focused)) {
+                focused = nullptr;
+            }
+            if (!m_sdlInputBackend->setWindow(focused)) {
+                m_sdlRenderFailed = true;
+                return false;
             }
             if (m_editor->consumeConfirmedClose()) {
                 return false;
@@ -921,9 +954,8 @@ private:
             if (m_sdlShouldClose && checkExit()) {
                 return false;
             }
-            frame.windowInactive = m_sdlWindow.window() == nullptr ||
-                !(SDL_GetWindowFlags(m_sdlWindow.window()) & SDL_WINDOW_INPUT_FOCUS) ||
-                (SDL_GetWindowFlags(m_sdlWindow.window()) & SDL_WINDOW_MINIMIZED);
+            frame.windowInactive = !focused || (SDL_GetWindowFlags(focused) & SDL_WINDOW_MINIMIZED);
+            frame.sdlFocusedWindowId = focused ? SDL_GetWindowID(focused) : 0;
             frame.now = currentTime();
             frame.deltaTime = static_cast<float>(std::clamp(frame.now - m_lastFrame, 0.0, 0.25));
             m_lastFrame = frame.now;
@@ -1048,7 +1080,13 @@ private:
         auto& state = SystemState::get();
         const auto* viewport = GetFocusedViewport();
         state.viewportFocused = !frame.windowInactive && viewport &&
-            viewport == m_editor->viewportPanel.get();
+            viewport == m_editor->viewportPanel.get() && viewport->isOpen;
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        if (m_options.gpuDriver && state.viewportFocused) {
+            const auto focusedHandle = reinterpret_cast<void*>(static_cast<std::uintptr_t>(frame.sdlFocusedWindowId));
+            state.viewportFocused = viewport->platformHandle() == focusedHandle;
+        }
+#endif
         state.viewportHovered = m_editor->viewportPanel && m_editor->viewportPanel->isHoveringViewport;
         if (!frame.navMeshBusy) {
             FrameProfiler::Scope processInput("main.processInput");
@@ -1612,10 +1650,6 @@ private:
         if (!frame) {
             return false;
         }
-        if (!frame.swapchain && !hidden) {
-            SDL_Delay(16);
-            return m_sdlWindow.cancel(frame, &error);
-        }
         const auto retireFailure = [&] {
             std::string retireError;
             const bool retired = frame.swapchain ? m_sdlWindow.submit(frame, nullptr, &retireError)
@@ -1625,7 +1659,8 @@ private:
             }
             return false;
         };
-        if (!frame.swapchain) {
+        const bool composeMain = hidden || frame.swapchain;
+        if (hidden) {
             int width = 0;
             int height = 0;
             if (!SDL_GetWindowSizeInPixels(m_sdlWindow.window(), &width, &height)) {
@@ -1639,7 +1674,7 @@ private:
             frame.width = static_cast<unsigned>(width);
             frame.height = static_cast<unsigned>(height);
         }
-        if (!ensureSdlColorTarget(frame.width, frame.height, error) ||
+        if ((composeMain && !ensureSdlColorTarget(frame.width, frame.height, error)) ||
             !m_sdlImGui.beginFrame(error)) {
             return retireFailure();
         }
@@ -1651,7 +1686,8 @@ private:
         if (error.empty() && !drawData) {
             error = "ImGui did not produce draw data";
         }
-        if (!error.empty() || !m_sdlImGui.render(*drawData, *frame.command, *m_sdlColorTarget, error)) {
+        if (!error.empty() || (composeMain &&
+            !m_sdlImGui.render(*drawData, *frame.command, *m_sdlColorTarget, error))) {
             retireFailure();
             m_sdlViewportRenderer->endFrame();
             return false;
@@ -1661,12 +1697,34 @@ private:
         }
         const auto request = GuiAutomation::finishRender();
         bool submitted = false;
-        if (request.capturePath) {
+        const bool captureDetached = request.capturePath && request.captureWindowTitle;
+        if (request.capturePath && !captureDetached && composeMain) {
             submitted = captureSdlFrameToPng(m_sdlWindow, frame, m_sdlColorTarget,
                 frame.width, frame.height, std::filesystem::u8path(*request.capturePath), error);
             GuiAutomation::completeCapture(*request.capturePath, submitted, error);
         } else {
+            if (request.capturePath && !captureDetached) {
+                GuiAutomation::completeCapture(*request.capturePath, false, "Studio main window is minimized");
+            }
             submitted = m_sdlWindow.submit(frame, nullptr, &error);
+        }
+        if (submitted && (!hidden || captureDetached)) {
+            std::string platformError;
+            const auto platformPath = captureDetached
+                ? std::optional(std::filesystem::u8path(*request.capturePath)) : std::nullopt;
+            const bool rendered = m_sdlImGui.renderPlatformWindows(
+                platformError, request.captureWindowTitle.value_or(""),
+                platformPath ? &*platformPath : nullptr);
+            if (captureDetached) {
+                GuiAutomation::completeCapture(*request.capturePath, rendered, platformError);
+            }
+            if (!rendered) {
+                error = platformError;
+                submitted = false;
+            }
+            if (!composeMain && ImGui::GetPlatformIO().Viewports.Size <= 1) {
+                SDL_Delay(16);
+            }
         }
         m_sdlViewportRenderer->endFrame();
         m_sdlAutomationDone = request.quit;
@@ -1762,6 +1820,9 @@ private:
         m_workspace.reset();
         m_workspaces.clear();
         m_luau.reset();
+#ifdef RECUBIN_SDL_GPU_STUDIO
+        m_sdlInputBackend = nullptr;
+#endif
         m_user.reset();
         m_system.reset();
         m_audio.reset();
@@ -1815,6 +1876,8 @@ private:
     bool m_sdlRenderFailed = false;
     bool m_sdlAutomationDone = false;
     bool m_sdlLastVSyncRequest = true;
+    SDL_WindowID m_sdlMainWindowId = 0;
+    SDLInputBackend* m_sdlInputBackend = nullptr;
 #endif
     std::unique_ptr<AudioService> m_audio;
     std::shared_ptr<System> m_system;

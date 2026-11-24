@@ -75,6 +75,15 @@ RuntimeLaunchArgs parseRuntimeLaunchArgs(int argc, char* argv[]) {
             } else {
                 args.uiAutomationSettings = std::move(value);
             }
+        } else if (argument == "--ui-automation-layout") {
+            std::string value;
+            if (args.uiAutomationLayout.has_value()) {
+                setError(args, "--ui-automation-layout may only be specified once");
+            } else if (!readValue(argc, argv, index, value)) {
+                setError(args, "--ui-automation-layout requires a non-empty path");
+            } else {
+                args.uiAutomationLayout = std::filesystem::u8path(value);
+            }
         } else if (argument == "--self-check") {
             std::string value;
             if (args.selfCheckDir.has_value()) {
@@ -109,6 +118,7 @@ RuntimeLaunchArgs parseRuntimeLaunchArgs(int argc, char* argv[]) {
                    argument.starts_with("--editor-test=") ||
                    argument.starts_with("--ui-automation-scene=") ||
                    argument.starts_with("--ui-automation-settings=") ||
+                   argument.starts_with("--ui-automation-layout=") ||
                    argument.starts_with("--self-check=") ||
                    argument.starts_with("--gpu-preview=")) {
             setError(args, "launch options require separate values");

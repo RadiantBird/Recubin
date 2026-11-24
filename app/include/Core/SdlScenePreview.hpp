@@ -54,6 +54,10 @@ bool captureSdlSceneFrame(SdlGpuWindow& window, SdlGpuWindow::Frame& frame,
 bool captureSdlFrameToPng(SdlGpuWindow& window, SdlGpuWindow::Frame& frame,
                           SDL_GPUTexture* source, unsigned width, unsigned height,
                           const std::filesystem::path& outputPath, std::string& error);
+// Submits the given command buffer and saves its color target after the fence signals.
+bool captureSdlTargetToPng(SDL_GPUDevice& device, SDL_GPUCommandBuffer& command,
+                           SDL_GPUTexture& source, unsigned width, unsigned height,
+                           const std::filesystem::path& outputPath, std::string& error);
 
 int runSdlScenePreview(const std::string& scenePath,
                        const std::string& title,

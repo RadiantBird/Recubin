@@ -4,6 +4,8 @@
 #include <SDL3/SDL_gpu.h>
 
 #include <string>
+#include <string_view>
+#include <filesystem>
 
 struct ImDrawData;
 struct ImGuiContext;
@@ -29,6 +31,9 @@ public:
                 SDL_GPUCommandBuffer& commandBuffer,
                 SDL_GPUTexture& destination,
                 std::string& error);
+    bool renderPlatformWindows(std::string& error, std::string_view captureTitle = {},
+                               const std::filesystem::path* capturePath = nullptr);
+    bool ownsWindow(SDL_Window* window) const;
     void shutdown();
 
     bool isInitialized() const { return m_initialized; }
@@ -37,7 +42,13 @@ private:
     SDL_Window* m_window = nullptr;
     SDL_GPUDevice* m_device = nullptr;
     ImGuiContext* m_context = nullptr;
+    SDL_GPUTextureFormat m_colorTargetFormat = SDL_GPU_TEXTUREFORMAT_INVALID;
+    std::string m_platformError;
     bool m_platformInitialized = false;
     bool m_rendererInitialized = false;
     bool m_initialized = false;
+
+    static void createPlatformWindow(struct ImGuiViewport* viewport);
+    static void destroyPlatformWindow(struct ImGuiViewport* viewport);
+    static void renderPlatformWindow(struct ImGuiViewport* viewport, void* renderArg);
 };

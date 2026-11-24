@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -343,6 +344,25 @@ void checkWindowInput(SDL_Window* window) {
         input.consumeScrollDelta() != 0.0) {
         throw std::runtime_error("SDL input failed to consume the window's wheel event");
     }
+    std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> child(
+        SDL_CreateWindow("Secondary SDL input window", WIDTH, HEIGHT, SDL_WINDOW_HIDDEN),
+        &SDL_DestroyWindow);
+    if (!child) {
+        throw std::runtime_error(std::string("create secondary input window: ") + SDL_GetError());
+    }
+    if (!SDLInputBackend::processEvent(event) || !input.setWindow(child.get()) ||
+        input.consumeScrollDelta() != 0.0 || SDLInputBackend::processEvent(event)) {
+        throw std::runtime_error("SDL input did not drop the previous window's scroll on rebind");
+    }
+    event.wheel.windowID = SDL_GetWindowID(child.get());
+    if (!SDLInputBackend::processEvent(event) || input.consumeScrollDelta() != 1.5) {
+        throw std::runtime_error("SDL input did not route the secondary window's scroll");
+    }
+    child.reset();
+    if (!input.setWindow(window) || SDLInputBackend::processEvent(event)) {
+        throw std::runtime_error("SDL input did not release the destroyed window's registration");
+    }
+    std::cout << "SDL input reassignment and destroyed-window cleanup verified\n";
 }
 }
 

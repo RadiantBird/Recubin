@@ -88,6 +88,8 @@ std::optional<GuiAutomationCommand> parseGuiAutomationCommand(std::string_view c
     }
     else if (name == "move" || name == "click" || name == "right_click" || name == "focus_window" || name == "capture") {
         if (tokens.size() != 2) return std::nullopt;
+    } else if (name == "capture_window") {
+        if (tokens.size() != 3) return std::nullopt;
     } else if (name == "type") { if (tokens.size() < 2) return std::nullopt;
     } else if (name == "key") { if (tokens.size() != 2 || !keySyntax(tokens[1])) return std::nullopt;
     } else if (name == "mouse" || name == "wheel") {

@@ -598,6 +598,20 @@ bool captureSdlFrameToPng(SdlGpuWindow& window, SdlGpuWindow::Frame& frame,
                           outputPath, error);
 }
 
+bool captureSdlTargetToPng(SDL_GPUDevice& device, SDL_GPUCommandBuffer& command,
+                           SDL_GPUTexture& source, unsigned width, unsigned height,
+                           const std::filesystem::path& outputPath, std::string& error) {
+    auto* transfer = recordReadback(&device, &command, &source, width, height, error);
+    if (!transfer) {
+        if (!SDL_SubmitGPUCommandBuffer(&command)) {
+            error += std::string(". Submit failed: ") + SDL_GetError();
+        }
+        return false;
+    }
+    auto* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(&command);
+    return finishReadback(&device, transfer, fence, width, height, outputPath, error);
+}
+
 int runSdlScenePreview(const std::string& scenePath,
                        const std::string& title,
                        SdlGpuDriver driver,
