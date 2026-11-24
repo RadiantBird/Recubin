@@ -1,14 +1,28 @@
 {
+    ["sdl-gpu-preview"] = {
+        __scriptdir = [[C:\Users\Ryarta\Documents\Recubin]],
+        __sourceinfo_default = { },
+        default = false,
+        __sourceinfo_description = {
+            ["Enable SDL GPU rendering in Studio and Engine"] = {
+                line = 17,
+                file = [[.\xmake.lua]]
+            }
+        },
+        __sourceinfo_showmenu = { },
+        description = "Enable SDL GPU rendering in Studio and Engine",
+        showmenu = true
+    },
     depdir = {
+        __scriptdir = [[C:\Users\Ryarta\Documents\Recubin]],
         __sourceinfo_default = {
             lib = {
                 line = 11,
                 file = [[.\xmake.lua]]
             }
         },
-        __sourceinfo_showmenu = { },
-        __scriptdir = [[C:\Users\Ryarta\Documents\Recubin]],
         default = "lib",
+        __sourceinfo_showmenu = { },
         showmenu = true
     }
 }

@@ -36,6 +36,7 @@ output.txt
 LuarChecker.luau
 *.lock
 *.rbxlx
+cache/
 
 Claude's last exam/
 CodexField/

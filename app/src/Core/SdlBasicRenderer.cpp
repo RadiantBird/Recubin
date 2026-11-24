@@ -8,6 +8,7 @@
 #include <post_effect_gpu_shaders.hpp>
 #include <terrain_guide_gpu_shaders.hpp>
 #include <shadow_gpu_shaders.hpp>
+#include <celestial_gpu_shaders.hpp>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -172,6 +173,8 @@ void SdlBasicRenderer::releaseResources() {
         SDL_ReleaseGPUGraphicsPipeline(m_device, m_selectionOutlinePipeline);
     }
     if (m_terrainGuidePipeline) SDL_ReleaseGPUGraphicsPipeline(m_device, m_terrainGuidePipeline);
+    if (m_celestialDiscPipeline) SDL_ReleaseGPUGraphicsPipeline(m_device, m_celestialDiscPipeline);
+    if (m_celestialAdditivePipeline) SDL_ReleaseGPUGraphicsPipeline(m_device, m_celestialAdditivePipeline);
     if (m_vertexShader) {
         SDL_ReleaseGPUShader(m_device, m_vertexShader);
     }
@@ -192,6 +195,8 @@ void SdlBasicRenderer::releaseResources() {
     }
     if (m_terrainGuideVertexShader) SDL_ReleaseGPUShader(m_device, m_terrainGuideVertexShader);
     if (m_terrainGuideFragmentShader) SDL_ReleaseGPUShader(m_device, m_terrainGuideFragmentShader);
+    if (m_celestialVertexShader) SDL_ReleaseGPUShader(m_device, m_celestialVertexShader);
+    if (m_celestialFragmentShader) SDL_ReleaseGPUShader(m_device, m_celestialFragmentShader);
     if (m_sampler) {
         SDL_ReleaseGPUSampler(m_device, m_sampler);
     }
@@ -233,6 +238,8 @@ void SdlBasicRenderer::releaseResources() {
     m_selectionMaskDoubleSidedPipeline = nullptr;
     m_selectionOutlinePipeline = nullptr;
     m_terrainGuidePipeline = nullptr;
+    m_celestialDiscPipeline = nullptr;
+    m_celestialAdditivePipeline = nullptr;
     m_vertexShader = nullptr;
     m_fragmentShader = nullptr;
     m_shadowFragmentShader = nullptr;
@@ -241,6 +248,8 @@ void SdlBasicRenderer::releaseResources() {
     m_selectionOutlineFragmentShader = nullptr;
     m_terrainGuideVertexShader = nullptr;
     m_terrainGuideFragmentShader = nullptr;
+    m_celestialVertexShader = nullptr;
+    m_celestialFragmentShader = nullptr;
     m_sampler = nullptr;
     m_skySampler = nullptr;
     m_shadowSampler = nullptr;
@@ -610,6 +619,74 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
         m_device = nullptr;
         return false;
     }
+
+    SDL_GPUShaderCreateInfo celestialVertexInfo{};
+    celestialVertexInfo.format = fi.format;
+    celestialVertexInfo.entrypoint = "VSMain";
+    celestialVertexInfo.stage = SDL_GPU_SHADERSTAGE_VERTEX;
+    celestialVertexInfo.num_uniform_buffers = 1;
+    celestialVertexInfo.num_samplers = 1;
+    SDL_GPUShaderCreateInfo celestialFragmentInfo{};
+    celestialFragmentInfo.format = fi.format;
+    celestialFragmentInfo.entrypoint = "PSMain";
+    celestialFragmentInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
+    celestialFragmentInfo.num_samplers = 1;
+    celestialFragmentInfo.num_uniform_buffers = 1;
+    if (fi.format == SDL_GPU_SHADERFORMAT_DXIL) {
+        celestialVertexInfo.code = celestial_gpu_vertex_dxil;
+        celestialVertexInfo.code_size = sizeof(celestial_gpu_vertex_dxil);
+        celestialFragmentInfo.code = celestial_gpu_fragment_dxil;
+        celestialFragmentInfo.code_size = sizeof(celestial_gpu_fragment_dxil);
+    } else {
+        celestialVertexInfo.code = celestial_gpu_vertex_spirv;
+        celestialVertexInfo.code_size = sizeof(celestial_gpu_vertex_spirv);
+        celestialFragmentInfo.code = celestial_gpu_fragment_spirv;
+        celestialFragmentInfo.code_size = sizeof(celestial_gpu_fragment_spirv);
+    }
+    m_celestialVertexShader = SDL_CreateGPUShader(&device, &celestialVertexInfo);
+    m_celestialFragmentShader = SDL_CreateGPUShader(&device, &celestialFragmentInfo);
+    if (!m_celestialVertexShader || !m_celestialFragmentShader) {
+        error = sdlError("SDL_CreateGPUShader(celestial)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
+    SDL_GPUGraphicsPipelineCreateInfo celestialPi{};
+    celestialPi.vertex_shader = m_celestialVertexShader;
+    celestialPi.fragment_shader = m_celestialFragmentShader;
+    celestialPi.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+    celestialPi.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+    celestialPi.rasterizer_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
+    celestialPi.target_info.num_color_targets = 1;
+    SDL_GPUColorTargetDescription celestialTarget = ct;
+    celestialTarget.blend_state.enable_blend = true;
+    celestialTarget.blend_state.src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+    celestialTarget.blend_state.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    celestialTarget.blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    celestialTarget.blend_state.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    celestialTarget.blend_state.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    celestialTarget.blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    celestialPi.target_info.color_target_descriptions = &celestialTarget;
+    m_celestialDiscPipeline = SDL_CreateGPUGraphicsPipeline(&device, &celestialPi);
+    if (!m_celestialDiscPipeline) {
+        error = sdlError("SDL_CreateGPUGraphicsPipeline(celestial disc)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
+    SDL_GPUColorTargetDescription additiveTarget = celestialTarget;
+    additiveTarget.blend_state.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    additiveTarget.blend_state.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    additiveTarget.blend_state.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
+    additiveTarget.blend_state.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    celestialPi.target_info.color_target_descriptions = &additiveTarget;
+    m_celestialAdditivePipeline = SDL_CreateGPUGraphicsPipeline(&device, &celestialPi);
+    if (!m_celestialAdditivePipeline) {
+        error = sdlError("SDL_CreateGPUGraphicsPipeline(celestial additive)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
     SDL_GPUSamplerCreateInfo samplerInfo{};
     samplerInfo.min_filter = SDL_GPU_FILTER_LINEAR;
     samplerInfo.mag_filter = SDL_GPU_FILTER_LINEAR;
@@ -913,7 +990,7 @@ bool SdlBasicRenderer::ensureTargets(unsigned width, unsigned height, std::strin
         return false;
     }
     ci.format = DEPTH_FORMAT;
-    ci.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET;
+    ci.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER;
     SDL_GPUTexture* depth = SDL_CreateGPUTexture(m_device, &ci);
     if (!depth) {
         SDL_ReleaseGPUTexture(m_device, color);
@@ -1027,7 +1104,8 @@ SDL_GPUTexture* SdlBasicRenderer::resolveTexture(std::uint32_t handle, std::stri
 bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
                             std::span<const SdlBasicCube> cubes, std::string& error, bool shadows,
                             const SdlMaterialLighting& lighting,
-                            std::span<const SdlBasicCube> skyFaces) {
+                            std::span<const SdlBasicCube> skyFaces,
+                            std::span<const SdlCelestialDraw> celestial) {
     error.clear();
     if (!m_device || !m_pipeline || !m_defaultGeometry.vertexBuffer) {
         error = "SdlBasicRenderer: renderer is not initialized";
@@ -1198,40 +1276,108 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
         }
     }
 
-    SDL_GPUColorTargetInfo ci{};
-    ci.texture = m_colorTarget;
-    ci.load_op = SDL_GPU_LOADOP_CLEAR;
-    ci.store_op = SDL_GPU_STOREOP_STORE;
-    ci.clear_color = SDL_FColor{0.05f, 0.07f, 0.10f, 1.0f};
-    SDL_GPUDepthStencilTargetInfo di{};
-    di.texture = m_depthTarget;
-    di.load_op = SDL_GPU_LOADOP_CLEAR;
-    di.store_op = SDL_GPU_STOREOP_STORE;
-    di.stencil_load_op = SDL_GPU_LOADOP_DONT_CARE;
-    di.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
-    di.clear_depth = 1.0f;
-    SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(&commandBuffer, &ci, 1, &di);
-    if (!pass) {
-        error = sdlError("SDL_BeginGPURenderPass");
-        return false;
-    }
     const SDL_GPUViewport viewport{
         0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height), 0.0f, 1.0f};
-    SDL_SetGPUViewport(pass, &viewport);
-    SDL_PushGPUFragmentUniformData(&commandBuffer, 1, &lighting, sizeof(lighting));
-    bool mainDrawn;
-    if (skyFaces.empty()) {
-        mainDrawn = drawPass(pass, Pass::Scene, cubes);
-    } else {
-        const auto firstBlended = std::ranges::find(cubes, true, &SdlBasicCube::blend);
-        const auto opaqueCount = static_cast<std::size_t>(firstBlended - cubes.begin());
-        mainDrawn = drawPass(pass, Pass::Scene, cubes.first(opaqueCount)) &&
-                    drawPass(pass, Pass::Sky, skyFaces) &&
-                    drawPass(pass, Pass::Scene, cubes.subspan(opaqueCount));
+    const auto firstBlended = std::ranges::find(cubes, true, &SdlBasicCube::blend);
+    const std::size_t opaqueCount = static_cast<std::size_t>(firstBlended - cubes.begin());
+    const bool split = !skyFaces.empty() || !celestial.empty();
+    const auto opaqueDraws = split ? cubes.first(opaqueCount) : cubes;
+    const auto transparentDraws = split ? cubes.subspan(opaqueCount) : std::span<const SdlBasicCube>{};
+
+    auto beginColorDepthPass = [&](SDL_GPULoadOp colorLoad, SDL_GPULoadOp depthLoad) {
+        SDL_GPUColorTargetInfo color{};
+        color.texture = m_colorTarget;
+        color.load_op = colorLoad;
+        color.store_op = SDL_GPU_STOREOP_STORE;
+        color.clear_color = SDL_FColor{0.05f, 0.07f, 0.10f, 1.0f};
+        SDL_GPUDepthStencilTargetInfo depth{};
+        depth.texture = m_depthTarget;
+        depth.load_op = depthLoad;
+        depth.store_op = SDL_GPU_STOREOP_STORE;
+        depth.stencil_load_op = SDL_GPU_LOADOP_DONT_CARE;
+        depth.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
+        depth.clear_depth = 1.0f;
+        SDL_GPURenderPass* result = SDL_BeginGPURenderPass(&commandBuffer, &color, 1, &depth);
+        if (result) {
+            SDL_SetGPUViewport(result, &viewport);
+            SDL_PushGPUFragmentUniformData(&commandBuffer, 1, &lighting, sizeof(lighting));
+        }
+        return result;
+    };
+    auto beginColorPass = [&]() {
+        SDL_GPUColorTargetInfo color{};
+        color.texture = m_colorTarget;
+        color.load_op = SDL_GPU_LOADOP_LOAD;
+        color.store_op = SDL_GPU_STOREOP_STORE;
+        SDL_GPURenderPass* result = SDL_BeginGPURenderPass(&commandBuffer, &color, 1, nullptr);
+        if (result) SDL_SetGPUViewport(result, &viewport);
+        return result;
+    };
+    auto drawCelestial = [&](SDL_GPURenderPass& pass, std::span<const SdlCelestialDraw> draws) {
+        SDL_GPUTextureSamplerBinding depthBinding{m_depthTarget, m_shadowSampler};
+        SDL_GPUGraphicsPipeline* bound = nullptr;
+        for (const auto& draw : draws) {
+            const auto mode = static_cast<int>(draw.directionAndMode[3]);
+            SDL_GPUGraphicsPipeline* pipeline = mode < 2 ? m_celestialDiscPipeline
+                                                          : m_celestialAdditivePipeline;
+            if (pipeline != bound) {
+                SDL_BindGPUGraphicsPipeline(&pass, pipeline);
+                SDL_BindGPUVertexSamplers(&pass, 0, &depthBinding, 1);
+                SDL_BindGPUFragmentSamplers(&pass, 0, &depthBinding, 1);
+                bound = pipeline;
+            }
+            SDL_PushGPUVertexUniformData(&commandBuffer, 0, &draw, sizeof(draw));
+            SDL_PushGPUFragmentUniformData(&commandBuffer, 0, &draw, sizeof(draw));
+            SDL_DrawGPUPrimitives(&pass, 6, 1, 0, 0);
+        }
+    };
+
+    const auto firstFlare = std::ranges::find_if(celestial, [](const SdlCelestialDraw& draw) {
+        return draw.directionAndMode[3] >= 2.0f;
+    });
+    const auto discDraws = celestial.first(static_cast<std::size_t>(firstFlare - celestial.begin()));
+    const auto flareDraws = celestial.subspan(static_cast<std::size_t>(firstFlare - celestial.begin()));
+
+    SDL_GPURenderPass* pass = beginColorDepthPass(SDL_GPU_LOADOP_CLEAR, SDL_GPU_LOADOP_CLEAR);
+    if (!pass) {
+        error = sdlError("SDL_BeginGPURenderPass(scene)");
+        return false;
+    }
+    bool mainDrawn = drawPass(pass, Pass::Scene, opaqueDraws);
+    if (mainDrawn && !skyFaces.empty()) mainDrawn = drawPass(pass, Pass::Sky, skyFaces);
+    if (mainDrawn && discDraws.empty() && !transparentDraws.empty()) {
+        mainDrawn = drawPass(pass, Pass::Scene, transparentDraws);
     }
     SDL_EndGPURenderPass(pass);
-    if (!mainDrawn) {
-        return false;
+    if (!mainDrawn) return false;
+
+    if (!discDraws.empty()) {
+        pass = beginColorPass();
+        if (!pass) {
+            error = sdlError("SDL_BeginGPURenderPass(celestial disc)");
+            return false;
+        }
+        drawCelestial(*pass, discDraws);
+        SDL_EndGPURenderPass(pass);
+    }
+    if (!transparentDraws.empty() && !discDraws.empty()) {
+        pass = beginColorDepthPass(SDL_GPU_LOADOP_LOAD, SDL_GPU_LOADOP_LOAD);
+        if (!pass) {
+            error = sdlError("SDL_BeginGPURenderPass(transparent)");
+            return false;
+        }
+        mainDrawn = drawPass(pass, Pass::Scene, transparentDraws);
+        SDL_EndGPURenderPass(pass);
+        if (!mainDrawn) return false;
+    }
+    if (!flareDraws.empty()) {
+        pass = beginColorPass();
+        if (!pass) {
+            error = sdlError("SDL_BeginGPURenderPass(celestial flare)");
+            return false;
+        }
+        drawCelestial(*pass, flareDraws);
+        SDL_EndGPURenderPass(pass);
     }
     return true;
 }

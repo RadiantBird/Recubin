@@ -3,6 +3,7 @@
 #include <Core/SceneRuntime.hpp>
 #include <Core/CubeFaceVisuals.hpp>
 #include <Core/SdlBasicRenderer.hpp>
+#include <Core/SdlCelestialDraw.hpp>
 #include <Core/PrimitiveMeshData.hpp>
 #include <Core/RgbaImage.hpp>
 #include <Core/MeshDecalAtlas.hpp>
@@ -26,6 +27,7 @@
 #include <Instances/Lighting.hpp>
 #include <Instances/MaterialInstance.hpp>
 #include <Instances/Sun.hpp>
+#include <Instances/Moon.hpp>
 #include <Instances/SpotLight.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/Workspace.hpp>
@@ -59,6 +61,12 @@ constexpr unsigned PREVIEW_WIDTH = 1280;
 constexpr unsigned PREVIEW_HEIGHT = 720;
 
 constexpr int WEDGE_SHAPE = 4;
+constexpr int SPHERE_SHAPE = 2;
+
+struct CelestialSphere {
+    SdlBasicCube draw;
+    float depth = 0.0f;
+};
 
 int primitiveShape(const BaseCube& cube) {
     const int shape = cube.renderShapeIndex();
@@ -277,6 +285,146 @@ const Sun* primarySun(const Workspace& workspace) {
     return nullptr;
 }
 
+void collectCelestialDraws(const Workspace& workspace, const Matrix4& cameraRelativeProjection,
+                           const Vector3& cameraForward, unsigned width, unsigned height,
+                           std::vector<SdlCelestialDraw>& draws) {
+    constexpr float PHASED_DISC = 1.0f;
+    constexpr float GLOW_AND_SPIKES = 2.0f;
+    constexpr float VEIL = 3.0f;
+    constexpr float RADIANS_PER_DEGREE = std::numbers::pi_v<float> / 180.0f;
+    constexpr float DISC_CLEARANCE = 1.15f;
+    const auto finiteOr = [](float value, float fallback) {
+        return std::isfinite(value) ? value : fallback;
+    };
+    const auto intersectsViewport = [](const std::array<float, 4>& placement) {
+        return std::abs(placement[0]) < 1.0f + placement[2] &&
+               std::abs(placement[1]) < 1.0f + placement[3];
+    };
+    draws.clear();
+    const auto& bodies = workspace.getRenderCelestialBodies();
+    if (bodies.empty() || width == 0 || height == 0) return;
+
+    const auto* sun = primarySun(workspace);
+    const Vector3 moonDirection = -Sun::directionFromAngle(sun ? sun->Angle : Sun::defaultAngle());
+    const auto& m = cameraRelativeProjection.m;
+    const Vector3 scaledRight(m[0], m[4], m[8]);
+    const Vector3 scaledUp(m[1], m[5], m[9]);
+    const Vector3 depthRow(m[2], m[6], m[10]);
+    const float horizontalScale = scaledRight.length();
+    const float verticalScale = scaledUp.length();
+    const float depthScale = Vector3::Dot(cameraForward, depthRow);
+    for (const CelestialBody* body : bodies) {
+        if (!body) {
+            RCBN_WARN("Workspace contains an empty celestial body render entry");
+            continue;
+        }
+        if (body->Color.a <= 0.001f) continue;
+        const auto* moon = dynamic_cast<const Moon*>(body);
+        const auto* sunDisc = dynamic_cast<const Sun*>(body);
+        if (!moon && !sunDisc) continue;
+        const Vector3 direction = moon ? moonDirection : Sun::directionFromAngle(sunDisc->Angle);
+        const float facing = Vector3::Dot(direction, cameraForward);
+        const float right = Vector3::Dot(direction, scaledRight);
+        const float up = Vector3::Dot(direction, scaledUp);
+        const float radius = body->apparentDiameter() * 0.5f;
+        const float centerDepth = facing * CelestialBody::SKY_RENDER_DISTANCE;
+        const float occluderDistance = centerDepth - DISC_CLEARANCE * radius;
+        SdlCelestialDraw draw{};
+        draw.color = {body->Color.r, body->Color.g, body->Color.b, body->Color.a};
+        draw.directionAndMode = {right / horizontalScale, up / verticalScale, facing, PHASED_DISC};
+        draw.projection = {1.0f / horizontalScale, 1.0f / verticalScale,
+                           1.0f / static_cast<float>(width), 1.0f / static_cast<float>(height)};
+        if (centerDepth > 0.0f) {
+            draw.placement = {right / facing, up / facing, radius * horizontalScale / centerDepth,
+                              radius * verticalScale / centerDepth};
+            draw.occlusion = {draw.placement[2], draw.placement[3],
+                              occluderDistance > 0.0f ? depthScale + m[14] / occluderDistance : 0.0f,
+                              0.0f};
+            if (moon && moon->hasPhase()) {
+                draw.appearance = {moon->wrappedPhase(),
+                                   finiteOr(moon->PhaseRotation, 0.0f) * RADIANS_PER_DEGREE,
+                                   std::clamp(finiteOr(moon->Earthshine, 0.0f), 0.0f, 1.0f), 0.0f};
+                if (intersectsViewport(draw.placement)) draws.push_back(draw);
+            }
+        }
+        const float t = std::clamp((direction.y + 0.05f) / 0.15f, 0.0f, 1.0f);
+        if (body->HorizonFade) draw.color[3] *= t * t * (3.0f - 2.0f * t);
+        if (draw.color[3] <= 0.001f || !body->hasFlareEffect()) continue;
+        const float glowIntensity = std::max(finiteOr(body->GlowIntensity, 0.0f), 0.0f);
+        const float glowRadius = std::clamp(finiteOr(body->GlowRadius, 6.0f), 1.0f, 60.0f);
+        const float spikeIntensity = std::max(finiteOr(body->SpikeIntensity, 0.0f), 0.0f);
+        const float spikeLength = std::clamp(finiteOr(body->SpikeLength, 12.0f), 1.0f, 60.0f);
+        if (centerDepth > 0.0f && (glowIntensity > 0.0f || spikeIntensity > 0.0f)) {
+            auto flare = draw;
+            const float extent = std::max(glowIntensity > 0.0f ? glowRadius : 1.0f,
+                                          spikeIntensity > 0.0f ? spikeLength : 1.0f);
+            flare.placement[2] *= extent;
+            flare.placement[3] *= extent;
+            flare.directionAndMode[3] = GLOW_AND_SPIKES;
+            flare.glow = {extent, glowIntensity, glowRadius, 0.0f};
+            flare.spikes = {spikeIntensity, spikeLength,
+                           finiteOr(body->SpikeRotation, 0.0f) * RADIANS_PER_DEGREE,
+                           static_cast<float>(std::clamp(body->SpikeCount, 2, 16))};
+            if (intersectsViewport(flare.placement)) draws.push_back(flare);
+        }
+        const float veilIntensity = std::max(finiteOr(body->VeilIntensity, 0.0f), 0.0f);
+        if (veilIntensity > 0.0f) {
+            draw.directionAndMode[3] = VEIL;
+            draw.veil = {veilIntensity, std::clamp(finiteOr(body->VeilFalloff, 6.0f), 1.0f, 64.0f),
+                         0.0f, 0.0f};
+            draws.push_back(draw);
+        }
+    }
+    std::stable_partition(draws.begin(), draws.end(), [](const SdlCelestialDraw& draw) {
+        return draw.directionAndMode[3] < GLOW_AND_SPIKES;
+    });
+}
+
+void collectCelestialSpheres(const Workspace& workspace, const Matrix4& cameraRelativeProjection,
+                             const Vector3& cameraPosition, const Vector3& cameraForward,
+                             std::uint32_t sphereGeometry, std::uint32_t sphereIndexCount,
+                             std::vector<CelestialSphere>& spheres) {
+    spheres.clear();
+    if (!sphereGeometry || sphereIndexCount == 0) return;
+
+    const auto* sun = primarySun(workspace);
+    const Vector3 moonDirection = -Sun::directionFromAngle(sun ? sun->Angle : Sun::defaultAngle());
+    for (const CelestialBody* body : workspace.getRenderCelestialBodies()) {
+        if (!body || body->Color.a <= 0.001f) continue;
+        const auto* moon = dynamic_cast<const Moon*>(body);
+        const auto* sunDisc = dynamic_cast<const Sun*>(body);
+        if (!moon && !sunDisc) continue;
+        if (moon && moon->hasPhase()) continue;
+
+        const Vector3 direction = moon ? moonDirection : Sun::directionFromAngle(sunDisc->Angle);
+        const float diameter = body->apparentDiameter();
+        if (!std::isfinite(diameter) || diameter <= 0.0f) {
+            RCBN_WARN("Celestial body has an invalid apparent diameter: " << body->getFullPath());
+            continue;
+        }
+        const Vector3 relativeCenter = direction * CelestialBody::SKY_RENDER_DISTANCE;
+        const Matrix4 model = Matrix4::Translate(relativeCenter.x, relativeCenter.y, relativeCenter.z) *
+                              Matrix4::Scale(diameter, diameter, diameter);
+        CelestialSphere sphere;
+        sphere.draw.geometry = sphereGeometry;
+        sphere.draw.indexCount = sphereIndexCount;
+        sphere.draw.color = {body->Color.r, body->Color.g, body->Color.b, body->Color.a};
+        sphere.draw.blend = body->Color.a < 0.999f;
+        sphere.draw.castShadow = false;
+        sphere.draw.receiveShadow = false;
+        sphere.draw.doubleSided = false;
+        std::copy_n(model.m, 16, sphere.draw.modelMatrix.begin());
+        const Matrix4 mvp = cameraRelativeProjection * model;
+        std::copy_n(mvp.m, 16, sphere.draw.modelViewProjection.begin());
+        sphere.depth = Vector3::Dot(relativeCenter, cameraForward);
+        if (!std::isfinite(sphere.depth)) {
+            RCBN_WARN("Celestial body has a non-finite view depth: " << body->getFullPath());
+            continue;
+        }
+        spheres.push_back(sphere);
+    }
+}
+
 SdlMaterialLighting collectMaterialLighting(const Workspace& workspace, const Vector3& camera) {
     SdlMaterialLighting result;
     if (const auto* sun = primarySun(workspace)) {
@@ -429,6 +577,7 @@ struct SdlLiveScene::State {
     };
     std::vector<MeshDraw> meshes;
     std::vector<SdlBasicCube> frameDraws;
+    std::vector<SdlCelestialDraw> celestialDraws;
     std::array<SdlBasicCube, 6> skyFaces{};
     std::optional<Matrix4> skyModel;
     std::vector<TransparentDraw> transparent;
@@ -1011,19 +1160,22 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
         append(*draw.mesh);
     }
     std::span<const SdlBasicCube> skyFaces;
+    const Matrix4 cameraTranslation = Matrix4::Translate(cameraPosition.x, cameraPosition.y,
+                                                          cameraPosition.z);
+    const Matrix4 cameraRelativeProjection = viewProjection * cameraTranslation;
     if (m_state->skyModel) {
-        const Matrix4 cameraTranslation = Matrix4::Translate(cameraPosition.x, cameraPosition.y,
-                                                              cameraPosition.z);
-        const Matrix4 skyMvp = viewProjection * cameraTranslation * *m_state->skyModel;
+        const Matrix4 skyMvp = cameraRelativeProjection * *m_state->skyModel;
         for (auto& face : m_state->skyFaces) {
             std::copy_n(skyMvp.m, 16, face.modelViewProjection.begin());
         }
         skyFaces = m_state->skyFaces;
     }
+    collectCelestialDraws(workspace, cameraRelativeProjection, cameraForward, width, height,
+                          m_state->celestialDraws);
     const bool drawn = m_state->renderer.draw(commandBuffer, width, height, draws,
                                                error, lightProjection.has_value(),
                                                collectMaterialLighting(workspace, cameraPosition),
-                                               skyFaces);
+                                               skyFaces, m_state->celestialDraws);
     if (!drawn) {
         return false;
     }

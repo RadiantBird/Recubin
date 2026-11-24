@@ -1,10 +1,11 @@
 {
     mtimes = {
-        ["xmake.lua"] = 1795297771
+        ["xmake.lua"] = 1795528108
     },
+    recheck = false,
     options = {
-        arch = "x64",
-        mode = "release"
-    },
-    recheck = false
+        mode = "release",
+        ["sdl-gpu-preview"] = true,
+        ccache = false
+    }
 }

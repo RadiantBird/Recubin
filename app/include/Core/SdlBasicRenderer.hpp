@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 #include <Core/SdlMeshDecalData.hpp>
 #include <Core/SdlMaterialLighting.hpp>
+#include <Core/SdlCelestialDraw.hpp>
 
 #include <array>
 #include <cstdint>
@@ -80,7 +81,8 @@ public:
               std::string& error,
               bool shadows = false,
               const SdlMaterialLighting& lighting = {},
-              std::span<const SdlBasicCube> skyFaces = {});
+              std::span<const SdlBasicCube> skyFaces = {},
+              std::span<const SdlCelestialDraw> celestial = {});
     bool drawOutline(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUTexture& destination,
                      std::span<const SdlBasicCube> draws, const Color4& color, float thickness,
                      std::string& error);
@@ -126,7 +128,11 @@ private:
     SDL_GPUGraphicsPipeline* m_selectionOutlinePipeline = nullptr;
     SDL_GPUShader* m_terrainGuideVertexShader = nullptr;
     SDL_GPUShader* m_terrainGuideFragmentShader = nullptr;
+    SDL_GPUShader* m_celestialVertexShader = nullptr;
+    SDL_GPUShader* m_celestialFragmentShader = nullptr;
     SDL_GPUGraphicsPipeline* m_terrainGuidePipeline = nullptr;
+    SDL_GPUGraphicsPipeline* m_celestialDiscPipeline = nullptr;
+    SDL_GPUGraphicsPipeline* m_celestialAdditivePipeline = nullptr;
     SDL_GPUTexture* m_colorTarget = nullptr;
     SDL_GPUTexture* m_depthTarget = nullptr;
     SDL_GPUTexture* m_shadowTarget = nullptr;
