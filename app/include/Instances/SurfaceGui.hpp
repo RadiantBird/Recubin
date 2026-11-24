@@ -23,13 +23,13 @@ public:
     bool          m_hasBakedContentSignature = false;
 
     // SurfaceGuiベイクで実際に描画される直接子かを共通判定する。
-    static bool isRenderableDirectChild(Instance* child);
+    static bool isRenderableDirectChild(Instance* child, bool useImagePath = false);
     bool hasRenderableDirectChild();
     // Cube面の通常描画を、ベイク済みSurfaceGuiで実際に上書きするか。
     // Rendererのインスタンシング判定とCube::draw()で同じ条件を使う。
     bool contributesBakedVisualOverride();
     // 自身の背景と直接子が生成するピクセルだけから署名を作る。
-    std::uint64_t computeRenderContentSignature(float defaultFontSize);
+    std::uint64_t computeRenderContentSignature(float defaultFontSize, bool useImagePath = false);
 
     SurfaceGui();
     ~SurfaceGui();

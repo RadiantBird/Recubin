@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core/SdlGpuWindow.hpp>
+#include <Core/SdlSurfaceGuiLayers.hpp>
 
 #include <Math/Matrix4.hpp>
 
@@ -29,7 +30,8 @@ public:
     bool draw(Workspace& workspace, const Matrix4& viewProjection,
               const Vector3& cameraPosition, const Vector3& cameraForward, float effectTime,
               SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
-              std::string& error, std::span<BaseCube* const> selected = {});
+              std::string& error, std::span<BaseCube* const> selected = {},
+              const SdlSurfaceGuiLayers* surfaceLayers = nullptr);
     bool drawOutline(SDL_GPUCommandBuffer& commandBuffer,
                      std::span<BaseCube* const> targets,
                      const Color4& color, float thickness, std::string& error);

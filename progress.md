@@ -929,3 +929,12 @@
 - Windows xmake Release で Studio・Engine・Test・Runtime をビルド。GUI 自動化・表示状態・テキスト配置・ビューポート編集・ビューポート補助・入力・起動引数の対象回帰 7 件が成功。両アプリで日本語、上下で色が違う SVG、BillboardGui の画像をアプリ内で読み戻し、各アプリ内で Vulkan と D3D12 が全画素一致した。Unicode パスのカスタムフォントも Engine の両 GPU で確認した。
 - Studio の Play モードでクリックして Luau の `Activated` が発火し、GUI の背景が赤からシアンへ変わった。Engine の影と GLSL の PNG は変更前と同一。GUI 画像の検証にはアプリ内の GPU 読み戻しを使用した。
 - 次は SurfaceGui。ゲーム GUI の共通コンテンツ描画を使い、ImGui のテクスチャ転送とベイクパスをシーン描画より先に記録する。SurfaceGui の合成と面へのヒット判定、Engine の実ウィンドウでのボタン入力、ProximityPrompt のキー操作は検証が残る。
+
+## 2026-11-24 SDL GPU の SurfaceGui
+
+- ScreenGui と WorldGui の移植を `4fca5e3` にコミット。GUI を含む Engine の通常ウィンドウからの起動と Luau による終了を Vulkan と D3D12 で確認した。
+- SDL の Studio と Engine は、SurfaceGui の子を ImGui の独立描画リストで組み立てる。リストの作成後に現在のフォントアトラスを含めて転送し、透明な RGBA8 テクスチャへの描画をシーンパスより先に記録する。サイズと内容署名が同じ場合はベイク結果を再利用する。
+- 不透明 Cube の SurfaceGui を面 UV でサンプリングし、プリマルチプライドの色を Cube のベースカラーに合成する。通常の深度・影・選択表示を使う。クリックは描画に使う面の頂点から UV を求め、手前の不透明 Cube の面を優先する。
+- Windows xmake Release で Studio・Engine・Test・Runtime・GPU Smoke のビルドが成功。GUI 自動化・表示・テキスト配置・ビューポート編集・補助の回帰 5 件が成功。両アプリの Vulkan／D3D12 で、日本語グリフ、透明な画像専用の子、SVG の上下、半透明色の合成、表示切り替え、手前の Cube による遮蔽をアプリ内 GPU 読み戻しで確認。各状態の PNG は同一アプリ内でバックエンド間一致。
+- Studio の Play で SurfaceGui のクリックから Luau の `Activated` が発火し、同じテクスチャで色と日本語テキストの更新を確認。遮蔽中は発火しなかった。Engine の太陽の影とカスタム GLSL の画像は変更前と同一だった。
+- 次は通常シーンの未対応プリミティブと透過を移す。不透明 Cube 以外を遮蔽物とする SurfaceGui のクリック、Engine 実ウィンドウのボタン操作、ProximityPrompt 実キー操作は未検証。

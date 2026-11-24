@@ -641,7 +641,7 @@ private:
         }
         m_sdlMainWindowId = SDL_GetWindowID(m_sdlWindow.window());
         m_sdlViewportRenderer = std::make_unique<SdlStudioViewportRenderer>(
-            *m_sdlWindow.device(), io.FontDefault, [this](GuiButton* button) {
+            *m_sdlWindow.device(), m_sdlImGui, io.FontDefault, [this](GuiButton* button) {
                 m_luau->onGuiButtonActivated(button);
             });
         Physics::s_touchCallback = [this](BaseCube* a, BaseCube* b) { m_luau->onTouched(a, b); };

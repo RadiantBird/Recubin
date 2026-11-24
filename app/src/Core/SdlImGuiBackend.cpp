@@ -289,7 +289,8 @@ bool SdlImGuiBackend::render(ImDrawData& drawData,
                              SDL_GPUCommandBuffer& commandBuffer,
                              SDL_GPUTexture& destination,
                              std::string& error,
-                             bool loadDestination)
+                             bool loadDestination,
+                             SDL_FColor clearColor)
 {
     error.clear();
     if (!m_initialized || m_context == nullptr)
@@ -308,7 +309,7 @@ bool SdlImGuiBackend::render(ImDrawData& drawData,
     SDL_GPUColorTargetInfo targetInfo{};
     targetInfo.texture = &destination;
     targetInfo.load_op = loadDestination ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR;
-    targetInfo.clear_color = SDL_FColor{0.0f, 0.0f, 0.0f, 1.0f};
+    targetInfo.clear_color = clearColor;
     targetInfo.store_op = SDL_GPU_STOREOP_STORE;
     SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(&commandBuffer, &targetInfo, 1, nullptr);
     if (renderPass == nullptr)

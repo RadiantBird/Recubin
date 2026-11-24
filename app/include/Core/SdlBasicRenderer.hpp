@@ -25,6 +25,7 @@ struct SdlBasicCube {
     std::uint32_t texture = 0;
     std::uint32_t firstIndex = 0;
     std::uint32_t indexCount = 0;
+    SDL_GPUTexture* surfaceTexture = nullptr;
     bool doubleSided = false;
     bool castShadow = true;
     bool receiveShadow = true;

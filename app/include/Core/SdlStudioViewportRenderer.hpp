@@ -13,6 +13,8 @@
 
 class SdlLiveScene;
 class SdlGameGuiResources;
+class SdlImGuiBackend;
+class SdlSurfaceGuiRenderer;
 class GuiButton;
 class ViewportPanel;
 
@@ -20,7 +22,7 @@ class ViewportPanel;
 // the SDL device or command buffer; the Studio frame owns both of them.
 class SdlStudioViewportRenderer final : public ViewportSceneRenderer {
 public:
-    SdlStudioViewportRenderer(SDL_GPUDevice& device, ImFont* gameFont,
+    SdlStudioViewportRenderer(SDL_GPUDevice& device, SdlImGuiBackend& guiBackend, ImFont* gameFont,
                               std::function<void(GuiButton*)> onButtonActivated);
     ~SdlStudioViewportRenderer() override;
 
@@ -52,7 +54,9 @@ private:
     std::unordered_set<const ViewportPanel*> m_renderedPanes;
     std::vector<std::unique_ptr<SdlLiveScene>> m_retiredScenes;
     std::vector<SDL_GPUTexture*> m_ownedTextures;
+    SdlImGuiBackend& m_guiBackend;
     std::unique_ptr<SdlGameGuiResources> m_gameGuiResources;
+    std::unique_ptr<SdlSurfaceGuiRenderer> m_surfaceGui;
     std::function<void(GuiButton*)> m_onButtonActivated;
 
     void reportError(const std::string& message);

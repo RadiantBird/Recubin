@@ -8,6 +8,7 @@
 #include <Core/SdlPreviewImGui.hpp>
 #endif
 #include <Instances/BaseCube.hpp>
+#include <Instances/Cube.hpp>
 #include <Util/Color4.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/Lighting.hpp>
@@ -292,6 +293,7 @@ struct SdlLiveScene::State {
     std::vector<MeshDraw> meshes;
     std::vector<SdlBasicCube> frameDraws;
     std::vector<SdlBasicCube> outlineDraws;
+    std::uint32_t cubeFaces = 0;
     Matrix4 viewProjection;
     bool frameSucceeded = false;
     struct MeshCache {
@@ -324,6 +326,17 @@ SdlLiveScene::~SdlLiveScene() = default;
 bool SdlLiveScene::initialize(SDL_GPUDevice& device, std::string& error) {
     if (!m_state->renderer.initialize(device, error)) return false;
     if (!m_state->postEffects.initialize(device, error)) return false;
+    std::vector<SdlBasicVertex> vertices;
+    for (const Vertex& vertex : createCubeVertices(1.0f)) {
+        vertices.push_back({{vertex.Position.x, vertex.Position.y, vertex.Position.z},
+                            {vertex.U, 1.0f - vertex.V}});
+    }
+    std::vector<std::uint32_t> indices;
+    for (std::uint32_t face = 0; face < vertices.size(); face += 4) {
+        indices.insert(indices.end(), {face, face + 2, face + 1, face, face + 3, face + 2});
+    }
+    m_state->cubeFaces = m_state->renderer.uploadMesh(vertices, indices, error);
+    if (!m_state->cubeFaces) return false;
     m_state->initialized = true;
     return true;
 }
@@ -451,7 +464,8 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
 bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
                         const Vector3& cameraPosition, const Vector3& cameraForward, float effectTime,
                         SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
-                        std::string& error, std::span<BaseCube* const> selected) {
+                        std::string& error, std::span<BaseCube* const> selected,
+                        const SdlSurfaceGuiLayers* surfaceLayers) {
     m_state->viewProjection = viewProjection;
     m_state->frameSucceeded = false;
     const auto lightProjection = shadowProjection(workspace, cameraPosition, cameraForward);
@@ -459,13 +473,27 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
     draws.clear();
     draws.reserve(m_state->meshes.size());
     for (const auto& mesh : m_state->meshes) {
-        auto& draw = draws.emplace_back(mesh.draw);
+        auto draw = mesh.draw;
         const Matrix4 mvp = viewProjection * mesh.model;
         std::copy_n(mvp.m, 16, draw.modelViewProjection.begin());
         if (lightProjection) {
             const Matrix4 shadowMvp = *lightProjection * mesh.model;
             std::copy_n(shadowMvp.m, 16, draw.shadowModelViewProjection.begin());
         }
+        if (surfaceLayers) {
+            const auto layers = surfaceLayers->find(mesh.owner);
+            if (layers != surfaceLayers->end()) {
+                draw.geometry = m_state->cubeFaces;
+                draw.indexCount = 6;
+                for (SDL_GPUTexture* texture : layers->second) {
+                    draw.surfaceTexture = texture;
+                    draws.push_back(draw);
+                    draw.firstIndex += draw.indexCount;
+                }
+                continue;
+            }
+        }
+        draws.push_back(draw);
     }
     for (const auto& [terrain, cache] : m_state->terrainCache) {
         cache.meshes.appendDraws(viewProjection, lightProjection, draws);

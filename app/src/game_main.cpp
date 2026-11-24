@@ -31,6 +31,7 @@
 #include <Core/SdlImGuiBackend.hpp>
 #include <Core/GameGuiDrawing.hpp>
 #include <Core/SdlGameGuiResources.hpp>
+#include <Core/SdlSurfaceGuiRenderer.hpp>
 #include <Core/TerrainStreamer.hpp>
 #endif
 #include <Core/RuntimeFrame.hpp>
@@ -501,6 +502,7 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<ImGuiContext, void(*)(ImGuiContext*)> sdlImGuiContext(nullptr, ImGui::DestroyContext);
     std::unique_ptr<SdlImGuiBackend> sdlImGui;
     std::unique_ptr<SdlGameGuiResources> sdlGuiResources;
+    std::unique_ptr<SdlSurfaceGuiRenderer> sdlSurfaceGui;
     if (sdlRuntime) {
         sdlWindow = std::make_unique<SdlGpuWindow>();
         SdlGpuWindowConfig config;
@@ -540,6 +542,7 @@ int main(int argc, char* argv[]) {
         }
         sdlGuiResources = std::make_unique<SdlGameGuiResources>(*sdlWindow->device());
         sdlGuiResources->initializeFonts();
+        sdlSurfaceGui = std::make_unique<SdlSurfaceGuiRenderer>(*sdlWindow->device());
         RCBN_LOG("SDL GPU runtime: " << sdlWindow->driverName());
     }
 #endif
@@ -1079,12 +1082,20 @@ int main(int argc, char* argv[]) {
                 }
                 sdlGuiResources->prepareFonts(*workspace);
                 ImGui::NewFrame();
+                if (!sdlSurfaceGui->bake(*workspace, *frame.command, *sdlImGui,
+                                         sdlGuiResources->drawing(), error)) {
+                    RCBN_ERROR("SDL GPU runtime SurfaceGui bake failed: " << error);
+                    ImGui::EndFrame();
+                    if (!sdlWindow->submit(frame, nullptr, &error)) RCBN_ERROR(error);
+                    networkExitCode = -1;
+                    break;
+                }
             }
             const unsigned width = selfCheck ? SELF_CHECK_WIDTH : frame.width;
             const unsigned height = selfCheck ? SELF_CHECK_HEIGHT : frame.height;
             const Matrix4 projection = sdlSceneViewProjection(*user, static_cast<float>(width) / height);
             if (!sdlScene->draw(*workspace, projection, user->cpos, user->forward, effectTime,
-                                *frame.command, width, height, error)) {
+                                *frame.command, width, height, error, {}, &sdlSurfaceGui->layers())) {
                 RCBN_ERROR("SDL GPU scene draw failed: " << error);
                 if (sdlImGui) ImGui::EndFrame();
                 if (!sdlWindow->submit(frame, nullptr, &error)) RCBN_ERROR(error);
@@ -1110,9 +1121,18 @@ int main(int argc, char* argv[]) {
                     ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
                     ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus |
                     ImGuiWindowFlags_NoBackground);
+                bool activated = false;
                 GameGuiDrawing::draw(*workspace, user.get(), context, sdlGuiResources->drawing(),
-                    [&](GuiButton* button) { luauEngine->onGuiButtonActivated(button); },
+                    [&](GuiButton* button) {
+                        activated = true;
+                        luauEngine->onGuiButtonActivated(button);
+                    },
                     inputEnabled);
+                if (inputEnabled && !activated) {
+                    if (auto* button = sdlSurfaceGui->clickedButton(*workspace, context)) {
+                        luauEngine->onGuiButtonActivated(button);
+                    }
+                }
                 ImGui::End();
                 ImGui::PopStyleVar();
                 ImGui::Render();

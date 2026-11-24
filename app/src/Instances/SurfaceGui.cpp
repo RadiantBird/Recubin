@@ -58,9 +58,12 @@ static const bool s_surfaceGuiRegistered = []{
 
 SurfaceGui::SurfaceGui() : Named<SurfaceGui, WorldGuiObject>("SurfaceGui") {}
 
-bool SurfaceGui::isRenderableDirectChild(Instance* child) {
+bool SurfaceGui::isRenderableDirectChild(Instance* child, bool useImagePath) {
     if (!child || !child->IsA("ScreenGuiObject")) return false;
-    return static_cast<ScreenGuiObject*>(child)->hasRenderableOwnContent();
+    auto* element = static_cast<ScreenGuiObject*>(child);
+    if (element->hasRenderableOwnContent()) return true;
+    const auto* image = element->imageContent();
+    return useImagePath && element->Visible && image && !image->path.empty();
 }
 
 bool SurfaceGui::hasRenderableDirectChild() {
@@ -77,7 +80,7 @@ bool SurfaceGui::contributesBakedVisualOverride() {
     return hasRenderableOwnContent() || hasRenderableDirectChild();
 }
 
-std::uint64_t SurfaceGui::computeRenderContentSignature(float defaultFontSize) {
+std::uint64_t SurfaceGui::computeRenderContentSignature(float defaultFontSize, bool useImagePath) {
     std::uint64_t hash = FNV_OFFSET_BASIS;
     hashString(hash, "SurfaceGuiRenderContentV1");
     hashVector2(hash, Size);
@@ -91,7 +94,7 @@ std::uint64_t SurfaceGui::computeRenderContentSignature(float defaultFontSize) {
     std::uint64_t renderableChildCount = 0;
     for (auto const& [name, child] : getChildren()) {
         (void)name;
-        if (isRenderableDirectChild(child.get())) ++renderableChildCount;
+        if (isRenderableDirectChild(child.get(), useImagePath)) ++renderableChildCount;
     }
     hashUint64(hash, renderableChildCount);
 
@@ -99,7 +102,7 @@ std::uint64_t SurfaceGui::computeRenderContentSignature(float defaultFontSize) {
     // 走査順が変わった場合も、実際の重なり順の変化として再ベイクされる。
     for (auto const& [name, instance] : getChildren()) {
         (void)name;
-        if (!isRenderableDirectChild(instance.get())) continue;
+        if (!isRenderableDirectChild(instance.get(), useImagePath)) continue;
         auto* child = static_cast<ScreenGuiObject*>(instance.get());
         hashString(hash, child->getClassName());
         hashString(hash, child->Name);
@@ -120,6 +123,9 @@ std::uint64_t SurfaceGui::computeRenderContentSignature(float defaultFontSize) {
         if (drawsText) {
             hashString(hash, text->Text);
             hashColor(hash, text->TextColor);
+            hashUint64(hash, static_cast<std::uint64_t>(text->XAlignment));
+            hashUint64(hash, static_cast<std::uint64_t>(text->YAlignment));
+            hashByte(hash, text->TextScaled ? 1 : 0);
             const float effectiveFontSize = child->FontSize > 0.0f
                 ? child->FontSize
                 : defaultFontSize;
@@ -133,7 +139,8 @@ std::uint64_t SurfaceGui::computeRenderContentSignature(float defaultFontSize) {
         }
 
         ImageContent* image = child->imageContent();
-        const bool drawsImage = image && image->textureID;
+        const bool drawsImage = image && (useImagePath ? !image->path.empty()
+                                                       : static_cast<bool>(image->textureID));
         hashByte(hash, drawsImage ? 1 : 0);
         if (drawsImage) {
             hashString(hash, image->path);

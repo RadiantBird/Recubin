@@ -31,7 +31,8 @@ public:
                 SDL_GPUCommandBuffer& commandBuffer,
                 SDL_GPUTexture& destination,
                 std::string& error,
-                bool loadDestination = false);
+                bool loadDestination = false,
+                SDL_FColor clearColor = {0.0f, 0.0f, 0.0f, 1.0f});
     bool renderPlatformWindows(std::string& error, std::string_view captureTitle = {},
                                const std::filesystem::path* capturePath = nullptr);
     bool ownsWindow(SDL_Window* window) const;

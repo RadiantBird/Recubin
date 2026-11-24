@@ -294,7 +294,7 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     fi.entrypoint = "PSMain";
     fi.format = format;
     fi.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
-    fi.num_samplers = 2;
+    fi.num_samplers = 3;
     fi.num_uniform_buffers = 1;
     m_fragmentShader = SDL_CreateGPUShader(&device, &fi);
     if (!m_fragmentShader) {
@@ -972,9 +972,10 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                     }
                     texture = it->second;
                 }
-                const std::array<SDL_GPUTextureSamplerBinding, 2> samplerBindings = {
+                const std::array<SDL_GPUTextureSamplerBinding, 3> samplerBindings = {
                     SDL_GPUTextureSamplerBinding{texture, m_sampler},
-                    SDL_GPUTextureSamplerBinding{shadows ? m_shadowTarget : m_whiteTexture, m_shadowSampler}};
+                    SDL_GPUTextureSamplerBinding{shadows ? m_shadowTarget : m_whiteTexture, m_shadowSampler},
+                    SDL_GPUTextureSamplerBinding{cube.surfaceTexture ? cube.surfaceTexture : m_whiteTexture, m_sampler}};
                 SDL_BindGPUFragmentSamplers(pass, 0, samplerBindings.data(),
                                             static_cast<Uint32>(samplerBindings.size()));
             }
@@ -986,7 +987,8 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
             u[36] = shadowPass ? 1.0f : 0.0f;
             SDL_PushGPUVertexUniformData(&commandBuffer, 0, u.data(), sizeof(u));
             const std::array<float, 4> shadowParams = {
-                (shadows && cube.receiveShadow) ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f};
+                (shadows && cube.receiveShadow) ? 1.0f : 0.0f,
+                cube.surfaceTexture ? 1.0f : 0.0f, 0.0f, 0.0f};
             if (kind == Pass::Scene) {
                 SDL_PushGPUFragmentUniformData(&commandBuffer, 0, shadowParams.data(),
                                                sizeof(shadowParams));

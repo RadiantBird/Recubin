@@ -3,6 +3,7 @@
 #include <Core/SdlScenePreview.hpp>
 #include <Core/SdlBasicRenderer.hpp>
 #include <Core/SdlGameGuiResources.hpp>
+#include <Core/SdlSurfaceGuiRenderer.hpp>
 #include <Core/Renderer.hpp>
 #include <Editor/ViewportSceneQueries.hpp>
 #include <Instances/BaseCube.hpp>
@@ -54,18 +55,29 @@ Matrix4 studioViewProjection(const ViewportRenderDesc& request) {
 }
 
 SdlStudioViewportRenderer::SdlStudioViewportRenderer(
-    SDL_GPUDevice& device, ImFont* gameFont, std::function<void(GuiButton*)> onButtonActivated)
+    SDL_GPUDevice& device, SdlImGuiBackend& guiBackend, ImFont* gameFont,
+    std::function<void(GuiButton*)> onButtonActivated)
     : m_device(&device),
+      m_guiBackend(guiBackend),
       m_gameGuiResources(std::make_unique<SdlGameGuiResources>(device)),
+      m_surfaceGui(std::make_unique<SdlSurfaceGuiRenderer>(device)),
       m_onButtonActivated(std::move(onButtonActivated)) {
     m_gameGuiResources->initializeFonts(gameFont);
 }
 
 void SdlStudioViewportRenderer::renderGameGui(
     Workspace& workspace, User* user, const GameGuiRenderContext& context, bool inputEnabled) {
-    m_gameGuiResources->prepareFonts(workspace);
+    bool activated = false;
     GameGuiDrawing::draw(workspace, user, context, m_gameGuiResources->drawing(),
-                        m_onButtonActivated, inputEnabled);
+                        [&](GuiButton* button) {
+                            activated = true;
+                            m_onButtonActivated(button);
+                        }, inputEnabled);
+    if (inputEnabled && !activated) {
+        if (auto* button = m_surfaceGui->clickedButton(workspace, context)) {
+            m_onButtonActivated(button);
+        }
+    }
 }
 
 SdlStudioViewportRenderer::~SdlStudioViewportRenderer() {
@@ -165,12 +177,18 @@ ImTextureRef SdlStudioViewportRenderer::renderViewport(const ViewportPanel& pane
         reportError("SDL Studio viewport renderer: " + sceneError);
         return ImTextureRef{};
     }
+    m_gameGuiResources->prepareFonts(*request.workspace);
+    if (!m_surfaceGui->bake(*request.workspace, *m_commandBuffer, m_guiBackend,
+                            m_gameGuiResources->drawing(), sceneError)) {
+        reportError("SDL Studio SurfaceGui: " + sceneError);
+        return ImTextureRef{};
+    }
     const Matrix4 viewProjection = studioViewProjection(request);
     const std::vector<BaseCube*> selected = collectViewportSelection(request);
     if (!scene.draw(*request.workspace, viewProjection, request.cameraPosition,
                     request.cameraForward, m_elapsed, *m_commandBuffer,
                     static_cast<unsigned>(request.width), static_cast<unsigned>(request.height),
-                    sceneError, selected)) {
+                    sceneError, selected, &m_surfaceGui->layers())) {
         reportError("SDL Studio viewport renderer: " + sceneError);
         return ImTextureRef{};
     }

@@ -1,5 +1,6 @@
 #include "include/Core/Renderer.hpp"
 #include "include/Core/GameGuiDrawing.hpp"
+#include "include/Core/SurfaceGuiDrawing.hpp"
 #include "include/Core/SystemState.hpp"
 #include "include/Core/ScreenGuiLayout.hpp"
 #include "include/Instances/Workspace.hpp"
@@ -311,44 +312,54 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
 //  SurfaceGui のキャンバス→FBO ピクセル座標レイアウト計算
 //  ベイク処理(bakeSurfaceGui)とクリックヒットテストの両方で使う共通計算
 // ===================================================
-struct SurfaceGuiLayout {
-    float cW = 0.f, cH = 0.f;         // キャンバスサイズ (SurfaceGui->Size)
-    int   w = 0, h = 0;               // FBO ピクセルサイズ
-    float scale = 1.f, offX = 0.f, offY = 0.f; // キャンバス→FBOのレターボックス変換
-};
-
-static bool computeSurfaceGuiLayout(SurfaceGui* sg, SurfaceGuiLayout& out) {
-    out.cW = sg->Size.x; out.cH = sg->Size.y;
-    if (out.cW <= 0 || out.cH <= 0) return false;
-
-    // 親 BaseCube からフェイスの物理サイズ（スタッド）を取得
-    float faceU = out.cW, faceV = out.cH;
-    if (auto par = sg->Parent.lock()) {
-        if (par->IsA("BaseCube")) {
-            auto* cube = static_cast<BaseCube*>(par.get());
-            switch (sg->face) {
-                case Face::Front: case Face::Back:
-                    faceU = cube->Size.x; faceV = cube->Size.y; break;
-                case Face::Top:   case Face::Bottom:
-                    faceU = cube->Size.x; faceV = cube->Size.z; break;
-                case Face::Right: case Face::Left:
-                    faceU = cube->Size.z; faceV = cube->Size.y; break;
-            }
+bool computeSurfaceGuiLayout(const SurfaceGui& surface, SurfaceGuiLayout& result) {
+    result.cW = surface.Size.x;
+    result.cH = surface.Size.y;
+    if (!(result.cW > 0.0f) || !(result.cH > 0.0f) || !std::isfinite(result.cH)) return false;
+    float faceWidth = result.cW;
+    float faceHeight = result.cH;
+    const auto parent = surface.Parent.lock();
+    if (const auto* cube = dynamic_cast<const BaseCube*>(parent.get())) {
+        switch (surface.face) {
+            case Face::Front:
+            case Face::Back:
+                faceWidth = cube->Size.x;
+                faceHeight = cube->Size.y;
+                break;
+            case Face::Top:
+            case Face::Bottom:
+                faceWidth = cube->Size.x;
+                faceHeight = cube->Size.z;
+                break;
+            case Face::Right:
+            case Face::Left:
+                faceWidth = cube->Size.z;
+                faceHeight = cube->Size.y;
+                break;
         }
     }
-    if (faceU <= 0) faceU = out.cW;
-    if (faceV <= 0) faceV = out.cH;
-
-    // FBO サイズ = フェイスのアスペクト比に合わせる（幅は cW を基準）
-    out.w = (int)out.cW;
-    out.h = (int)(out.cW * faceV / faceU);
-    if (out.w <= 0 || out.h <= 0) return false;
-
-    // キャンバスを FBO に収めるための均一スケールとオフセット（レターボックス）
-    out.scale = (std::min)((float)out.w / out.cW, (float)out.h / out.cH);
-    out.offX  = ((float)out.w - out.cW * out.scale) * 0.5f;
-    out.offY  = ((float)out.h - out.cH * out.scale) * 0.5f;
+    if (faceWidth <= 0.0f) faceWidth = result.cW;
+    if (faceHeight <= 0.0f) faceHeight = result.cH;
+    const double height = static_cast<double>(result.cW) * faceHeight / faceWidth;
+    constexpr auto pixelLimit = std::numeric_limits<int>::max();
+    if (!(height >= 1.0 && height <= pixelLimit) ||
+        !(result.cW >= 1.0f && static_cast<double>(result.cW) <= pixelLimit)) return false;
+    result.w = static_cast<int>(result.cW);
+    result.h = static_cast<int>(height);
+    result.scale = (std::min)(static_cast<float>(result.w) / result.cW,
+                              static_cast<float>(result.h) / result.cH);
+    result.offX = (result.w - result.cW * result.scale) * 0.5f;
+    result.offY = (result.h - result.cH * result.scale) * 0.5f;
     return true;
+}
+
+void collectImGuiAtlasTextures(ImVector<ImTextureData*>& textures) {
+    textures = ImGui::GetPlatformIO().Textures;
+    for (ImTextureData* texture : ImGui::GetIO().Fonts->TexList) {
+        if (std::find(textures.begin(), textures.end(), texture) == textures.end()) {
+            textures.push_back(texture);
+        }
+    }
 }
 
 // ===================================================
@@ -362,7 +373,7 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
     if (!drawSurfaceBackground && !sg->hasRenderableDirectChild()) return;
 
     SurfaceGuiLayout L;
-    if (!computeSurfaceGuiLayout(sg, L)) return;
+    if (!computeSurfaceGuiLayout(*sg, L)) return;
     float cW = L.cW, cH = L.cH;
     int   w  = L.w,  h  = L.h;
     float scale = L.scale, offX = L.offX, offY = L.offY;
@@ -489,17 +500,8 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
         // draw data. UpdateTexturesEndFrame() has not rebuilt PlatformIO.Textures
         // yet, so include the current font-atlas entries explicitly. Otherwise
         // a newly grown atlas is left with an invalid TexID for this bake.
-        ImVector<ImTextureData*> bakeTextures = ImGui::GetPlatformIO().Textures;
-        for (ImTextureData* texture : ImGui::GetIO().Fonts->TexList) {
-            bool alreadyListed = false;
-            for (ImTextureData* listedTexture : bakeTextures) {
-                if (listedTexture == texture) {
-                    alreadyListed = true;
-                    break;
-                }
-            }
-            if (!alreadyListed) bakeTextures.push_back(texture);
-        }
+        ImVector<ImTextureData*> bakeTextures;
+        collectImGuiAtlasTextures(bakeTextures);
         dd.Textures = &bakeTextures;
         dd.AddDrawList(dl);
         ImGui_ImplOpenGL3_RenderDrawData(&dd);
@@ -748,7 +750,7 @@ static bool hitTestSurfaceGui(SurfaceGui* sg, BaseCube* cube, const Vector3& ray
     if (texU < 0.0f || texU > 1.0f || texV < 0.0f || texV > 1.0f) return false;
 
     SurfaceGuiLayout L;
-    if (!computeSurfaceGuiLayout(sg, L)) return false;
+    if (!computeSurfaceGuiLayout(*sg, L)) return false;
 
     float fboX = texU * (float)L.w;
     // OpenGL の FBO 読み書き(glGetTexImage/テクスチャサンプリング)は行が下から0番になる規約のため、
