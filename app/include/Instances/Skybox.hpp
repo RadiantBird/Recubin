@@ -1,11 +1,15 @@
 #pragma once
 #include <include/Instances/Cube.hpp>
 #include <include/Instances/Named.hpp>
+#include <array>
 #include <string>
 
 class Skybox : public Named<Skybox, Cube> {
 public:
     static constexpr const char* ClassName = "Skybox";
+    static constexpr std::array<Face, 6> IMAGE_FACES = {
+        Face::Right, Face::Left, Face::Top, Face::Bottom, Face::Back, Face::Front
+    };
 
     // 6面のテクスチャパス (Right, Left, Top, Bottom, Front, Back)
     std::string skyboxPaths[6];

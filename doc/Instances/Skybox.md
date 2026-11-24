@@ -4,6 +4,8 @@
 
 シーンを覆う巨大キューブ（一辺5000stud）としての空表現。`Cube` を継承し、6面それぞれに専用テクスチャパスを持つ。常にカメラ位置へ追従し、無衝突・無影・無ライティング（`Unlit`）で描画される。
 
+SDL GPU では、最後に登録された表示対象の Skybox をカメラ中心に描く。シーン上の Position を変更せず、回転と Size の縦横比を反映する。面ごとに `SkyboxPaths` の画像を優先し、パスが空なら面に設定された Decal や Texture を使う。画像がない面は Skybox の Color で描く。
+
 ## 継承
 
 `Instance` → `Spatial` → `BaseCube` → `Cube` → `Skybox`

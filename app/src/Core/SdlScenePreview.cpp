@@ -40,6 +40,7 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
+#include <ranges>
 #include <array>
 #include <cmath>
 #include <filesystem>
@@ -428,6 +429,8 @@ struct SdlLiveScene::State {
     };
     std::vector<MeshDraw> meshes;
     std::vector<SdlBasicCube> frameDraws;
+    std::array<SdlBasicCube, 6> skyFaces{};
+    std::optional<Matrix4> skyModel;
     std::vector<TransparentDraw> transparent;
     std::vector<SdlBasicCube> outlineDraws;
     std::uint32_t cubeFaces = 0;
@@ -621,6 +624,53 @@ struct SdlLiveScene::State {
         return image.handle;
     }
 
+    bool syncSkybox(const Workspace& workspace, std::string& error) {
+        skyModel.reset();
+        for (auto* skybox : workspace.getRenderSkyboxes() | std::views::reverse) {
+            if (!skybox) {
+                error = "Workspace contains an empty Skybox render entry";
+                return false;
+            }
+            if (skybox->Color.a <= 0.0f) continue;
+
+            const Vector3 size = skybox->Size;
+            if (!std::isfinite(size.x) || !std::isfinite(size.y) || !std::isfinite(size.z) ||
+                size.x <= 0.0f || size.y <= 0.0f || size.z <= 0.0f) {
+                error = skybox->getFullPath() + ": Skybox Size must contain positive finite values";
+                return false;
+            }
+            const float largestSide = std::max({size.x, size.y, size.z});
+            const Matrix4 rotation = Matrix4::FromQuaternion(skybox->getWorldCFrame().Rotation);
+            skyModel = rotation * Matrix4::Scale(size.x / largestSide,
+                                                 size.y / largestSide,
+                                                 size.z / largestSide);
+            const auto visuals = collectCubeFaceVisuals(*skybox);
+            for (std::size_t i = 0; i < Skybox::IMAGE_FACES.size(); ++i) {
+                const auto face = static_cast<std::size_t>(Skybox::IMAGE_FACES[i]);
+                auto visual = visuals.direct[face];
+                if (visual.path.empty()) visual = visuals.material[face];
+                const auto& path = skybox->skyboxPaths[i];
+                if (!path.empty()) {
+                    if (visual.path != path) visual = CubeFaceVisual{};
+                    visual.path = path;
+                }
+                SdlBasicCube draw;
+                draw.geometry = cubeFaces;
+                draw.firstIndex = primitiveFaces[0][face].firstIndex;
+                draw.indexCount = primitiveFaces[0][face].indexCount;
+                draw.color = {skybox->Color.r, skybox->Color.g, skybox->Color.b, 1.0f};
+                draw.faceTexture = resolveSceneImage(AssetPath::normalize(visual.path));
+                draw.faceTint = {visual.tint.r, visual.tint.g, visual.tint.b, visual.tint.a};
+                draw.faceUvScale = {visual.uvScale.x, visual.uvScale.y};
+                draw.castShadow = false;
+                draw.receiveShadow = false;
+                skyFaces[i] = draw;
+            }
+            break;
+        }
+        return true;
+    }
+
     void collectFaceImages(BaseCube& cube) {
         const auto visuals = collectCubeFaceVisuals(cube);
         FaceImages faces;
@@ -714,6 +764,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
     m_state->meshes.clear();
     m_state->faceImages.clear();
     m_state->usedSceneImages.clear();
+    if (!m_state->syncSkybox(workspace, error)) return false;
     std::unordered_set<const BaseCube*> active;
     for (BaseCube* cube : workspace.getRenderBaseCubes()) {
         if (!cube) {
@@ -959,9 +1010,20 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
     for (const auto& draw : transparent) {
         append(*draw.mesh);
     }
+    std::span<const SdlBasicCube> skyFaces;
+    if (m_state->skyModel) {
+        const Matrix4 cameraTranslation = Matrix4::Translate(cameraPosition.x, cameraPosition.y,
+                                                              cameraPosition.z);
+        const Matrix4 skyMvp = viewProjection * cameraTranslation * *m_state->skyModel;
+        for (auto& face : m_state->skyFaces) {
+            std::copy_n(skyMvp.m, 16, face.modelViewProjection.begin());
+        }
+        skyFaces = m_state->skyFaces;
+    }
     const bool drawn = m_state->renderer.draw(commandBuffer, width, height, draws,
                                                error, lightProjection.has_value(),
-                                               collectMaterialLighting(workspace, cameraPosition));
+                                               collectMaterialLighting(workspace, cameraPosition),
+                                               skyFaces);
     if (!drawn) {
         return false;
     }

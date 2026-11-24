@@ -43,6 +43,9 @@ VSOutput VSMain(VSInput input) {
     float4 position = float4(input.position, 1.0);
     output.position = renderParams.x > 0.5 ? mul(shadowModelViewProjection, position)
                                            : mul(modelViewProjection, position);
+    if (renderParams.y > 0.5) {
+        output.position.z = output.position.w;
+    }
     output.color = color * input.color;
     output.uv = input.uv;
     output.shadowPosition = mul(shadowModelViewProjection, float4(input.position, 1.0));

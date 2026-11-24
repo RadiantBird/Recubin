@@ -72,13 +72,15 @@ public:
     std::uint32_t uploadTexture(unsigned width, unsigned height,
                                 std::span<const std::uint8_t> rgba,
                                 std::string& error);
+    // When supplying sky faces, place blended draws after all opaque draws.
     bool draw(SDL_GPUCommandBuffer& commandBuffer,
               unsigned width,
               unsigned height,
               std::span<const SdlBasicCube> cubes,
               std::string& error,
               bool shadows = false,
-              const SdlMaterialLighting& lighting = {});
+              const SdlMaterialLighting& lighting = {},
+              std::span<const SdlBasicCube> skyFaces = {});
     bool drawOutline(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUTexture& destination,
                      std::span<const SdlBasicCube> draws, const Color4& color, float thickness,
                      std::string& error);
@@ -110,12 +112,14 @@ private:
     SDL_GPUShader* m_selectionOutlineVertexShader = nullptr;
     SDL_GPUShader* m_selectionOutlineFragmentShader = nullptr;
     SDL_GPUSampler* m_sampler = nullptr;
+    SDL_GPUSampler* m_skySampler = nullptr;
     SDL_GPUSampler* m_shadowSampler = nullptr;
     SDL_GPUSampler* m_selectionSampler = nullptr;
     SDL_GPUGraphicsPipeline* m_pipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_doubleSidedPipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_blendPipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_blendDoubleSidedPipeline = nullptr;
+    SDL_GPUGraphicsPipeline* m_skyPipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_shadowPipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_selectionMaskPipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_selectionMaskDoubleSidedPipeline = nullptr;

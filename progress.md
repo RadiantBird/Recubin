@@ -988,3 +988,10 @@
 - Material を持つ lit 描画に GGX／Smith／Schlick の直射計算と拡散環境光を追加。Sun の方向は影マップと同じ Sun から取得し、Lighting の色と強度を適用。PointLight と SpotLight は距離とコーンの減衰を使う。既存の影マップは PBR の太陽光だけを減衰させる。
 - xmake Windows Release で Studio・Engine・Test・Runtime をビルド。Vulkan／D3D12 の両アプリで各マップの反映、NormalStrength=0、PointLight の減衰と SpotLight の向き・範囲を GPU 読み戻しで確認。パネル比較 20 組のうち 19 組は全画素一致、残る Engine の金属度対照は 2 ピクセルだけ RGB の最大差が 1。Engine で Lighting の色と PBR 面の影も確認し、既存の非 Material の影とカスタム GLSL は従来 PNG と一致した。
 - Material Map、Material Service、ビューポート補助、GUI 自動化の回帰 4 件が成功。次は空と環境スペキュラ反射、非 Material の Lambert 照明、組み込みポスト処理。SDK と macOS 実機検証は別工程。
+
+## 2026-11-24 SDL GPU の Skybox
+
+- Studio と Engine の共通シーンで Skybox の 6 面を描画する。最後に登録された表示対象を選び、ルートの位置を変えずカメラに追従させる。回転と Size の比率、面の画像・Decal の合成、画像が無い面の Color を適用する。面画像は Material と共通の更新付き画像キャッシュを使う。
+- 不透明物の描画後にシーン深度をテストし、深度を書き込まずに空を描く。半透明物はその後で空と合成する。Skybox は影と選択描画の対象外。
+- xmake Windows Release で Studio・Engine・Test・Runtime が成功。Studio で全 6 面、カメラ移動、画像なしの面、上下と遮蔽・透過を確認。Engine で回転、色へのフォールバック、遮蔽と透過を確認した。両 GPU のアプリ内 PNG 13 組が一致し、既存の影とカスタム GLSL の PNG も変更前と一致。クローン、ビューポート補助、GUI 自動化の回帰 3 件が成功。
+- 次は Sun／Moon の円盤・満ち欠け・光条と雲、Skybox を使う環境スペキュラ反射。組み込みポスト処理、Studio の画像プレビューと実機入力検証、配布物の確認、SDL GPU の既定化と旧描画経路の撤去も残る。

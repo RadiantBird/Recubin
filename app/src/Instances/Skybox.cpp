@@ -43,13 +43,8 @@ void Skybox::setSkyboxPath(int faceIndex, const std::string& path) {
     if (faceIndex < 0 || faceIndex >= 6) return;
     skyboxPaths[faceIndex] = path;
 
-    // Mapping from UI face index (0-5) to Decal's Face enum
-    // UI: 0: Right(+X), 1: Left(-X), 2: Top(+Y), 3: Bottom(-Y), 4: Front(+Z), 5: Back(-Z)
-    // Cube faces: 0: Front(-Z), 1: Back(+Z), 2: Top(+Y), 3: Bottom(-Y), 4: Right(+X), 5: Left(-X)
-    Face mapping[6] = { Face::Right, Face::Left, Face::Top, Face::Bottom, Face::Back, Face::Front };
-
     // Find the decal for this face and update its texture
-    Face targetFace = mapping[faceIndex];
+    Face targetFace = IMAGE_FACES[faceIndex];
     for (auto const& [name, child] : children) {
         if (child->IsA("Decal")) {
             Decal* decal = static_cast<Decal*>(child.get());

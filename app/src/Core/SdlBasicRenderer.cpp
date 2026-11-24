@@ -156,6 +156,9 @@ void SdlBasicRenderer::releaseResources() {
     if (m_blendDoubleSidedPipeline) {
         SDL_ReleaseGPUGraphicsPipeline(m_device, m_blendDoubleSidedPipeline);
     }
+    if (m_skyPipeline) {
+        SDL_ReleaseGPUGraphicsPipeline(m_device, m_skyPipeline);
+    }
     if (m_shadowPipeline) {
         SDL_ReleaseGPUGraphicsPipeline(m_device, m_shadowPipeline);
     }
@@ -192,6 +195,9 @@ void SdlBasicRenderer::releaseResources() {
     if (m_sampler) {
         SDL_ReleaseGPUSampler(m_device, m_sampler);
     }
+    if (m_skySampler) {
+        SDL_ReleaseGPUSampler(m_device, m_skySampler);
+    }
     if (m_shadowSampler) {
         SDL_ReleaseGPUSampler(m_device, m_shadowSampler);
     }
@@ -221,6 +227,7 @@ void SdlBasicRenderer::releaseResources() {
     m_doubleSidedPipeline = nullptr;
     m_blendPipeline = nullptr;
     m_blendDoubleSidedPipeline = nullptr;
+    m_skyPipeline = nullptr;
     m_shadowPipeline = nullptr;
     m_selectionMaskPipeline = nullptr;
     m_selectionMaskDoubleSidedPipeline = nullptr;
@@ -235,6 +242,7 @@ void SdlBasicRenderer::releaseResources() {
     m_terrainGuideVertexShader = nullptr;
     m_terrainGuideFragmentShader = nullptr;
     m_sampler = nullptr;
+    m_skySampler = nullptr;
     m_shadowSampler = nullptr;
     m_selectionSampler = nullptr;
     m_whiteTexture = nullptr;
@@ -399,6 +407,17 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     m_blendDoubleSidedPipeline = SDL_CreateGPUGraphicsPipeline(&device, &blendPi);
     if (!m_blendDoubleSidedPipeline) {
         error = sdlError("SDL_CreateGPUGraphicsPipeline(alpha-blended double-sided)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
+    SDL_GPUGraphicsPipelineCreateInfo skyPi = pi;
+    skyPi.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+    skyPi.depth_stencil_state.enable_depth_write = false;
+    skyPi.depth_stencil_state.compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL;
+    m_skyPipeline = SDL_CreateGPUGraphicsPipeline(&device, &skyPi);
+    if (!m_skyPipeline) {
+        error = sdlError("SDL_CreateGPUGraphicsPipeline(skybox)");
         releaseResources();
         m_device = nullptr;
         return false;
@@ -601,6 +620,17 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     m_sampler = SDL_CreateGPUSampler(&device, &samplerInfo);
     if (!m_sampler) {
         error = sdlError("SDL_CreateGPUSampler");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
+    SDL_GPUSamplerCreateInfo skySamplerInfo = samplerInfo;
+    skySamplerInfo.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+    skySamplerInfo.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+    skySamplerInfo.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
+    m_skySampler = SDL_CreateGPUSampler(&device, &skySamplerInfo);
+    if (!m_skySampler) {
+        error = sdlError("SDL_CreateGPUSampler(skybox)");
         releaseResources();
         m_device = nullptr;
         return false;
@@ -996,7 +1026,8 @@ SDL_GPUTexture* SdlBasicRenderer::resolveTexture(std::uint32_t handle, std::stri
 
 bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
                             std::span<const SdlBasicCube> cubes, std::string& error, bool shadows,
-                            const SdlMaterialLighting& lighting) {
+                            const SdlMaterialLighting& lighting,
+                            std::span<const SdlBasicCube> skyFaces) {
     error.clear();
     if (!m_device || !m_pipeline || !m_defaultGeometry.vertexBuffer) {
         error = "SdlBasicRenderer: renderer is not initialized";
@@ -1008,25 +1039,21 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
     if (shadows && !ensureShadowTarget(error)) {
         return false;
     }
-    enum class Pass { Scene, Shadow };
-    const auto drawPass = [&](SDL_GPURenderPass* pass, Pass kind) -> bool {
+    enum class Pass { Scene, Sky, Shadow };
+    const auto drawPass = [&](SDL_GPURenderPass* pass, Pass kind,
+                              std::span<const SdlBasicCube> draws) -> bool {
         const bool shadowPass = kind == Pass::Shadow;
-        SDL_GPUViewport vp{};
-        vp.w = shadowPass ? static_cast<float>(SHADOW_MAP_SIZE) : static_cast<float>(width);
-        vp.h = shadowPass ? static_cast<float>(SHADOW_MAP_SIZE) : static_cast<float>(height);
-        vp.max_depth = 1.0f;
-        SDL_SetGPUViewport(pass, &vp);
-        if (!shadowPass) {
-            SDL_PushGPUFragmentUniformData(&commandBuffer, 1, &lighting, sizeof(lighting));
-        }
+        const bool skyPass = kind == Pass::Sky;
         SDL_GPUGraphicsPipeline* boundPipeline = nullptr;
-        for (const auto& cube : cubes) {
+        for (const auto& cube : draws) {
             if (shadowPass && !cube.castShadow) {
                 continue;
             }
             SDL_GPUGraphicsPipeline* pipeline = m_shadowPipeline;
             if (!shadowPass) {
-                if (cube.blend) {
+                if (skyPass) {
+                    pipeline = m_skyPipeline;
+                } else if (cube.blend) {
                     pipeline = cube.doubleSided ? m_blendDoubleSidedPipeline : m_blendPipeline;
                 } else {
                     pipeline = cube.doubleSided ? m_doubleSidedPipeline : m_pipeline;
@@ -1040,7 +1067,7 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
             if (!texture) {
                 return false;
             }
-            if (kind == Pass::Scene) {
+            if (!shadowPass) {
                 const auto materialTexture = resolveTexture(cube.materialBaseColor, error);
                 if (!materialTexture) {
                     return false;
@@ -1064,10 +1091,12 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                 if (!roughnessTexture || !metallicTexture || !normalTexture) {
                     return false;
                 }
+                const bool clampOverlay = skyPass &&
+                    cube.faceUvScale[0] == 1.0f && cube.faceUvScale[1] == 1.0f;
                 const std::array<SDL_GPUTextureSamplerBinding, 8> samplerBindings = {
                     SDL_GPUTextureSamplerBinding{texture, m_sampler},
                     SDL_GPUTextureSamplerBinding{shadows ? m_shadowTarget : m_whiteTexture, m_shadowSampler},
-                    SDL_GPUTextureSamplerBinding{overlayTexture, m_sampler},
+                    SDL_GPUTextureSamplerBinding{overlayTexture, clampOverlay ? m_skySampler : m_sampler},
                     SDL_GPUTextureSamplerBinding{materialTexture, m_sampler},
                     SDL_GPUTextureSamplerBinding{decalTexture, m_sampler},
                     SDL_GPUTextureSamplerBinding{roughnessTexture, m_sampler},
@@ -1085,6 +1114,7 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                       u.begin() + 16);
             std::copy(cube.color.begin(), cube.color.end(), u.begin() + 32);
             u[36] = shadowPass ? 1.0f : 0.0f;
+            u[37] = skyPass ? 1.0f : 0.0f;
             std::copy(cube.modelMatrix.begin(), cube.modelMatrix.end(), u.begin() + 40);
             SDL_PushGPUVertexUniformData(&commandBuffer, 0, u.data(), sizeof(u));
             if (shadowPass) {
@@ -1157,7 +1187,11 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
             error = sdlError("SDL_BeginGPURenderPass(shadow)");
             return false;
         }
-        const bool shadowDrawn = drawPass(shadowPass, Pass::Shadow);
+        const SDL_GPUViewport shadowViewport{
+            0.0f, 0.0f, static_cast<float>(SHADOW_MAP_SIZE), static_cast<float>(SHADOW_MAP_SIZE),
+            0.0f, 1.0f};
+        SDL_SetGPUViewport(shadowPass, &shadowViewport);
+        const bool shadowDrawn = drawPass(shadowPass, Pass::Shadow, cubes);
         SDL_EndGPURenderPass(shadowPass);
         if (!shadowDrawn) {
             return false;
@@ -1181,7 +1215,20 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
         error = sdlError("SDL_BeginGPURenderPass");
         return false;
     }
-    const bool mainDrawn = drawPass(pass, Pass::Scene);
+    const SDL_GPUViewport viewport{
+        0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height), 0.0f, 1.0f};
+    SDL_SetGPUViewport(pass, &viewport);
+    SDL_PushGPUFragmentUniformData(&commandBuffer, 1, &lighting, sizeof(lighting));
+    bool mainDrawn;
+    if (skyFaces.empty()) {
+        mainDrawn = drawPass(pass, Pass::Scene, cubes);
+    } else {
+        const auto firstBlended = std::ranges::find(cubes, true, &SdlBasicCube::blend);
+        const auto opaqueCount = static_cast<std::size_t>(firstBlended - cubes.begin());
+        mainDrawn = drawPass(pass, Pass::Scene, cubes.first(opaqueCount)) &&
+                    drawPass(pass, Pass::Sky, skyFaces) &&
+                    drawPass(pass, Pass::Scene, cubes.subspan(opaqueCount));
+    }
     SDL_EndGPURenderPass(pass);
     if (!mainDrawn) {
         return false;
