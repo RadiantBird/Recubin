@@ -26,6 +26,9 @@ struct SdlBasicCube {
     std::uint32_t firstIndex = 0;
     std::uint32_t indexCount = 0;
     SDL_GPUTexture* surfaceTexture = nullptr;
+    bool blend = false;
+    bool useTextureAlpha = true;
+    float alphaThreshold = -1.0f;
     bool doubleSided = false;
     bool castShadow = true;
     bool receiveShadow = true;
@@ -77,6 +80,7 @@ private:
     bool ensureTargets(unsigned width, unsigned height, std::string& error);
     bool ensureShadowTarget(std::string& error);
     bool ensureSelectionTarget(unsigned width, unsigned height, std::string& error);
+    SDL_GPUTexture* resolveTexture(std::uint32_t handle, std::string& error) const;
     bool drawMesh(SDL_GPURenderPass& pass, const SdlBasicCube& cube, std::string& error) const;
 
     SDL_GPUDevice* m_device = nullptr;
@@ -91,6 +95,8 @@ private:
     SDL_GPUSampler* m_selectionSampler = nullptr;
     SDL_GPUGraphicsPipeline* m_pipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_doubleSidedPipeline = nullptr;
+    SDL_GPUGraphicsPipeline* m_blendPipeline = nullptr;
+    SDL_GPUGraphicsPipeline* m_blendDoubleSidedPipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_shadowPipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_selectionMaskPipeline = nullptr;
     SDL_GPUGraphicsPipeline* m_selectionMaskDoubleSidedPipeline = nullptr;

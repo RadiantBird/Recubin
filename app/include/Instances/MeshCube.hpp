@@ -41,12 +41,20 @@ struct MeshVertex {
 // CPU-side material ranges used by the SDL GPU renderer.  firstIndex and
 // indexCount refer to the MeshCube index array.  textureIndex is one-based;
 // zero means that the material has no embedded base-color image.
+enum class MeshAlphaMode {
+    Opaque,
+    Mask,
+    Blend,
+};
+
 struct MeshMaterialSection {
     std::uint32_t firstIndex = 0;
     std::uint32_t indexCount = 0;
     Color4 baseColor;
     std::uint32_t textureIndex = 0;
-    bool opaque = true;
+    MeshAlphaMode alphaMode = MeshAlphaMode::Opaque;
+    float alphaCutoff = 0.5f;
+    bool doubleSided = false;
 };
 
 struct MeshEmbeddedTexture {

@@ -150,6 +150,12 @@ void SdlBasicRenderer::releaseResources() {
     if (m_doubleSidedPipeline) {
         SDL_ReleaseGPUGraphicsPipeline(m_device, m_doubleSidedPipeline);
     }
+    if (m_blendPipeline) {
+        SDL_ReleaseGPUGraphicsPipeline(m_device, m_blendPipeline);
+    }
+    if (m_blendDoubleSidedPipeline) {
+        SDL_ReleaseGPUGraphicsPipeline(m_device, m_blendDoubleSidedPipeline);
+    }
     if (m_shadowPipeline) {
         SDL_ReleaseGPUGraphicsPipeline(m_device, m_shadowPipeline);
     }
@@ -213,6 +219,8 @@ void SdlBasicRenderer::releaseResources() {
     m_nextTextureHandle = 1;
     m_pipeline = nullptr;
     m_doubleSidedPipeline = nullptr;
+    m_blendPipeline = nullptr;
+    m_blendDoubleSidedPipeline = nullptr;
     m_shadowPipeline = nullptr;
     m_selectionMaskPipeline = nullptr;
     m_selectionMaskDoubleSidedPipeline = nullptr;
@@ -358,11 +366,44 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
         m_device = nullptr;
         return false;
     }
+    pi.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_BACK;
+    SDL_GPUColorTargetDescription blendTarget = ct;
+    blendTarget.blend_state.enable_blend = true;
+    blendTarget.blend_state.src_color_blendfactor =
+        SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+    blendTarget.blend_state.dst_color_blendfactor =
+        SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    blendTarget.blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blendTarget.blend_state.src_alpha_blendfactor =
+        SDL_GPU_BLENDFACTOR_ONE;
+    blendTarget.blend_state.dst_alpha_blendfactor =
+        SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    blendTarget.blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    SDL_GPUGraphicsPipelineCreateInfo blendPi = pi;
+    blendPi.depth_stencil_state.enable_depth_write = false;
+    blendPi.target_info.color_target_descriptions = &blendTarget;
+    m_blendPipeline = SDL_CreateGPUGraphicsPipeline(&device, &blendPi);
+    if (!m_blendPipeline) {
+        error = sdlError("SDL_CreateGPUGraphicsPipeline(alpha-blended)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
+    blendPi.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+    m_blendDoubleSidedPipeline = SDL_CreateGPUGraphicsPipeline(&device, &blendPi);
+    if (!m_blendDoubleSidedPipeline) {
+        error = sdlError("SDL_CreateGPUGraphicsPipeline(alpha-blended double-sided)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
     SDL_GPUGraphicsPipelineCreateInfo shadowPi = pi;
     SDL_GPUShaderCreateInfo shadowShaderInfo{};
     shadowShaderInfo.format = fi.format;
     shadowShaderInfo.entrypoint = "PSMain";
     shadowShaderInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
+    shadowShaderInfo.num_samplers = 1;
+    shadowShaderInfo.num_uniform_buffers = 1;
     if (fi.format == SDL_GPU_SHADERFORMAT_DXIL) {
         shadowShaderInfo.code = shadow_gpu_fragment_dxil;
         shadowShaderInfo.code_size = sizeof(shadow_gpu_fragment_dxil);
@@ -380,6 +421,9 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     shadowPi.fragment_shader = m_shadowFragmentShader;
     shadowPi.target_info.num_color_targets = 0;
     shadowPi.target_info.color_target_descriptions = nullptr;
+    shadowPi.depth_stencil_state.enable_depth_write = true;
+    shadowPi.target_info.depth_stencil_format = DEPTH_FORMAT;
+    shadowPi.target_info.has_depth_stencil_target = true;
     // Chunks include faces with the legacy terrain winding.
     shadowPi.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
     m_shadowPipeline = SDL_CreateGPUGraphicsPipeline(&device, &shadowPi);
@@ -393,6 +437,8 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     selectionShaderInfo.format = fi.format;
     selectionShaderInfo.entrypoint = "PSMain";
     selectionShaderInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
+    selectionShaderInfo.num_samplers = 1;
+    selectionShaderInfo.num_uniform_buffers = 1;
     if (fi.format == SDL_GPU_SHADERFORMAT_DXIL) {
         selectionShaderInfo.code = selection_mask_gpu_fragment_dxil;
         selectionShaderInfo.code_size = sizeof(selection_mask_gpu_fragment_dxil);
@@ -926,6 +972,22 @@ bool SdlBasicRenderer::drawMesh(SDL_GPURenderPass& pass, const SdlBasicCube& cub
     return true;
 }
 
+SDL_GPUTexture* SdlBasicRenderer::resolveTexture(std::uint32_t handle, std::string& error) const {
+    if (handle == 0) {
+        if (!m_whiteTexture) {
+            error = "SdlBasicRenderer: default white texture is unavailable";
+            return nullptr;
+        }
+        return m_whiteTexture;
+    }
+    const auto it = m_textures.find(handle);
+    if (it == m_textures.end() || !it->second) {
+        error = "SdlBasicRenderer: invalid texture handle " + std::to_string(handle);
+        return nullptr;
+    }
+    return it->second;
+}
+
 bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
                             std::span<const SdlBasicCube> cubes, std::string& error, bool shadows) {
     error.clear();
@@ -947,37 +1009,37 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
         vp.h = shadowPass ? static_cast<float>(SHADOW_MAP_SIZE) : static_cast<float>(height);
         vp.max_depth = 1.0f;
         SDL_SetGPUViewport(pass, &vp);
-        SDL_GPUGraphicsPipeline* pipeline = m_pipeline;
-        SDL_GPUGraphicsPipeline* doubleSidedPipeline = m_doubleSidedPipeline;
-        if (shadowPass) {
-            pipeline = m_shadowPipeline;
-        }
-        SDL_BindGPUGraphicsPipeline(pass, pipeline);
-        bool boundDoubleSided = false;
+        SDL_GPUGraphicsPipeline* boundPipeline = nullptr;
         for (const auto& cube : cubes) {
             if (shadowPass && !cube.castShadow) {
                 continue;
             }
-            if (!shadowPass && cube.doubleSided != boundDoubleSided) {
-                SDL_BindGPUGraphicsPipeline(pass, cube.doubleSided ? doubleSidedPipeline : pipeline);
-                boundDoubleSided = cube.doubleSided;
+            SDL_GPUGraphicsPipeline* pipeline = m_shadowPipeline;
+            if (!shadowPass) {
+                if (cube.blend) {
+                    pipeline = cube.doubleSided ? m_blendDoubleSidedPipeline : m_blendPipeline;
+                } else {
+                    pipeline = cube.doubleSided ? m_doubleSidedPipeline : m_pipeline;
+                }
+            }
+            if (pipeline != boundPipeline) {
+                SDL_BindGPUGraphicsPipeline(pass, pipeline);
+                boundPipeline = pipeline;
+            }
+            const auto texture = resolveTexture(cube.texture, error);
+            if (!texture) {
+                return false;
             }
             if (kind == Pass::Scene) {
-                SDL_GPUTexture* texture = m_whiteTexture;
-                if (cube.texture != 0) {
-                    const auto it = m_textures.find(cube.texture);
-                    if (it == m_textures.end()) {
-                        error = "SdlBasicRenderer: invalid texture handle";
-                        return false;
-                    }
-                    texture = it->second;
-                }
                 const std::array<SDL_GPUTextureSamplerBinding, 3> samplerBindings = {
                     SDL_GPUTextureSamplerBinding{texture, m_sampler},
                     SDL_GPUTextureSamplerBinding{shadows ? m_shadowTarget : m_whiteTexture, m_shadowSampler},
                     SDL_GPUTextureSamplerBinding{cube.surfaceTexture ? cube.surfaceTexture : m_whiteTexture, m_sampler}};
                 SDL_BindGPUFragmentSamplers(pass, 0, samplerBindings.data(),
                                             static_cast<Uint32>(samplerBindings.size()));
+            } else {
+                SDL_GPUTextureSamplerBinding binding{texture, m_sampler};
+                SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
             }
             std::array<float, 40> u{};
             std::copy(cube.modelViewProjection.begin(), cube.modelViewProjection.end(), u.begin());
@@ -988,11 +1050,10 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
             SDL_PushGPUVertexUniformData(&commandBuffer, 0, u.data(), sizeof(u));
             const std::array<float, 4> shadowParams = {
                 (shadows && cube.receiveShadow) ? 1.0f : 0.0f,
-                cube.surfaceTexture ? 1.0f : 0.0f, 0.0f, 0.0f};
-            if (kind == Pass::Scene) {
-                SDL_PushGPUFragmentUniformData(&commandBuffer, 0, shadowParams.data(),
-                                               sizeof(shadowParams));
-            }
+                cube.surfaceTexture ? 1.0f : 0.0f, cube.alphaThreshold,
+                cube.useTextureAlpha ? 1.0f : 0.0f};
+            SDL_PushGPUFragmentUniformData(&commandBuffer, 0, shadowParams.data(),
+                                           sizeof(shadowParams));
             if (!drawMesh(*pass, cube, error)) {
                 return false;
             }
@@ -1085,9 +1146,19 @@ bool SdlBasicRenderer::drawOutline(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUT
     for (const auto& cube : draws) {
         SDL_BindGPUGraphicsPipeline(mask, cube.doubleSided ? m_selectionMaskDoubleSidedPipeline
                                                             : m_selectionMaskPipeline);
+        const auto texture = resolveTexture(cube.texture, error);
+        if (!texture) {
+            valid = false;
+            break;
+        }
+        SDL_GPUTextureSamplerBinding textureBinding{texture, m_sampler};
+        SDL_BindGPUFragmentSamplers(mask, 0, &textureBinding, 1);
         std::array<float, 40> uniforms{};
         std::copy(cube.modelViewProjection.begin(), cube.modelViewProjection.end(), uniforms.begin());
         SDL_PushGPUVertexUniformData(&commandBuffer, 0, uniforms.data(), sizeof(uniforms));
+        const std::array<float, 4> alphaParams = {
+            0.0f, 0.0f, cube.alphaThreshold, cube.useTextureAlpha ? 1.0f : 0.0f};
+        SDL_PushGPUFragmentUniformData(&commandBuffer, 0, alphaParams.data(), sizeof(alphaParams));
         if (!drawMesh(*mask, cube, error)) {
             valid = false;
             break;

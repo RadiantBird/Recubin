@@ -577,7 +577,23 @@ bool MeshCube::loadFromGLB(const std::string& path) {
             materialSection.firstIndex = static_cast<std::uint32_t>(firstIndex);
             materialSection.indexCount = static_cast<std::uint32_t>(indices.size() - firstIndex);
             if (prim.material) {
-                materialSection.opaque = prim.material->alpha_mode == cgltf_alpha_mode_opaque;
+                switch (prim.material->alpha_mode) {
+                case cgltf_alpha_mode_opaque:
+                    materialSection.alphaMode = MeshAlphaMode::Opaque;
+                    break;
+                case cgltf_alpha_mode_mask:
+                    materialSection.alphaMode = MeshAlphaMode::Mask;
+                    break;
+                case cgltf_alpha_mode_blend:
+                    materialSection.alphaMode = MeshAlphaMode::Blend;
+                    break;
+                default:
+                    RCBN_WARN("MeshCube: 未知のGLB alpha modeをOpaqueとして扱います: " << path);
+                    materialSection.alphaMode = MeshAlphaMode::Opaque;
+                    break;
+                }
+                materialSection.alphaCutoff = prim.material->alpha_cutoff;
+                materialSection.doubleSided = prim.material->double_sided != 0;
             }
             if (prim.material && prim.material->has_pbr_metallic_roughness) {
                 const auto& factor = prim.material->pbr_metallic_roughness.base_color_factor;

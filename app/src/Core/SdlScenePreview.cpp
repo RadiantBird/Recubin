@@ -87,6 +87,32 @@ struct PreviewGeometry {
     const MeshCube* mesh;
 };
 
+Vector3 meshSectionCenter(const MeshCube& mesh, const MeshMaterialSection& section) {
+    const auto indices = mesh.cpuIndices().subspan(section.firstIndex, section.indexCount);
+    const auto vertices = mesh.cpuVertices();
+    const auto& first = vertices[indices.front()].Position;
+    Vector3 minimum = first;
+    Vector3 maximum = first;
+    for (const auto index : indices) {
+        const auto& position = vertices[index].Position;
+        minimum.x = (std::min)(minimum.x, position.x);
+        minimum.y = (std::min)(minimum.y, position.y);
+        minimum.z = (std::min)(minimum.z, position.z);
+        maximum.x = (std::max)(maximum.x, position.x);
+        maximum.y = (std::max)(maximum.y, position.y);
+        maximum.z = (std::max)(maximum.z, position.z);
+    }
+    return (minimum + maximum) * 0.5f;
+}
+
+Vector3 transformScenePoint(const Matrix4& model, const Vector3& point) {
+    return {
+        model.m[0] * point.x + model.m[4] * point.y + model.m[8] * point.z + model.m[12],
+        model.m[1] * point.x + model.m[5] * point.y + model.m[9] * point.z + model.m[13],
+        model.m[2] * point.x + model.m[6] * point.y + model.m[10] * point.z + model.m[14],
+    };
+}
+
 class TerrainGpuMeshes {
 public:
     bool release(SdlBasicRenderer& renderer, std::string& error) {
@@ -333,9 +359,15 @@ struct SdlLiveScene::State {
         SdlBasicCube draw;
         Matrix4 model;
         const BaseCube* owner; // Borrowed from the Workspace until the next sync.
+        Vector3 localCenter{};
+    };
+    struct TransparentDraw {
+        const MeshDraw* mesh;
+        float depth;
     };
     std::vector<MeshDraw> meshes;
     std::vector<SdlBasicCube> frameDraws;
+    std::vector<TransparentDraw> transparent;
     std::vector<SdlBasicCube> outlineDraws;
     std::uint32_t cubeFaces = 0;
     std::array<std::uint32_t, WEDGE_SHAPE + 1> primitiveMeshes{};
@@ -346,6 +378,7 @@ struct SdlLiveScene::State {
         std::weak_ptr<const Instance> owner;
         std::uint64_t revision = 0;
         std::vector<std::uint32_t> textures;
+        std::vector<Vector3> sectionCenters;
     };
     std::unordered_map<const BaseCube*, MeshCache> meshCache;
     struct TerrainCache {
@@ -405,10 +438,13 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
             error = "Workspace contains an empty render entry";
             return false;
         }
-        if (cube->Color.a < 1.0f) continue;
         const auto* mesh = dynamic_cast<const MeshCube*>(cube);
         const int shape = primitiveShape(*cube);
         if (!mesh && shape < 0) continue;
+        const bool castShadow = cube->shouldCastShadow(mesh && mesh->isUsingFallback());
+        const float opacity = cube->Color.a;
+        if (opacity <= 0.0f && !castShadow) continue;
+        const bool blend = opacity < 1.0f;
         const Matrix4 model = cube->getWorldCFrame().toMatrix4() *
                               Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
         if (mesh && !mesh->isUsingFallback() && !mesh->cpuVertices().empty() &&
@@ -427,6 +463,15 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
                 if (!replacement.handle) return false;
                 replacement.owner = mesh->weak_from_this();
                 replacement.revision = mesh->cpuGeometryRevision();
+                for (const auto& section : mesh->cpuMaterialSections()) {
+                    const auto count = mesh->cpuIndices().size();
+                    if (section.indexCount == 0 || section.firstIndex >= count ||
+                        section.indexCount > count - section.firstIndex) {
+                        error = "MeshCube '" + mesh->Name + "' has an invalid material index range";
+                        return false;
+                    }
+                    replacement.sectionCenters.push_back(meshSectionCenter(*mesh, section));
+                }
                 for (const auto& image : mesh->cpuEmbeddedTextures()) {
                     const auto texture = uploadEmbeddedTexture(m_state->renderer, image, error);
                     if (!texture) return false;
@@ -440,17 +485,29 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
             if (sections.empty()) {
                 SdlBasicCube draw;
                 draw.geometry = geometry;
-                draw.castShadow = cube->shouldCastShadow();
+                draw.castShadow = castShadow;
                 draw.receiveShadow = !cube->Unlit;
-                draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, cube->Color.a};
+                draw.blend = blend;
+                draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, opacity};
                 m_state->meshes.push_back({draw, model, cube});
             } else {
-                for (const auto& section : sections) {
-                    if (!section.opaque) continue;
+                for (std::size_t index = 0; index < sections.size(); ++index) {
+                    const auto& section = sections[index];
                     SdlBasicCube draw;
                     draw.geometry = geometry;
-                    draw.castShadow = cube->shouldCastShadow();
+                    draw.castShadow = castShadow;
                     draw.receiveShadow = !cube->Unlit;
+                    draw.doubleSided = section.doubleSided;
+                    draw.useTextureAlpha = section.alphaMode == MeshAlphaMode::Blend;
+                    draw.blend = blend || draw.useTextureAlpha;
+                    if (section.alphaMode == MeshAlphaMode::Mask) {
+                        if (section.alphaCutoff <= 0.0f) {
+                            draw.alphaThreshold = 0.0f;
+                        } else {
+                            draw.alphaThreshold = section.baseColor.a > 0.0f
+                                ? section.alphaCutoff / section.baseColor.a : 2.0f;
+                        }
+                    }
                     draw.firstIndex = section.firstIndex;
                     draw.indexCount = section.indexCount;
                     if (section.textureIndex > cache.textures.size()) {
@@ -463,8 +520,8 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
                     draw.color = {cube->Color.r * section.baseColor.r,
                                   cube->Color.g * section.baseColor.g,
                                   cube->Color.b * section.baseColor.b,
-                                  cube->Color.a * section.baseColor.a};
-                    m_state->meshes.push_back({draw, model, cube});
+                                  draw.useTextureAlpha ? opacity * section.baseColor.a : opacity};
+                    m_state->meshes.push_back({draw, model, cube, cache.sectionCenters[index]});
                 }
             }
             continue;
@@ -472,9 +529,10 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
         if (mesh && !mesh->isUsingFallback()) continue;
         SdlBasicCube draw;
         if (!mesh) draw.geometry = m_state->primitiveMeshes[static_cast<std::size_t>(shape)];
-        draw.castShadow = cube->shouldCastShadow(mesh && mesh->isUsingFallback());
+        draw.castShadow = castShadow;
         draw.receiveShadow = !cube->Unlit;
-        draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, cube->Color.a};
+        draw.blend = blend;
+        draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, opacity};
         m_state->meshes.push_back({draw, model, cube});
     }
     for (auto it = m_state->meshCache.begin(); it != m_state->meshCache.end();) {
@@ -526,7 +584,7 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
     auto& draws = m_state->frameDraws;
     draws.clear();
     draws.reserve(m_state->meshes.size());
-    for (const auto& mesh : m_state->meshes) {
+    const auto append = [&](const State::MeshDraw& mesh) {
         auto draw = mesh.draw;
         const Matrix4 mvp = viewProjection * mesh.model;
         std::copy_n(mvp.m, 16, draw.modelViewProjection.begin());
@@ -544,13 +602,32 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
                     draws.push_back(draw);
                     draw.firstIndex += draw.indexCount;
                 }
-                continue;
+                return;
             }
         }
         draws.push_back(draw);
+    };
+    auto& transparent = m_state->transparent;
+    transparent.clear();
+    for (const auto& mesh : m_state->meshes) {
+        if (mesh.draw.blend) {
+            const auto center = transformScenePoint(mesh.model, mesh.localCenter);
+            const float depth = Vector3::Dot(center - cameraPosition, cameraForward);
+            if (!std::isfinite(depth)) {
+                error = "Non-finite transparent mesh depth for " + mesh.owner->getFullPath();
+                return false;
+            }
+            transparent.push_back({&mesh, depth});
+        } else {
+            append(mesh);
+        }
     }
     for (const auto& [terrain, cache] : m_state->terrainCache) {
         cache.meshes.appendDraws(viewProjection, lightProjection, draws);
+    }
+    std::ranges::stable_sort(transparent, std::greater{}, &State::TransparentDraw::depth);
+    for (const auto& draw : transparent) {
+        append(*draw.mesh);
     }
     const bool drawn = m_state->renderer.draw(commandBuffer, width, height, draws,
                                                error, lightProjection.has_value());
@@ -841,7 +918,7 @@ int runSdlScenePreview(const std::string& scenePath,
         }
         std::size_t translucentSections = 0;
         for (const MeshMaterialSection& section : sections) {
-            if (!section.opaque) {
+            if (section.alphaMode != MeshAlphaMode::Opaque) {
                 ++translucentSections;
                 continue;
             }

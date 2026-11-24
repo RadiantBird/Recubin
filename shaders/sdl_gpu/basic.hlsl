@@ -58,6 +58,10 @@ Texture2D<float4> surfaceTexture : register(t2, space2);
 SamplerState surfaceSampler : register(s2, space2);
 
 float4 PSMain(VSOutput input) : SV_Target0 {
+    float diffuseAlpha = diffuseTexture.Sample(diffuseSampler, input.uv).a;
+    if (shadowParams.z >= 0.0 && diffuseAlpha < shadowParams.z) {
+        discard;
+    }
     float shadowFactor = 1.0;
     if (shadowParams.x > 0.5) {
         float3 shadowCoord = input.shadowPosition.xyz / input.shadowPosition.w;
@@ -69,6 +73,9 @@ float4 PSMain(VSOutput input) : SV_Target0 {
         }
     }
     float4 result = input.color * diffuseTexture.Sample(diffuseSampler, input.uv);
+    if (shadowParams.w < 0.5) {
+        result.a = input.color.a;
+    }
     if (shadowParams.y > 0.5) {
         float4 overlay = surfaceTexture.Sample(surfaceSampler, input.uv);
         result.rgb = result.rgb * (1.0 - overlay.a) + overlay.rgb;
