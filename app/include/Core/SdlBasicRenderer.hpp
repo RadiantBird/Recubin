@@ -21,6 +21,9 @@ struct SdlBasicCube {
     std::array<float, 16> modelViewProjection{};
     std::array<float, 16> shadowModelViewProjection{};
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
+    std::uint32_t materialBaseColor = 0;
+    float materialTileSize = 1.0f;
+    std::array<float, 16> modelMatrix{};
     std::uint32_t geometry = 0;
     std::uint32_t texture = 0;
     std::uint32_t firstIndex = 0;

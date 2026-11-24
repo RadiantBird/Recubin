@@ -302,7 +302,7 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     fi.entrypoint = "PSMain";
     fi.format = format;
     fi.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
-    fi.num_samplers = 3;
+    fi.num_samplers = 4;
     fi.num_uniform_buffers = 1;
     m_fragmentShader = SDL_CreateGPUShader(&device, &fi);
     if (!m_fragmentShader) {
@@ -1031,29 +1031,47 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                 return false;
             }
             if (kind == Pass::Scene) {
-                const std::array<SDL_GPUTextureSamplerBinding, 3> samplerBindings = {
+                const auto materialTexture = resolveTexture(cube.materialBaseColor, error);
+                if (!materialTexture) {
+                    return false;
+                }
+                const std::array<SDL_GPUTextureSamplerBinding, 4> samplerBindings = {
                     SDL_GPUTextureSamplerBinding{texture, m_sampler},
                     SDL_GPUTextureSamplerBinding{shadows ? m_shadowTarget : m_whiteTexture, m_shadowSampler},
-                    SDL_GPUTextureSamplerBinding{cube.surfaceTexture ? cube.surfaceTexture : m_whiteTexture, m_sampler}};
+                    SDL_GPUTextureSamplerBinding{cube.surfaceTexture ? cube.surfaceTexture : m_whiteTexture, m_sampler},
+                    SDL_GPUTextureSamplerBinding{materialTexture, m_sampler}};
                 SDL_BindGPUFragmentSamplers(pass, 0, samplerBindings.data(),
                                             static_cast<Uint32>(samplerBindings.size()));
             } else {
                 SDL_GPUTextureSamplerBinding binding{texture, m_sampler};
                 SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
             }
-            std::array<float, 40> u{};
+            std::array<float, 56> u{};
             std::copy(cube.modelViewProjection.begin(), cube.modelViewProjection.end(), u.begin());
             std::copy(cube.shadowModelViewProjection.begin(), cube.shadowModelViewProjection.end(),
                       u.begin() + 16);
             std::copy(cube.color.begin(), cube.color.end(), u.begin() + 32);
             u[36] = shadowPass ? 1.0f : 0.0f;
+            std::copy(cube.modelMatrix.begin(), cube.modelMatrix.end(), u.begin() + 40);
             SDL_PushGPUVertexUniformData(&commandBuffer, 0, u.data(), sizeof(u));
-            const std::array<float, 4> shadowParams = {
-                (shadows && cube.receiveShadow) ? 1.0f : 0.0f,
-                cube.surfaceTexture ? 1.0f : 0.0f, cube.alphaThreshold,
-                cube.useTextureAlpha ? 1.0f : 0.0f};
-            SDL_PushGPUFragmentUniformData(&commandBuffer, 0, shadowParams.data(),
-                                           sizeof(shadowParams));
+            if (shadowPass) {
+                const std::array<float, 4> shadowParams = {
+                    0.0f, 0.0f, cube.alphaThreshold, cube.useTextureAlpha ? 1.0f : 0.0f};
+                SDL_PushGPUFragmentUniformData(&commandBuffer, 0, shadowParams.data(),
+                                               sizeof(shadowParams));
+            } else {
+                const std::array<float, 8> fragmentParams = {
+                    (shadows && cube.receiveShadow) ? 1.0f : 0.0f,
+                    cube.surfaceTexture ? 1.0f : 0.0f,
+                    cube.alphaThreshold,
+                    cube.useTextureAlpha ? 1.0f : 0.0f,
+                    cube.materialTileSize,
+                    cube.materialBaseColor != 0 ? 1.0f : 0.0f,
+                    0.0f,
+                    0.0f};
+                SDL_PushGPUFragmentUniformData(&commandBuffer, 0, fragmentParams.data(),
+                                               sizeof(fragmentParams));
+            }
             if (!drawMesh(*pass, cube, error)) {
                 return false;
             }
@@ -1153,8 +1171,9 @@ bool SdlBasicRenderer::drawOutline(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUT
         }
         SDL_GPUTextureSamplerBinding textureBinding{texture, m_sampler};
         SDL_BindGPUFragmentSamplers(mask, 0, &textureBinding, 1);
-        std::array<float, 40> uniforms{};
+        std::array<float, 56> uniforms{};
         std::copy(cube.modelViewProjection.begin(), cube.modelViewProjection.end(), uniforms.begin());
+        std::copy(cube.modelMatrix.begin(), cube.modelMatrix.end(), uniforms.begin() + 40);
         SDL_PushGPUVertexUniformData(&commandBuffer, 0, uniforms.data(), sizeof(uniforms));
         const std::array<float, 4> alphaParams = {
             0.0f, 0.0f, cube.alphaThreshold, cube.useTextureAlpha ? 1.0f : 0.0f};

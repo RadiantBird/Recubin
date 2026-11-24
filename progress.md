@@ -953,3 +953,10 @@
 - Windows xmake Release で Studio・Engine・Test・Runtime・GPU Smoke をビルド。Studio と Engine の両 GPU で、2 層の 50% 透過を重ねた箇所が RGB `191,64,128`、手前の不透明 Cube が `0,255,0` になることを確認。GLB の同じ画像を 3 モードで描画して、画像アルファ無視、切り抜き、半透明を確認した。
 - 半分が透明な GLB の影は不透明時の 5,329 ピクセルから 2,670 ピクセルへ減り、両 GPU の PNG は一致。Studio の選択輪郭も切り抜かれた側にだけ発生した。MeshCube フォールバック、GUI 自動化、ビューポート編集・補助の回帰 4 件が成功。既存の太陽の影とカスタム GLSL の PNG は従来と一致した。
 - 次は Material の画像マップ、Decal／Texture の描画。交差する半透明メッシュをピクセルごとに整列する処理は未実装。
+
+## 2026-11-24 SDL GPU の Material BaseColorMap
+
+- 半透明と GLB アルファモードを `88f8c0e` にコミット。Material の `BaseColorMap` は既存の FileRef 解決を使い、ワールド座標と `TextureScale` を使ってトライプラナー投影する。BaseCube の色と GLB のベーステクスチャに乗算してから SurfaceGui を合成する。
+- Material とゲーム GUI の PNG／SVG は共通の上原点 RGBA8 デコーダを使う。Material 用 GPU テクスチャはファイル更新時に差し替え、読み込みに失敗した場合は直前のテクスチャを使う。シーンから参照されなくなったテクスチャは SDL の遅延解放に渡す。
+- Windows xmake Release で Studio・Engine・Test・Runtime が成功。Vulkan／D3D12 の両アプリで Unicode パスの画像、上下、色の乗算、2 stud と 4 stud のタイルを GPU 読み戻しで比較し、各アプリで PNG は全画素一致。Engine で Luau の `TextureScale` 更新を確認し、Studio では実行中の画像ファイル差し替えと不正ファイル時の成功版維持を確認した。ScreenGui、BillboardGui、SurfaceGui の再検証も成功した。
+- 次は Decal／Texture の面投影と Material の残りの画像マップ・PBR。Studio の画像プレビュー、空、組み込みポスト効果、既定経路の切り替えとクリーン配布物の通し検証も残る。

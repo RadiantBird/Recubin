@@ -3,6 +3,7 @@
 #include <Core/SceneRuntime.hpp>
 #include <Core/SdlBasicRenderer.hpp>
 #include <Core/PrimitiveMeshData.hpp>
+#include <Core/RgbaImage.hpp>
 #include <Core/SdlPostEffects.hpp>
 #include <Core/TerrainStreamer.hpp>
 #ifdef RECUBIN_SDL_GPU_STUDIO
@@ -17,11 +18,15 @@
 #include <Util/Color4.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/Lighting.hpp>
+#include <Instances/MaterialInstance.hpp>
 #include <Instances/Sun.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
 #include <Math/Matrix4.hpp>
 #include <Util/PngWriter.hpp>
+#include <Util/AssetGuard.hpp>
+#include <Util/AssetPath.hpp>
+#include <Util/Logger.hpp>
 #include <include/stb_image.h>
 
 #include <SDL3/SDL.h>
@@ -381,6 +386,15 @@ struct SdlLiveScene::State {
         std::vector<Vector3> sectionCenters;
     };
     std::unordered_map<const BaseCube*, MeshCache> meshCache;
+    struct MaterialImage {
+        std::uint32_t handle = 0;
+        std::optional<std::filesystem::file_time_type> timestamp;
+        std::uintmax_t byteCount = 0;
+        bool warned = false;
+    };
+    std::unordered_map<std::string, MaterialImage> materialImages;
+    std::unordered_set<std::string> usedMaterialImages;
+    std::unordered_set<std::string> materialWarnings;
     struct TerrainCache {
         TerrainGpuMeshes meshes;
         std::weak_ptr<const Instance> owner;
@@ -395,6 +409,58 @@ struct SdlLiveScene::State {
             if (texture && !renderer.releaseTexture(texture, error)) return false;
         }
         return true;
+    }
+
+    void applyMaterial(const BaseCube& cube, SdlBasicCube& draw) {
+        const auto material = cube.getMaterialInstance();
+        constexpr auto slot = MaterialInstance::MapSlot::BaseColor;
+        if (!material || material->mapReference(slot).empty()) return;
+        const auto path = AssetPath::normalize(material->resolveMapPath(slot));
+        if (path.empty() || !(material->TextureScale > 0.0f) || !std::isfinite(material->TextureScale)) {
+            const auto key = material->getFullPath() + ": " + material->mapReference(slot);
+            if (materialWarnings.insert(key).second) {
+                RCBN_WARN("SDL Material BaseColorMap has an invalid FileRef or tile size: " << key);
+            }
+            return;
+        }
+        auto& image = materialImages[path];
+        if (usedMaterialImages.insert(path).second) refreshMaterialImage(path, image);
+        draw.materialBaseColor = image.handle;
+        draw.materialTileSize = material->TextureScale;
+    }
+
+    void refreshMaterialImage(const std::string& path, MaterialImage& image) {
+        if (!AssetGuard::allow(path)) return;
+        const auto file = AssetPath::fromStored(path);
+        std::error_code ec;
+        const auto timestamp = std::filesystem::last_write_time(file, ec);
+        const auto size = ec ? 0 : std::filesystem::file_size(file, ec);
+        if (ec) {
+            if (!image.warned) RCBN_WARN("SDL Material image '" << path << "': " << ec.message());
+            image.warned = true;
+            image.timestamp.reset();
+            return;
+        }
+        if (image.timestamp == timestamp && image.byteCount == size) return;
+
+        RgbaImage decoded;
+        std::string error;
+        std::uint32_t replacement = 0;
+        if (decodeRgbaImage(file, decoded, error)) {
+            replacement = renderer.uploadTexture(decoded.width, decoded.height, decoded.pixels, error);
+        }
+        image.timestamp = timestamp;
+        image.byteCount = size;
+        if (!replacement) {
+            if (!image.warned) RCBN_WARN("SDL Material image '" << path << "': " << error);
+            image.warned = true;
+            return;
+        }
+        if (image.handle && !renderer.releaseTexture(image.handle, error)) {
+            RCBN_WARN("SDL Material image '" << path << "': " << error);
+        }
+        image.handle = replacement;
+        image.warned = false;
     }
 };
 
@@ -432,6 +498,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
         return false;
     }
     m_state->meshes.clear();
+    m_state->usedMaterialImages.clear();
     std::unordered_set<const BaseCube*> active;
     for (BaseCube* cube : workspace.getRenderBaseCubes()) {
         if (!cube) {
@@ -447,6 +514,8 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
         const bool blend = opacity < 1.0f;
         const Matrix4 model = cube->getWorldCFrame().toMatrix4() *
                               Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
+        SdlBasicCube base;
+        m_state->applyMaterial(*cube, base);
         if (mesh && !mesh->isUsingFallback() && !mesh->cpuVertices().empty() &&
             !mesh->cpuIndices().empty()) {
             active.insert(cube);
@@ -483,7 +552,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
             const auto geometry = cache.handle;
             const auto sections = mesh->cpuMaterialSections();
             if (sections.empty()) {
-                SdlBasicCube draw;
+                auto draw = base;
                 draw.geometry = geometry;
                 draw.castShadow = castShadow;
                 draw.receiveShadow = !cube->Unlit;
@@ -493,7 +562,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
             } else {
                 for (std::size_t index = 0; index < sections.size(); ++index) {
                     const auto& section = sections[index];
-                    SdlBasicCube draw;
+                    auto draw = base;
                     draw.geometry = geometry;
                     draw.castShadow = castShadow;
                     draw.receiveShadow = !cube->Unlit;
@@ -527,13 +596,21 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
             continue;
         }
         if (mesh && !mesh->isUsingFallback()) continue;
-        SdlBasicCube draw;
+        auto draw = base;
         if (!mesh) draw.geometry = m_state->primitiveMeshes[static_cast<std::size_t>(shape)];
         draw.castShadow = castShadow;
         draw.receiveShadow = !cube->Unlit;
         draw.blend = blend;
         draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, opacity};
         m_state->meshes.push_back({draw, model, cube});
+    }
+    for (auto it = m_state->materialImages.begin(); it != m_state->materialImages.end();) {
+        if (m_state->usedMaterialImages.contains(it->first)) {
+            ++it;
+            continue;
+        }
+        if (it->second.handle && !m_state->renderer.releaseTexture(it->second.handle, error)) return false;
+        it = m_state->materialImages.erase(it);
     }
     for (auto it = m_state->meshCache.begin(); it != m_state->meshCache.end();) {
         if (active.contains(it->first)) {
@@ -586,6 +663,7 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
     draws.reserve(m_state->meshes.size());
     const auto append = [&](const State::MeshDraw& mesh) {
         auto draw = mesh.draw;
+        std::copy_n(mesh.model.m, 16, draw.modelMatrix.begin());
         const Matrix4 mvp = viewProjection * mesh.model;
         std::copy_n(mvp.m, 16, draw.modelViewProjection.begin());
         if (lightProjection) {

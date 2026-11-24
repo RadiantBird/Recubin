@@ -1,31 +1,13 @@
 #include <Core/SdlGameGuiResources.hpp>
 
+#include <Core/RgbaImage.hpp>
 #include <Core/SdlBasicRenderer.hpp>
 #include <Instances/ScreenGuiObject.hpp>
 #include <Instances/Workspace.hpp>
 #include <Util/AssetPath.hpp>
 #include <Util/AssetGuard.hpp>
-#include <Core/SvgRaster.hpp>
 #include <Util/Logger.hpp>
-#include <include/stb_image.h>
 #include <include/imgui/imgui.h>
-
-#include <algorithm>
-#include <fstream>
-#include <limits>
-
-namespace {
-
-void flipRows(std::vector<std::uint8_t>& pixels, int width, int height) {
-    const std::size_t rowSize = static_cast<std::size_t>(width) * 4;
-    for (int y = 0; y < height / 2; ++y) {
-        auto first = pixels.begin() + static_cast<std::size_t>(y) * rowSize;
-        auto last = pixels.begin() + static_cast<std::size_t>(height - 1 - y) * rowSize;
-        std::swap_ranges(first, first + rowSize, last);
-    }
-}
-
-} // namespace
 
 SdlGameGuiResources::SdlGameGuiResources(SDL_GPUDevice& device) : m_device(&device) {
     m_drawing.font = [this](ScreenGuiObject* object) { return resolveFont(object); };
@@ -94,52 +76,16 @@ ImFont* SdlGameGuiResources::resolveFont(ScreenGuiObject* object) const {
 
 bool SdlGameGuiResources::loadTexture(const std::string& path, TextureEntry& entry) {
     const auto filePath = AssetPath::fromStored(path);
-    int width = 0;
-    int height = 0;
-    std::vector<std::uint8_t> pixels;
-    if (SvgRaster::isSvgPath(filePath)) {
-        if (!SvgRaster::rasterizeFile(filePath, pixels, width, height)) {
-            if (m_warnedTextures.insert(path).second)
-                RCBN_WARN("SDL GUI SVG could not be rasterized: " << filePath.string());
-            return false;
-        }
-        flipRows(pixels, width, height);
-    } else {
-        std::ifstream input(filePath, std::ios::binary | std::ios::ate);
-        if (!input) {
-            if (m_warnedTextures.insert(path).second)
-                RCBN_WARN("SDL GUI image could not be opened: " << filePath.string());
-            return false;
-        }
-        const std::streamsize size = input.tellg();
-        if (size <= 0 || size > std::numeric_limits<int>::max()) {
-            if (m_warnedTextures.insert(path).second)
-                RCBN_WARN("SDL GUI image has an invalid byte count: " << path << " size=" << size);
-            return false;
-        }
-        std::vector<std::uint8_t> encoded(static_cast<std::size_t>(size));
-        input.seekg(0, std::ios::beg);
-        if (!input.read(reinterpret_cast<char*>(encoded.data()), size)) {
-            if (m_warnedTextures.insert(path).second)
-                RCBN_WARN("SDL GUI image could not be read: " << path);
-            return false;
-        }
-        int channels = 0;
-        stbi_set_flip_vertically_on_load_thread(0);
-        stbi_uc* source = stbi_load_from_memory(encoded.data(), static_cast<int>(encoded.size()),
-                                                 &width, &height, &channels, 4);
-        if (!source || width <= 0 || height <= 0) {
-            if (source) stbi_image_free(source);
-            if (m_warnedTextures.insert(path).second)
-                RCBN_WARN("SDL GUI image could not be decoded: " << filePath.string());
-            return false;
-        }
-        pixels.assign(source, source + static_cast<std::size_t>(width) * height * 4);
-        stbi_image_free(source);
+    RgbaImage image;
+    std::string decodeError;
+    if (!decodeRgbaImage(filePath, image, decodeError)) {
+        if (m_warnedTextures.insert(path).second)
+            RCBN_WARN("SDL GUI image could not be decoded: " << filePath.string()
+                                                              << " error=" << decodeError);
+        return false;
     }
     std::string error;
-    entry.texture = uploadSdlRgbaTexture(*m_device, static_cast<unsigned>(width),
-                                          static_cast<unsigned>(height), pixels, error);
+    entry.texture = uploadSdlRgbaTexture(*m_device, image.width, image.height, image.pixels, error);
     if (!entry.texture) {
         if (m_warnedTextures.insert(path).second)
             RCBN_WARN("SDL GUI image could not be uploaded: " << path << " error=" << error);
