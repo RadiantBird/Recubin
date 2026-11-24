@@ -20,11 +20,10 @@ std::vector<float> Sphere::s_HighlightEdgeVerts;
 
 static const int SPH_RES = 16;
 
-void Sphere::initGeometry() {
-    if (s_VAO != 0) return;
-
-    std::vector<float> vbo;
-    std::vector<unsigned int> ebo;
+PrimitiveMeshData Sphere::buildGeometry() {
+    PrimitiveMeshData geometry;
+    std::vector<float>& vbo = geometry.vertices;
+    std::vector<std::uint32_t>& ebo = geometry.indices;
 
     auto pushFace = [&](Vector3 normal, Vector3 right, Vector3 up) {
         unsigned int offset = (unsigned int)vbo.size() / 8;
@@ -73,8 +72,17 @@ void Sphere::initGeometry() {
     // Left (-X)
     pushFace(Vector3(-1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0));
 
+    return geometry;
+}
+
+void Sphere::initGeometry() {
+    if (s_VAO != 0) return;
+
+    PrimitiveMeshData geometry = buildGeometry();
+    const std::vector<float>& vbo = geometry.vertices;
+    const std::vector<std::uint32_t>& ebo = geometry.indices;
     s_FaceIndexCount = SPH_RES * SPH_RES * 6;
-    s_IndexCount = (int)ebo.size();
+    s_IndexCount = static_cast<int>(ebo.size());
 
     glGenVertexArrays(1, &s_VAO);
     glGenBuffers(1, &s_VBO);

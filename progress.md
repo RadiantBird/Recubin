@@ -938,3 +938,10 @@
 - Windows xmake Release で Studio・Engine・Test・Runtime・GPU Smoke のビルドが成功。GUI 自動化・表示・テキスト配置・ビューポート編集・補助の回帰 5 件が成功。両アプリの Vulkan／D3D12 で、日本語グリフ、透明な画像専用の子、SVG の上下、半透明色の合成、表示切り替え、手前の Cube による遮蔽をアプリ内 GPU 読み戻しで確認。各状態の PNG は同一アプリ内でバックエンド間一致。
 - Studio の Play で SurfaceGui のクリックから Luau の `Activated` が発火し、同じテクスチャで色と日本語テキストの更新を確認。遮蔽中は発火しなかった。Engine の太陽の影とカスタム GLSL の画像は変更前と同一だった。
 - 次は通常シーンの未対応プリミティブと透過を移す。不透明 Cube 以外を遮蔽物とする SurfaceGui のクリック、Engine 実ウィンドウのボタン操作、ProximityPrompt 実キー操作は未検証。
+
+## 2026-11-24 SDL GPU の基本プリミティブ
+
+- SurfaceGui を `0adba2e` にコミット。Cylinder、Sphere、Wedge、TriangularPrism の位置・法線・UV とインデックス生成を CPU 処理に切り出し、旧 OpenGL と SDL の通常シーンで使う。SDL 向けの頂点転送時に法線を基準に三角形の巻き順を揃え、形状の描画、深度、影、選択マスクに同じ GPU ジオメトリを渡す。
+- 選択パスがシーンの描画リストのインデックスでメッシュを再取得していたため、SurfaceGui の面分割が先にあると別のメッシュを参照し得た。対象メッシュから変換済みの選択描画を組み立てるよう修正。
+- Windows xmake Release で Studio・Engine・Test・Runtime が成功。両 GPU の両アプリで 4 形状の色と輪郭、Cube による Sphere の部分遮蔽の PNG を確認。アプリごと・状態ごとに両 GPU が全画素一致した。Engine では Sphere の影が `CastShadow` で切り替わり、両 GPU で一致した。Studio では SurfaceGui を含むシーンで Sphere の選択輪郭を両 GPU で確認。GUI 自動化・ビューポート編集・ビューポート補助の回帰 3 件が成功。
+- 次は透過と GLB マテリアルのアルファモード。既定経路の切り替え、材質・デカール・空・組み込みポスト効果、クリーン配布物での通し検証が残る。

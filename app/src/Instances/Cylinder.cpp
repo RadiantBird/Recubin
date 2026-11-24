@@ -21,11 +21,10 @@ std::vector<float> Cylinder::s_HighlightEdgeVerts;
 static const int CYL_SEG = 32;
 static const float CYL_PI = 3.14159265358979323846f;
 
-void Cylinder::initGeometry() {
-    if (s_VAO != 0) return;
-
-    std::vector<float> vbo;
-    std::vector<unsigned int> ebo;
+PrimitiveMeshData Cylinder::buildGeometry() {
+    PrimitiveMeshData geometry;
+    std::vector<float>& vbo = geometry.vertices;
+    std::vector<std::uint32_t>& ebo = geometry.indices;
 
     auto pushVert = [&](float px, float py, float pz,
                         float nx, float ny, float nz,
@@ -88,7 +87,16 @@ void Cylinder::initGeometry() {
     }
 
 
-    s_IndexCount = (int)ebo.size();
+    return geometry;
+}
+
+void Cylinder::initGeometry() {
+    if (s_VAO != 0) return;
+
+    PrimitiveMeshData geometry = buildGeometry();
+    const std::vector<float>& vbo = geometry.vertices;
+    const std::vector<std::uint32_t>& ebo = geometry.indices;
+    s_IndexCount = static_cast<int>(ebo.size());
 
     s_HighlightEdgeVerts = MeshEdges::extractHardEdges(vbo.data(), vbo.size() / 8, 8, 0, ebo.data(), ebo.size(), 20.0f);
 

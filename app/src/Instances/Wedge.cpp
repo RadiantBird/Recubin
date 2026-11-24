@@ -5,6 +5,7 @@
 #include <GL/glew.h>
 #include <Core/PropertyRegistry.hpp>
 #include <cmath>
+#include <utility>
 
 static const bool s_wedgeRegistered = [] {
     PropertyRegistry::registerClass("Wedge", "BaseCube", {});
@@ -36,11 +37,9 @@ static const int WG_BOT_OFF   = 6,  WG_BOT_COUNT   = 6;
 static const int WG_BACK_OFF  = 12, WG_BACK_COUNT  = 6;
 static const int WG_SLOPE_OFF = 18, WG_SLOPE_COUNT = 6;
 
-void Wedge::initGeometry() {
-    if (s_VAO != 0) return;
-
+PrimitiveMeshData Wedge::buildGeometry() {
     std::vector<float> vbo;
-    std::vector<unsigned int> ebo;
+    std::vector<std::uint32_t> ebo;
 
     auto pushVert = [&](float px, float py, float pz,
                         float nx, float ny, float nz,
@@ -95,7 +94,16 @@ void Wedge::initGeometry() {
                 {WG_XR, WG_Y2, WG_Z2}, {WG_XL, WG_Y2, WG_Z2}, {0.f, inv, -inv});
     }
 
-    s_IndexCount = (int)ebo.size();
+    return {std::move(vbo), std::move(ebo)};
+}
+
+void Wedge::initGeometry() {
+    if (s_VAO != 0) return;
+
+    PrimitiveMeshData mesh = buildGeometry();
+    const std::vector<float>& vbo = mesh.vertices;
+    const std::vector<std::uint32_t>& ebo = mesh.indices;
+    s_IndexCount = static_cast<int>(ebo.size());
 
     s_HighlightEdgeVerts = MeshEdges::extractHardEdges(vbo.data(), vbo.size() / 8, 8, 0, ebo.data(), ebo.size(), 20.0f);
 
@@ -107,7 +115,7 @@ void Wedge::initGeometry() {
     glBindBuffer(GL_ARRAY_BUFFER, s_VBO);
     glBufferData(GL_ARRAY_BUFFER, vbo.size() * sizeof(float), vbo.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, s_EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, ebo.size() * sizeof(unsigned int), ebo.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, ebo.size() * sizeof(std::uint32_t), ebo.data(), GL_STATIC_DRAW);
 
     GLsizei stride = 8 * sizeof(float);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);

@@ -2,6 +2,7 @@
 
 #include <Core/SceneRuntime.hpp>
 #include <Core/SdlBasicRenderer.hpp>
+#include <Core/PrimitiveMeshData.hpp>
 #include <Core/SdlPostEffects.hpp>
 #include <Core/TerrainStreamer.hpp>
 #ifdef RECUBIN_SDL_GPU_STUDIO
@@ -9,6 +10,10 @@
 #endif
 #include <Instances/BaseCube.hpp>
 #include <Instances/Cube.hpp>
+#include <Instances/Cylinder.hpp>
+#include <Instances/Sphere.hpp>
+#include <Instances/TriangularPrism.hpp>
+#include <Instances/Wedge.hpp>
 #include <Util/Color4.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/Lighting.hpp>
@@ -22,6 +27,7 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <filesystem>
 #include <iostream>
@@ -37,6 +43,44 @@
 namespace {
 constexpr unsigned PREVIEW_WIDTH = 1280;
 constexpr unsigned PREVIEW_HEIGHT = 720;
+
+constexpr int WEDGE_SHAPE = 4;
+
+int primitiveShape(const BaseCube& cube) {
+    const int shape = cube.renderShapeIndex();
+    if (shape >= 0) return shape;
+    return dynamic_cast<const Wedge*>(&cube) ? WEDGE_SHAPE : -1;
+}
+
+std::uint32_t uploadPrimitive(SdlBasicRenderer& renderer, PrimitiveMeshData mesh,
+                              std::string& error) {
+    constexpr auto stride = PrimitiveMeshData::FLOATS_PER_VERTEX;
+    std::vector<SdlBasicVertex> vertices;
+    vertices.reserve(mesh.vertices.size() / stride);
+    for (std::size_t offset = 0; offset < mesh.vertices.size(); offset += stride) {
+        const float* vertex = mesh.vertices.data() + offset;
+        vertices.push_back({{vertex[0], vertex[1], vertex[2]}, {vertex[6], 1.0f - vertex[7]}});
+    }
+
+    // Legacy primitives bypass back-face culling, so some of their triangles
+    // face inward. Match the authored normals in the GPU mesh.
+    const auto vectorAt = [&](std::uint32_t index, std::size_t offset) {
+        const auto start = index * stride + offset;
+        return Vector3(mesh.vertices[start], mesh.vertices[start + 1], mesh.vertices[start + 2]);
+    };
+    for (std::size_t i = 0; i < mesh.indices.size(); i += 3) {
+        const auto a = mesh.indices[i];
+        const auto b = mesh.indices[i + 1];
+        const auto c = mesh.indices[i + 2];
+        const auto normal = vectorAt(a, 3) + vectorAt(b, 3) + vectorAt(c, 3);
+        const auto cross = Vector3::Cross(vectorAt(b, 0) - vectorAt(a, 0),
+                                          vectorAt(c, 0) - vectorAt(a, 0));
+        if (Vector3::Dot(cross, normal) < 0.0f) {
+            std::swap(mesh.indices[i + 1], mesh.indices[i + 2]);
+        }
+    }
+    return renderer.uploadMesh(vertices, mesh.indices, error);
+}
 
 struct PreviewGeometry {
     Matrix4 model;
@@ -294,6 +338,7 @@ struct SdlLiveScene::State {
     std::vector<SdlBasicCube> frameDraws;
     std::vector<SdlBasicCube> outlineDraws;
     std::uint32_t cubeFaces = 0;
+    std::array<std::uint32_t, WEDGE_SHAPE + 1> primitiveMeshes{};
     Matrix4 viewProjection;
     bool frameSucceeded = false;
     struct MeshCache {
@@ -337,6 +382,13 @@ bool SdlLiveScene::initialize(SDL_GPUDevice& device, std::string& error) {
     }
     m_state->cubeFaces = m_state->renderer.uploadMesh(vertices, indices, error);
     if (!m_state->cubeFaces) return false;
+    const std::array builders{&Cylinder::buildGeometry, &Sphere::buildGeometry,
+                              &TriangularPrism::buildGeometry, &Wedge::buildGeometry};
+    for (std::size_t i = 0; i < builders.size(); ++i) {
+        const auto handle = uploadPrimitive(m_state->renderer, builders[i](), error);
+        if (!handle) return false;
+        m_state->primitiveMeshes[i + 1] = handle;
+    }
     m_state->initialized = true;
     return true;
 }
@@ -355,7 +407,8 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
         }
         if (cube->Color.a < 1.0f) continue;
         const auto* mesh = dynamic_cast<const MeshCube*>(cube);
-        if (!mesh && cube->renderShapeIndex() != 0) continue;
+        const int shape = primitiveShape(*cube);
+        if (!mesh && shape < 0) continue;
         const Matrix4 model = cube->getWorldCFrame().toMatrix4() *
                               Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
         if (mesh && !mesh->isUsingFallback() && !mesh->cpuVertices().empty() &&
@@ -418,6 +471,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
         }
         if (mesh && !mesh->isUsingFallback()) continue;
         SdlBasicCube draw;
+        if (!mesh) draw.geometry = m_state->primitiveMeshes[static_cast<std::size_t>(shape)];
         draw.castShadow = cube->shouldCastShadow(mesh && mesh->isUsingFallback());
         draw.receiveShadow = !cube->Unlit;
         draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, cube->Color.a};
@@ -533,10 +587,11 @@ bool SdlLiveScene::recordOutline(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUTex
     const std::unordered_set<const BaseCube*> targetSet(targets.begin(), targets.end());
     auto& selected = m_state->outlineDraws;
     selected.clear();
-    for (std::size_t index = 0; index < m_state->meshes.size(); ++index) {
-        if (targetSet.contains(m_state->meshes[index].owner)) {
-            selected.push_back(m_state->frameDraws[index]);
-        }
+    for (const auto& mesh : m_state->meshes) {
+        if (!targetSet.contains(mesh.owner)) continue;
+        auto& draw = selected.emplace_back(mesh.draw);
+        const Matrix4 mvp = m_state->viewProjection * mesh.model;
+        std::copy_n(mvp.m, 16, draw.modelViewProjection.begin());
     }
     return selected.empty() || m_state->renderer.drawOutline(commandBuffer, destination, selected,
                                                               color, thickness, error);

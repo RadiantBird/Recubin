@@ -4,6 +4,7 @@
 #include <include/Instances/Named.hpp>
 #include <vector>
 #include <include/Core/GfxTexture.hpp>
+#include <Core/PrimitiveMeshData.hpp>
 
 class MainShaderState;
 
@@ -26,6 +27,8 @@ public:
 
     PhysicsShape getPhysicsShape() const override { return PhysicsShape::ConvexMesh; }
     std::vector<Vector3> getConvexVertices() const override;
+
+    static PrimitiveMeshData buildGeometry();
 
     unsigned int getHighlightVAO() const override { return s_VAO; }
     unsigned int getHighlightIndexCount() const override { return (unsigned int)s_IndexCount; }

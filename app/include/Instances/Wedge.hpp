@@ -4,6 +4,7 @@
 #include <include/Instances/Named.hpp>
 #include <vector>
 #include <include/Core/GfxTexture.hpp>
+#include <Core/PrimitiveMeshData.hpp>
 
 class MainShaderState;
 
@@ -33,6 +34,8 @@ public:
     unsigned int getHighlightVAO() const override { return s_VAO; }
     unsigned int getHighlightIndexCount() const override { return (unsigned int)s_IndexCount; }
     const std::vector<float>& getHighlightEdgeVerts() const override { return s_HighlightEdgeVerts; }
+
+    static PrimitiveMeshData buildGeometry();
 
 private:
     static void initGeometry();
