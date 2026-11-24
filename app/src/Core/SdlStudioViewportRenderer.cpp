@@ -2,6 +2,7 @@
 
 #include <Core/SdlScenePreview.hpp>
 #include <Core/SdlBasicRenderer.hpp>
+#include <Core/SdlGameGuiResources.hpp>
 #include <Core/Renderer.hpp>
 #include <Editor/ViewportSceneQueries.hpp>
 #include <Instances/BaseCube.hpp>
@@ -52,8 +53,20 @@ Matrix4 studioViewProjection(const ViewportRenderDesc& request) {
 }
 }
 
-SdlStudioViewportRenderer::SdlStudioViewportRenderer(SDL_GPUDevice& device)
-    : m_device(&device) {}
+SdlStudioViewportRenderer::SdlStudioViewportRenderer(
+    SDL_GPUDevice& device, ImFont* gameFont, std::function<void(GuiButton*)> onButtonActivated)
+    : m_device(&device),
+      m_gameGuiResources(std::make_unique<SdlGameGuiResources>(device)),
+      m_onButtonActivated(std::move(onButtonActivated)) {
+    m_gameGuiResources->initializeFonts(gameFont);
+}
+
+void SdlStudioViewportRenderer::renderGameGui(
+    Workspace& workspace, User* user, const GameGuiRenderContext& context, bool inputEnabled) {
+    m_gameGuiResources->prepareFonts(workspace);
+    GameGuiDrawing::draw(workspace, user, context, m_gameGuiResources->drawing(),
+                        m_onButtonActivated, inputEnabled);
+}
 
 SdlStudioViewportRenderer::~SdlStudioViewportRenderer() {
     if (m_device && !m_ownedTextures.empty()) {

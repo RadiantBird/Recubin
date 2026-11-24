@@ -28,6 +28,9 @@
 #ifdef RECUBIN_SDL_GPU_PREVIEW
 #include <Core/SdlScenePreview.hpp>
 #include <Core/SdlInputBackend.hpp>
+#include <Core/SdlImGuiBackend.hpp>
+#include <Core/GameGuiDrawing.hpp>
+#include <Core/SdlGameGuiResources.hpp>
 #include <Core/TerrainStreamer.hpp>
 #endif
 #include <Core/RuntimeFrame.hpp>
@@ -495,6 +498,9 @@ int main(int argc, char* argv[]) {
 #ifdef RECUBIN_SDL_GPU_PREVIEW
     std::unique_ptr<SdlGpuWindow> sdlWindow;
     std::unique_ptr<SdlLiveScene> sdlScene;
+    std::unique_ptr<ImGuiContext, void(*)(ImGuiContext*)> sdlImGuiContext(nullptr, ImGui::DestroyContext);
+    std::unique_ptr<SdlImGuiBackend> sdlImGui;
+    std::unique_ptr<SdlGameGuiResources> sdlGuiResources;
     if (sdlRuntime) {
         sdlWindow = std::make_unique<SdlGpuWindow>();
         SdlGpuWindowConfig config;
@@ -517,6 +523,23 @@ int main(int argc, char* argv[]) {
             return -1;
         }
         input = std::make_unique<SDLInputBackend>(sdlWindow->window());
+        sdlImGuiContext.reset(ImGui::CreateContext());
+        if (!sdlImGuiContext) {
+            RCBN_ERROR("SDL GPU runtime ImGui context creation failed");
+            return -1;
+        }
+        ImGui::SetCurrentContext(sdlImGuiContext.get());
+        ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_ViewportsEnable;
+        ImGui::GetIO().IniFilename = nullptr;
+        ImGui::GetIO().LogFilename = nullptr;
+        sdlImGui = std::make_unique<SdlImGuiBackend>();
+        if (!sdlImGui->initialize(*sdlImGuiContext, *sdlWindow->window(), *sdlWindow->device(),
+                                  SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM, error)) {
+            RCBN_ERROR("SDL GPU runtime ImGui initialization failed: " << error);
+            return -1;
+        }
+        sdlGuiResources = std::make_unique<SdlGameGuiResources>(*sdlWindow->device());
+        sdlGuiResources->initializeFonts();
         RCBN_LOG("SDL GPU runtime: " << sdlWindow->driverName());
     }
 #endif
@@ -888,6 +911,7 @@ int main(int argc, char* argv[]) {
             SDL_Event event;
             while (SDL_PollEvent(&event)) {
                 SDLInputBackend::processEvent(event);
+                if (sdlImGui) sdlImGui->processEvent(event);
                 closing = closing || event.type == SDL_EVENT_QUIT ||
                     (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == windowId);
             }
@@ -1046,15 +1070,59 @@ int main(int argc, char* argv[]) {
                 FrameProfiler::get().endFrame();
                 continue;
             }
+            if (sdlImGui) {
+                if (!sdlImGui->beginFrame(error)) {
+                    RCBN_ERROR("SDL GPU runtime ImGui frame failed: " << error);
+                    if (!sdlWindow->submit(frame, nullptr, &error)) RCBN_ERROR(error);
+                    networkExitCode = -1;
+                    break;
+                }
+                sdlGuiResources->prepareFonts(*workspace);
+                ImGui::NewFrame();
+            }
             const unsigned width = selfCheck ? SELF_CHECK_WIDTH : frame.width;
             const unsigned height = selfCheck ? SELF_CHECK_HEIGHT : frame.height;
             const Matrix4 projection = sdlSceneViewProjection(*user, static_cast<float>(width) / height);
             if (!sdlScene->draw(*workspace, projection, user->cpos, user->forward, effectTime,
                                 *frame.command, width, height, error)) {
                 RCBN_ERROR("SDL GPU scene draw failed: " << error);
+                if (sdlImGui) ImGui::EndFrame();
                 if (!sdlWindow->submit(frame, nullptr, &error)) RCBN_ERROR(error);
                 networkExitCode = -1;
                 break;
+            }
+            if (sdlImGui) {
+                int windowWidth = static_cast<int>(width);
+                int windowHeight = static_cast<int>(height);
+                SDL_GetWindowSize(sdlWindow->window(), &windowWidth, &windowHeight);
+                const float logicalWidth = static_cast<float>((std::max)(1, windowWidth));
+                const float logicalHeight = static_cast<float>((std::max)(1, windowHeight));
+                GameGuiRenderContext context = GameGuiDrawing::makeContext(
+                    0.0f, 0.0f, logicalWidth, logicalHeight,
+                    user->cpos, user->forward, user->right, user->up,
+                    height > 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f,
+                    false);
+                const bool inputEnabled = focused;
+                ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
+                ImGui::SetNextWindowSize(ImVec2(logicalWidth, logicalHeight), ImGuiCond_Always);
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+                ImGui::Begin("##RecubinGameGui", nullptr,
+                    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus |
+                    ImGuiWindowFlags_NoBackground);
+                GameGuiDrawing::draw(*workspace, user.get(), context, sdlGuiResources->drawing(),
+                    [&](GuiButton* button) { luauEngine->onGuiButtonActivated(button); },
+                    inputEnabled);
+                ImGui::End();
+                ImGui::PopStyleVar();
+                ImGui::Render();
+                if (!sdlImGui->render(*ImGui::GetDrawData(), *frame.command,
+                                      *sdlScene->colorTarget(), error, true)) {
+                    RCBN_ERROR("SDL GPU runtime ImGui render failed: " << error);
+                    if (!sdlWindow->submit(frame, nullptr, &error)) RCBN_ERROR(error);
+                    networkExitCode = -1;
+                    break;
+                }
             }
             if (frame.swapchain) {
                 blitSdlSceneFrame(*frame.command, *sdlScene->colorTarget(), *frame.swapchain, width, height);

@@ -17,6 +17,7 @@
 #include <Instances/Weld.hpp>
 #include <Core/SystemState.hpp>
 #include <Core/Renderer.hpp>
+#include <Core/GameGuiDrawing.hpp>
 #include <Core/Physics.hpp>
 #include <Core/Terrain.hpp>
 #include <Core/TerrainStreamer.hpp>
@@ -243,16 +244,25 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
     }
 
     // ゲーム内 GUI をビューポート上に重ねて描画
-    if (workspace && Renderer::instance && !m_sceneRenderer) {
-        const GameGuiRenderContext guiContext = Renderer::makeGameGuiRenderContext(
+    if (workspace && (m_sceneRenderer || Renderer::instance)) {
+        GameGuiRenderContext guiContext = GameGuiDrawing::makeContext(
             contentOrigin.x, contentOrigin.y, static_cast<float>(w), static_cast<float>(h),
             camPos(), camForward(), camRight(), camUp(),
             static_cast<float>(w) / static_cast<float>(h),
             /*recordUserViewport=*/!m_useOwnCamera);
-        GameGuiRenderContext viewportGuiContext = guiContext;
         // 黒帯なしでは縦横比がBaseResolutionと違うため、Pixel単位のGUIを縦横同率で拡大して歪ませない
-        viewportGuiContext.uniformPixelScale = !useFixedResolution;
-        Renderer::instance->renderGameGui(*workspace, user, viewportGuiContext);
+        guiContext.uniformPixelScale = !useFixedResolution;
+        if (m_sceneRenderer) {
+            const bool focusClick = ImGui::IsWindowHovered() && ImGui::IsMouseClicked(0);
+            const bool inputEnabled = SystemState::get().isPlaying && !m_useOwnCamera &&
+                                      (ImGui::IsWindowFocused() || focusClick);
+            const ImVec2 contentEnd(contentOrigin.x + w, contentOrigin.y + h);
+            ImGui::PushClipRect(contentOrigin, contentEnd, true);
+            m_sceneRenderer->renderGameGui(*workspace, user, guiContext, inputEnabled);
+            ImGui::PopClipRect();
+        } else {
+            Renderer::instance->renderGameGui(*workspace, user, guiContext);
+        }
     }
 
     // レターボックス外側の黒帯を最前面に重ね描きする（BillboardGui等の3D投影GUIは

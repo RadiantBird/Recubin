@@ -921,3 +921,11 @@
 - GUI 自動化に `--ui-automation-layout` と `capture_window` を追加。検証はアプリ内からの GPU 読み戻しとウィンドウ状態の取得で行う。デスクトップ撮影は中止し、その検証スクリプトと生成画像を削除した。
 - xmake Windows Release で Studio・Engine・Test・Runtime と GPU Smoke が成功。Vulkan／D3D12 とも、125% DPI の単一モニターで分離パネルの描画と ImGui フォーカス、540×408 から 582×403 に変わるリサイズ、最小化からの復帰、分離先の終了後に本体が描画を続けることを確認。SDL 入力の再登録・旧ウィンドウのホイール破棄・破棄済みウィンドウの解除も両 GPU の Smoke で成功。対象回帰 5 件と選択アウトラインの GPU 画像比較が成功。
 - 異なる DPI のモニター間移動、手動ドラッグによる再ドック、物理マウスの相対入力、IME は未検証。次は Studio と Engine のゲーム GUI を同じ SDL GPU の描画経路につなぐ。まず ScreenGui と WorldGui のレイアウト・ヒット判定・最終合成を接続し、SurfaceGui の焼き込みを続ける。
+
+## 2026-11-24 ScreenGui と WorldGui を SDL GPU に接続
+
+- ゲーム GUI のレイアウト、テキストと画像、BillboardGui の投影、ボタン判定、ツールホットバーを共通化。フォントと画像をバックエンドから供給し、SDL 経路では旧 Renderer の初期化を必要としない。ProximityPrompt のキー判定は ImGui の入力を使う。
+- Studio はビューポートのゲーム領域に描画し、Play 中のメインゲームビューポートから Luau のボタンイベントを送る。Engine は SDL3 のイベントを ImGui にも送り、カスタムポスト効果後の色を LOAD して GUI を合成してから提示・PNG 読み戻しを行う。GUI の論理寸法と GPU ターゲットのピクセル寸法は別に扱う。
+- Windows xmake Release で Studio・Engine・Test・Runtime をビルド。GUI 自動化・表示状態・テキスト配置・ビューポート編集・ビューポート補助・入力・起動引数の対象回帰 7 件が成功。両アプリで日本語、上下で色が違う SVG、BillboardGui の画像をアプリ内で読み戻し、各アプリ内で Vulkan と D3D12 が全画素一致した。Unicode パスのカスタムフォントも Engine の両 GPU で確認した。
+- Studio の Play モードでクリックして Luau の `Activated` が発火し、GUI の背景が赤からシアンへ変わった。Engine の影と GLSL の PNG は変更前と同一。GUI 画像の検証にはアプリ内の GPU 読み戻しを使用した。
+- 次は SurfaceGui。ゲーム GUI の共通コンテンツ描画を使い、ImGui のテクスチャ転送とベイクパスをシーン描画より先に記録する。SurfaceGui の合成と面へのヒット判定、Engine の実ウィンドウでのボタン入力、ProximityPrompt のキー操作は検証が残る。

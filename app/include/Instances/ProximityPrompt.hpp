@@ -20,7 +20,6 @@ public:
     float m_elapsedTime = 0.0f;
     bool m_isHolding = false;
     bool m_hasTriggered = false;
-    double m_lastUpdateTime = 0.0;
 
     ProximityPrompt();
     bool IsA(std::string name) override;

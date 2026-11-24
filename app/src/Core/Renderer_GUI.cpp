@@ -1,4 +1,5 @@
 #include "include/Core/Renderer.hpp"
+#include "include/Core/GameGuiDrawing.hpp"
 #include "include/Core/SystemState.hpp"
 #include "include/Core/ScreenGuiLayout.hpp"
 #include "include/Instances/Workspace.hpp"
@@ -19,6 +20,7 @@
 #include "include/Util/Logger.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -61,10 +63,17 @@ static std::filesystem::path resolveStoredFontPath(const std::string& storedPath
     return ec ? path : current / path;
 }
 
+std::filesystem::path GameGuiDrawing::customFontPath(ScreenGuiObject& object) {
+    if (object.FontFile.empty()) return {};
+    auto* file = findFontFile(sceneRoot(&object), object.FontFile);
+    if (!file || file->Path.empty()) return {};
+    return resolveStoredFontPath(file->Path);
+}
+
 // ImGui::AddFontFromFileTTF() はナローパスの fopen() を使うため、Windows では
 // UTF-8 を含む FontFile.ContentPath を開けない。filesystem::path 経由で読み込んで
 // ImGui に所有権を渡せば、Unicode パスでも同じフォントローダーを安全に使える。
-static ImFont* addFontFromPath(const std::filesystem::path& fontPath) {
+ImFont* GameGuiDrawing::addCustomFont(const std::filesystem::path& fontPath) {
     std::ifstream input(fontPath, std::ios::binary | std::ios::ate);
     if (!input) return nullptr;
 
@@ -90,19 +99,16 @@ static ImFont* addFontFromPath(const std::filesystem::path& fontPath) {
 ImFont* Renderer::loadGuiFont(ScreenGuiObject* sgo) {
     if (!sgo) return ImGui::GetFont();
 
-    FontFile* fontFile = !sgo->UseFontFile || sgo->FontFile.empty()
-        ? nullptr
-        : findFontFile(sceneRoot(sgo), sgo->FontFile);
-    if (!fontFile || fontFile->Path.empty()) {
+    const auto fontPath = sgo->UseFontFile ? GameGuiDrawing::customFontPath(*sgo)
+                                          : std::filesystem::path{};
+    if (fontPath.empty()) {
         RCBN_WARN("FontFile reference could not be resolved: " << sgo->FontFile);
         return ImGui::GetFont();
     }
 
-    const std::filesystem::path fontPath = resolveStoredFontPath(fontFile->Path);
     std::error_code ec;
     if (!std::filesystem::exists(fontPath, ec) || ec) {
-        RCBN_WARN("FontFile TTF/OTF not found: " << fontFile->Path
-                  << " (resolved: " << pathToUtf8(fontPath) << ")");
+        RCBN_WARN("FontFile TTF/OTF not found: " << pathToUtf8(fontPath));
         return ImGui::GetFont();
     }
 
@@ -112,7 +118,7 @@ ImFont* Renderer::loadGuiFont(ScreenGuiObject* sgo) {
         return cached->second ? cached->second : ImGui::GetFont();
     }
 
-    ImFont* loaded = addFontFromPath(fontPath);
+    ImFont* loaded = GameGuiDrawing::addCustomFont(fontPath);
     m_guiFontCache[cacheKey] = loaded;
     if (!loaded) {
         RCBN_WARN("Failed to load FontFile: " << pathToUtf8(fontPath));
@@ -144,12 +150,8 @@ ImFont* Renderer::resolveGuiFont(ScreenGuiObject* sgo) {
         }
     }
 
-    FontFile* fontFile = sgo->FontFile.empty()
-        ? nullptr
-        : findFontFile(sceneRoot(sgo), sgo->FontFile);
-    if (!fontFile || fontFile->Path.empty()) return ImGui::GetFont();
-
-    const std::filesystem::path fontPath = resolveStoredFontPath(fontFile->Path);
+    const auto fontPath = GameGuiDrawing::customFontPath(*sgo);
+    if (fontPath.empty()) return ImGui::GetFont();
     const std::wstring cacheKey = fontPath.lexically_normal().wstring();
     const auto cached = m_guiFontCache.find(cacheKey);
     return cached != m_guiFontCache.end() && cached->second
@@ -170,13 +172,12 @@ void Renderer::renderRuntimeChat(float vpX, float vpY, float vpW, float vpH) {
 // BillboardGuiの子ではfitToBoundsを有効にし、指定サイズを上限として文字列全体を収める。
 static void drawGuiText(ImDrawList* dl, ScreenGuiObject* sgo, const TextContent& content,
                         float px, float py, float sw, float sh,
-                        ImU32 col, float textScaleY = 1.0f, bool fitToBounds = false)
+                        ImU32 col, const GameGuiDrawing::Resources& resources,
+                        float textScaleY = 1.0f, bool fitToBounds = false)
 {
     if (sw <= 0.0f || sh <= 0.0f) return;
 
-    ImFont* font = Renderer::instance
-        ? Renderer::instance->resolveGuiFont(sgo)
-        : ImGui::GetFont();
+    ImFont* font = resources.font ? resources.font(sgo) : ImGui::GetFont();
 
     const char* text = content.Text.c_str();
     float size = ((sgo->FontSize > 0.f && !content.TextScaled)
@@ -223,12 +224,28 @@ static ImU32 toImCol(const Color4& c) {
     return IM_COL32((int)(c.r*255), (int)(c.g*255), (int)(c.b*255), (int)(c.a*255));
 }
 
+static GameGuiDrawing::Resources legacyGuiResources() {
+    GameGuiDrawing::Resources resources;
+    resources.flipImageY = true;
+    resources.font = [](ScreenGuiObject* element) {
+        return Renderer::instance ? Renderer::instance->resolveGuiFont(element)
+                                   : ImGui::GetFont();
+    };
+    resources.image = [](ScreenGuiObject* element) {
+        auto* image = element ? element->imageContent() : nullptr;
+        if (!image || !image->textureID) return ImTextureRef();
+        return ImTextureRef((ImTextureID)(uintptr_t)image->textureID.glName());
+    };
+    return resources;
+}
+
 // 背景+画像+文字+（任意）ボタン当たり判定の共通描画。
 // Screen直描画 / SurfaceGuiベイク / BillboardGuiパネル の3系統で共用する。
 // onActivated が null のときは非対話（ベイク用: InvisibleButton を発行しない）
 static void drawGuiContent(ImDrawList* dl, ScreenGuiObject* sgo,
                            float px, float py, float sw, float sh,
-                           std::function<void(GuiButton*)>* onActivated,
+                           const std::function<void(GuiButton*)>* onActivated,
+                           const GameGuiDrawing::Resources& resources,
                            float textScaleY = 1.0f,
                            bool fitTextToBounds = false) {
     if (!sgo || !sgo->Visible) return;
@@ -236,14 +253,20 @@ static void drawGuiContent(ImDrawList* dl, ScreenGuiObject* sgo,
     ImVec2 tl(px, py), br(px + sw, py + sh);
     if (sgo->BackgroundColor.a > 0.001f)
         dl->AddRectFilled(tl, br, toImCol(sgo->BackgroundColor));
-    if (auto* img = sgo->imageContent(); img && img->textureID)
-        dl->AddImage((ImTextureID)(uintptr_t)img->textureID.glName(), tl, br,
-                     ImVec2(0, 1), ImVec2(1, 0));  // 上下反転（テクスチャ原点補正）
+    if (resources.image && sgo->imageContent()) {
+        const ImTextureRef image = resources.image(sgo);
+        if (image.GetTexID() != ImTextureID_Invalid) {
+            const ImVec2 uv0 = resources.flipImageY ? ImVec2(0, 1) : ImVec2(0, 0);
+            const ImVec2 uv1 = resources.flipImageY ? ImVec2(1, 0) : ImVec2(1, 1);
+            dl->AddImage(image, tl, br, uv0, uv1);
+        }
+    }
     if (auto* txt = sgo->textContent(); txt && !txt->Text.empty() &&
         txt->TextColor.a > 0.001f)
         drawGuiText(dl, sgo, *txt, px, py, sw, sh, toImCol(txt->TextColor),
-                    textScaleY, fitTextToBounds);
-    if (onActivated && *onActivated && sgo->Active && sgo->IsA("GuiButton")) {
+                    resources, textScaleY, fitTextToBounds);
+    if (onActivated && *onActivated && sw > 0.0f && sh > 0.0f &&
+        sgo->Active && sgo->IsA("GuiButton")) {
         // ID はインスタンスポインタ由来（同名インスタンスの ID 衝突防止）
         ImGui::SetCursorScreenPos(tl);
         std::string btnId = "##btn_" + std::to_string(reinterpret_cast<uintptr_t>(sgo));
@@ -256,7 +279,9 @@ static void drawGuiContent(ImDrawList* dl, ScreenGuiObject* sgo,
 static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
                                   float vpX, float vpY, float vpW, float vpH,
                                   const Vector2& scale,
-    std::function<void(GuiButton*)>& onActivated) {
+    const std::function<void(GuiButton*)>& onActivated,
+    const GameGuiDrawing::Resources& resources,
+    bool inputEnabled) {
     if (!sgo->Visible) return;
 
     const ScreenGuiLayout::Rect rect = ScreenGuiLayout::computeRect(*sgo, vpX, vpY, vpW, vpH, scale);
@@ -268,10 +293,11 @@ static void drawScreenGuiElement(ImDrawList* dl, ScreenGuiObject* sgo,
 
     // FontSizeは論理値として保持し、画面GUIの描画時だけ既存の
     // BaseResolution比率を適用する。文字の高さに対応するY倍率を使う。
-    drawGuiContent(dl, sgo, px, py, sw, sh, &onActivated, scaleY);
+    drawGuiContent(dl, sgo, px, py, sw, sh,
+                   inputEnabled ? &onActivated : nullptr, resources, scaleY);
 
     // ホバー判定（TextLabel/TextButton 共通）: 入った瞬間に Hovered を発火
-    if (SystemState::get().isPlaying) {
+    if (inputEnabled && SystemState::get().isPlaying) {
         bool hovered = ImGui::IsMouseHoveringRect(tl, br);
         if (hovered && !sgo->m_wasHovered && sgo->Hovered)
             sgo->Hovered->fire();
@@ -443,7 +469,8 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
         float sw = csw * scale;
         float sh = csh * scale;
 
-        drawGuiContent(dl, sgo, px, py, sw, sh, nullptr);
+        GameGuiDrawing::Resources resources = legacyGuiResources();
+        drawGuiContent(dl, sgo, px, py, sw, sh, nullptr, resources);
     }
 
     dl->PopTexture();
@@ -507,8 +534,11 @@ void Renderer::bakeSurfaceGui(SurfaceGui* sg) {
 // ===================================================
 //  renderScreenGui
 // ===================================================
-void Renderer::renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH,
-                               bool uniformPixelScale) {
+static void drawScreenGuiShared(Workspace& ws, float vpX, float vpY, float vpW, float vpH,
+                                bool uniformPixelScale,
+                                const GameGuiDrawing::Resources& resources,
+                                const std::function<void(GuiButton*)>& onButtonActivated,
+                                bool inputEnabled) {
     FrameProfiler::get().addCount("treeGuiNodes", static_cast<long long>(ws.getRenderScreenGuiObjects().size()));
     // ZIndex 昇順（小 = 背面）
     const std::vector<ScreenGuiObject*> elements = ScreenGuiLayout::collectScreenElements(ws);
@@ -520,8 +550,16 @@ void Renderer::renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, f
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     for (auto* sgo : elements) {
-        drawScreenGuiElement(dl, sgo, vpX, vpY, vpW, vpH, scale, m_onButtonActivated);
+        drawScreenGuiElement(dl, sgo, vpX, vpY, vpW, vpH, scale,
+                             onButtonActivated, resources, inputEnabled);
     }
+}
+
+void Renderer::renderScreenGui(Workspace& ws, float vpX, float vpY, float vpW, float vpH,
+                               bool uniformPixelScale) {
+    GameGuiDrawing::Resources resources = legacyGuiResources();
+    drawScreenGuiShared(ws, vpX, vpY, vpW, vpH, uniformPixelScale,
+                        resources, m_onButtonActivated, true);
 }
 
 // ===================================================
@@ -614,7 +652,9 @@ static bool computeBillboardLayout(const Matrix4& view, const Matrix4& proj,
 // ===================================================
 static void drawWorldGuiChildren(ImDrawList* dl, WorldGuiObject* wgo,
                                   float panelX, float panelY, float panelW, float panelH,
-                                  std::function<void(GuiButton*)>& onActivated,
+                                  const std::function<void(GuiButton*)>& onActivated,
+                                  const GameGuiDrawing::Resources& resources,
+                                  bool inputEnabled,
                                   float pixelScaleX = 1.0f, float pixelScaleY = 1.0f,
                                   bool worldMode = false) {
     // 子GUIが親パネルより大きい場合も、BillboardGuiのキャンバス外へ描画しない。
@@ -639,7 +679,8 @@ static void drawWorldGuiChildren(ImDrawList* dl, WorldGuiObject* wgo,
         float sw = (origNorm == Norm::Scale) ? origSizeX * panelW : origSizeX * pixelScaleX;
         float sh = (origNorm == Norm::Scale) ? origSizeY * panelH : origSizeY * pixelScaleY;
 
-        drawGuiContent(dl, sgo, px, py, sw, sh, &onActivated,
+        drawGuiContent(dl, sgo, px, py, sw, sh,
+                       inputEnabled ? &onActivated : nullptr, resources,
                        worldMode ? pixelScaleY : 1.0f,
                        /*fitTextToBounds=*/true);
     }
@@ -740,7 +781,8 @@ static bool hitTestSurfaceGui(SurfaceGui* sg, BaseCube* cube, const Vector3& ray
 // ===================================================
 //  renderWorldGui
 // ===================================================
-void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderContext& context) {
+static void drawLegacySurfaceGuis(Renderer& renderer, Workspace& ws, User* user,
+                                  const GameGuiRenderContext& context) {
     const float vpX = context.viewportX;
     const float vpY = context.viewportY;
     const float vpW = context.viewportWidth;
@@ -750,7 +792,7 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
         auto parent = sg ? sg->Parent.lock() : nullptr;
         if (!parent || !parent->IsA("BaseCube")) continue;
         FrameProfiler::get().addCount("surfaceGuiChildrenVisited", 1);
-        bakeSurfaceGui(sg);
+        renderer.bakeSurfaceGui(sg);
     }
 
     // SurfaceGui クリック判定: 全キューブの全 SurfaceGui からレイと最も近く交差したボタンを探して発火する
@@ -779,10 +821,35 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
                     bestBtn = static_cast<GuiButton*>(hitChild);
                 }
             }
-            if (bestBtn && m_onButtonActivated) m_onButtonActivated(bestBtn);
+            if (bestBtn && renderer.m_onButtonActivated) renderer.m_onButtonActivated(bestBtn);
         }
     }
+}
 
+static ImGuiKey promptKey(const std::string& keyCode) {
+    std::string key = keyCode;
+    std::transform(key.begin(), key.end(), key.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    if (key.length() == 1 && key[0] >= 'A' && key[0] <= 'Z')
+        return static_cast<ImGuiKey>(ImGuiKey_A + key[0] - 'A');
+    if (key.length() == 1 && key[0] >= '0' && key[0] <= '9')
+        return static_cast<ImGuiKey>(ImGuiKey_0 + key[0] - '0');
+    if (key == "SPACE") return ImGuiKey_Space;
+    if (key == "ENTER") return ImGuiKey_Enter;
+    if (key == "SHIFT" || key == "LEFT_SHIFT") return ImGuiKey_LeftShift;
+    if (key == "CTRL" || key == "LEFT_CONTROL" || key == "CONTROL") return ImGuiKey_LeftCtrl;
+    if (key == "ALT" || key == "LEFT_ALT") return ImGuiKey_LeftAlt;
+    return ImGuiKey_E;
+}
+
+static void drawWorldGuiShared(Workspace& ws, const GameGuiRenderContext& context,
+                               const std::function<void(GuiButton*)>& onButtonActivated,
+                               const GameGuiDrawing::Resources& resources,
+                               bool inputEnabled) {
+    const float vpX = context.viewportX;
+    const float vpY = context.viewportY;
+    const float vpW = context.viewportWidth;
+    const float vpH = context.viewportHeight;
     ImDrawList* dl = ImGui::GetWindowDrawList();
     bool anyPromptHeld = false;
 
@@ -797,24 +864,7 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
         CFrame cubeWorldCFrame = cube->getWorldCFrame();
         Vector3 guiCenterOffset(0.0f, 0.0f, 0.0f);
 
-            // SurfaceGui: フェイス中心にオフセット
-            if (wgo->IsA("SurfaceGui")) {
-                auto* sg = static_cast<SurfaceGui*>(wgo);
-                float hx = cube->Size.x * 0.5f;
-                float hy = cube->Size.y * 0.5f;
-                float hz = cube->Size.z * 0.5f;
-                switch (sg->face) {
-                    case Face::Front:  guiCenterOffset.z += hz; break;
-                    case Face::Back:   guiCenterOffset.z -= hz; break;
-                    case Face::Top:    guiCenterOffset.y += hy; break;
-                    case Face::Bottom: guiCenterOffset.y -= hy; break;
-                    case Face::Right:  guiCenterOffset.x += hx; break;
-                    case Face::Left:   guiCenterOffset.x -= hx; break;
-                }
-            }
-
             // BillboardGui / ProximityPromptのOffsetは親BaseCubeのローカル座標。
-            // SurfaceGuiには適用せず、従来どおりフェイス中心へ描画する。
             BillboardGui* billboard = nullptr;
             if (wgo->IsA("BillboardGui")) {
                 billboard = static_cast<BillboardGui*>(wgo);
@@ -847,30 +897,10 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
                 }
 
                 // キー入力判定と状態更新
-                double curTime = glfwGetTime();
-                if (pp->m_lastUpdateTime == 0.0) pp->m_lastUpdateTime = curTime;
-                float dt = (float)(curTime - pp->m_lastUpdateTime);
-                pp->m_lastUpdateTime = curTime;
+                const float dt = ImGui::GetIO().DeltaTime;
 
-                auto getGlfwKey = [](const std::string& keyStr) -> int {
-                    std::string s = keyStr;
-                    std::transform(s.begin(), s.end(), s.begin(), ::toupper);
-                    if (s.length() == 1 && s[0] >= 'A' && s[0] <= 'Z') return GLFW_KEY_A + (s[0] - 'A');
-                    if (s.length() == 1 && s[0] >= '0' && s[0] <= '9') return GLFW_KEY_0 + (s[0] - '0');
-                    if (s == "SPACE") return GLFW_KEY_SPACE;
-                    if (s == "ENTER") return GLFW_KEY_ENTER;
-                    if (s == "SHIFT" || s == "LEFT_SHIFT") return GLFW_KEY_LEFT_SHIFT;
-                    if (s == "CTRL" || s == "LEFT_CONTROL" || s == "CONTROL") return GLFW_KEY_LEFT_CONTROL;
-                    if (s == "ALT" || s == "LEFT_ALT") return GLFW_KEY_LEFT_ALT;
-                    return GLFW_KEY_E;
-                };
-
-                int glfwKey = getGlfwKey(pp->KeyboardKeyCode);
-                GLFWwindow* window = Renderer::instance->m_window;
-                bool isKeyPressed = false;
-                if (window && SystemState::get().viewportFocused) {
-                    isKeyPressed = (glfwGetKey(window, glfwKey) == GLFW_PRESS);
-                }
+                const bool isKeyPressed = inputEnabled && SystemState::get().viewportFocused &&
+                    ImGui::IsKeyDown(promptKey(pp->KeyboardKeyCode));
 
                 if (isKeyPressed) {
                     pp->m_isHolding = true;
@@ -887,7 +917,7 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
                             if (pp->Triggered) pp->Triggered->fire();
                         }
                     }
-                } else {
+                } else if (inputEnabled) {
                     pp->m_isHolding = false;
                     pp->m_hasTriggered = false;
                     pp->m_elapsedTime = 0.0f;
@@ -959,7 +989,8 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
                     }
                 }
 
-                drawWorldGuiChildren(dl, wgo, panelX, panelY, pw, ph, m_onButtonActivated,
+                drawWorldGuiChildren(dl, wgo, panelX, panelY, pw, ph, onButtonActivated,
+                                     resources, inputEnabled,
                                      childScaleX, childScaleY, worldSizeMode);
                 continue;
             }
@@ -968,11 +999,12 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
             ImU32 bgCol = IM_COL32((int)(bg.r*255),(int)(bg.g*255),(int)(bg.b*255),(int)(bg.a*255));
             dl->AddRectFilled(ImVec2(panelX, panelY), ImVec2(panelX+pw, panelY+ph), bgCol);
 
-            drawWorldGuiChildren(dl, wgo, panelX, panelY, pw, ph, m_onButtonActivated,
+            drawWorldGuiChildren(dl, wgo, panelX, panelY, pw, ph, onButtonActivated,
+                                 resources, inputEnabled,
                                  childScaleX, childScaleY, worldSizeMode);
     }
 
-    if (SystemState::get().isPlaying) {
+    if (inputEnabled && SystemState::get().isPlaying) {
         SystemState::get().inputState = anyPromptHeld
             ? InputState::ProximityPrompt
             : InputState::Gameplay;
@@ -982,7 +1014,14 @@ void Renderer::renderWorldGui(Workspace& ws, User* user, const GameGuiRenderCont
 // ===================================================
 //  renderToolHotbar
 // ===================================================
-void Renderer::renderToolHotbar(User& user, float vpX, float vpY, float vpW, float vpH) {
+void Renderer::renderWorldGui(Workspace& ws, User* user,
+                              const GameGuiRenderContext& context) {
+    GameGuiDrawing::Resources resources = legacyGuiResources();
+    drawLegacySurfaceGuis(*this, ws, user, context);
+    drawWorldGuiShared(ws, context, m_onButtonActivated, resources, true);
+}
+
+static void drawToolHotbar(User& user, float vpX, float vpY, float vpW, float vpH) {
     if (!user.currentTool) return;
 
     struct SlotEntry { int index; Tool* tool; };
@@ -1019,6 +1058,10 @@ void Renderer::renderToolHotbar(User& user, float vpX, float vpY, float vpW, flo
         ImVec2 nameSize = ImGui::CalcTextSize(nameLabel.c_str());
         dl->AddText(ImVec2(boxX + (boxW - nameSize.x) * 0.5f, boxY + boxH - nameSize.y - 4.0f), IM_COL32(255, 255, 255, 255), nameLabel.c_str());
     }
+}
+
+void Renderer::renderToolHotbar(User& user, float vpX, float vpY, float vpW, float vpH) {
+    drawToolHotbar(user, vpX, vpY, vpW, vpH);
 }
 
 // ===================================================
@@ -1133,3 +1176,54 @@ void Renderer::drawCameraRotationCursor(User& user, GLFWwindow* window) {
     dl->AddPolyline(body, 3, strokeColor, ImDrawFlags_Closed, 2.0f);
     dl->AddPolyline(tail, 4, strokeColor, ImDrawFlags_Closed, 2.0f);
 }
+
+namespace GameGuiDrawing {
+
+GameGuiRenderContext makeContext(
+    float viewportX, float viewportY, float viewportWidth, float viewportHeight,
+    const Vector3& cameraPosition, const Vector3& cameraForward,
+    const Vector3& cameraRight, const Vector3& cameraUp,
+    float projectionAspect, bool recordUserViewport) {
+    return Renderer::makeGameGuiRenderContext(
+        viewportX, viewportY, viewportWidth, viewportHeight,
+        cameraPosition, cameraForward, cameraRight, cameraUp,
+        projectionAspect, recordUserViewport);
+}
+
+void draw(Workspace& workspace, User* user, const GameGuiRenderContext& context,
+          const Resources& resources,
+          const std::function<void(GuiButton*)>& onButtonActivated,
+          bool inputEnabled) {
+    FrameProfiler::Scope treeGui("treeGui");
+    if (user && context.recordUserViewport && inputEnabled) {
+        const ImVec2 origin = ImGui::GetWindowViewport()->Pos;
+        user->setGameViewport(
+            context.viewportX, context.viewportY,
+            context.viewportWidth, context.viewportHeight, context.projectionAspect,
+            context.cameraPosition, context.cameraForward, context.cameraRight, context.cameraUp,
+            context.viewportX + context.viewportWidth * 0.5f - origin.x,
+            context.viewportY + context.viewportHeight * 0.5f - origin.y,
+            context.viewportWidth > 0.0f && context.viewportHeight > 0.0f);
+    }
+    drawScreenGuiShared(workspace, context.viewportX, context.viewportY,
+                        context.viewportWidth, context.viewportHeight,
+                        context.uniformPixelScale, resources, onButtonActivated,
+                        inputEnabled);
+    drawWorldGuiShared(workspace, context, onButtonActivated, resources, inputEnabled);
+    if (user) {
+        drawToolHotbar(*user, context.viewportX, context.viewportY,
+                       context.viewportWidth, context.viewportHeight);
+    }
+}
+
+void drawContent(ImDrawList* drawList, ScreenGuiObject* element,
+                 float x, float y, float width, float height,
+                 const Resources& resources) {
+    if (!drawList) {
+        RCBN_ERROR("GameGuiDrawing::drawContent received a null ImDrawList");
+        return;
+    }
+    drawGuiContent(drawList, element, x, y, width, height, nullptr, resources);
+}
+
+} // namespace GameGuiDrawing

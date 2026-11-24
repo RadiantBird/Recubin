@@ -139,7 +139,7 @@ void SdlImGuiBackend::renderPlatformWindow(ImGuiViewport* viewport, void* render
         data->height = height;
     }
     std::string error;
-    if (backend.render(*viewport->DrawData, *command, *data->target, error)) {
+    if (backend.render(*viewport->DrawData, *command, *data->target, error, false)) {
         SDL_GPUBlitInfo blit{};
         blit.source = {data->target, 0, 0, 0, 0, width, height};
         blit.destination = {swapchain, 0, 0, 0, 0, width, height};
@@ -288,7 +288,8 @@ bool SdlImGuiBackend::beginFrame(std::string& error)
 bool SdlImGuiBackend::render(ImDrawData& drawData,
                              SDL_GPUCommandBuffer& commandBuffer,
                              SDL_GPUTexture& destination,
-                             std::string& error)
+                             std::string& error,
+                             bool loadDestination)
 {
     error.clear();
     if (!m_initialized || m_context == nullptr)
@@ -298,11 +299,15 @@ bool SdlImGuiBackend::render(ImDrawData& drawData,
     }
 
     ImGuiContextGuard contextGuard(m_context);
+    if (loadDestination && drawData.TotalVtxCount == 0)
+    {
+        return true;
+    }
     ImGui_ImplSDLGPU3_PrepareDrawData(&drawData, &commandBuffer);
 
     SDL_GPUColorTargetInfo targetInfo{};
     targetInfo.texture = &destination;
-    targetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
+    targetInfo.load_op = loadDestination ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR;
     targetInfo.clear_color = SDL_FColor{0.0f, 0.0f, 0.0f, 1.0f};
     targetInfo.store_op = SDL_GPU_STOREOP_STORE;
     SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(&commandBuffer, &targetInfo, 1, nullptr);
@@ -316,7 +321,10 @@ bool SdlImGuiBackend::render(ImDrawData& drawData,
         return false;
     }
 
-    ImGui_ImplSDLGPU3_RenderDrawData(&drawData, &commandBuffer, renderPass);
+    if (drawData.TotalVtxCount > 0)
+    {
+        ImGui_ImplSDLGPU3_RenderDrawData(&drawData, &commandBuffer, renderPass);
+    }
     SDL_EndGPURenderPass(renderPass);
     return true;
 }

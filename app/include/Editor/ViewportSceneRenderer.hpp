@@ -6,6 +6,9 @@
 class ViewportPanel;
 struct ViewportRenderDesc;
 class BaseCube;
+class User;
+class Workspace;
+struct GameGuiRenderContext;
 struct Color4;
 struct Vector3;
 
@@ -15,6 +18,8 @@ public:
     virtual ~ViewportSceneRenderer() = default;
     virtual ImTextureRef renderViewport(const ViewportPanel& pane,
                                         const ViewportRenderDesc& request) = 0;
+    virtual void renderGameGui(Workspace& workspace, User* user,
+                               const GameGuiRenderContext& context, bool inputEnabled) = 0;
     virtual void renderOutline(const ViewportPanel& pane,
                                std::span<BaseCube* const> targets,
                                const Color4& color, float thickness) = 0;

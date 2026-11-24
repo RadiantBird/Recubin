@@ -142,6 +142,7 @@ for _, source in ipairs(all_sources) do
        vendor ~= "app/src/Core/SdlScenePreview.cpp" and
        vendor ~= "app/src/Core/SdlPreviewImGui.cpp" and
        vendor ~= "app/src/Core/SdlImGuiBackend.cpp" and
+       vendor ~= "app/src/Core/SdlGameGuiResources.cpp" and
        vendor ~= "app/src/Core/SdlStudioViewportRenderer.cpp" and
        vendor ~= "app/src/Core/PostEffectSpirv.cpp" and
        not vendor:startswith("app/src/imgui/") and
@@ -367,7 +368,10 @@ local function configure_scene_preview(target_name)
     add_files("app/src/Core/SdlGpuWindow.cpp", "app/src/Core/SdlBasicRenderer.cpp",
               "app/src/Core/SdlScenePreview.cpp", "app/src/Core/SDLInputBackend.cpp",
               "app/src/Core/SdlPostEffects.cpp", "app/src/Core/SdlPostEffectDxil.cpp",
-              "app/src/Core/PostEffectSpirv.cpp")
+              "app/src/Core/PostEffectSpirv.cpp", "app/src/Core/SdlImGuiBackend.cpp",
+              "app/src/Core/SdlGameGuiResources.cpp",
+              "external/imgui/backends/imgui_impl_sdl3.cpp",
+              "external/imgui/backends/imgui_impl_sdlgpu3.cpp")
     add_deps("RecubinSpirvCross")
     add_includedirs(sdl_include_dir, shader_output_dir, path.join(glslang_dir, "include"), spirv_cross_dir)
     add_links(sdl_lib, path.join(glslang_dir, "lib", "glslang.lib"),
@@ -387,10 +391,7 @@ target("Recubin")
     if has_config("sdl-gpu-preview") then
         configure_scene_preview("studio")
         add_defines("RECUBIN_SDL_GPU_STUDIO")
-        add_files("app/src/Core/SdlPreviewImGui.cpp", "app/src/Core/SdlImGuiBackend.cpp",
-                  "app/src/Core/SdlStudioViewportRenderer.cpp",
-                  "external/imgui/backends/imgui_impl_sdl3.cpp",
-                  "external/imgui/backends/imgui_impl_sdlgpu3.cpp")
+        add_files("app/src/Core/SdlPreviewImGui.cpp", "app/src/Core/SdlStudioViewportRenderer.cpp")
     end
     configure_binary(false)
     if is_plat("windows") then

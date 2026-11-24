@@ -30,7 +30,8 @@ public:
     bool render(ImDrawData& drawData,
                 SDL_GPUCommandBuffer& commandBuffer,
                 SDL_GPUTexture& destination,
-                std::string& error);
+                std::string& error,
+                bool loadDestination = false);
     bool renderPlatformWindows(std::string& error, std::string_view captureTitle = {},
                                const std::filesystem::path* capturePath = nullptr);
     bool ownsWindow(SDL_Window* window) const;
