@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SDL3/SDL.h>
+#include <Core/SdlMeshDecalData.hpp>
 
 #include <array>
 #include <cstdint>
@@ -15,6 +16,7 @@ struct SdlBasicVertex {
     std::array<float, 3> position{};
     std::array<float, 2> uv{};
     std::array<std::uint8_t, 4> color{255, 255, 255, 255};
+    std::array<float, 3> normal{};
 };
 
 struct SdlBasicCube {
@@ -32,6 +34,7 @@ struct SdlBasicCube {
     std::uint32_t faceTexture = 0;
     std::array<float, 4> faceTint{1.0f, 1.0f, 1.0f, 1.0f};
     std::array<float, 2> faceUvScale{1.0f, 1.0f};
+    const SdlMeshDecalData* meshDecals = nullptr;
     bool blend = false;
     bool useTextureAlpha = true;
     float alphaThreshold = -1.0f;

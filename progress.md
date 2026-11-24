@@ -974,3 +974,10 @@
 - Seat、SpawnLocation、Truss を通常の Cube 形状で描画する。Skybox は空の工程で扱う。
 - xmake Windows Release で Studio・Engine・Test・Runtime が成功。Vulkan と D3D12 の両アプリで Cylinder、Sphere の Material Decal、Wedge のタイル Texture、TriangularPrism、Seat の画像を GPU 読み戻しから確認。画像はアプリごとに全画素一致。Studio で面画像付き Sphere の選択輪郭、GUI 自動化・ビューポート編集・補助の回帰 3 件も確認。
 - 次は MeshCube の UV 円形 Decal と Face 投影。既存は最大 8 枚を引数とする配列テクスチャ方式で、UV の下原点、ローカル法線による Face 投影の制限、マテリアル区間ごとの重ね順を維持する。
+
+## 2026-11-24 SDL GPU の MeshCube Decal
+
+- MeshCube 直下の Decal を子の名前順で最大 8 枚合成する。UV 円形モードの下原点、Face モードのローカル座標・法線、色とアルファの重ね順を引き継いだ。各マテリアル区間で同じ投影データを使い、元の GLB アルファモードを維持する。
+- デカール画像は透明余白付きの RGBA8 アトラスに詰める。同じ画像列の MeshCube がアトラスを共有し、画像の更新時は差し替え、使用されなくなったアトラスは解放する。
+- xmake Windows Release で Studio・Engine・Test・Runtime が成功。Vulkan／D3D12 の両アプリで、Face の上下と裏側への非投影、UV 円形の順序、GLB のマスクで穴が維持されることを PNG で確認。検証した PNG は各アプリ内で両 GPU が全画素一致。Engine で 8 枚目と二つのマテリアル区間への投影、Luau の UV 中心更新も確認。
+- MeshCube フォールバック、GUI 自動化、ビューポート編集・補助の回帰 4 件が成功。既存の影とカスタム GLSL の画像は変更前と同一。次は残りの Material マップと PBR、空、組み込みポスト処理へ進む。

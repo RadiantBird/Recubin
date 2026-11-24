@@ -302,7 +302,7 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     fi.entrypoint = "PSMain";
     fi.format = format;
     fi.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
-    fi.num_samplers = 4;
+    fi.num_samplers = 5;
     fi.num_uniform_buffers = 1;
     m_fragmentShader = SDL_CreateGPUShader(&device, &fi);
     if (!m_fragmentShader) {
@@ -330,6 +330,11 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     colorAttribute.buffer_slot = 0;
     colorAttribute.format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM;
     colorAttribute.offset = offsetof(SdlBasicVertex, color);
+    SDL_GPUVertexAttribute normalAttribute{};
+    normalAttribute.location = 3;
+    normalAttribute.buffer_slot = 0;
+    normalAttribute.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
+    normalAttribute.offset = offsetof(SdlBasicVertex, normal);
     SDL_GPUColorTargetDescription ct{};
     ct.format = COLOR_FORMAT;
     SDL_GPUGraphicsPipelineCreateInfo pi{};
@@ -338,7 +343,8 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     pi.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
     pi.vertex_input_state.vertex_buffer_descriptions = &vb;
     pi.vertex_input_state.num_vertex_buffers = 1;
-    const std::array<SDL_GPUVertexAttribute, 3> attributes = {va, uvAttribute, colorAttribute};
+    const std::array<SDL_GPUVertexAttribute, 4> attributes = {va, uvAttribute, colorAttribute,
+                                                               normalAttribute};
     pi.vertex_input_state.vertex_attributes = attributes.data();
     pi.vertex_input_state.num_vertex_attributes = static_cast<Uint32>(attributes.size());
     pi.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_BACK;
@@ -1042,11 +1048,18 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                 if (!overlayTexture) {
                     return false;
                 }
-                const std::array<SDL_GPUTextureSamplerBinding, 4> samplerBindings = {
+                const auto decalTexture = cube.meshDecals != nullptr && cube.meshDecals->texture != 0
+                                               ? resolveTexture(cube.meshDecals->texture, error)
+                                               : m_whiteTexture;
+                if (!decalTexture) {
+                    return false;
+                }
+                const std::array<SDL_GPUTextureSamplerBinding, 5> samplerBindings = {
                     SDL_GPUTextureSamplerBinding{texture, m_sampler},
                     SDL_GPUTextureSamplerBinding{shadows ? m_shadowTarget : m_whiteTexture, m_shadowSampler},
                     SDL_GPUTextureSamplerBinding{overlayTexture, m_sampler},
-                    SDL_GPUTextureSamplerBinding{materialTexture, m_sampler}};
+                    SDL_GPUTextureSamplerBinding{materialTexture, m_sampler},
+                    SDL_GPUTextureSamplerBinding{decalTexture, m_sampler}};
                 SDL_BindGPUFragmentSamplers(pass, 0, samplerBindings.data(),
                                             static_cast<Uint32>(samplerBindings.size()));
             } else {
@@ -1067,7 +1080,7 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                 SDL_PushGPUFragmentUniformData(&commandBuffer, 0, shadowParams.data(),
                                                sizeof(shadowParams));
             } else {
-                const std::array<float, 16> fragmentParams = {
+                std::array<float, 24 + SDL_MESH_DECAL_LIMIT * 8> fragmentParams = {
                     (shadows && cube.receiveShadow) ? 1.0f : 0.0f,
                     cube.faceTexture != 0 ? 2.0f : (cube.surfaceTexture ? 1.0f : 0.0f),
                     cube.alphaThreshold,
@@ -1084,6 +1097,24 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                     cube.faceUvScale[1],
                     0.0f,
                     0.0f};
+                if (cube.meshDecals != nullptr) {
+                    const auto& decals = *cube.meshDecals;
+                    fragmentParams[16] = decals.minimum[0];
+                    fragmentParams[17] = decals.minimum[1];
+                    fragmentParams[18] = decals.minimum[2];
+                    fragmentParams[19] = static_cast<float>(std::min<std::uint32_t>(
+                        decals.count, static_cast<std::uint32_t>(SDL_MESH_DECAL_LIMIT)));
+                    fragmentParams[20] = decals.maximum[0];
+                    fragmentParams[21] = decals.maximum[1];
+                    fragmentParams[22] = decals.maximum[2];
+                    for (std::size_t i = 0; i < SDL_MESH_DECAL_LIMIT; ++i) {
+                        const std::size_t offset = 24 + i * 8;
+                        std::copy(decals.decals[i].projection.begin(), decals.decals[i].projection.end(),
+                                  fragmentParams.begin() + offset);
+                        std::copy(decals.decals[i].tint.begin(), decals.decals[i].tint.end(),
+                                  fragmentParams.begin() + offset + 4);
+                    }
+                }
                 SDL_PushGPUFragmentUniformData(&commandBuffer, 0, fragmentParams.data(),
                                                sizeof(fragmentParams));
             }

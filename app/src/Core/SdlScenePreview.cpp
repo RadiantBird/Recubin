@@ -5,6 +5,8 @@
 #include <Core/SdlBasicRenderer.hpp>
 #include <Core/PrimitiveMeshData.hpp>
 #include <Core/RgbaImage.hpp>
+#include <Core/MeshDecalAtlas.hpp>
+#include <Core/SdlMeshDecalData.hpp>
 #include <Core/SdlPostEffects.hpp>
 #include <Core/TerrainStreamer.hpp>
 #ifdef RECUBIN_SDL_GPU_STUDIO
@@ -12,6 +14,7 @@
 #endif
 #include <Instances/BaseCube.hpp>
 #include <Instances/Cube.hpp>
+#include <Instances/Decal.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/Sphere.hpp>
 #include <Instances/Skybox.hpp>
@@ -383,13 +386,29 @@ struct SdlLiveScene::State {
     Matrix4 viewProjection;
     bool frameSucceeded = false;
     struct MeshCache {
+        struct DecalImage {
+            std::string path;
+            std::optional<std::filesystem::file_time_type> timestamp;
+            std::uintmax_t size = 0;
+            bool permitted = false;
+
+            bool operator==(const DecalImage&) const = default;
+        };
+
         std::uint32_t handle = 0;
         std::weak_ptr<const Instance> owner;
         std::uint64_t revision = 0;
         std::vector<std::uint32_t> textures;
         std::vector<Vector3> sectionCenters;
+        SdlMeshDecalData decalData;
     };
     std::unordered_map<const BaseCube*, MeshCache> meshCache;
+    struct DecalAtlas {
+        std::vector<MeshCache::DecalImage> images;
+        std::uint32_t texture = 0;
+        bool used = false;
+    };
+    std::map<std::vector<std::string>, DecalAtlas> decalAtlases;
     struct SceneImage {
         std::uint32_t handle = 0;
         std::optional<std::filesystem::file_time_type> timestamp;
@@ -422,6 +441,88 @@ struct SdlLiveScene::State {
         if (cache.handle && !renderer.releaseMesh(cache.handle, error)) return false;
         for (auto texture : cache.textures) {
             if (texture && !renderer.releaseTexture(texture, error)) return false;
+        }
+        return true;
+    }
+
+    bool refreshMeshDecals(MeshCube& mesh, MeshCache& cache, std::string& error) {
+        std::vector<std::pair<std::string_view, const Decal*>> decals;
+        for (const auto& [name, child] : mesh.getChildren()) {
+            const auto* decal = dynamic_cast<const Decal*>(child.get());
+            if (decal && !decal->texturePath.empty()) decals.emplace_back(name, decal);
+        }
+        std::ranges::sort(decals, {}, [](const auto& entry) { return entry.first; });
+        if (decals.size() > SDL_MESH_DECAL_LIMIT) decals.resize(SDL_MESH_DECAL_LIMIT);
+        cache.decalData.count = static_cast<std::uint32_t>(decals.size());
+        cache.decalData.texture = 0;
+        if (decals.empty()) return true;
+
+        std::vector<std::string> paths;
+        paths.reserve(decals.size());
+        for (std::size_t index = 0; index < decals.size(); ++index) {
+            const auto& decal = *decals[index].second;
+            const bool uv = decal.Mode == DecalMode::UV;
+            const auto face = static_cast<int>(decal.face);
+            if (!uv && (face < 0 || face >= 6)) {
+                error = "Invalid MeshCube decal face on " + decal.getFullPath();
+                return false;
+            }
+            cache.decalData.decals[index] = {
+                {decal.UVCenter.x, decal.UVCenter.y, decal.UVRadius, uv ? -1.0f : static_cast<float>(face)},
+                {decal.Color.r, decal.Color.g, decal.Color.b, decal.Color.a}
+            };
+            paths.push_back(AssetPath::normalize(decal.texturePath));
+        }
+        auto& atlas = decalAtlases[paths];
+        if (!atlas.used && !refreshDecalAtlas(paths, atlas, error)) return false;
+        atlas.used = true;
+        cache.decalData.texture = atlas.texture;
+        return true;
+    }
+
+    bool refreshDecalAtlas(const std::vector<std::string>& paths, DecalAtlas& atlas,
+                           std::string& error) {
+        std::vector<MeshCache::DecalImage> images;
+        images.reserve(paths.size());
+        for (const auto& path : paths) {
+            auto& image = images.emplace_back();
+            image.path = path;
+            image.permitted = AssetGuard::allow(image.path);
+            if (!image.permitted) continue;
+            std::error_code ec;
+            const auto file = AssetPath::fromStored(image.path);
+            const auto timestamp = std::filesystem::last_write_time(file, ec);
+            if (!ec) image.size = std::filesystem::file_size(file, ec);
+            if (!ec) image.timestamp = timestamp;
+        }
+        if (images == atlas.images) return true;
+        std::vector<RgbaImage> decoded(images.size());
+        for (std::size_t index = 0; index < images.size(); ++index) {
+            const auto& image = images[index];
+            if (!image.permitted) continue;
+            std::string decodeError;
+            if (!decodeRgbaImage(AssetPath::fromStored(image.path), decoded[index], decodeError)) {
+                RCBN_WARN("MeshCube decal '" << image.path << "': " << decodeError);
+            }
+        }
+        const auto pixels = buildMeshDecalAtlas(decoded);
+        const auto replacement = renderer.uploadTexture(pixels.width, pixels.height, pixels.pixels, error);
+        if (!replacement) return false;
+        if (atlas.texture && !renderer.releaseTexture(atlas.texture, error)) return false;
+        atlas.texture = replacement;
+        atlas.images = std::move(images);
+        return true;
+    }
+
+    bool trimDecalAtlases(std::string& error) {
+        for (auto it = decalAtlases.begin(); it != decalAtlases.end();) {
+            if (it->second.used) {
+                it->second.used = false;
+                ++it;
+                continue;
+            }
+            if (it->second.texture && !renderer.releaseTexture(it->second.texture, error)) return false;
+            it = decalAtlases.erase(it);
         }
         return true;
     }
@@ -548,7 +649,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
             error = "Workspace contains an empty render entry";
             return false;
         }
-        const auto* mesh = dynamic_cast<const MeshCube*>(cube);
+        auto* mesh = dynamic_cast<MeshCube*>(cube);
         const int shape = primitiveShape(*cube);
         if (!mesh && shape < 0) continue;
         const bool castShadow = cube->shouldCastShadow(mesh && mesh->isUsingFallback());
@@ -567,11 +668,22 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
             if (!cache.handle || cache.owner.expired() || cache.revision != mesh->cpuGeometryRevision()) {
                 std::vector<SdlBasicVertex> vertices;
                 vertices.reserve(mesh->cpuVertices().size());
-                for (const auto& vertex : mesh->cpuVertices()) {
-                    vertices.push_back({{vertex.Position.x, vertex.Position.y, vertex.Position.z},
-                                        {vertex.U, 1.0f - vertex.V}});
-                }
                 State::MeshCache replacement;
+                const auto& first = mesh->cpuVertices().front().Position;
+                auto& min = replacement.decalData.minimum;
+                auto& max = replacement.decalData.maximum;
+                min = max = {first.x, first.y, first.z};
+                for (const auto& vertex : mesh->cpuVertices()) {
+                    SdlBasicVertex gpuVertex;
+                    gpuVertex.position = {vertex.Position.x, vertex.Position.y, vertex.Position.z};
+                    gpuVertex.uv = {vertex.U, 1.0f - vertex.V};
+                    gpuVertex.normal = {vertex.Normal.x, vertex.Normal.y, vertex.Normal.z};
+                    vertices.push_back(gpuVertex);
+                    for (std::size_t axis = 0; axis < min.size(); ++axis) {
+                        min[axis] = (std::min)(min[axis], gpuVertex.position[axis]);
+                        max[axis] = (std::max)(max[axis], gpuVertex.position[axis]);
+                    }
+                }
                 replacement.handle = m_state->renderer.uploadMesh(vertices, mesh->cpuIndices(), error);
                 if (!replacement.handle) return false;
                 replacement.owner = mesh->weak_from_this();
@@ -593,6 +705,8 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
                 if (!m_state->releaseCache(cache, error)) return false;
                 cache = std::move(replacement);
             }
+            if (!m_state->refreshMeshDecals(*mesh, cache, error)) return false;
+            if (cache.decalData.count) base.meshDecals = &cache.decalData;
             const auto geometry = cache.handle;
             const auto sections = mesh->cpuMaterialSections();
             if (sections.empty()) {
@@ -648,6 +762,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
         draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, opacity};
         m_state->meshes.push_back({draw, model, cube});
     }
+    if (!m_state->trimDecalAtlases(error)) return false;
     for (auto it = m_state->sceneImages.begin(); it != m_state->sceneImages.end();) {
         if (m_state->usedSceneImages.contains(it->first)) {
             ++it;
