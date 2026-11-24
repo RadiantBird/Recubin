@@ -27,7 +27,7 @@ public:
               SdlImGuiBackend& backend, const GameGuiDrawing::Resources& resources,
               std::string& error);
     GuiButton* clickedButton(Workspace& workspace, const GameGuiRenderContext& context) const;
-    const SdlSurfaceGuiLayers& layers() const { return m_layers; }
+    SdlSurfaceGuiLayers& layers() { return m_layers; }
 
 private:
     struct Entry {

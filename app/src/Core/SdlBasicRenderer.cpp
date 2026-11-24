@@ -1035,10 +1035,17 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                 if (!materialTexture) {
                     return false;
                 }
+                const auto overlayTexture = cube.faceTexture != 0
+                                                ? resolveTexture(cube.faceTexture, error)
+                                                : (cube.surfaceTexture ? cube.surfaceTexture
+                                                                        : m_whiteTexture);
+                if (!overlayTexture) {
+                    return false;
+                }
                 const std::array<SDL_GPUTextureSamplerBinding, 4> samplerBindings = {
                     SDL_GPUTextureSamplerBinding{texture, m_sampler},
                     SDL_GPUTextureSamplerBinding{shadows ? m_shadowTarget : m_whiteTexture, m_shadowSampler},
-                    SDL_GPUTextureSamplerBinding{cube.surfaceTexture ? cube.surfaceTexture : m_whiteTexture, m_sampler},
+                    SDL_GPUTextureSamplerBinding{overlayTexture, m_sampler},
                     SDL_GPUTextureSamplerBinding{materialTexture, m_sampler}};
                 SDL_BindGPUFragmentSamplers(pass, 0, samplerBindings.data(),
                                             static_cast<Uint32>(samplerBindings.size()));
@@ -1060,13 +1067,21 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                 SDL_PushGPUFragmentUniformData(&commandBuffer, 0, shadowParams.data(),
                                                sizeof(shadowParams));
             } else {
-                const std::array<float, 8> fragmentParams = {
+                const std::array<float, 16> fragmentParams = {
                     (shadows && cube.receiveShadow) ? 1.0f : 0.0f,
-                    cube.surfaceTexture ? 1.0f : 0.0f,
+                    cube.faceTexture != 0 ? 2.0f : (cube.surfaceTexture ? 1.0f : 0.0f),
                     cube.alphaThreshold,
                     cube.useTextureAlpha ? 1.0f : 0.0f,
                     cube.materialTileSize,
                     cube.materialBaseColor != 0 ? 1.0f : 0.0f,
+                    0.0f,
+                    0.0f,
+                    cube.faceTint[0],
+                    cube.faceTint[1],
+                    cube.faceTint[2],
+                    cube.faceTint[3],
+                    cube.faceUvScale[0],
+                    cube.faceUvScale[1],
                     0.0f,
                     0.0f};
                 SDL_PushGPUFragmentUniformData(&commandBuffer, 0, fragmentParams.data(),

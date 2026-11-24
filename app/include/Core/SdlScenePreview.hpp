@@ -27,11 +27,12 @@ public:
 
     bool initialize(SDL_GPUDevice& device, std::string& error);
     bool sync(Workspace& workspace, std::string& error);
+    // Remove surfaces hidden by a face decal from the frame's picking data.
     bool draw(Workspace& workspace, const Matrix4& viewProjection,
               const Vector3& cameraPosition, const Vector3& cameraForward, float effectTime,
               SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
               std::string& error, std::span<BaseCube* const> selected = {},
-              const SdlSurfaceGuiLayers* surfaceLayers = nullptr);
+              SdlSurfaceGuiLayers* surfaceLayers = nullptr);
     bool drawOutline(SDL_GPUCommandBuffer& commandBuffer,
                      std::span<BaseCube* const> targets,
                      const Color4& color, float thickness, std::string& error);

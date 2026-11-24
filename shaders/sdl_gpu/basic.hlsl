@@ -22,6 +22,8 @@ cbuffer BasicUniforms : register(b0, space1) {
 cbuffer ShadowUniforms : register(b0, space3) {
     float4 shadowParams;
     float4 materialParams;
+    float4 faceTint;
+    float4 faceUvScale;
 };
 
 VSOutput VSMain(VSInput input) {
@@ -85,6 +87,12 @@ float4 PSMain(VSOutput input) : SV_Target0 {
         }
     }
     float4 result = input.color * diffuse;
+    if (shadowParams.y > 1.5) {
+        float2 faceUv = float2(input.uv.x * faceUvScale.x,
+                               1.0 - (1.0 - input.uv.y) * faceUvScale.y);
+        float4 overlay = surfaceTexture.Sample(surfaceSampler, faceUv);
+        result.rgb = lerp(result.rgb, overlay.rgb * faceTint.rgb, overlay.a * faceTint.a);
+    }
     if (materialParams.y > 0.5) {
         float3 normal = normalize(cross(ddx(input.worldPosition), ddy(input.worldPosition)));
         float3 weights = pow(abs(normal), 4.0);
@@ -101,7 +109,7 @@ float4 PSMain(VSOutput input) : SV_Target0 {
     if (shadowParams.w < 0.5) {
         result.a = input.color.a;
     }
-    if (shadowParams.y > 0.5) {
+    if (shadowParams.y > 0.5 && shadowParams.y < 1.5) {
         float4 overlay = surfaceTexture.Sample(surfaceSampler, input.uv);
         result.rgb = result.rgb * (1.0 - overlay.a) + overlay.rgb;
     }

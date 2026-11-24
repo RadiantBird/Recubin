@@ -29,6 +29,9 @@ struct SdlBasicCube {
     std::uint32_t firstIndex = 0;
     std::uint32_t indexCount = 0;
     SDL_GPUTexture* surfaceTexture = nullptr;
+    std::uint32_t faceTexture = 0;
+    std::array<float, 4> faceTint{1.0f, 1.0f, 1.0f, 1.0f};
+    std::array<float, 2> faceUvScale{1.0f, 1.0f};
     bool blend = false;
     bool useTextureAlpha = true;
     float alphaThreshold = -1.0f;

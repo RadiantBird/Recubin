@@ -960,3 +960,10 @@
 - Material とゲーム GUI の PNG／SVG は共通の上原点 RGBA8 デコーダを使う。Material 用 GPU テクスチャはファイル更新時に差し替え、読み込みに失敗した場合は直前のテクスチャを使う。シーンから参照されなくなったテクスチャは SDL の遅延解放に渡す。
 - Windows xmake Release で Studio・Engine・Test・Runtime が成功。Vulkan／D3D12 の両アプリで Unicode パスの画像、上下、色の乗算、2 stud と 4 stud のタイルを GPU 読み戻しで比較し、各アプリで PNG は全画素一致。Engine で Luau の `TextureScale` 更新を確認し、Studio では実行中の画像ファイル差し替えと不正ファイル時の成功版維持を確認した。ScreenGui、BillboardGui、SurfaceGui の再検証も成功した。
 - 次は Decal／Texture の面投影と Material の残りの画像マップ・PBR。Studio の画像プレビュー、空、組み込みポスト効果、既定経路の切り替えとクリーン配布物の通し検証も残る。
+
+## 2026-11-24 SDL GPU の Cube 面 Decal／Texture
+
+- Material の BaseColorMap を `bda7aa8` にコミット。通常シーンの Cube に対し、Decal と Texture の画像・色・アルファ、Texture の `StudsPerTileU/V` を適用する。BaseColorMap と共通の GPU 画像キャッシュを使用し、追加の描画パスを開かずに面へ合成する。
+- 同じ面は Cube 直下の Decal、SurfaceGui、Texture を先に扱い、空き面を Material の子で補う。同一ソースの同種要素が重複した場合は子の名前順で決める。Decal に覆われた SurfaceGui はクリック対象から外す。
+- Windows xmake Release で Studio・Engine・Test・Runtime が成功。両アプリの Vulkan／D3D12 で Texture の繰り返しと上下、Decal の色とアルファ、面指定、Material の補完を確認し、アプリ単位で両 GPU の PNG が全画素一致。Studio Play で Decal に覆われたボタンは非発火、Decal を除いた対照では発火。GUI 自動化・表示・ビューポート編集・補助の回帰 4 件も成功。
+- 次は他のプリミティブと MeshCube の Decal／Texture、Material の Roughness／Metallic／Normal と PBR、空と組み込みポスト効果。既定起動への切り替えはこれらに続く。

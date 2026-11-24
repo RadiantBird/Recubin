@@ -1,6 +1,7 @@
 #include <Core/SdlScenePreview.hpp>
 
 #include <Core/SceneRuntime.hpp>
+#include <Core/CubeFaceVisuals.hpp>
 #include <Core/SdlBasicRenderer.hpp>
 #include <Core/PrimitiveMeshData.hpp>
 #include <Core/RgbaImage.hpp>
@@ -386,15 +387,26 @@ struct SdlLiveScene::State {
         std::vector<Vector3> sectionCenters;
     };
     std::unordered_map<const BaseCube*, MeshCache> meshCache;
-    struct MaterialImage {
+    struct SceneImage {
         std::uint32_t handle = 0;
         std::optional<std::filesystem::file_time_type> timestamp;
         std::uintmax_t byteCount = 0;
         bool warned = false;
     };
-    std::unordered_map<std::string, MaterialImage> materialImages;
-    std::unordered_set<std::string> usedMaterialImages;
+    std::unordered_map<std::string, SceneImage> sceneImages;
+    std::unordered_set<std::string> usedSceneImages;
     std::unordered_set<std::string> materialWarnings;
+    struct FaceImage {
+        std::uint32_t handle = 0;
+        Color4 tint;
+        Vector2 uvScale{1, 1};
+        bool decal = false;
+    };
+    struct FaceImages {
+        std::array<FaceImage, 6> direct;
+        std::array<FaceImage, 6> material;
+    };
+    std::unordered_map<const BaseCube*, FaceImages> faceImages;
     struct TerrainCache {
         TerrainGpuMeshes meshes;
         std::weak_ptr<const Instance> owner;
@@ -423,20 +435,41 @@ struct SdlLiveScene::State {
             }
             return;
         }
-        auto& image = materialImages[path];
-        if (usedMaterialImages.insert(path).second) refreshMaterialImage(path, image);
-        draw.materialBaseColor = image.handle;
+        draw.materialBaseColor = resolveSceneImage(path);
         draw.materialTileSize = material->TextureScale;
     }
 
-    void refreshMaterialImage(const std::string& path, MaterialImage& image) {
+    std::uint32_t resolveSceneImage(const std::string& path) {
+        if (path.empty()) return 0;
+        auto& image = sceneImages[path];
+        if (usedSceneImages.insert(path).second) refreshSceneImage(path, image);
+        return image.handle;
+    }
+
+    void collectFaceImages(Cube& cube) {
+        const auto visuals = collectCubeFaceVisuals(cube);
+        FaceImages faces;
+        bool found = false;
+        for (std::size_t face = 0; face < faces.direct.size(); ++face) {
+            const auto resolve = [&](const CubeFaceVisual& source) {
+                const auto handle = resolveSceneImage(AssetPath::normalize(source.path));
+                found |= handle != 0;
+                return FaceImage{handle, source.tint, source.uvScale, source.decal};
+            };
+            faces.direct[face] = resolve(visuals.direct[face]);
+            faces.material[face] = resolve(visuals.material[face]);
+        }
+        if (found) faceImages.emplace(&cube, std::move(faces));
+    }
+
+    void refreshSceneImage(const std::string& path, SceneImage& image) {
         if (!AssetGuard::allow(path)) return;
         const auto file = AssetPath::fromStored(path);
         std::error_code ec;
         const auto timestamp = std::filesystem::last_write_time(file, ec);
         const auto size = ec ? 0 : std::filesystem::file_size(file, ec);
         if (ec) {
-            if (!image.warned) RCBN_WARN("SDL Material image '" << path << "': " << ec.message());
+            if (!image.warned) RCBN_WARN("SDL scene image '" << path << "': " << ec.message());
             image.warned = true;
             image.timestamp.reset();
             return;
@@ -452,12 +485,12 @@ struct SdlLiveScene::State {
         image.timestamp = timestamp;
         image.byteCount = size;
         if (!replacement) {
-            if (!image.warned) RCBN_WARN("SDL Material image '" << path << "': " << error);
+            if (!image.warned) RCBN_WARN("SDL scene image '" << path << "': " << error);
             image.warned = true;
             return;
         }
         if (image.handle && !renderer.releaseTexture(image.handle, error)) {
-            RCBN_WARN("SDL Material image '" << path << "': " << error);
+            RCBN_WARN("SDL scene image '" << path << "': " << error);
         }
         image.handle = replacement;
         image.warned = false;
@@ -498,7 +531,8 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
         return false;
     }
     m_state->meshes.clear();
-    m_state->usedMaterialImages.clear();
+    m_state->faceImages.clear();
+    m_state->usedSceneImages.clear();
     std::unordered_set<const BaseCube*> active;
     for (BaseCube* cube : workspace.getRenderBaseCubes()) {
         if (!cube) {
@@ -516,6 +550,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
                               Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
         SdlBasicCube base;
         m_state->applyMaterial(*cube, base);
+        if (auto* box = dynamic_cast<Cube*>(cube)) m_state->collectFaceImages(*box);
         if (mesh && !mesh->isUsingFallback() && !mesh->cpuVertices().empty() &&
             !mesh->cpuIndices().empty()) {
             active.insert(cube);
@@ -604,13 +639,13 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
         draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, opacity};
         m_state->meshes.push_back({draw, model, cube});
     }
-    for (auto it = m_state->materialImages.begin(); it != m_state->materialImages.end();) {
-        if (m_state->usedMaterialImages.contains(it->first)) {
+    for (auto it = m_state->sceneImages.begin(); it != m_state->sceneImages.end();) {
+        if (m_state->usedSceneImages.contains(it->first)) {
             ++it;
             continue;
         }
         if (it->second.handle && !m_state->renderer.releaseTexture(it->second.handle, error)) return false;
-        it = m_state->materialImages.erase(it);
+        it = m_state->sceneImages.erase(it);
     }
     for (auto it = m_state->meshCache.begin(); it != m_state->meshCache.end();) {
         if (active.contains(it->first)) {
@@ -654,7 +689,7 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
                         const Vector3& cameraPosition, const Vector3& cameraForward, float effectTime,
                         SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
                         std::string& error, std::span<BaseCube* const> selected,
-                        const SdlSurfaceGuiLayers* surfaceLayers) {
+                        SdlSurfaceGuiLayers* surfaceLayers) {
     m_state->viewProjection = viewProjection;
     m_state->frameSucceeded = false;
     const auto lightProjection = shadowProjection(workspace, cameraPosition, cameraForward);
@@ -670,18 +705,36 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
             const Matrix4 shadowMvp = *lightProjection * mesh.model;
             std::copy_n(shadowMvp.m, 16, draw.shadowModelViewProjection.begin());
         }
+        std::array<SDL_GPUTexture*, 6>* surfaces = nullptr;
         if (surfaceLayers) {
             const auto layers = surfaceLayers->find(mesh.owner);
-            if (layers != surfaceLayers->end()) {
-                draw.geometry = m_state->cubeFaces;
-                draw.indexCount = 6;
-                for (SDL_GPUTexture* texture : layers->second) {
-                    draw.surfaceTexture = texture;
-                    draws.push_back(draw);
-                    draw.firstIndex += draw.indexCount;
+            if (layers != surfaceLayers->end()) surfaces = &layers->second;
+        }
+        const auto faces = m_state->faceImages.find(mesh.owner);
+        if (surfaces || faces != m_state->faceImages.end()) {
+            draw.geometry = m_state->cubeFaces;
+            draw.indexCount = 6;
+            for (std::size_t face = 0; face < 6; ++face) {
+                auto surface = surfaces ? (*surfaces)[face] : nullptr;
+                State::FaceImage image;
+                if (faces != m_state->faceImages.end()) {
+                    const auto& direct = faces->second.direct[face];
+                    if (direct.handle && direct.decal) {
+                        image = direct;
+                        if (surfaces) (*surfaces)[face] = nullptr;
+                        surface = nullptr;
+                    } else if (!surface) {
+                        image = direct.handle ? direct : faces->second.material[face];
+                    }
                 }
-                return;
+                draw.surfaceTexture = surface;
+                draw.faceTexture = image.handle;
+                draw.faceTint = {image.tint.r, image.tint.g, image.tint.b, image.tint.a};
+                draw.faceUvScale = {image.uvScale.x, image.uvScale.y};
+                draws.push_back(draw);
+                draw.firstIndex += draw.indexCount;
             }
+            return;
         }
         draws.push_back(draw);
     };
