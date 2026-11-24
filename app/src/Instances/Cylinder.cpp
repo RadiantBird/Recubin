@@ -21,6 +21,17 @@ std::vector<float> Cylinder::s_HighlightEdgeVerts;
 static const int CYL_SEG = 32;
 static const float CYL_PI = 3.14159265358979323846f;
 
+// インデックスバッファのリージョン境界 (buildGeometry の生成順)
+static const int CYL_TOP_COUNT  = CYL_SEG * 3;
+static const int CYL_BOT_COUNT  = CYL_SEG * 3;
+static const int CYL_QUAD_COUNT = (CYL_SEG / 4) * 6;
+static const int CYL_TOP_OFF    = 0;
+static const int CYL_BOT_OFF    = CYL_TOP_COUNT;
+static const int CYL_SIDE_OFF_0 = CYL_TOP_COUNT + CYL_BOT_COUNT;
+static const int CYL_SIDE_OFF_1 = CYL_SIDE_OFF_0 + CYL_QUAD_COUNT;
+static const int CYL_SIDE_OFF_2 = CYL_SIDE_OFF_1 + CYL_QUAD_COUNT;
+static const int CYL_SIDE_OFF_3 = CYL_SIDE_OFF_2 + CYL_QUAD_COUNT;
+
 PrimitiveMeshData Cylinder::buildGeometry() {
     PrimitiveMeshData geometry;
     std::vector<float>& vbo = geometry.vertices;
@@ -86,6 +97,12 @@ PrimitiveMeshData Cylinder::buildGeometry() {
         }
     }
 
+    geometry.faces[0] = {static_cast<std::uint32_t>(CYL_SIDE_OFF_3), static_cast<std::uint32_t>(CYL_QUAD_COUNT)}; // Front
+    geometry.faces[1] = {static_cast<std::uint32_t>(CYL_SIDE_OFF_1), static_cast<std::uint32_t>(CYL_QUAD_COUNT)}; // Back
+    geometry.faces[2] = {static_cast<std::uint32_t>(CYL_TOP_OFF), static_cast<std::uint32_t>(CYL_TOP_COUNT)}; // Top
+    geometry.faces[3] = {static_cast<std::uint32_t>(CYL_BOT_OFF), static_cast<std::uint32_t>(CYL_BOT_COUNT)}; // Bottom
+    geometry.faces[4] = {static_cast<std::uint32_t>(CYL_SIDE_OFF_0), static_cast<std::uint32_t>(CYL_QUAD_COUNT)}; // Right
+    geometry.faces[5] = {static_cast<std::uint32_t>(CYL_SIDE_OFF_2), static_cast<std::uint32_t>(CYL_QUAD_COUNT)}; // Left
 
     return geometry;
 }
@@ -126,17 +143,6 @@ Cylinder::Cylinder(Vector3 Pos, Vector3 Sz)
 {
     if (Renderer::instance) initGeometry();
 }
-
-// インデックスバッファのリージョン境界
-static const int CYL_TOP_COUNT  = CYL_SEG * 3;          // 96
-static const int CYL_BOT_COUNT  = CYL_SEG * 3;          // 96
-static const int CYL_QUAD_COUNT = (CYL_SEG / 4) * 6;    // 48 (8 segments * 6 indices)
-static const int CYL_TOP_OFF    = 0;
-static const int CYL_BOT_OFF    = CYL_TOP_COUNT;        // 96
-static const int CYL_SIDE_OFF_0 = CYL_TOP_COUNT + CYL_BOT_COUNT; // 192 (Right)
-static const int CYL_SIDE_OFF_1 = CYL_SIDE_OFF_0 + CYL_QUAD_COUNT; // 240 (Back)
-static const int CYL_SIDE_OFF_2 = CYL_SIDE_OFF_1 + CYL_QUAD_COUNT; // 288 (Left)
-static const int CYL_SIDE_OFF_3 = CYL_SIDE_OFF_2 + CYL_QUAD_COUNT; // 336 (Front)
 
 void Cylinder::draw(MainShaderState& shader) {
     glBindVertexArray(s_VAO);

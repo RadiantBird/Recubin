@@ -38,8 +38,9 @@ static const int WG_BACK_OFF  = 12, WG_BACK_COUNT  = 6;
 static const int WG_SLOPE_OFF = 18, WG_SLOPE_COUNT = 6;
 
 PrimitiveMeshData Wedge::buildGeometry() {
-    std::vector<float> vbo;
-    std::vector<std::uint32_t> ebo;
+    PrimitiveMeshData geometry;
+    std::vector<float>& vbo = geometry.vertices;
+    std::vector<std::uint32_t>& ebo = geometry.indices;
 
     auto pushVert = [&](float px, float py, float pz,
                         float nx, float ny, float nz,
@@ -94,7 +95,14 @@ PrimitiveMeshData Wedge::buildGeometry() {
                 {WG_XR, WG_Y2, WG_Z2}, {WG_XL, WG_Y2, WG_Z2}, {0.f, inv, -inv});
     }
 
-    return {std::move(vbo), std::move(ebo)};
+    geometry.faces[0] = {0, 0};
+    geometry.faces[1] = {WG_BACK_OFF, WG_BACK_COUNT};
+    geometry.faces[2] = {WG_SLOPE_OFF, WG_SLOPE_COUNT};
+    geometry.faces[3] = {WG_BOT_OFF, WG_BOT_COUNT};
+    geometry.faces[4] = {WG_RIGHT_OFF, WG_RIGHT_COUNT};
+    geometry.faces[5] = {WG_LEFT_OFF, WG_LEFT_COUNT};
+
+    return geometry;
 }
 
 void Wedge::initGeometry() {

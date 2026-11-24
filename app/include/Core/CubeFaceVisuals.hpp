@@ -6,7 +6,7 @@
 #include <Math/Vector2.hpp>
 #include <Util/Color4.hpp>
 
-class Cube;
+class BaseCube;
 
 struct CubeFaceVisual {
     std::string path;
@@ -20,4 +20,4 @@ struct CubeFaceVisuals {
     std::array<CubeFaceVisual, 6> material;
 };
 
-CubeFaceVisuals collectCubeFaceVisuals(Cube& cube);
+CubeFaceVisuals collectCubeFaceVisuals(BaseCube& cube);

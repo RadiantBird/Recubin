@@ -3,7 +3,7 @@
 #include <array>
 #include <string_view>
 
-#include <Instances/Cube.hpp>
+#include <Instances/BaseCube.hpp>
 #include <Instances/Decal.hpp>
 #include <Instances/MaterialInstance.hpp>
 #include <Instances/Texture.hpp>
@@ -89,7 +89,7 @@ void collectChildren(Instance& parent,
 
 } // namespace
 
-CubeFaceVisuals collectCubeFaceVisuals(Cube& cube) {
+CubeFaceVisuals collectCubeFaceVisuals(BaseCube& cube) {
     CubeFaceVisuals visuals;
 
     const std::array<float, 6> faceSizeU = {

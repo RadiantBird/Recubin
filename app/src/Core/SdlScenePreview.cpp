@@ -14,6 +14,7 @@
 #include <Instances/Cube.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/Sphere.hpp>
+#include <Instances/Skybox.hpp>
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Wedge.hpp>
 #include <Util/Color4.hpp>
@@ -55,6 +56,7 @@ constexpr int WEDGE_SHAPE = 4;
 int primitiveShape(const BaseCube& cube) {
     const int shape = cube.renderShapeIndex();
     if (shape >= 0) return shape;
+    if (dynamic_cast<const Cube*>(&cube) && !dynamic_cast<const Skybox*>(&cube)) return 0;
     return dynamic_cast<const Wedge*>(&cube) ? WEDGE_SHAPE : -1;
 }
 
@@ -377,6 +379,7 @@ struct SdlLiveScene::State {
     std::vector<SdlBasicCube> outlineDraws;
     std::uint32_t cubeFaces = 0;
     std::array<std::uint32_t, WEDGE_SHAPE + 1> primitiveMeshes{};
+    std::array<PrimitiveFaceRanges, WEDGE_SHAPE + 1> primitiveFaces{};
     Matrix4 viewProjection;
     bool frameSucceeded = false;
     struct MeshCache {
@@ -446,7 +449,7 @@ struct SdlLiveScene::State {
         return image.handle;
     }
 
-    void collectFaceImages(Cube& cube) {
+    void collectFaceImages(BaseCube& cube) {
         const auto visuals = collectCubeFaceVisuals(cube);
         FaceImages faces;
         bool found = false;
@@ -514,10 +517,16 @@ bool SdlLiveScene::initialize(SDL_GPUDevice& device, std::string& error) {
     }
     m_state->cubeFaces = m_state->renderer.uploadMesh(vertices, indices, error);
     if (!m_state->cubeFaces) return false;
+    auto& cubeRanges = m_state->primitiveFaces[0];
+    for (std::uint32_t face = 0; face < cubeRanges.size(); ++face) {
+        cubeRanges[face] = {face * 6, 6};
+    }
     const std::array builders{&Cylinder::buildGeometry, &Sphere::buildGeometry,
                               &TriangularPrism::buildGeometry, &Wedge::buildGeometry};
     for (std::size_t i = 0; i < builders.size(); ++i) {
-        const auto handle = uploadPrimitive(m_state->renderer, builders[i](), error);
+        auto mesh = builders[i]();
+        m_state->primitiveFaces[i + 1] = mesh.faces;
+        const auto handle = uploadPrimitive(m_state->renderer, std::move(mesh), error);
         if (!handle) return false;
         m_state->primitiveMeshes[i + 1] = handle;
     }
@@ -550,7 +559,7 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
                               Matrix4::Scale(cube->Size.x, cube->Size.y, cube->Size.z);
         SdlBasicCube base;
         m_state->applyMaterial(*cube, base);
-        if (auto* box = dynamic_cast<Cube*>(cube)) m_state->collectFaceImages(*box);
+        if (shape >= 0) m_state->collectFaceImages(*cube);
         if (mesh && !mesh->isUsingFallback() && !mesh->cpuVertices().empty() &&
             !mesh->cpuIndices().empty()) {
             active.insert(cube);
@@ -712,9 +721,14 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
         }
         const auto faces = m_state->faceImages.find(mesh.owner);
         if (surfaces || faces != m_state->faceImages.end()) {
-            draw.geometry = m_state->cubeFaces;
-            draw.indexCount = 6;
+            const auto shape = static_cast<std::size_t>(primitiveShape(*mesh.owner));
+            if (shape == 0) draw.geometry = m_state->cubeFaces;
+            const auto& ranges = m_state->primitiveFaces[shape];
             for (std::size_t face = 0; face < 6; ++face) {
+                const auto& range = ranges[face];
+                if (range.indexCount == 0) continue;
+                draw.firstIndex = range.firstIndex;
+                draw.indexCount = range.indexCount;
                 auto surface = surfaces ? (*surfaces)[face] : nullptr;
                 State::FaceImage image;
                 if (faces != m_state->faceImages.end()) {
@@ -732,7 +746,6 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
                 draw.faceTint = {image.tint.r, image.tint.g, image.tint.b, image.tint.a};
                 draw.faceUvScale = {image.uvScale.x, image.uvScale.y};
                 draws.push_back(draw);
-                draw.firstIndex += draw.indexCount;
             }
             return;
         }

@@ -967,3 +967,10 @@
 - 同じ面は Cube 直下の Decal、SurfaceGui、Texture を先に扱い、空き面を Material の子で補う。同一ソースの同種要素が重複した場合は子の名前順で決める。Decal に覆われた SurfaceGui はクリック対象から外す。
 - Windows xmake Release で Studio・Engine・Test・Runtime が成功。両アプリの Vulkan／D3D12 で Texture の繰り返しと上下、Decal の色とアルファ、面指定、Material の補完を確認し、アプリ単位で両 GPU の PNG が全画素一致。Studio Play で Decal に覆われたボタンは非発火、Decal を除いた対照では発火。GUI 自動化・表示・ビューポート編集・補助の回帰 4 件も成功。
 - 次は他のプリミティブと MeshCube の Decal／Texture、Material の Roughness／Metallic／Normal と PBR、空と組み込みポスト効果。既定起動への切り替えはこれらに続く。
+
+## 2026-11-24 SDL GPU のプリミティブ面 Decal／Texture
+
+- Cylinder、Sphere、Wedge、TriangularPrism の CPU メッシュに既存の面順に対応するインデックス範囲を追加。共通 SDL レンダラーは直接の Decal／Texture と Material の補完を、画像があるプリミティブの各面へ適用する。Wedge の Front と TriangularPrism の Left は面を持たない。タイル間隔の基準は Face に対応するローカル `Size` の軸寸法。
+- Seat、SpawnLocation、Truss を通常の Cube 形状で描画する。Skybox は空の工程で扱う。
+- xmake Windows Release で Studio・Engine・Test・Runtime が成功。Vulkan と D3D12 の両アプリで Cylinder、Sphere の Material Decal、Wedge のタイル Texture、TriangularPrism、Seat の画像を GPU 読み戻しから確認。画像はアプリごとに全画素一致。Studio で面画像付き Sphere の選択輪郭、GUI 自動化・ビューポート編集・補助の回帰 3 件も確認。
+- 次は MeshCube の UV 円形 Decal と Face 投影。既存は最大 8 枚を引数とする配列テクスチャ方式で、UV の下原点、ローカル法線による Face 投影の制限、マテリアル区間ごとの重ね順を維持する。

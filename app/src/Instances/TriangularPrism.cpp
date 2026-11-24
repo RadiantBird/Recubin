@@ -24,9 +24,22 @@ static const float TP_AX =  0.5f,   TP_AZ =  0.0f;
 static const float TP_BX = -0.25f,  TP_BZ =  0.4330f;
 static const float TP_CX = -0.25f,  TP_CZ = -0.4330f;
 
+// インデックスバッファのリージョン境界 (buildGeometry の生成順)
+// [0..3)   : Top   (Face::Top)
+// [3..6)   : Bottom(Face::Bottom)
+// [6..12)  : 面AB  (Face::Front)
+// [12..18) : 面BC  (Face::Back)
+// [18..24) : 面CA  (Face::Right)
+static const int TP_TOP_OFF  = 0,  TP_TOP_COUNT  = 3;
+static const int TP_BOT_OFF  = 3,  TP_BOT_COUNT  = 3;
+static const int TP_AB_OFF   = 6,  TP_AB_COUNT   = 6;
+static const int TP_BC_OFF   = 12, TP_BC_COUNT   = 6;
+static const int TP_CA_OFF   = 18, TP_CA_COUNT   = 6;
+
 PrimitiveMeshData TriangularPrism::buildGeometry() {
-    std::vector<float> vbo;
-    std::vector<std::uint32_t> ebo;
+    PrimitiveMeshData geometry;
+    std::vector<float>& vbo = geometry.vertices;
+    std::vector<std::uint32_t>& ebo = geometry.indices;
 
     auto pushVert = [&](float px, float py, float pz,
                         float nx, float ny, float nz,
@@ -99,7 +112,14 @@ PrimitiveMeshData TriangularPrism::buildGeometry() {
                 nx, 0.f, nz);
     }
 
-    return {std::move(vbo), std::move(ebo)};
+    geometry.faces[0] = {TP_AB_OFF, TP_AB_COUNT};
+    geometry.faces[1] = {TP_BC_OFF, TP_BC_COUNT};
+    geometry.faces[2] = {TP_TOP_OFF, TP_TOP_COUNT};
+    geometry.faces[3] = {TP_BOT_OFF, TP_BOT_COUNT};
+    geometry.faces[4] = {TP_CA_OFF, TP_CA_COUNT};
+    geometry.faces[5] = {0, 0};
+
+    return geometry;
 }
 
 void TriangularPrism::initGeometry() {
@@ -138,18 +158,6 @@ TriangularPrism::TriangularPrism(Vector3 Pos, Vector3 Sz)
 {
     if (Renderer::instance) initGeometry();
 }
-
-// インデックスバッファのリージョン境界 (initGeometry の生成順)
-// [0..3)   : Top   (Face::Top)
-// [3..6)   : Bottom(Face::Bottom)
-// [6..12)  : 面AB  (Face::Front)
-// [12..18) : 面BC  (Face::Back)
-// [18..24) : 面CA  (Face::Right)
-static const int TP_TOP_OFF  = 0,  TP_TOP_COUNT  = 3;
-static const int TP_BOT_OFF  = 3,  TP_BOT_COUNT  = 3;
-static const int TP_AB_OFF   = 6,  TP_AB_COUNT   = 6;
-static const int TP_BC_OFF   = 12, TP_BC_COUNT   = 6;
-static const int TP_CA_OFF   = 18, TP_CA_COUNT   = 6;
 
 void TriangularPrism::draw(MainShaderState& shader) {
     glBindVertexArray(s_VAO);

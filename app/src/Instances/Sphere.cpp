@@ -25,8 +25,9 @@ PrimitiveMeshData Sphere::buildGeometry() {
     std::vector<float>& vbo = geometry.vertices;
     std::vector<std::uint32_t>& ebo = geometry.indices;
 
-    auto pushFace = [&](Vector3 normal, Vector3 right, Vector3 up) {
+    auto pushFace = [&](std::size_t faceIndex, Vector3 normal, Vector3 right, Vector3 up) {
         unsigned int offset = (unsigned int)vbo.size() / 8;
+        const std::uint32_t firstIndex = static_cast<std::uint32_t>(ebo.size());
         for (int y = 0; y <= SPH_RES; ++y) {
             for (int x = 0; x <= SPH_RES; ++x) {
                 float fx = (float)x / SPH_RES;
@@ -56,21 +57,26 @@ PrimitiveMeshData Sphere::buildGeometry() {
                 ebo.push_back(i1); ebo.push_back(i2); ebo.push_back(i3);
             }
         }
+
+        geometry.faces[faceIndex] = {
+            firstIndex,
+            static_cast<std::uint32_t>(SPH_RES * SPH_RES * 6)
+        };
     };
 
     // Face enum の順序に合わせる: Front, Back, Top, Bottom, Right, Left
     // Front (-Z)
-    pushFace(Vector3(0, 0, -1), Vector3(1, 0, 0), Vector3(0, 1, 0));
+    pushFace(0, Vector3(0, 0, -1), Vector3(1, 0, 0), Vector3(0, 1, 0));
     // Back (+Z)
-    pushFace(Vector3(0, 0, 1), Vector3(-1, 0, 0), Vector3(0, 1, 0));
+    pushFace(1, Vector3(0, 0, 1), Vector3(-1, 0, 0), Vector3(0, 1, 0));
     // Top (+Y)
-    pushFace(Vector3(0, 1, 0), Vector3(1, 0, 0), Vector3(0, 0, 1));
+    pushFace(2, Vector3(0, 1, 0), Vector3(1, 0, 0), Vector3(0, 0, 1));
     // Bottom (-Y)
-    pushFace(Vector3(0, -1, 0), Vector3(1, 0, 0), Vector3(0, 0, -1));
+    pushFace(3, Vector3(0, -1, 0), Vector3(1, 0, 0), Vector3(0, 0, -1));
     // Right (+X)
-    pushFace(Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, 1, 0));
+    pushFace(4, Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(0, 1, 0));
     // Left (-X)
-    pushFace(Vector3(-1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0));
+    pushFace(5, Vector3(-1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0));
 
     return geometry;
 }
