@@ -981,3 +981,10 @@
 - デカール画像は透明余白付きの RGBA8 アトラスに詰める。同じ画像列の MeshCube がアトラスを共有し、画像の更新時は差し替え、使用されなくなったアトラスは解放する。
 - xmake Windows Release で Studio・Engine・Test・Runtime が成功。Vulkan／D3D12 の両アプリで、Face の上下と裏側への非投影、UV 円形の順序、GLB のマスクで穴が維持されることを PNG で確認。検証した PNG は各アプリ内で両 GPU が全画素一致。Engine で 8 枚目と二つのマテリアル区間への投影、Luau の UV 中心更新も確認。
 - MeshCube フォールバック、GUI 自動化、ビューポート編集・補助の回帰 4 件が成功。既存の影とカスタム GLSL の画像は変更前と同一。次は残りの Material マップと PBR、空、組み込みポスト処理へ進む。
+
+## 2026-11-24 SDL GPU の Material マップと PBR 直射
+
+- Material の Roughness／Metallic／Normal マップを既存 FileRef 解決と画像キャッシュへ接続した。ワールド座標のトライプラナー投影で BaseColor、粗さ、金属度、法線の座標を揃え、法線マップは whiteout blend と `NormalStrength` を適用する。
+- Material を持つ lit 描画に GGX／Smith／Schlick の直射計算と拡散環境光を追加。Sun の方向は影マップと同じ Sun から取得し、Lighting の色と強度を適用。PointLight と SpotLight は距離とコーンの減衰を使う。既存の影マップは PBR の太陽光だけを減衰させる。
+- xmake Windows Release で Studio・Engine・Test・Runtime をビルド。Vulkan／D3D12 の両アプリで各マップの反映、NormalStrength=0、PointLight の減衰と SpotLight の向き・範囲を GPU 読み戻しで確認。パネル比較 20 組のうち 19 組は全画素一致、残る Engine の金属度対照は 2 ピクセルだけ RGB の最大差が 1。Engine で Lighting の色と PBR 面の影も確認し、既存の非 Material の影とカスタム GLSL は従来 PNG と一致した。
+- Material Map、Material Service、ビューポート補助、GUI 自動化の回帰 4 件が成功。次は空と環境スペキュラ反射、非 Material の Lambert 照明、組み込みポスト処理。SDK と macOS 実機検証は別工程。

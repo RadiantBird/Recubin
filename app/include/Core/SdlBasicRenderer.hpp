@@ -2,6 +2,7 @@
 
 #include <SDL3/SDL.h>
 #include <Core/SdlMeshDecalData.hpp>
+#include <Core/SdlMaterialLighting.hpp>
 
 #include <array>
 #include <cstdint>
@@ -24,6 +25,14 @@ struct SdlBasicCube {
     std::array<float, 16> shadowModelViewProjection{};
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
     std::uint32_t materialBaseColor = 0;
+    std::uint32_t materialRoughnessMap = 0;
+    std::uint32_t materialMetallicMap = 0;
+    std::uint32_t materialNormalMap = 0;
+    float materialMetallic = 0.0f;
+    float materialRoughness = 0.5f;
+    float materialReflectance = 0.5f;
+    float materialNormalStrength = 1.0f;
+    bool materialPbr = false;
     float materialTileSize = 1.0f;
     std::array<float, 16> modelMatrix{};
     std::uint32_t geometry = 0;
@@ -68,7 +77,8 @@ public:
               unsigned height,
               std::span<const SdlBasicCube> cubes,
               std::string& error,
-              bool shadows = false);
+              bool shadows = false,
+              const SdlMaterialLighting& lighting = {});
     bool drawOutline(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUTexture& destination,
                      std::span<const SdlBasicCube> draws, const Color4& color, float thickness,
                      std::string& error);

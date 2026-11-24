@@ -302,8 +302,8 @@ bool SdlBasicRenderer::initialize(SDL_GPUDevice& device, std::string& error) {
     fi.entrypoint = "PSMain";
     fi.format = format;
     fi.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
-    fi.num_samplers = 5;
-    fi.num_uniform_buffers = 1;
+    fi.num_samplers = 8;
+    fi.num_uniform_buffers = 2;
     m_fragmentShader = SDL_CreateGPUShader(&device, &fi);
     if (!m_fragmentShader) {
         error = sdlError("SDL_CreateGPUShader(PSMain)");
@@ -995,7 +995,8 @@ SDL_GPUTexture* SdlBasicRenderer::resolveTexture(std::uint32_t handle, std::stri
 }
 
 bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
-                            std::span<const SdlBasicCube> cubes, std::string& error, bool shadows) {
+                            std::span<const SdlBasicCube> cubes, std::string& error, bool shadows,
+                            const SdlMaterialLighting& lighting) {
     error.clear();
     if (!m_device || !m_pipeline || !m_defaultGeometry.vertexBuffer) {
         error = "SdlBasicRenderer: renderer is not initialized";
@@ -1015,6 +1016,9 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
         vp.h = shadowPass ? static_cast<float>(SHADOW_MAP_SIZE) : static_cast<float>(height);
         vp.max_depth = 1.0f;
         SDL_SetGPUViewport(pass, &vp);
+        if (!shadowPass) {
+            SDL_PushGPUFragmentUniformData(&commandBuffer, 1, &lighting, sizeof(lighting));
+        }
         SDL_GPUGraphicsPipeline* boundPipeline = nullptr;
         for (const auto& cube : cubes) {
             if (shadowPass && !cube.castShadow) {
@@ -1054,12 +1058,21 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                 if (!decalTexture) {
                     return false;
                 }
-                const std::array<SDL_GPUTextureSamplerBinding, 5> samplerBindings = {
+                const auto roughnessTexture = resolveTexture(cube.materialRoughnessMap, error);
+                const auto metallicTexture = resolveTexture(cube.materialMetallicMap, error);
+                const auto normalTexture = resolveTexture(cube.materialNormalMap, error);
+                if (!roughnessTexture || !metallicTexture || !normalTexture) {
+                    return false;
+                }
+                const std::array<SDL_GPUTextureSamplerBinding, 8> samplerBindings = {
                     SDL_GPUTextureSamplerBinding{texture, m_sampler},
                     SDL_GPUTextureSamplerBinding{shadows ? m_shadowTarget : m_whiteTexture, m_shadowSampler},
                     SDL_GPUTextureSamplerBinding{overlayTexture, m_sampler},
                     SDL_GPUTextureSamplerBinding{materialTexture, m_sampler},
-                    SDL_GPUTextureSamplerBinding{decalTexture, m_sampler}};
+                    SDL_GPUTextureSamplerBinding{decalTexture, m_sampler},
+                    SDL_GPUTextureSamplerBinding{roughnessTexture, m_sampler},
+                    SDL_GPUTextureSamplerBinding{metallicTexture, m_sampler},
+                    SDL_GPUTextureSamplerBinding{normalTexture, m_sampler}};
                 SDL_BindGPUFragmentSamplers(pass, 0, samplerBindings.data(),
                                             static_cast<Uint32>(samplerBindings.size()));
             } else {
@@ -1087,16 +1100,16 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                     cube.useTextureAlpha ? 1.0f : 0.0f,
                     cube.materialTileSize,
                     cube.materialBaseColor != 0 ? 1.0f : 0.0f,
-                    0.0f,
-                    0.0f,
+                    cube.materialMetallic,
+                    cube.materialRoughness,
                     cube.faceTint[0],
                     cube.faceTint[1],
                     cube.faceTint[2],
                     cube.faceTint[3],
                     cube.faceUvScale[0],
                     cube.faceUvScale[1],
-                    0.0f,
-                    0.0f};
+                    cube.materialReflectance,
+                    cube.materialNormalStrength};
                 if (cube.meshDecals != nullptr) {
                     const auto& decals = *cube.meshDecals;
                     fragmentParams[16] = decals.minimum[0];
@@ -1115,6 +1128,12 @@ bool SdlBasicRenderer::draw(SDL_GPUCommandBuffer& commandBuffer, unsigned width,
                                   fragmentParams.begin() + offset + 4);
                     }
                 }
+                std::uint32_t materialFlags = 0;
+                if (cube.materialPbr) materialFlags |= 1u;
+                if (cube.materialRoughnessMap != 0) materialFlags |= 2u;
+                if (cube.materialMetallicMap != 0) materialFlags |= 4u;
+                if (cube.materialNormalMap != 0) materialFlags |= 8u;
+                fragmentParams[23] = static_cast<float>(materialFlags);
                 SDL_PushGPUFragmentUniformData(&commandBuffer, 0, fragmentParams.data(),
                                                sizeof(fragmentParams));
             }

@@ -7,6 +7,7 @@
 #include <Core/RgbaImage.hpp>
 #include <Core/MeshDecalAtlas.hpp>
 #include <Core/SdlMeshDecalData.hpp>
+#include <Core/SdlMaterialLighting.hpp>
 #include <Core/SdlPostEffects.hpp>
 #include <Core/TerrainStreamer.hpp>
 #ifdef RECUBIN_SDL_GPU_STUDIO
@@ -25,6 +26,8 @@
 #include <Instances/Lighting.hpp>
 #include <Instances/MaterialInstance.hpp>
 #include <Instances/Sun.hpp>
+#include <Instances/SpotLight.hpp>
+#include <Instances/Spatial.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
 #include <Math/Matrix4.hpp>
@@ -70,7 +73,11 @@ std::uint32_t uploadPrimitive(SdlBasicRenderer& renderer, PrimitiveMeshData mesh
     vertices.reserve(mesh.vertices.size() / stride);
     for (std::size_t offset = 0; offset < mesh.vertices.size(); offset += stride) {
         const float* vertex = mesh.vertices.data() + offset;
-        vertices.push_back({{vertex[0], vertex[1], vertex[2]}, {vertex[6], 1.0f - vertex[7]}});
+        SdlBasicVertex gpuVertex;
+        gpuVertex.position = {vertex[0], vertex[1], vertex[2]};
+        gpuVertex.uv = {vertex[6], 1.0f - vertex[7]};
+        gpuVertex.normal = {vertex[3], vertex[4], vertex[5]};
+        vertices.push_back(gpuVertex);
     }
 
     // Legacy primitives bypass back-face culling, so some of their triangles
@@ -262,15 +269,58 @@ Matrix4 sdlPerspective(float fovY, float aspect, float nearPlane, float farPlane
     return sdlClipDepth(Matrix4::Perspective(fovY, aspect, nearPlane, farPlane));
 }
 
+const Sun* primarySun(const Workspace& workspace) {
+    for (const CelestialBody* body : workspace.getRenderCelestialBodies()) {
+        if (const auto* sun = dynamic_cast<const Sun*>(body)) return sun;
+    }
+    return nullptr;
+}
+
+SdlMaterialLighting collectMaterialLighting(const Workspace& workspace, const Vector3& camera) {
+    SdlMaterialLighting result;
+    if (const auto* sun = primarySun(workspace)) {
+        const auto direction = Sun::directionFromAngle(sun->Angle);
+        const auto& lights = workspace.getRenderLightings();
+        const auto* lighting = lights.empty() ? nullptr : lights.front();
+        const auto color = lighting ? lighting->lightColor : Color4{};
+        const float brightness = lighting ? lighting->brightness : 1.0f;
+        result.sunDirection = {direction.x, direction.y, direction.z, 0.0f};
+        result.sunIrradiance = {color.r * brightness, color.g * brightness, color.b * brightness, 0.0f};
+    }
+    std::size_t count = 0;
+    for (const auto* light : workspace.getRenderLights()) {
+        if (count == result.lights.size()) break;
+        if (!light) {
+            RCBN_WARN("Workspace contains an empty light render entry");
+            continue;
+        }
+        CFrame transform;
+        const auto parent = light->Parent.lock();
+        if (const auto* spatial = dynamic_cast<const Spatial*>(parent.get())) {
+            transform = spatial->getWorldCFrame();
+        }
+        const auto& position = transform.Position;
+        const auto direction = transform.Rotation.rotate(Vector3(0.0f, -1.0f, 0.0f));
+        const auto* spot = dynamic_cast<const SpotLight*>(light);
+        const float cutoff = spot ? std::cos(spot->Angle * std::numbers::pi_v<float> / 180.0f) : -2.0f;
+        const auto& color = light->lightColor;
+        result.lights[count++] = {
+            {position.x, position.y, position.z, light->range},
+            {direction.x, direction.y, direction.z, cutoff},
+            {color.r * light->brightness, color.g * light->brightness, color.b * light->brightness, 0.0f}
+        };
+    }
+    result.cameraAndLightCount = {camera.x, camera.y, camera.z, static_cast<float>(count)};
+    return result;
+}
+
 std::optional<Matrix4> shadowProjection(const Workspace& workspace, const Vector3& position,
                                        const Vector3& forward) {
     const auto& lightings = workspace.getRenderLightings();
     if (lightings.empty() || !lightings.front()) return std::nullopt;
     const float distance = lightings.front()->shadowDistance;
     if (!std::isfinite(distance) || distance <= 0.1f) return std::nullopt;
-    for (const CelestialBody* body : workspace.getRenderCelestialBodies()) {
-        const auto* sun = dynamic_cast<const Sun*>(body);
-        if (!sun) continue;
+    if (const auto* sun = primarySun(workspace)) {
         const Vector3 direction = Sun::directionFromAngle(sun->Angle);
         const Vector3 focus = position + forward * (distance * 0.3f);
         const Vector3 up = std::abs(direction.y) > 0.98f ? Vector3(0, 0, 1) : Vector3(0, 1, 0);
@@ -529,18 +579,39 @@ struct SdlLiveScene::State {
 
     void applyMaterial(const BaseCube& cube, SdlBasicCube& draw) {
         const auto material = cube.getMaterialInstance();
-        constexpr auto slot = MaterialInstance::MapSlot::BaseColor;
-        if (!material || material->mapReference(slot).empty()) return;
-        const auto path = AssetPath::normalize(material->resolveMapPath(slot));
-        if (path.empty() || !(material->TextureScale > 0.0f) || !std::isfinite(material->TextureScale)) {
-            const auto key = material->getFullPath() + ": " + material->mapReference(slot);
+        if (!material) return;
+        draw.materialPbr = !cube.Unlit;
+        draw.materialMetallic = material->Metallic;
+        draw.materialRoughness = material->Roughness;
+        draw.materialReflectance = material->Reflectance;
+        draw.materialNormalStrength = material->NormalStrength;
+        if (!material->hasMaps()) return;
+        if (!(material->TextureScale > 0.0f) || !std::isfinite(material->TextureScale)) {
+            const auto key = material->getFullPath() + ": TextureScale";
             if (materialWarnings.insert(key).second) {
-                RCBN_WARN("SDL Material BaseColorMap has an invalid FileRef or tile size: " << key);
+                RCBN_WARN("SDL Material has invalid tile size " << material->TextureScale << ": " << key);
             }
             return;
         }
-        draw.materialBaseColor = resolveSceneImage(path);
+        const auto loadMap = [&](MaterialInstance::MapSlot slot) {
+            const auto& reference = material->mapReference(slot);
+            if (reference.empty()) return std::uint32_t{0};
+            const auto path = AssetPath::normalize(material->resolveMapPath(slot));
+            if (path.empty()) {
+                const auto key = material->getFullPath() + ": " + reference;
+                if (materialWarnings.insert(key).second) {
+                    RCBN_WARN("SDL Material map FileRef could not be resolved: " << key);
+                }
+            }
+            return resolveSceneImage(path);
+        };
         draw.materialTileSize = material->TextureScale;
+        draw.materialBaseColor = loadMap(MaterialInstance::MapSlot::BaseColor);
+        if (draw.materialPbr) {
+            draw.materialRoughnessMap = loadMap(MaterialInstance::MapSlot::Roughness);
+            draw.materialMetallicMap = loadMap(MaterialInstance::MapSlot::Metallic);
+            draw.materialNormalMap = loadMap(MaterialInstance::MapSlot::Normal);
+        }
     }
 
     std::uint32_t resolveSceneImage(const std::string& path) {
@@ -889,7 +960,8 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
         append(*draw.mesh);
     }
     const bool drawn = m_state->renderer.draw(commandBuffer, width, height, draws,
-                                               error, lightProjection.has_value());
+                                               error, lightProjection.has_value(),
+                                               collectMaterialLighting(workspace, cameraPosition));
     if (!drawn) {
         return false;
     }
