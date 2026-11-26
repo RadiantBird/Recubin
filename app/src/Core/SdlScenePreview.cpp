@@ -9,6 +9,7 @@
 #include <Core/MeshDecalAtlas.hpp>
 #include <Core/SdlMeshDecalData.hpp>
 #include <Core/SdlMaterialLighting.hpp>
+#include <Core/SdlSurfaceMarkDraw.hpp>
 #include <Core/SdlPostEffects.hpp>
 #include <Core/TerrainStreamer.hpp>
 #ifdef RECUBIN_SDL_GPU_STUDIO
@@ -28,6 +29,11 @@
 #include <Instances/MaterialInstance.hpp>
 #include <Instances/Sun.hpp>
 #include <Instances/Moon.hpp>
+#include <Instances/LiquidCube.hpp>
+#include <Instances/SurfaceMark.hpp>
+#include <Core/ShadowCascades.hpp>
+#include <Instances/Weather.hpp>
+#include <Instances/ParticleEmitter.hpp>
 #include <Instances/SpotLight.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/Workspace.hpp>
@@ -42,10 +48,12 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
+#include <bit>
 #include <ranges>
 #include <array>
 #include <cmath>
 #include <filesystem>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -72,6 +80,7 @@ int primitiveShape(const BaseCube& cube) {
     const int shape = cube.renderShapeIndex();
     if (shape >= 0) return shape;
     if (dynamic_cast<const Cube*>(&cube) && !dynamic_cast<const Skybox*>(&cube)) return 0;
+    if (dynamic_cast<const LiquidCube*>(&cube)) return 0;
     return dynamic_cast<const Wedge*>(&cube) ? WEDGE_SHAPE : -1;
 }
 
@@ -380,17 +389,24 @@ void collectCelestialDraws(const Workspace& workspace, const Matrix4& cameraRela
     });
 }
 
-void collectCelestialSpheres(const Workspace& workspace, const Matrix4& cameraRelativeProjection,
-                             const Vector3& cameraPosition, const Vector3& cameraForward,
+bool collectCelestialSpheres(const Workspace& workspace, const Matrix4& cameraRelativeProjection,
+                             const Vector3& cameraForward,
                              std::uint32_t sphereGeometry, std::uint32_t sphereIndexCount,
-                             std::vector<CelestialSphere>& spheres) {
+                             std::vector<CelestialSphere>& spheres, std::string& error) {
     spheres.clear();
-    if (!sphereGeometry || sphereIndexCount == 0) return;
+    if (!sphereGeometry || sphereIndexCount == 0) {
+        error = "SDL celestial rendering requires initialized Sphere geometry";
+        return false;
+    }
 
     const auto* sun = primarySun(workspace);
     const Vector3 moonDirection = -Sun::directionFromAngle(sun ? sun->Angle : Sun::defaultAngle());
     for (const CelestialBody* body : workspace.getRenderCelestialBodies()) {
-        if (!body || body->Color.a <= 0.001f) continue;
+        if (!body) {
+            error = "Workspace contains an empty celestial body render entry";
+            return false;
+        }
+        if (body->Color.a <= 0.001f) continue;
         const auto* moon = dynamic_cast<const Moon*>(body);
         const auto* sunDisc = dynamic_cast<const Sun*>(body);
         if (!moon && !sunDisc) continue;
@@ -412,6 +428,7 @@ void collectCelestialSpheres(const Workspace& workspace, const Matrix4& cameraRe
         sphere.draw.blend = body->Color.a < 0.999f;
         sphere.draw.castShadow = false;
         sphere.draw.receiveShadow = false;
+        sphere.draw.unlit = true;
         sphere.draw.doubleSided = false;
         std::copy_n(model.m, 16, sphere.draw.modelMatrix.begin());
         const Matrix4 mvp = cameraRelativeProjection * model;
@@ -423,6 +440,7 @@ void collectCelestialSpheres(const Workspace& workspace, const Matrix4& cameraRe
         }
         spheres.push_back(sphere);
     }
+    return true;
 }
 
 SdlMaterialLighting collectMaterialLighting(const Workspace& workspace, const Vector3& camera) {
@@ -435,6 +453,13 @@ SdlMaterialLighting collectMaterialLighting(const Workspace& workspace, const Ve
         const float brightness = lighting ? lighting->brightness : 1.0f;
         result.sunDirection = {direction.x, direction.y, direction.z, 0.0f};
         result.sunIrradiance = {color.r * brightness, color.g * brightness, color.b * brightness, 0.0f};
+    }
+    if (!workspace.getRenderLightings().empty() && workspace.getRenderLightings().front()) {
+        const auto* lighting = workspace.getRenderLightings().front();
+        result.shadowDistance = std::isfinite(lighting->shadowDistance)
+            ? std::max(lighting->shadowDistance, 0.0f) : 160.0f;
+        result.shadowFadeDistance = std::isfinite(lighting->shadowFadeDistance)
+            ? std::max(lighting->shadowFadeDistance, 0.0f) : 20.0f;
     }
     std::size_t count = 0;
     for (const auto* light : workspace.getRenderLights()) {
@@ -463,22 +488,51 @@ SdlMaterialLighting collectMaterialLighting(const Workspace& workspace, const Ve
     return result;
 }
 
-std::optional<Matrix4> shadowProjection(const Workspace& workspace, const Vector3& position,
-                                       const Vector3& forward) {
+std::optional<SdlShadowCascades> shadowCascadeData(const Workspace& workspace,
+                                                   const Vector3& position,
+                                                   const Vector3& forward,
+                                                   float fovY, float aspect) {
     const auto& lightings = workspace.getRenderLightings();
-    if (lightings.empty() || !lightings.front()) return std::nullopt;
-    const float distance = lightings.front()->shadowDistance;
-    if (!std::isfinite(distance) || distance <= 0.1f) return std::nullopt;
-    if (const auto* sun = primarySun(workspace)) {
-        const Vector3 direction = Sun::directionFromAngle(sun->Angle);
-        const Vector3 focus = position + forward * (distance * 0.3f);
-        const Vector3 up = std::abs(direction.y) > 0.98f ? Vector3(0, 0, 1) : Vector3(0, 1, 0);
-        const float extent = distance * 0.5f;
-        const Matrix4 lightView = Matrix4::LookAt(focus + direction * distance, focus, up);
-        return sdlClipDepth(Matrix4::Ortho(-extent, extent, -extent, extent, 0.05f, distance * 2.0f))
-             * lightView;
+    if (lightings.empty() || !lightings.front()) {
+        RCBN_WARN("SDL shadow cascades unavailable: Workspace has no Lighting");
+        return std::nullopt;
     }
-    return std::nullopt;
+    const float distance = lightings.front()->shadowDistance;
+    if (!std::isfinite(distance) || distance <= 0.1f) {
+        RCBN_WARN("SDL shadow cascades unavailable: invalid ShadowDistance");
+        return std::nullopt;
+    }
+    const auto* sun = primarySun(workspace);
+    if (!sun) {
+        RCBN_WARN("SDL shadow cascades unavailable: Workspace has no Sun");
+        return std::nullopt;
+    }
+    const auto result = buildShadowCascades(distance, fovY, aspect, position, forward,
+                                            Vector3(0.0f, 1.0f, 0.0f),
+                                            Sun::directionFromAngle(sun->Angle));
+    if (!result) {
+        RCBN_WARN("SDL shadow cascades unavailable: invalid camera or Sun basis");
+        return std::nullopt;
+    }
+    SdlShadowCascades cascades;
+    for (std::size_t cascade = 0; cascade < cascades.lightSpaceMatrices.size(); ++cascade) {
+        const Matrix4 gpuMatrix = sdlClipDepth(result->lightSpaceMatrices[cascade]);
+        std::copy_n(gpuMatrix.m, 16, cascades.lightSpaceMatrices[cascade].begin());
+    }
+    cascades.splits = result->splits;
+    cascades.blendWidths = result->blendWidths;
+    cascades.valid = true;
+    return cascades;
+}
+
+std::optional<Matrix4> shadowProjection(const Workspace& workspace, const Vector3& position,
+                                        const Vector3& forward, float fovY = 45.0f,
+                                        float aspect = 1.0f) {
+    const auto cascades = shadowCascadeData(workspace, position, forward, fovY, aspect);
+    if (!cascades || !cascades->valid) return std::nullopt;
+    Matrix4 first;
+    std::copy_n(cascades->lightSpaceMatrices[0].data(), 16, first.m);
+    return first;
 }
 
 SDL_GPUTransferBuffer* recordReadback(SDL_GPUDevice* device, SDL_GPUCommandBuffer* command,
@@ -573,20 +627,26 @@ struct SdlLiveScene::State {
     };
     struct TransparentDraw {
         const MeshDraw* mesh;
+        const CelestialSphere* celestial;
         float depth;
     };
     std::vector<MeshDraw> meshes;
     std::vector<SdlBasicCube> frameDraws;
     std::vector<SdlCelestialDraw> celestialDraws;
+    std::vector<CelestialSphere> celestialSpheres;
+    std::vector<SdlSurfaceMarkDraw> surfaceMarks;
     std::array<SdlBasicCube, 6> skyFaces{};
+    SdlSkyboxSource skyboxSource{};
     std::optional<Matrix4> skyModel;
     std::vector<TransparentDraw> transparent;
     std::vector<SdlBasicCube> outlineDraws;
     std::uint32_t cubeFaces = 0;
     std::array<std::uint32_t, WEDGE_SHAPE + 1> primitiveMeshes{};
+    std::array<std::uint32_t, WEDGE_SHAPE + 1> primitiveIndexCounts{};
     std::array<PrimitiveFaceRanges, WEDGE_SHAPE + 1> primitiveFaces{};
     Matrix4 viewProjection;
     bool frameSucceeded = false;
+    float effectTime = 0.0f;
     struct MeshCache {
         struct DecalImage {
             std::string path;
@@ -730,6 +790,9 @@ struct SdlLiveScene::State {
     }
 
     void applyMaterial(const BaseCube& cube, SdlBasicCube& draw) {
+        draw.owner = &cube;
+        draw.liquid = dynamic_cast<const LiquidCube*>(&cube) != nullptr;
+        draw.unlit = cube.Unlit;
         const auto material = cube.getMaterialInstance();
         if (!material) return;
         draw.materialPbr = !cube.Unlit;
@@ -775,6 +838,7 @@ struct SdlLiveScene::State {
 
     bool syncSkybox(const Workspace& workspace, std::string& error) {
         skyModel.reset();
+        skyboxSource = {};
         for (auto* skybox : workspace.getRenderSkyboxes() | std::views::reverse) {
             if (!skybox) {
                 error = "Workspace contains an empty Skybox render entry";
@@ -790,6 +854,25 @@ struct SdlLiveScene::State {
             }
             const float largestSide = std::max({size.x, size.y, size.z});
             const Matrix4 rotation = Matrix4::FromQuaternion(skybox->getWorldCFrame().Rotation);
+            std::copy_n(rotation.m, 16, skyboxSource.rotation.begin());
+            skyboxSource.size = {size.x, size.y, size.z};
+            std::uint64_t signature = 1469598103934665603ULL;
+            const auto mixSignature = [&signature](std::uint64_t value) {
+                signature ^= value;
+                signature *= 1099511628211ULL;
+            };
+            for (float value : {size.x, size.y, size.z, skybox->Color.r, skybox->Color.g,
+                                skybox->Color.b, skybox->Color.a}) {
+                mixSignature(std::bit_cast<std::uint32_t>(value));
+            }
+            for (const float value : rotation.m) {
+                mixSignature(std::bit_cast<std::uint32_t>(value));
+            }
+            for (const auto& path : skybox->skyboxPaths) {
+                for (const unsigned char character : path) mixSignature(character);
+                mixSignature(0);
+            }
+            skyboxSource.signature = signature;
             skyModel = rotation * Matrix4::Scale(size.x / largestSide,
                                                  size.y / largestSide,
                                                  size.z / largestSide);
@@ -813,8 +896,19 @@ struct SdlLiveScene::State {
                 draw.faceUvScale = {visual.uvScale.x, visual.uvScale.y};
                 draw.castShadow = false;
                 draw.receiveShadow = false;
+                draw.unlit = true;
                 skyFaces[i] = draw;
             }
+            for (const auto& face : skyFaces) {
+                mixSignature(face.faceTexture);
+                mixSignature(std::bit_cast<std::uint32_t>(face.faceTint[0]));
+                mixSignature(std::bit_cast<std::uint32_t>(face.faceTint[1]));
+                mixSignature(std::bit_cast<std::uint32_t>(face.faceTint[2]));
+                mixSignature(std::bit_cast<std::uint32_t>(face.faceTint[3]));
+                mixSignature(std::bit_cast<std::uint32_t>(face.faceUvScale[0]));
+                mixSignature(std::bit_cast<std::uint32_t>(face.faceUvScale[1]));
+            }
+            skyboxSource.signature = signature;
             break;
         }
         return true;
@@ -877,17 +971,9 @@ SdlLiveScene::~SdlLiveScene() = default;
 bool SdlLiveScene::initialize(SDL_GPUDevice& device, std::string& error) {
     if (!m_state->renderer.initialize(device, error)) return false;
     if (!m_state->postEffects.initialize(device, error)) return false;
-    std::vector<SdlBasicVertex> vertices;
-    for (const Vertex& vertex : createCubeVertices(1.0f)) {
-        vertices.push_back({{vertex.Position.x, vertex.Position.y, vertex.Position.z},
-                            {vertex.U, 1.0f - vertex.V}});
-    }
-    std::vector<std::uint32_t> indices;
-    for (std::uint32_t face = 0; face < vertices.size(); face += 4) {
-        indices.insert(indices.end(), {face, face + 2, face + 1, face, face + 3, face + 2});
-    }
-    m_state->cubeFaces = m_state->renderer.uploadMesh(vertices, indices, error);
-    if (!m_state->cubeFaces) return false;
+    // The renderer-owned default geometry is the shared 24-vertex cube.
+    // Handle zero is reserved for that geometry; only non-default meshes are uploaded here.
+    m_state->cubeFaces = SdlBasicRenderer::DEFAULT_GEOMETRY_HANDLE;
     auto& cubeRanges = m_state->primitiveFaces[0];
     for (std::uint32_t face = 0; face < cubeRanges.size(); ++face) {
         cubeRanges[face] = {face * 6, 6};
@@ -897,6 +983,7 @@ bool SdlLiveScene::initialize(SDL_GPUDevice& device, std::string& error) {
     for (std::size_t i = 0; i < builders.size(); ++i) {
         auto mesh = builders[i]();
         m_state->primitiveFaces[i + 1] = mesh.faces;
+        m_state->primitiveIndexCounts[i + 1] = static_cast<std::uint32_t>(mesh.indices.size());
         const auto handle = uploadPrimitive(m_state->renderer, std::move(mesh), error);
         if (!handle) return false;
         m_state->primitiveMeshes[i + 1] = handle;
@@ -1033,6 +1120,10 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
         draw.color = {cube->Color.r, cube->Color.g, cube->Color.b, opacity};
         m_state->meshes.push_back({draw, model, cube});
     }
+    for (SurfaceMark* mark : workspace.getRenderSurfaceMarks()) {
+        if (!mark || mark->texturePath.empty()) continue;
+        m_state->resolveSceneImage(AssetPath::normalize(mark->texturePath));
+    }
     if (!m_state->trimDecalAtlases(error)) return false;
     for (auto it = m_state->sceneImages.begin(); it != m_state->sceneImages.end();) {
         if (m_state->usedSceneImages.contains(it->first)) {
@@ -1081,16 +1172,31 @@ bool SdlLiveScene::sync(Workspace& workspace, std::string& error) {
 }
 
 bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
-                        const Vector3& cameraPosition, const Vector3& cameraForward, float effectTime,
+                        const Vector3& cameraPosition, const Vector3& cameraForward, const Vector3& cameraUp,
+                        float effectTime,
                         SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
                         std::string& error, std::span<BaseCube* const> selected,
                         SdlSurfaceGuiLayers* surfaceLayers) {
     m_state->viewProjection = viewProjection;
+    m_state->effectTime = effectTime;
     m_state->frameSucceeded = false;
-    const auto lightProjection = shadowProjection(workspace, cameraPosition, cameraForward);
+    const float aspect = height == 0 ? 1.0f : static_cast<float>(width) / static_cast<float>(height);
+    const float fovY = std::isfinite(viewProjection.m[5]) && viewProjection.m[5] > 0.0f
+        ? 2.0f * std::atan(1.0f / viewProjection.m[5]) * 180.0f / std::numbers::pi_v<float>
+        : 45.0f;
+    const auto shadowData = shadowCascadeData(workspace, cameraPosition, cameraForward, fovY, aspect);
+    std::optional<Matrix4> lightProjection;
+    if (shadowData && shadowData->valid) {
+        Matrix4 first;
+        std::copy_n(shadowData->lightSpaceMatrices[0].data(), 16, first.m);
+        lightProjection = first;
+    }
     auto& draws = m_state->frameDraws;
     draws.clear();
     draws.reserve(m_state->meshes.size());
+    const Matrix4 cameraTranslation = Matrix4::Translate(cameraPosition.x, cameraPosition.y,
+                                                          cameraPosition.z);
+    const Matrix4 cameraRelativeProjection = viewProjection * cameraTranslation;
     const auto append = [&](const State::MeshDraw& mesh) {
         auto draw = mesh.draw;
         std::copy_n(mesh.model.m, 16, draw.modelMatrix.begin());
@@ -1147,9 +1253,22 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
                 error = "Non-finite transparent mesh depth for " + mesh.owner->getFullPath();
                 return false;
             }
-            transparent.push_back({&mesh, depth});
+            transparent.push_back({&mesh, nullptr, depth});
         } else {
             append(mesh);
+        }
+    }
+    if (!collectCelestialSpheres(workspace, cameraRelativeProjection, cameraForward,
+                                 m_state->primitiveMeshes[SPHERE_SHAPE],
+                                 m_state->primitiveIndexCounts[SPHERE_SHAPE],
+                                 m_state->celestialSpheres, error)) {
+        return false;
+    }
+    for (const auto& sphere : m_state->celestialSpheres) {
+        if (sphere.draw.blend) {
+            transparent.push_back({nullptr, &sphere, sphere.depth});
+        } else {
+            draws.push_back(sphere.draw);
         }
     }
     for (const auto& [terrain, cache] : m_state->terrainCache) {
@@ -1157,12 +1276,13 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
     }
     std::ranges::stable_sort(transparent, std::greater{}, &State::TransparentDraw::depth);
     for (const auto& draw : transparent) {
-        append(*draw.mesh);
+        if (draw.mesh) {
+            append(*draw.mesh);
+        } else if (draw.celestial) {
+            draws.push_back(draw.celestial->draw);
+        }
     }
     std::span<const SdlBasicCube> skyFaces;
-    const Matrix4 cameraTranslation = Matrix4::Translate(cameraPosition.x, cameraPosition.y,
-                                                          cameraPosition.z);
-    const Matrix4 cameraRelativeProjection = viewProjection * cameraTranslation;
     if (m_state->skyModel) {
         const Matrix4 skyMvp = cameraRelativeProjection * *m_state->skyModel;
         for (auto& face : m_state->skyFaces) {
@@ -1172,10 +1292,158 @@ bool SdlLiveScene::draw(Workspace& workspace, const Matrix4& viewProjection,
     }
     collectCelestialDraws(workspace, cameraRelativeProjection, cameraForward, width, height,
                           m_state->celestialDraws);
+    std::array<SdlCloudDraw, 1> cloudDraws{};
+    std::span<const SdlCloudDraw> clouds;
+    const auto& weatherEntries = workspace.getRenderWeathers();
+    if (!weatherEntries.empty()) {
+        const auto* weather = weatherEntries.front();
+        if (!weather) {
+            error = "Workspace contains an empty Weather render entry";
+            return false;
+        }
+        if (weather->Enabled) {
+            constexpr float halfSize = 2000.0f;
+            const Matrix4 cloudModel = Matrix4::Translate(cameraPosition.x, weather->CloudHeight,
+                                                          cameraPosition.z) * Matrix4::Scale(halfSize, 1.0f, halfSize);
+            std::copy_n(viewProjection.m, 16, cloudDraws[0].projection.begin());
+            const Matrix4 cloudView;
+            std::copy_n(cloudView.m, 16, cloudDraws[0].view.begin());
+            std::copy_n(cloudModel.m, 16, cloudDraws[0].model.begin());
+            cloudDraws[0].color = {weather->CloudColor.r, weather->CloudColor.g,
+                                   weather->CloudColor.b, weather->CloudColor.a};
+            const auto scroll = weather->getCloudScrollOffset();
+            cloudDraws[0].windOffset = {scroll.x, scroll.y};
+            cloudDraws[0].cover = weather->CloudCover;
+            cloudDraws[0].density = weather->CloudDensity;
+            clouds = cloudDraws;
+        }
+    }
+    std::vector<SdlParticleVertex> particleVertices;
+    const auto& emitters = workspace.getRenderParticleEmitters();
+    if (!emitters.empty()) {
+        if (!std::isfinite(cameraForward.x) || !std::isfinite(cameraForward.y) ||
+            !std::isfinite(cameraForward.z) || !std::isfinite(cameraUp.x) ||
+            !std::isfinite(cameraUp.y) || !std::isfinite(cameraUp.z)) {
+            error = "Particle billboard camera basis contains non-finite values";
+            return false;
+        }
+        Vector3 particleRight = Vector3::Cross(cameraForward, cameraUp).normalize();
+        if (!std::isfinite(particleRight.length()) || particleRight.length() < 0.0001f) {
+            error = "Particle billboard camera forward and up vectors are parallel";
+            return false;
+        }
+        const Vector3 particleUp = Vector3::Cross(particleRight, cameraForward).normalize();
+        for (const ParticleEmitter* emitter : emitters) {
+            if (!emitter) {
+                error = "Workspace contains an empty ParticleEmitter render entry";
+                return false;
+            }
+            for (const auto& particle : emitter->getParticles()) {
+                if (!std::isfinite(particle.lifetime) || particle.lifetime <= 0.0f) {
+                    error = "ParticleEmitter '" + emitter->getFullPath() +
+                            "' contains a particle with invalid lifetime";
+                    return false;
+                }
+                const float t = particle.lifetime > 0.0001f
+                    ? std::clamp(particle.age / particle.lifetime, 0.0f, 1.0f) : 1.0f;
+                const Color4 color = emitter->StartColor + (emitter->EndColor - emitter->StartColor) * t;
+                const float half = (emitter->StartSize + (emitter->EndSize - emitter->StartSize) * t) * 0.5f;
+                const float cs = std::cos(particle.spinAngle);
+                const float sn = std::sin(particle.spinAngle);
+                const Vector3 right = particleRight * cs + particleUp * sn;
+                const Vector3 up = particleUp * cs - particleRight * sn;
+                const Vector3 corners[4] = {
+                    particle.position - right * half - up * half,
+                    particle.position + right * half - up * half,
+                    particle.position + right * half + up * half,
+                    particle.position - right * half + up * half};
+                constexpr int order[6] = {0, 1, 2, 2, 3, 0};
+                for (const int index : order) {
+                    particleVertices.push_back({{corners[index].x, corners[index].y, corners[index].z},
+                                                {color.r, color.g, color.b, color.a}});
+                }
+            }
+        }
+    }
+    std::array<float, 16> particleView{};
+    std::array<float, 16> particleProjection{};
+    const Matrix4 particleViewMatrix;
+    std::copy_n(particleViewMatrix.m, 16, particleView.begin());
+    std::copy_n(viewProjection.m, 16, particleProjection.begin());
+    m_state->surfaceMarks.clear();
+    for (SurfaceMark* mark : workspace.getRenderSurfaceMarks()) {
+        if (!mark) {
+            RCBN_WARN("Workspace contains an empty SurfaceMark render entry");
+            continue;
+        }
+        if (mark->texturePath.empty()) continue;
+        if (!std::isfinite(mark->Size.x) || !std::isfinite(mark->Size.y) ||
+            !std::isfinite(mark->Size.z) || mark->Size.x <= 0.0f ||
+            mark->Size.y <= 0.0f || mark->Size.z <= 0.0f) {
+            RCBN_WARN("SurfaceMark has invalid Size: " << mark->getFullPath());
+            continue;
+        }
+        if (!std::isfinite(mark->Color.r) || !std::isfinite(mark->Color.g) ||
+            !std::isfinite(mark->Color.b) || !std::isfinite(mark->Color.a)) {
+            RCBN_WARN("SurfaceMark has non-finite Color: " << mark->getFullPath());
+            continue;
+        }
+        if (mark->Color.a <= 0.001f) {
+            continue;
+        }
+        const auto texture = m_state->resolveSceneImage(AssetPath::normalize(mark->texturePath));
+        if (!texture) {
+            RCBN_WARN("SurfaceMark texture could not be resolved: " << mark->getFullPath());
+            continue;
+        }
+        const CFrame markFrame = mark->getWorldCFrame();
+        const Matrix4 markView = markFrame.inverse().toMatrix4();
+        const Matrix4 markProjection = Matrix4::Ortho(
+            -mark->Size.x * 0.5f, mark->Size.x * 0.5f,
+            -mark->Size.y * 0.5f, mark->Size.y * 0.5f,
+            0.001f, mark->Size.z);
+        SdlSurfaceMarkDraw surfaceMark;
+        surfaceMark.path = mark->getFullPath();
+        std::copy_n(markView.m, 16, surfaceMark.worldToLocal.begin());
+        const Matrix4 markViewProjection = markProjection * markView;
+        std::copy_n(markViewProjection.m, 16, surfaceMark.projection.begin());
+        surfaceMark.size = {mark->Size.x, mark->Size.y, mark->Size.z};
+        surfaceMark.tint = {mark->Color.r, mark->Color.g, mark->Color.b, mark->Color.a};
+        surfaceMark.texture = texture;
+        std::unordered_set<const BaseCube*> seenTargets;
+        for (const auto& mesh : m_state->meshes) {
+            const auto* target = mesh.owner;
+            if (!target || !seenTargets.insert(target).second) continue;
+            const auto* meshCube = dynamic_cast<const MeshCube*>(target);
+            const bool visible = target->Color.a > 0.001f ||
+                (meshCube && meshCube->isUsingFallback());
+            if (dynamic_cast<const Skybox*>(target) || !visible ||
+                !mark->allowsSurfaceTarget(*target)) continue;
+            if (!mark->intersectsSphere(target->getWorldCFrame().Position,
+                                        target->Size.length() * 0.5f)) continue;
+            surfaceMark.targets.push_back(target);
+        }
+        if (surfaceMark.targets.empty()) {
+            RCBN_WARN("SurfaceMark has no drawable targets: " << mark->getFullPath());
+        } else {
+            SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
+                         "SurfaceMark '%s' collected with %zu targets and texture %u",
+                         mark->getFullPath().c_str(), surfaceMark.targets.size(), surfaceMark.texture);
+            m_state->surfaceMarks.push_back(std::move(surfaceMark));
+        }
+    }
+    std::ranges::sort(m_state->surfaceMarks, {}, [](const SdlSurfaceMarkDraw& mark) {
+        return mark.path;
+    });
+    auto materialLighting = collectMaterialLighting(workspace, cameraPosition);
+    if (shadowData) materialLighting.shadowCascades = *shadowData;
     const bool drawn = m_state->renderer.draw(commandBuffer, width, height, draws,
                                                error, lightProjection.has_value(),
-                                               collectMaterialLighting(workspace, cameraPosition),
-                                               skyFaces, m_state->celestialDraws);
+                                               materialLighting,
+                                               skyFaces, m_state->skyModel ? &m_state->skyboxSource : nullptr,
+                                               m_state->celestialDraws, clouds, particleVertices,
+                                               &particleView, &particleProjection, effectTime,
+                                               m_state->surfaceMarks);
     if (!drawn) {
         return false;
     }
@@ -1216,7 +1484,8 @@ bool SdlLiveScene::recordOutline(SDL_GPUCommandBuffer& commandBuffer, SDL_GPUTex
         std::copy_n(mvp.m, 16, draw.modelViewProjection.begin());
     }
     return selected.empty() || m_state->renderer.drawOutline(commandBuffer, destination, selected,
-                                                              color, thickness, error);
+                                                              color, thickness, error,
+                                                              m_state->effectTime);
 }
 
 bool SdlLiveScene::drawTerrainGuide(SDL_GPUCommandBuffer& commandBuffer, const Vector3& center,
@@ -1410,7 +1679,8 @@ int runSdlScenePreview(const std::string& scenePath,
     config.width = PREVIEW_WIDTH;
     config.height = PREVIEW_HEIGHT;
     config.driver = driver;
-    config.shaderFormats = SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL;
+    config.shaderFormats = SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL |
+                           SDL_GPU_SHADERFORMAT_MSL;
     config.present = !captureDir.has_value();
     config.createWindowOffscreen = studio && captureDir.has_value();
     config.visible = !captureDir.has_value();
@@ -1635,7 +1905,8 @@ int runSdlScenePreview(const std::string& scenePath,
                 Vector3(1.35f * cosine + 1.65f * sine, 0.9f, 1.65f * cosine - 1.35f * sine) * distance;
             const Matrix4 view = Matrix4::LookAt(eye, center, Vector3(0, 1, 0));
             // The orbit preview frames the loaded scene, so center its shadow coverage there.
-            lightProjection = shadowProjection(*workspaces.front(), center, Vector3{});
+            lightProjection = shadowProjection(*workspaces.front(), center, (center - eye).normalize(),
+                                               60.0f, aspect);
             const Matrix4 projection = sdlPerspective(60.0f, aspect, std::max(0.01f, distance * 0.01f),
                                                           distance * 8.0f);
             viewProjection = projection * view;
@@ -1656,7 +1927,8 @@ int runSdlScenePreview(const std::string& scenePath,
         }
         SDL_GPUTexture* resultTexture = nullptr;
         const float effectTime = captureDir ? 0.0f : static_cast<float>(SDL_GetTicks() - streamStart) / 1000.0f;
-        if (!renderer.draw(*frame.command, width, height, drawItems, error, lightProjection.has_value()) ||
+        if (!renderer.draw(*frame.command, width, height, drawItems, error, lightProjection.has_value(),
+                           {}, {}, nullptr, {}, {}, {}, nullptr, nullptr, effectTime) ||
             !postEffects.apply(*workspaces.front(), *frame.command, *renderer.colorTarget(),
                                width, height, effectTime, resultTexture, error)) {
             std::cerr << "SDL scene preview: draw failed: " << error << '\n';

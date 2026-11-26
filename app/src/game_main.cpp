@@ -513,7 +513,8 @@ int main(int argc, char* argv[]) {
         config.present = !selfCheck;
         config.createWindowOffscreen = selfCheck;
         config.driver = *runtimeArgs.gpuDriver;
-        config.shaderFormats = SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL;
+        config.shaderFormats = SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL |
+                               SDL_GPU_SHADERFORMAT_MSL;
         std::string error;
         if (!sdlWindow->initialize(config, &error)) {
             RCBN_ERROR("SDL GPU runtime initialization failed: " << error);
@@ -1094,7 +1095,7 @@ int main(int argc, char* argv[]) {
             const unsigned width = selfCheck ? SELF_CHECK_WIDTH : frame.width;
             const unsigned height = selfCheck ? SELF_CHECK_HEIGHT : frame.height;
             const Matrix4 projection = sdlSceneViewProjection(*user, static_cast<float>(width) / height);
-            if (!sdlScene->draw(*workspace, projection, user->cpos, user->forward, effectTime,
+            if (!sdlScene->draw(*workspace, projection, user->cpos, user->forward, user->up, effectTime,
                                 *frame.command, width, height, error, {}, &sdlSurfaceGui->layers())) {
                 RCBN_ERROR("SDL GPU scene draw failed: " << error);
                 if (sdlImGui) ImGui::EndFrame();

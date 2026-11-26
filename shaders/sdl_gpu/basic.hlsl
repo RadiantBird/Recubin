@@ -41,6 +41,10 @@ cbuffer ShadowUniforms : register(b0, space3) {
 VSOutput VSMain(VSInput input) {
     VSOutput output;
     float4 position = float4(input.position, 1.0);
+    if (renderParams.w > 0.5 && input.position.y > 0.0) {
+        position.y += sin(renderParams.z * 1.5 + input.position.x * 4.0 +
+                          input.position.z * 4.0) * 0.06;
+    }
     output.position = renderParams.x > 0.5 ? mul(shadowModelViewProjection, position)
                                            : mul(modelViewProjection, position);
     if (renderParams.y > 0.5) {
@@ -48,9 +52,9 @@ VSOutput VSMain(VSInput input) {
     }
     output.color = color * input.color;
     output.uv = input.uv;
-    output.shadowPosition = mul(shadowModelViewProjection, float4(input.position, 1.0));
+    output.shadowPosition = mul(shadowModelViewProjection, position);
     output.worldPosition = mul(modelMatrix, position).xyz;
-    output.localPosition = input.position;
+    output.localPosition = position.xyz;
     output.localNormal = input.normal;
     const float3 modelX = mul(modelMatrix, float4(1.0, 0.0, 0.0, 0.0)).xyz;
     const float3 modelY = mul(modelMatrix, float4(0.0, 1.0, 0.0, 0.0)).xyz;
@@ -125,6 +129,14 @@ Texture2D<float4> normalTexture : register(t7, space2);
 [[vk::combinedImageSampler]]
 #endif
 SamplerState normalSampler : register(s7, space2);
+#ifdef __spirv__
+[[vk::combinedImageSampler]]
+#endif
+TextureCube<float4> environmentTexture : register(t8, space2);
+#ifdef __spirv__
+[[vk::combinedImageSampler]]
+#endif
+SamplerState environmentSampler : register(s8, space2);
 
 struct SdlLocalLight {
     float4 positionAndRange;
@@ -137,6 +149,7 @@ cbuffer MaterialLighting : register(b1, space3) {
     float4 sunDirection;
     float4 sunIrradiance;
     SdlLocalLight lights[8];
+    float4 environmentParams;
 };
 
 static const float PBR_PI = 3.14159265;
@@ -160,6 +173,15 @@ float pbrG(float ndv, float ndl, float roughness) {
 
 float3 pbrF(float cosTheta, float3 f0) {
     return f0 + (1.0 - f0) * pow(saturate(1.0 - cosTheta), 5.0);
+}
+
+float3 pbrEnvBrdfApprox(float3 f0, float roughness, float ndv) {
+    const float4 c0 = float4(-1.0, -0.0275, -0.572, 0.022);
+    const float4 c1 = float4(1.0, 0.0425, 1.04, -0.04);
+    const float4 r = roughness * c0 + c1;
+    const float a004 = min(r.x * r.x, exp2(-9.28 * ndv)) * r.x + r.y;
+    const float2 ab = float2(-1.04, 1.04) * a004 + r.zw;
+    return f0 * ab.x + ab.y;
 }
 
 float3 pbrDirect(float3 n, float3 v, float3 l, float3 irradiance,
@@ -265,6 +287,17 @@ float4 PSMain(VSOutput input) : SV_Target0 {
             shadowCoord.z >= 0.0 && shadowCoord.z <= 1.0) {
             float depth = shadowTexture.Sample(shadowSampler, shadowUv);
             shadowFactor = shadowCoord.z - 0.002 > depth ? 0.45 : 1.0;
+            const float fragmentDistance = length(input.worldPosition - cameraAndLightCount.xyz);
+            const float fadeDistance = max(environmentParams.z, 0.0);
+            const float fadeWidth = max(environmentParams.w, 0.0);
+            float shadowFade = 0.0;
+            if (fadeWidth <= 0.0) {
+                shadowFade = fragmentDistance <= fadeDistance ? 1.0 : 0.0;
+            } else {
+                shadowFade = 1.0 - smoothstep(max(fadeDistance - fadeWidth, 0.0),
+                                             fadeDistance, fragmentDistance);
+            }
+            shadowFactor = lerp(1.0, shadowFactor, shadowFade);
         }
     }
     float4 result = input.color * diffuse;
@@ -283,13 +316,16 @@ float4 PSMain(VSOutput input) : SV_Target0 {
     }
     const uint materialFlags = (uint)max(meshDecalMaximum.w, 0.0);
     const bool usePbr = (materialFlags & 1u) != 0u;
+    const bool unlit = (materialFlags & 16u) != 0u;
     float3 normal = float3(0.0, 0.0, 1.0);
     MaterialMapping map = (MaterialMapping)0;
-    if (usePbr || materialParams.y > 0.5) {
+    {
         const float3 geometric = cross(ddx(input.worldPosition), ddy(input.worldPosition));
         const float3 faceNormal = safeNormalize(geometric, normal);
         normal = safeNormalize(input.worldNormal, faceNormal);
-        map = materialMapping(input.worldPosition, normal, materialParams.x);
+        if (usePbr || materialParams.y > 0.5) {
+            map = materialMapping(input.worldPosition, normal, materialParams.x);
+        }
         if (materialParams.y > 0.5) {
             result.rgb *= sampleMaterialMap(materialTexture, materialSampler, map);
         }
@@ -297,6 +333,12 @@ float4 PSMain(VSOutput input) : SV_Target0 {
     if (shadowParams.y > 0.5 && shadowParams.y < 1.5) {
         float4 overlay = surfaceTexture.Sample(surfaceSampler, input.uv);
         result.rgb = result.rgb * (1.0 - overlay.a) + overlay.rgb;
+    }
+    if (shadowParams.w < 0.5) {
+        result.a = input.color.a;
+    }
+    if (unlit) {
+        return result;
     }
     if (usePbr) {
         const float3 view = safeNormalize(cameraAndLightCount.xyz - input.worldPosition,
@@ -342,13 +384,36 @@ float4 PSMain(VSOutput input) : SV_Target0 {
                                         lights[i].radiance.rgb * attenuation,
                                         albedo, metallic, roughness, f0);
         }
+        const float ndv = max(dot(normal, view), 1e-4);
+        const float3 reflection = reflect(-view, normal);
+        const float3 prefiltered = environmentTexture.SampleLevel(
+            environmentSampler, reflection, roughness * environmentParams.y).rgb;
+        lightingResult += prefiltered * pbrEnvBrdfApprox(f0, roughness, ndv) * environmentParams.x;
         result.rgb = lightingResult;
+        return result;
     }
-    if (shadowParams.w < 0.5) {
-        result.a = input.color.a;
+    const float3 lambertNormal = safeNormalize(normal, float3(0.0, 0.0, 1.0));
+    float3 lambertLighting = float3(0.3, 0.3, 0.3);
+    const float3 sunL = safeNormalize(sunDirection.xyz, float3(0.0, 1.0, 0.0));
+    lambertLighting += max(dot(lambertNormal, sunL), 0.0) *
+                       sunIrradiance.rgb * shadowFactor;
+    const uint lightCount = min((uint)max(cameraAndLightCount.w, 0.0), 8u);
+    for (uint i = 0u; i < lightCount; ++i) {
+        const float3 toLight = lights[i].positionAndRange.xyz - input.worldPosition;
+        const float distanceToLight = length(toLight);
+        const float3 lightDirection = toLight / max(distanceToLight, 1e-4);
+        float attenuation = saturate(1.0 - distanceToLight /
+                                     max(lights[i].positionAndRange.w, 1e-4));
+        attenuation *= attenuation;
+        if (lights[i].directionAndCutoff.w > -1.5) {
+            const float cone = dot(-lightDirection,
+                                   safeNormalize(lights[i].directionAndCutoff.xyz,
+                                                 float3(0.0, -1.0, 0.0)));
+            attenuation *= step(lights[i].directionAndCutoff.w, cone);
+        }
+        lambertLighting += max(dot(lambertNormal, lightDirection), 0.0) *
+                           lights[i].radiance.rgb * attenuation;
     }
-    if (!usePbr) {
-        result.rgb *= shadowFactor;
-    }
+    result.rgb *= lambertLighting;
     return result;
 }

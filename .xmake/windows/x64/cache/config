@@ -1,11 +1,11 @@
 {
-    mtimes = {
-        ["xmake.lua"] = 1795528108
-    },
     recheck = false,
     options = {
+        depdir = "C:/Users/Ryarta/Documents/Recubin/lib",
         mode = "release",
-        ["sdl-gpu-preview"] = true,
-        ccache = false
+        ["sdl-gpu-preview"] = true
+    },
+    mtimes = {
+        ["xmake.lua"] = 1795528684
     }
 }

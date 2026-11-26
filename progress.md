@@ -995,3 +995,34 @@
 - 不透明物の描画後にシーン深度をテストし、深度を書き込まずに空を描く。半透明物はその後で空と合成する。Skybox は影と選択描画の対象外。
 - xmake Windows Release で Studio・Engine・Test・Runtime が成功。Studio で全 6 面、カメラ移動、画像なしの面、上下と遮蔽・透過を確認。Engine で回転、色へのフォールバック、遮蔽と透過を確認した。両 GPU のアプリ内 PNG 13 組が一致し、既存の影とカスタム GLSL の PNG も変更前と一致。クローン、ビューポート補助、GUI 自動化の回帰 3 件が成功。
 - 次は Sun／Moon の円盤・満ち欠け・光条と雲、Skybox を使う環境スペキュラ反射。組み込みポスト処理、Studio の画像プレビューと実機入力検証、配布物の確認、SDL GPU の既定化と旧描画経路の撤去も残る。
+
+## 2026-11-25 SDL GPU 移行 1・2 作業途中
+
+- 作業 worktree: `build/sdl-gpu-worktree`、基点 `8737cba`。元の master worktree と `.xmake` ローカル差分は保持。移行 worktree に固定サブモジュールと `external/sokol-tools/ext/SPIRV-Cross` を初期化し、xmake で元 worktree の `lib` を依存物として参照。
+- 太陽・満月の共通 Sphere を描画リストへ接続し、半透明球を他の半透明メッシュと深度順に並べる変更を作業中。6 種の組み込み PostEffect と Custom の ZIndex 混在処理、および SPIR-V から MSL への変換 API は初版。いずれも実機検証前。
+- Windows xmake Release の初回 Engine ビルドは、SPIRV-Cross 未展開で停止。固定版を展開済み。再ビルドと、天体・PostEffect の Vulkan/D3D12 両方のアプリ内 PNG 検証が次の手順。`build/sdl-gpu-validation` に既存天体素材と PostEffect 検証素材を準備した。
+- 非 Material の Lambert 照明を実装中。雲、Skybox 環境反射、影の差異、SurfaceMark、パーティクル、LiquidCube、ゲーム内 Highlight、Metal 用組み込みシェーダー生成と実行時接続は未完了。SDK と macOS 実機は対象外。
+- `shaders/sdl_gpu/post_effect.hlsl` の SPIR-V／DXIL 生成は成功。正式ビルド・回帰・GPU 出力はまだ合格していない。`.xmake` の差分はこの worktree での xmake 設定による生成物なので、ソース差分と区別する。
+- 追記: xmake Release の `RecubinEngine` と `Recubin` はビルド成功（`-P . --depdir=C:/Users/Ryarta/Documents/Recubin/lib`）。Engine/Studio と Vulkan/D3D12 の天体素材 17 ケースを再取得し、アプリ別の各 GPU 出力は全ケース一致。太陽・満月の可視表示も確認したが遮蔽・深度順・地平線の期待値確認は継続中。
+- PostEffect の 6 組み込み、カスタム混在、初回エラーの検証スクリプトは通過。CRT は 960×540 中 76 画素で GPU 間 RGB 最大差 1、VHS は時刻依存。混在チェーンの具体的な上下・色・順序の期待値検証と、成功版維持の再読み込みは未完了。Lambert のレビューで PBR マッピングの回帰を修正し、修正後の再ビルド・材質検証が必要。MSL 変換 API はコンパイル成功だが、Metal 実行経路と組み込み生成は未接続。
+- 追記: 雲専用 SDL パスを追加し、Skybox/月相後・半透明物前に深度テスト付きで合成。Windows Release の Studio/Engine ビルド成功。Weather の高さ・密度・風と前景 Cube の遮蔽を両 GPU のアプリ内 PNG で確認し、主要プローブは一致。天体 17 ケースも雲追加後に再実行して両 GPU 画像が一致。
+- Custom GLSL の赤→緑→構文エラーは PowerShell/.NET 版で両 GPU を実行し、最後の緑の全画素維持と警告 1 回を確認。Custom→組み込み→Custom の座標・ZIndex は 5 点の期待 RGB と比較。Lambert の材質マップ検証素材には FileRef 解決失敗があり修正中で、まだ合格ではない。
+- Metal: SPIRV-Cross と変換ツールを xmake に接続し、Engine のビルド成功。SDL のシェーダー選択と PostEffect 実行時 MSL 経路を追加中。ただし生成 MSL の資源 binding が HLSL の slot と一致するかレビュー中であり、Metal 対応は未完了。macOS 実機試験は後続工程。
+- 追記: Lambert の BaseColorMap なしで各 Roughness/Metallic/Normal マップを個別 on/off にした対照を用意し、Vulkan の該当画素差を確認。Sun と Point の Lambert 対照も確認したが、Spot のテストは同値となったため照射条件を調査中。D3D12 を含む最終完走は未了。
+- Skybox 環境反射の shader と既定空 cubemap の基盤を追加。旧式の mip 平均化と cloud 解放後のポインタ初期化を修正したが、現時点では未統合・実機未検証。Skybox 入力6面、GGX prefilter と PBR shader への接続が残る。Metal 生成 MSL は全既存 shader の binding と entrypoint を照合済み。固定環境は Windows であり Metal 実機は未検証。
+- 最後の Engine 再リンクは検証プロセスが実行ファイルを開いていたため LNK1104。プロセス終了後、作業中のソース変更が落ち着いてから Windows xmake で再ビルドする。生成 `.xmake` は作業用キャッシュ差分として残っている。
+- 追記: Lambert の Sun／Point／Spot／Unlit 対照と、BaseColorMap 無しの Roughness／Metallic／Normal 各 on/off 対照が Vulkan／D3D12 で通過。公開 Custom GLSL を glslang→SPIR-V→MSL に変換する Windows の実ライブラリテストで `main0` と texture/sampler/buffer 0 を確認。Metal 実機未検証。
+- Highlight 対象の BaseCube/Model 収集を旧 Renderer と SDL で共有するユーティリティに切り出した。SDL Highlight 本体は未実装。
+- Skybox 6面 source cubemap の中間実装はレビューで各方向に対する描画行列の適用不足を発見し修正中。GGX prefilter の実行と PBR 接続、更新失敗時の動作、全 GPU 検証は未完了。現在変更途中のため再開時に `SdlBasicRenderer::draw` と `SdlSkyboxSource` を最初にレビューする。
+
+## 2026-11-26 SDL GPU 移行 1・2 継続
+
+- Skybox の回転を環境 source signature へ追加。旧 GGX BRDF・roughness mip の環境反射を PBR に接続し、画像なし／Skybox 不在は既定空を使用。Windows xmake Release の Studio・Engine が成功。6色・回転・既定空の Engine capture は Vulkan／D3D12 で各画像一致。Studio 同一プロセスで Skybox 画像を赤→緑へ差し替え、鏡面 Cube の領域の反射更新を両 GPU で確認。回転・削除の同一プロセス検証と6面の方向・上下の期待値は未了。
+- 環境 cubemap 作成失敗の候補解放で旧テクスチャが破棄され得る問題、同一署名の source 再試行抑制漏れを修正。prefilter/source pass の failure はエラー記録して描画を中断、作成失敗は旧版または fallback を保持して継続。全 failure 経路の実機注入検証は未了。
+- ParticleEmitter の既存粒子状態を読む SDL GPU billboard パスを追加。実カメラ上方向・roll、depth test、buffer cycle を使用しシミュレーションを描画から更新しない。Windows xmake Studio/Engine Release build 成功。Engine の表示・遮蔽と Studio Play の表示・遮蔽・roll を Vulkan／D3D12 の app内 capture で確認。複数 viewport は未検証。
+- 引き続き未完: LiquidCube の波と各描画パスの同期、SurfaceMark、ゲーム内 Highlight、影の遠近・設定差、反射の方向・キャッシュ検証。SDL の環境更新まわりは大きな中間実装のため最終ソースレビューと regression が必要。Metal は生成・変換を Windows 上で検証済みだが macOS 実機は後続工程。
+- 追記: Cube の標準 geometry が面法線ゼロで Lambert の ground が ambient のみとなり影も見えなかった原因を修正。既存 createCubeVertices を使う24頂点 Cube を default/面範囲で共用し、Vulkan/D3D12 とも影 ROI (550,350) が CastShadow on=(170,170,170)、off=(255,255,255)。正式な影距離・フェード・ShadowMode 対照と3カスケードは未完。
+- LiquidCube は Cube geometry へ接続し、旧波式を通常・shadow・selection の共通頂点 shader へ追加。Studio で2時刻の上面変化、Engine の半透明表示、影 on/off の画面差を両 GPU で確認。選択輪郭と厳密な頂点同期は未検証。
+- SurfaceMark の対象・画像 cache 収集と GPU shader/pipeline/depth resource は中間実装。現在 mark 毎の depth/composite pass と scene draw への接続を実装中で、機能検証前。旧 Renderer の cascade 数学を共通関数へ移す作業も進行中。
+- 追記: 実行中 Skybox 画像の赤→緑差替えを Studio 同一プロセスで行い、Cube 正面 ROI の反射色変化を Vulkan/D3D12 で確認。影の有効シーンでは ShadowDistance、FadeDistance 単独対照、ShadowMode Never/Normal/Always、CastShadow の ROI を両 GPU で確認。GPU の3 cascade・PCF は未実装。
+- `SdlMaterialLighting` に shadow 値を追加した際の GPU UBO offset 錯誤を発見し、GPU 専用 payload と offset/size static_assert で修正。その後 Engine/Studio の xmake Release が成功。

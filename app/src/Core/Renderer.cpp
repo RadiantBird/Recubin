@@ -1,4 +1,7 @@
 #include <Core/Renderer.hpp>
+#include <Core/ShadowCascades.hpp>
+#include <Core/HighlightTargets.hpp>
+#include <Core/RenderRibbons.hpp>
 #include <Core/ScreenGuiLayout.hpp>
 #include <Core/Physics.hpp>
 #include <Core/FileLoader.hpp>
@@ -124,92 +127,6 @@ static bool bindHighlightGeometry(BaseCube* target, GLsizei& outIndexCount) {
     glBindVertexArray(vao);
     outIndexCount = (GLsizei)idx;
     return true;
-}
-
-// 独立した(連結ポリラインでない)線分群を、画面上で常に一定ピクセル幅に見えるリボンに変換する。
-// segmentEndpoints: ワールド空間、セグメントごとに(x0,y0,z0,x1,y1,z1)のフラット配列。
-// fovYDegrees/viewportHeightPxはMatrix4::Perspective()と同じ規約(垂直視野角・ピクセル高さ)。
-static void buildSegmentRibbons(const std::vector<float>& segmentEndpoints,
-                                 const Vector3& cameraPosition, float fovYDegrees,
-                                 int viewportHeightPx, float pixelWidth,
-                                 std::vector<float>& outVerts) {
-    outVerts.clear();
-    if (viewportHeightPx <= 0 || pixelWidth <= 0.001f) return;
-    const float tanHalfFov = std::tan(fovYDegrees * 3.14159265f / 360.0f);
-    for (size_t i = 0; i + 5 < segmentEndpoints.size(); i += 6) {
-        Vector3 p0(segmentEndpoints[i],   segmentEndpoints[i+1], segmentEndpoints[i+2]);
-        Vector3 p1(segmentEndpoints[i+3], segmentEndpoints[i+4], segmentEndpoints[i+5]);
-        Vector3 segVec = p1 - p0;
-        float len = segVec.length();
-        if (len < 1e-6f) continue;
-        Vector3 segDir = segVec / len;
-        Vector3 mid = (p0 + p1) * 0.5f;
-        Vector3 toCam = cameraPosition - mid;
-        Vector3 viewDir = (toCam.length() > 1e-6f) ? toCam.normalize() : Vector3(0,1,0);
-        Vector3 right = Vector3::Cross(segDir, viewDir);
-        if (right.length() < 1e-5f) right = Vector3::Cross(segDir, Vector3(0,1,0));
-        if (right.length() < 1e-5f) right = Vector3::Cross(segDir, Vector3(1,0,0));
-        if (right.length() < 1e-5f) right = Vector3::Cross(segDir, Vector3(0,0,1));
-        right = right.normalize();
-        float d0 = (cameraPosition - p0).length();
-        float d1 = (cameraPosition - p1).length();
-        float half0 = pixelWidth * d0 * tanHalfFov / (float)viewportHeightPx;
-        float half1 = pixelWidth * d1 * tanHalfFov / (float)viewportHeightPx;
-        Vector3 a0 = p0 + right * half0, a1 = p0 - right * half0;
-        Vector3 b0 = p1 + right * half1, b1 = p1 - right * half1;
-        auto push = [&](const Vector3& v){ outVerts.push_back(v.x); outVerts.push_back(v.y); outVerts.push_back(v.z); };
-        push(a0); push(a1); push(b1);
-        push(a0); push(b1); push(b0);
-    }
-}
-
-// 連結ポリライン(フラットな(x,y,z)*N配列)を、カメラ向きのリボン三角形(GL_TRIANGLES用フラット頂点配列)に
-// 変換する。ワールド空間の全幅(width)を使う。各頂点で前後セグメント方向を平均した接線を使うため、
-// ジョイント部に隙間ができない。m_lineProgramのaPosレイアウト(position-only vec3)にそのまま渡せる。
-static void buildRibbonStrip(const std::vector<float>& points, float width,
-                              const Vector3& cameraPos, std::vector<float>& outVerts) {
-    size_t n = points.size() / 3;
-    if (n < 2 || width <= 0.0f) return;
-    float halfW = width * 0.5f;
-    std::vector<Vector3> pts(n), left(n), right(n);
-    for (size_t i = 0; i < n; ++i) pts[i] = Vector3(points[i*3], points[i*3+1], points[i*3+2]);
-    for (size_t i = 0; i < n; ++i) {
-        Vector3 dirPrev = (i > 0)     ? (pts[i] - pts[i-1]).normalize() : (pts[i+1] - pts[i]).normalize();
-        Vector3 dirNext = (i+1 < n)   ? (pts[i+1] - pts[i]).normalize() : dirPrev;
-        Vector3 tangent = (dirPrev + dirNext).normalize();
-        Vector3 viewDir = (cameraPos - pts[i]).normalize();
-        Vector3 side = Vector3::Cross(tangent, viewDir);
-        float len = side.length();
-        side = (len > 1e-5f) ? (side / len) * halfW : Vector3(halfW, 0, 0); // 縮退時のフォールバック
-        left[i] = pts[i] + side; right[i] = pts[i] - side;
-    }
-    outVerts.reserve(outVerts.size() + (n - 1) * 18);
-    auto push = [&](const Vector3& v){ outVerts.push_back(v.x); outVerts.push_back(v.y); outVerts.push_back(v.z); };
-    for (size_t i = 0; i + 1 < n; ++i) {
-        push(left[i]);  push(right[i]);   push(left[i+1]);
-        push(right[i]); push(right[i+1]); push(left[i+1]);
-    }
-}
-
-// inst以下の全子孫からBaseCubeをすべて再帰収集する（Model境界・BaseCube境界のどちらでも止まらない）
-static void collectBaseCubesRecursive(Instance* inst, std::vector<BaseCube*>& out) {
-    if (!inst) return;
-    if (inst->IsA("BaseCube")) out.push_back(static_cast<BaseCube*>(inst));
-    for (auto const& [name, child] : inst->getChildren())
-        collectBaseCubesRecursive(child.get(), out);
-}
-
-// ハイライト対象の親（BaseCube単体 or Model）から、実際にハイライトすべきBaseCube群を収集する。
-// - parent が BaseCube そのもの: そのBaseCube 1個のみ（子孫へは再帰しない）
-// - parent が Model: 全子孫を再帰的に辿り、見つかったBaseCubeをすべて対象にする（入れ子Model含む）
-static void collectHighlightTargets(Instance* parent, std::vector<BaseCube*>& out) {
-    if (!parent) return;
-    if (parent->IsA("Model")) {
-        for (auto const& [name, child] : parent->getChildren())
-            collectBaseCubesRecursive(child.get(), out);
-    } else if (parent->IsA("BaseCube")) {
-        out.push_back(static_cast<BaseCube*>(parent));
-    }
 }
 
 // Highlight インスタンスを再帰収集（collectParticleEmittersと同じ形）
@@ -1019,7 +936,7 @@ void Renderer::renderLightning(Workspace& workspace, const Matrix4& view, const 
 
     constexpr float kLightningWidth = 0.15f; // ワールド空間幅
     std::vector<float> ribbon;
-    buildRibbonStrip(verts, kLightningWidth, cameraPosition, ribbon);
+        buildRibbonStrip(verts, kLightningWidth, cameraPosition, ribbon);
     if (ribbon.empty()) return;
 
     useLineProgram(view, projection);
@@ -1470,7 +1387,7 @@ void Renderer::renderBrushMarker(const Matrix4& view, const Matrix4& projection,
 
     constexpr float kBrushMarkerWidth = 0.1f; // ワールド空間幅
     std::vector<float> ribbon;
-    buildRibbonStrip(verts, kBrushMarkerWidth, cameraPosition, ribbon);
+        buildRibbonStrip(verts, kBrushMarkerWidth, cameraPosition, ribbon);
     if (ribbon.empty()) { glUseProgram(shaderProgram); return; }
 
     glBindVertexArray(m_lineVAO);
@@ -2420,113 +2337,27 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         // シャドウマップは毎フレーム再描画する。カメラ移動中に隔フレームで前フレームの
         // マップを再利用すると、動くキャスター(追従カメラ下のキャラ等)の影が1フレーム遅れ、
         // 交互にずれてちらつく。
-        constexpr float CAMERA_NEAR = 0.1f;
-        constexpr float CASCADE_SPLIT_LAMBDA = 0.7f;
-        constexpr float CASCADE_XY_MARGIN = 8.0f;
-        constexpr float CASCADE_DEPTH_MARGIN = 32.0f;
         const float shadowDistance = lighting->shadowDistance;
-        const float tanHalfFov = std::tan(fovYDegrees * pi / 360.0f);
-        const Vector3 cameraForward = desc.cameraForward.normalize();
-        const Vector3 cameraRight = Vector3::Cross(cameraForward, desc.cameraUp).normalize();
-        const Vector3 cameraUp = Vector3::Cross(cameraRight, cameraForward).normalize();
+        // Cascade matrices are supplied by buildShadowCascades below.
         const Vector3 ld = lightDirection;
-        const Vector3 lightUpReference = (std::fabsf(ld.y) < 0.99f) ?
-            Vector3(0.0f, 1.0f, 0.0f) : Vector3(0.0f, 0.0f, 1.0f);
-        const Vector3 lightRight = Vector3::Cross(ld, lightUpReference).normalize();
-        const Vector3 lightUp = Vector3::Cross(lightRight, ld).normalize();
-
-        // Practical split scheme: the logarithmic term preserves near-camera
-        // detail while the linear term prevents the far cascade from becoming
-        // unusably deep. The final split is exactly ShadowDistance so the
-        // existing distance/fade semantics remain unchanged.
-        const float cascadeRange = std::max(shadowDistance - CAMERA_NEAR, 0.001f);
-        for (int cascade = 0; cascade < SHADOW_CASCADE_COUNT - 1; ++cascade) {
-            const float fraction = static_cast<float>(cascade + 1) /
-                                   static_cast<float>(SHADOW_CASCADE_COUNT);
-            const float linearSplit = CAMERA_NEAR + cascadeRange * fraction;
-            const float logarithmicSplit = CAMERA_NEAR *
-                std::pow(shadowDistance / CAMERA_NEAR, fraction);
-            shadowCascadeSplits[cascade] =
-                linearSplit * (1.0f - CASCADE_SPLIT_LAMBDA) +
-                logarithmicSplit * CASCADE_SPLIT_LAMBDA;
-        }
-        shadowCascadeSplits[SHADOW_CASCADE_COUNT - 1] = shadowDistance;
-        const float firstCascadeRange = shadowCascadeSplits[0] - CAMERA_NEAR;
-        const float secondCascadeRange = shadowCascadeSplits[1] - shadowCascadeSplits[0];
-        shadowCascadeBlend[0] = std::min(
-            std::max(firstCascadeRange * 0.08f, 0.25f), firstCascadeRange * 0.45f);
-        shadowCascadeBlend[1] = std::min(
-            std::max(secondCascadeRange * 0.08f, 0.25f), secondCascadeRange * 0.45f);
-
-        FrameProfiler::Scope treeShadow("treeShadow");
-        for (int cascade = 0; cascade < SHADOW_CASCADE_COUNT; ++cascade) {
-            const float sliceNear = (cascade == 0) ? CAMERA_NEAR : shadowCascadeSplits[cascade - 1];
-            const float sliceFar = shadowCascadeSplits[cascade];
-            const Vector3 nearCenter = desc.cameraPosition + cameraForward * sliceNear;
-            const Vector3 farCenter = desc.cameraPosition + cameraForward * sliceFar;
-            const float nearHalfHeight = tanHalfFov * sliceNear;
-            const float farHalfHeight = tanHalfFov * sliceFar;
-            const float nearHalfWidth = nearHalfHeight * aspect;
-            const float farHalfWidth = farHalfHeight * aspect;
-            const std::array<Vector3, 8> frustumCorners = {
-                nearCenter - cameraRight * nearHalfWidth - cameraUp * nearHalfHeight,
-                nearCenter + cameraRight * nearHalfWidth - cameraUp * nearHalfHeight,
-                nearCenter - cameraRight * nearHalfWidth + cameraUp * nearHalfHeight,
-                nearCenter + cameraRight * nearHalfWidth + cameraUp * nearHalfHeight,
-                farCenter - cameraRight * farHalfWidth - cameraUp * farHalfHeight,
-                farCenter + cameraRight * farHalfWidth - cameraUp * farHalfHeight,
-                farCenter - cameraRight * farHalfWidth + cameraUp * farHalfHeight,
-                farCenter + cameraRight * farHalfWidth + cameraUp * farHalfHeight
-            };
-
-            float minLightX = std::numeric_limits<float>::max();
-            float maxLightX = std::numeric_limits<float>::lowest();
-            float minLightY = std::numeric_limits<float>::max();
-            float maxLightY = std::numeric_limits<float>::lowest();
-            float minLightDepth = std::numeric_limits<float>::max();
-            float maxLightDepth = std::numeric_limits<float>::lowest();
-            for (const Vector3& corner : frustumCorners) {
-                const float lightX = Vector3::Dot(lightRight, corner);
-                const float lightY = Vector3::Dot(lightUp, corner);
-                const float lightDepth = Vector3::Dot(ld, corner);
-                minLightX = std::min(minLightX, lightX);
-                maxLightX = std::max(maxLightX, lightX);
-                minLightY = std::min(minLightY, lightY);
-                maxLightY = std::max(maxLightY, lightY);
-                minLightDepth = std::min(minLightDepth, lightDepth);
-                maxLightDepth = std::max(maxLightDepth, lightDepth);
-            }
-
-            const float halfWidth = std::max((maxLightX - minLightX) * 0.5f + CASCADE_XY_MARGIN, 0.001f);
-            const float halfHeight = std::max((maxLightY - minLightY) * 0.5f + CASCADE_XY_MARGIN, 0.001f);
-            const float centerX = (maxLightX + minLightX) * 0.5f;
-            const float centerY = (maxLightY + minLightY) * 0.5f;
-            const float texelWidth = (2.0f * halfWidth) / static_cast<float>(SHADOW_MAP_SIZE);
-            const float texelHeight = (2.0f * halfHeight) / static_cast<float>(SHADOW_MAP_SIZE);
-            const float snappedCenterX = std::round(centerX / texelWidth) * texelWidth;
-            const float snappedCenterY = std::round(centerY / texelHeight) * texelHeight;
-
-            // The light camera looks along lightDir (the engine's light->surface
-            // convention). Its near/far values come from this slice's actual
-            // light-space bounds plus a bounded caster margin, not a global
-            // ShadowDistance-sized depth box.
-            const float lightNear = 0.1f;
-            const float lightFar = std::max(lightNear + 1.0f,
-                maxLightDepth - minLightDepth + CASCADE_DEPTH_MARGIN * 2.0f);
-            const Vector3 lightEye = lightRight * snappedCenterX +
-                                     lightUp * snappedCenterY +
-                                     ld * (minLightDepth - CASCADE_DEPTH_MARGIN);
-            const Matrix4 lightView = Matrix4::LookAt(lightEye, lightEye + ld, lightUpReference);
-            const Matrix4 lightProj = Matrix4::Ortho(-halfWidth, halfWidth,
-                                                      -halfHeight, halfHeight,
-                                                      lightNear, lightFar);
-            lightSpaceMatrices[cascade] = lightProj * lightView;
+        const auto sharedCascades = buildShadowCascades(
+            shadowDistance, fovYDegrees, aspect, desc.cameraPosition,
+            desc.cameraForward, desc.cameraUp, ld);
+        if (!sharedCascades) {
+            RCBN_ERROR("Renderer: failed to build shadow cascades; skipping shadow pass");
+            shadowReady = false;
+        } else {
+            lightSpaceMatrices = sharedCascades->lightSpaceMatrices;
+            shadowCascadeSplits = sharedCascades->splits;
+            shadowCascadeBlend = sharedCascades->blendWidths;
         }
 
-        if (captureGpuViewport) {
+        if (sharedCascades && captureGpuViewport) {
             writeGpuTimestamp(GpuTimestamp::ShadowBegin);
             capturedGpuShadow = true;
         }
+        if (sharedCascades) {
+        FrameProfiler::Scope treeShadow("treeShadow");
         {
         FrameProfiler::get().beginSection("shadow");
         glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
@@ -2722,6 +2553,7 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         glViewport(0, 0, desc.width, desc.height);
         FrameProfiler::get().endSection("shadow");
         if (captureGpuViewport) writeGpuTimestamp(GpuTimestamp::ShadowEnd);
+        }
         }
     }
     if (captureGpuViewport && !capturedGpuShadow) {
@@ -3244,7 +3076,8 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
             Vector3 q = tip - fwd * (d * 0.18f);
             for (Vector3 a : {tip, q + side * (d*0.08f), tip, q - side * (d*0.08f)}) { segs.push_back(a.x); segs.push_back(a.y); segs.push_back(a.z); }
         }
-        std::vector<float> ribbons; buildSegmentRibbons(segs, desc.cameraPosition, fovYDegrees, desc.height, 2.0f, ribbons);
+        std::vector<float> ribbons;
+        buildSegmentRibbons(segs, desc.cameraPosition, fovYDegrees, desc.height, 2.0f, ribbons);
         glBindVertexArray(m_lineVAO); glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
         glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(ribbons.size() * sizeof(float)), ribbons.data(), GL_DYNAMIC_DRAW);
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(ribbons.size() / 3)); glBindVertexArray(0); glUseProgram(shaderProgram);

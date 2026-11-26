@@ -186,7 +186,7 @@ ImTextureRef SdlStudioViewportRenderer::renderViewport(const ViewportPanel& pane
     const Matrix4 viewProjection = studioViewProjection(request);
     const std::vector<BaseCube*> selected = collectViewportSelection(request);
     if (!scene.draw(*request.workspace, viewProjection, request.cameraPosition,
-                    request.cameraForward, m_elapsed, *m_commandBuffer,
+                    request.cameraForward, request.cameraUp, m_elapsed, *m_commandBuffer,
                     static_cast<unsigned>(request.width), static_cast<unsigned>(request.height),
                     sceneError, selected, &m_surfaceGui->layers())) {
         reportError("SDL Studio viewport renderer: " + sceneError);

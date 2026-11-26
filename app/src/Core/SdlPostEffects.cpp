@@ -2,6 +2,7 @@
 
 #include <Core/PostEffectSpirv.hpp>
 #include <Core/SdlPostEffectDxil.hpp>
+#include <Core/SdlPostEffectMsl.hpp>
 #include <Instances/PostEffect.hpp>
 #include <Instances/Workspace.hpp>
 #include <Util/AssetPath.hpp>
@@ -75,6 +76,8 @@ void SdlPostEffects::releaseResources() {
         if (state->pipeline) SDL_ReleaseGPUGraphicsPipeline(m_device, state->pipeline);
         if (state->fragmentShader) SDL_ReleaseGPUShader(m_device, state->fragmentShader);
     }
+    if (m_builtinPipeline) SDL_ReleaseGPUGraphicsPipeline(m_device, m_builtinPipeline);
+    if (m_builtinFragmentShader) SDL_ReleaseGPUShader(m_device, m_builtinFragmentShader);
     m_effects.clear();
     for (SDL_GPUTexture*& texture : m_pingPong) {
         if (texture) SDL_ReleaseGPUTexture(m_device, texture);
@@ -84,6 +87,8 @@ void SdlPostEffects::releaseResources() {
     if (m_vertexShader) SDL_ReleaseGPUShader(m_device, m_vertexShader);
     m_sampler = nullptr;
     m_vertexShader = nullptr;
+    m_builtinFragmentShader = nullptr;
+    m_builtinPipeline = nullptr;
     m_width = 0;
     m_height = 0;
 }
@@ -93,7 +98,8 @@ bool SdlPostEffects::initialize(SDL_GPUDevice& device, std::string& error) {
     releaseResources();
     m_device = &device;
     const char* driver = SDL_GetGPUDeviceDriver(&device);
-    if (!driver || (std::string_view(driver) != "vulkan" && std::string_view(driver) != "direct3d12")) {
+    if (!driver || (std::string_view(driver) != "vulkan" && std::string_view(driver) != "direct3d12" &&
+                    std::string_view(driver) != "metal")) {
         error = "SdlPostEffects: unsupported SDL GPU driver";
         releaseResources();
         m_device = nullptr;
@@ -102,10 +108,11 @@ bool SdlPostEffects::initialize(SDL_GPUDevice& device, std::string& error) {
 
     SDL_GPUShaderCreateInfo vertexInfo{};
     const bool direct3d12 = std::string_view(driver) == "direct3d12";
-    vertexInfo.code = direct3d12 ? post_effect_gpu_vertex_dxil : post_effect_gpu_vertex_spirv;
-    vertexInfo.code_size = direct3d12 ? sizeof(post_effect_gpu_vertex_dxil) : sizeof(post_effect_gpu_vertex_spirv);
+    const bool metal = std::string_view(driver) == "metal";
+    vertexInfo.code = direct3d12 ? post_effect_gpu_vertex_dxil : (metal ? post_effect_gpu_vertex_msl : post_effect_gpu_vertex_spirv);
+    vertexInfo.code_size = direct3d12 ? sizeof(post_effect_gpu_vertex_dxil) : (metal ? sizeof(post_effect_gpu_vertex_msl) : sizeof(post_effect_gpu_vertex_spirv));
     vertexInfo.entrypoint = "VSMain";
-    vertexInfo.format = direct3d12 ? SDL_GPU_SHADERFORMAT_DXIL : SDL_GPU_SHADERFORMAT_SPIRV;
+    vertexInfo.format = direct3d12 ? SDL_GPU_SHADERFORMAT_DXIL : (metal ? SDL_GPU_SHADERFORMAT_MSL : SDL_GPU_SHADERFORMAT_SPIRV);
     vertexInfo.stage = SDL_GPU_SHADERSTAGE_VERTEX;
     m_vertexShader = SDL_CreateGPUShader(&device, &vertexInfo);
     if (!m_vertexShader) {
@@ -125,6 +132,39 @@ bool SdlPostEffects::initialize(SDL_GPUDevice& device, std::string& error) {
     m_sampler = SDL_CreateGPUSampler(&device, &samplerInfo);
     if (!m_sampler) {
         error = sdlError("SDL_CreateGPUSampler(post effect)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
+    SDL_GPUShaderCreateInfo fragmentInfo{};
+    fragmentInfo.code = direct3d12 ? post_effect_gpu_fragment_dxil : (metal ? post_effect_gpu_fragment_msl : post_effect_gpu_fragment_spirv);
+    fragmentInfo.code_size = direct3d12 ? sizeof(post_effect_gpu_fragment_dxil) : (metal ? sizeof(post_effect_gpu_fragment_msl) : sizeof(post_effect_gpu_fragment_spirv));
+    fragmentInfo.entrypoint = "PSMain";
+    fragmentInfo.format = direct3d12 ? SDL_GPU_SHADERFORMAT_DXIL : (metal ? SDL_GPU_SHADERFORMAT_MSL : SDL_GPU_SHADERFORMAT_SPIRV);
+    fragmentInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
+    fragmentInfo.num_samplers = 1;
+    fragmentInfo.num_uniform_buffers = 1;
+    m_builtinFragmentShader = SDL_CreateGPUShader(&device, &fragmentInfo);
+    if (!m_builtinFragmentShader) {
+        error = sdlError("SDL_CreateGPUShader(builtin post effect fragment)");
+        releaseResources();
+        m_device = nullptr;
+        return false;
+    }
+    SDL_GPUColorTargetDescription target{};
+    target.format = COLOR_FORMAT;
+    SDL_GPUGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.vertex_shader = m_vertexShader;
+    pipelineInfo.fragment_shader = m_builtinFragmentShader;
+    pipelineInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+    pipelineInfo.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+    pipelineInfo.rasterizer_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE;
+    pipelineInfo.rasterizer_state.enable_depth_clip = true;
+    pipelineInfo.target_info.num_color_targets = 1;
+    pipelineInfo.target_info.color_target_descriptions = &target;
+    m_builtinPipeline = SDL_CreateGPUGraphicsPipeline(&device, &pipelineInfo);
+    if (!m_builtinPipeline) {
+        error = sdlError("SDL_CreateGPUGraphicsPipeline(builtin post effect)");
         releaseResources();
         m_device = nullptr;
         return false;
@@ -191,10 +231,20 @@ bool SdlPostEffects::refreshEffect(EffectState& state, const std::string& path, 
         return false;
     }
     std::vector<std::uint8_t> dxil;
-    const bool direct3d12 = std::string_view(SDL_GetGPUDeviceDriver(m_device)) == "direct3d12";
+    std::string msl;
+    std::string entryPoint = "main";
+    const std::string_view gpuDriver = SDL_GetGPUDeviceDriver(m_device);
+    const bool direct3d12 = gpuDriver == "direct3d12";
+    const bool metal = gpuDriver == "metal";
     if (direct3d12) {
         std::string conversionError;
         if (!compileSdlPostEffectDxil(compiled.spirv, dxil, conversionError)) {
+            error = path + ": " + conversionError;
+            return false;
+        }
+    } else if (metal) {
+        std::string conversionError;
+        if (!compileSdlPostEffectMsl(compiled.spirv, msl, entryPoint, conversionError)) {
             error = path + ": " + conversionError;
             return false;
         }
@@ -202,12 +252,13 @@ bool SdlPostEffects::refreshEffect(EffectState& state, const std::string& path, 
     SDL_GPUShaderCreateInfo info{};
     info.code = direct3d12
                     ? reinterpret_cast<const Uint8*>(dxil.data())
-                    : reinterpret_cast<const Uint8*>(compiled.spirv.data());
+                    : (metal ? reinterpret_cast<const Uint8*>(msl.data())
+                             : reinterpret_cast<const Uint8*>(compiled.spirv.data()));
     info.code_size = direct3d12
-                         ? dxil.size() : compiled.spirv.size() * sizeof(std::uint32_t);
-    info.entrypoint = "main";
+                         ? dxil.size() : (metal ? msl.size() : compiled.spirv.size() * sizeof(std::uint32_t));
+    info.entrypoint = entryPoint.c_str();
     info.format = direct3d12
-                      ? SDL_GPU_SHADERFORMAT_DXIL : SDL_GPU_SHADERFORMAT_SPIRV;
+                      ? SDL_GPU_SHADERFORMAT_DXIL : (metal ? SDL_GPU_SHADERFORMAT_MSL : SDL_GPU_SHADERFORMAT_SPIRV);
     info.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
     info.num_samplers = 1;
     info.num_uniform_buffers = 1;
@@ -252,7 +303,7 @@ bool SdlPostEffects::apply(Workspace& workspace, SDL_GPUCommandBuffer& commandBu
     }
     std::vector<PostEffect*> effects;
     for (PostEffect* effect : workspace.getRenderPostEffects()) {
-        if (effect && effect->Enabled && effect->Type == PostEffectKind::Custom) effects.push_back(effect);
+        if (effect && effect->Enabled && effect->Type != PostEffectKind::None) effects.push_back(effect);
     }
     std::stable_sort(effects.begin(), effects.end(), [](const PostEffect* a, const PostEffect* b) {
         return a->ZIndex < b->ZIndex;
@@ -260,20 +311,22 @@ bool SdlPostEffects::apply(Workspace& workspace, SDL_GPUCommandBuffer& commandBu
     SDL_GPUTexture* source = &input;
     unsigned targetIndex = 0;
     for (PostEffect* effect : effects) {
-        const std::string path = AssetPath::normalize(effect->FragmentShaderFile);
-        if (path.empty()) {
-            continue;
-        }
-        auto& state = m_effects[path];
-        if (!state) state = std::make_unique<EffectState>();
-        std::string refreshError;
-        if (!refreshEffect(*state, path, refreshError)) {
-            if (!state->failureReported) {
-                RCBN_WARN("SDL PostEffect " << refreshError <<
-                          (state->pipeline ? " (retaining last successful shader)" : " (effect bypassed)"));
-                state->failureReported = true;
+        SDL_GPUGraphicsPipeline* pipeline = m_builtinPipeline;
+        if (effect->Type == PostEffectKind::Custom) {
+            const std::string path = AssetPath::normalize(effect->FragmentShaderFile);
+            if (path.empty()) continue;
+            auto& state = m_effects[path];
+            if (!state) state = std::make_unique<EffectState>();
+            std::string refreshError;
+            if (!refreshEffect(*state, path, refreshError)) {
+                if (!state->failureReported) {
+                    RCBN_WARN("SDL PostEffect " << refreshError <<
+                              (state->pipeline ? " (retaining last successful shader)" : " (effect bypassed)"));
+                    state->failureReported = true;
+                }
+                if (!state->pipeline) continue;
             }
-            if (!state->pipeline) continue;
+            pipeline = state->pipeline;
         }
         // Both public coordinates and scratch texture rows use the GLSL lower-left origin.
         // Convert once on entry to a contiguous group of custom effects.
@@ -292,7 +345,7 @@ bool SdlPostEffects::apply(Workspace& workspace, SDL_GPUCommandBuffer& commandBu
             error = sdlError("SDL_BeginGPURenderPass(post effect)");
             return false;
         }
-        SDL_BindGPUGraphicsPipeline(pass, state->pipeline);
+        SDL_BindGPUGraphicsPipeline(pass, pipeline);
         SDL_GPUTextureSamplerBinding binding{source, m_sampler};
         SDL_BindGPUFragmentSamplers(pass, 0, &binding, 1);
         std::array<float, 8> params{};
@@ -302,6 +355,8 @@ bool SdlPostEffects::apply(Workspace& workspace, SDL_GPUCommandBuffer& commandBu
         params[3] = effect->Intensity;
         params[4] = effect->Param1;
         params[5] = effect->Param2;
+        params[6] = static_cast<float>(static_cast<int>(effect->Type));
+        params[7] = elapsed;
         SDL_PushGPUFragmentUniformData(&commandBuffer, 0, params.data(), sizeof(params));
         SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
         SDL_EndGPURenderPass(pass);

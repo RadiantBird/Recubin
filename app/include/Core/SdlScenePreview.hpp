@@ -29,7 +29,8 @@ public:
     bool sync(Workspace& workspace, std::string& error);
     // Remove surfaces hidden by a face decal from the frame's picking data.
     bool draw(Workspace& workspace, const Matrix4& viewProjection,
-              const Vector3& cameraPosition, const Vector3& cameraForward, float effectTime,
+              const Vector3& cameraPosition, const Vector3& cameraForward, const Vector3& cameraUp,
+              float effectTime,
               SDL_GPUCommandBuffer& commandBuffer, unsigned width, unsigned height,
               std::string& error, std::span<BaseCube* const> selected = {},
               SdlSurfaceGuiLayers* surfaceLayers = nullptr);

@@ -31,6 +31,8 @@ private:
 
     SDL_GPUDevice* m_device = nullptr;
     SDL_GPUShader* m_vertexShader = nullptr;
+    SDL_GPUShader* m_builtinFragmentShader = nullptr;
+    SDL_GPUGraphicsPipeline* m_builtinPipeline = nullptr;
     SDL_GPUSampler* m_sampler = nullptr;
     SDL_GPUTexture* m_pingPong[2] = {nullptr, nullptr};
     unsigned m_width = 0;
