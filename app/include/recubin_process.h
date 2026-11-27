@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string_view>
@@ -18,7 +19,10 @@
 // entry point is `extern "C" void start()`. `stop()` and `bindHost()` are
 // optional exports discovered by ProcessHandler. The host table remains
 // valid until the DLL is unloaded; DLL code must not retain it afterwards.
-inline constexpr std::uint32_t RCBN_PROCESS_HOST_ABI_VERSION = 6;
+inline constexpr std::uint32_t RCBN_PROCESS_HOST_ABI_VERSION = 10;
+
+inline constexpr std::uint32_t RCBN_PROCESS_EVENT_TOUCHED = 1;
+inline constexpr std::uint32_t RCBN_PROCESS_EVENT_TOUCH_ENDED = 2;
 
 struct RCBNProcessInstanceHandle {
     std::uint64_t id = 0;
@@ -52,11 +56,42 @@ using RCBNProcessCreateInstanceFn = bool (*)(void* userdata,
 using RCBNProcessSetParentFn = bool (*)(void* userdata,
     RCBNProcessInstanceHandle child, RCBNProcessInstanceHandle parent);
 using RCBNProcessHeartbeatCallback = void (*)(void* userdata, double deltaSeconds);
+using RCBNProcessHeartbeatCleanupFn = void (*)(void* userdata);
+using RCBNProcessConnectManagedHeartbeatFn = bool (*)(void* userdata,
+    RCBNProcessHeartbeatCallback callback, void* callbackUserdata,
+    RCBNProcessHeartbeatCleanupFn cleanup, std::uint64_t* connectionId);
+using RCBNProcessInstanceEventCallback = void (*)(void* userdata,
+    RCBNProcessInstanceHandle eventInstance);
+using RCBNProcessSubscribeInstanceEventFn = bool (*)(void* userdata,
+    RCBNProcessInstanceHandle instance, std::uint32_t eventKind,
+    RCBNProcessInstanceEventCallback callback, void* callbackUserdata,
+    std::uint64_t* subscriptionId);
+using RCBNProcessConnectInstanceEventFn = bool (*)(void* userdata,
+    RCBNProcessInstanceHandle instance, std::uint32_t eventKind,
+    RCBNProcessInstanceEventCallback callback, void* callbackUserdata,
+    RCBNProcessHeartbeatCleanupFn cleanup, std::uint64_t* connectionId);
+using RCBNProcessDisconnectInstanceEventFn = bool (*)(void* userdata,
+    RCBNProcessInstanceHandle instance, std::uint64_t subscriptionId);
 using RCBNProcessConnectHeartbeatFn = bool (*)(void* userdata,
     RCBNProcessHeartbeatCallback callback, void* callbackUserdata,
     std::uint64_t* connectionId);
 using RCBNProcessDisconnectHeartbeatFn = bool (*)(void* userdata,
     std::uint64_t connectionId);
+using RCBNProcessReportErrorFn = void (*)(void* userdata, const char* message);
+using RCBNProcessGetParentFn = bool (*)(void*, RCBNProcessInstanceHandle, RCBNProcessInstanceHandle*);
+enum RCBNProcessValueKind : std::uint32_t {
+    RCBN_PROCESS_VALUE_BOOL = 1,
+    RCBN_PROCESS_VALUE_INT = 2,
+    RCBN_PROCESS_VALUE_FLOAT = 3,
+    RCBN_PROCESS_VALUE_VECTOR3 = 4,
+    RCBN_PROCESS_VALUE_COLOR4 = 5,
+    RCBN_PROCESS_VALUE_CFRAME = 6,
+    RCBN_PROCESS_VALUE_STRING = 7
+};
+using RCBNProcessGetPropertyFn = bool (*)(void*, RCBNProcessInstanceHandle,
+    const char*, std::uint32_t*, double*, char*, std::size_t, std::size_t*);
+using RCBNProcessSetPropertyFn = bool (*)(void*, RCBNProcessInstanceHandle,
+    const char*, std::uint32_t, const double*, const char*);
 
 struct RCBNProcessHostApi {
     std::uint32_t version;
@@ -74,11 +109,19 @@ struct RCBNProcessHostApi {
     RCBNProcessSetParentFn setParent;
     RCBNProcessConnectHeartbeatFn connectHeartbeat;
     RCBNProcessDisconnectHeartbeatFn disconnectHeartbeat;
+    RCBNProcessReportErrorFn reportError;
+    RCBNProcessGetSystemFn getSelfProcess;
+    RCBNProcessGetParentFn getParent;
+    RCBNProcessGetPropertyFn getProperty;
+    RCBNProcessSetPropertyFn setProperty;
+    RCBNProcessConnectManagedHeartbeatFn connectManagedHeartbeat;
+    RCBNProcessConnectInstanceEventFn connectInstanceEvent;
 };
 
 using RCBNProcessStartFn = void (*)();
 using RCBNProcessStopFn = void (*)();
 using RCBNProcessBindHostFn = void (*)(const RCBNProcessHostApi* api);
+using RCBNProcessUnbindHostFn = void (*)(const RCBNProcessHostApi* api);
 }
 
 // Forward declarations let a user write ordinary `void start() {}` after

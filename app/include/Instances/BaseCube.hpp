@@ -8,6 +8,8 @@
 #include <include/Util/Color4.hpp>
 #include <include/Util/Material.hpp>
 #include <include/Instances/Decal.hpp>
+#include <functional>
+#include <memory>
 #include <vector>
 #include <cstdint>
 
@@ -31,6 +33,13 @@ private:
     Physics* m_physicsOwner = nullptr;
     bool m_touchObservationActive = false;
     bool m_nativeTouchObserved = false;
+    struct NativeTouchListener {
+        std::uint64_t id = 0;
+        bool ended = false;
+        std::function<void(const std::shared_ptr<BaseCube>&)> callback;
+    };
+    std::vector<NativeTouchListener> m_nativeTouchListeners;
+    std::uint64_t m_nextNativeTouchListenerId = 1;
     // 最近傍のCharacter Modelから伝播する、保存・複製・公開対象外の実行時ID。
     std::uint32_t m_characterCollisionGroup = 0;
 
@@ -121,6 +130,10 @@ public:
     // Luaリスナーとは別に、エンジン内部(派生クラス)がTouchを受信するためのフック。
     // setNativeTouchObserved(true)の間、このCubeにTouchセンサーが作られonNativeTouchedが呼ばれる
     void setNativeTouchObserved(bool observed);
+    std::uint64_t connectNativeTouch(bool ended,
+        std::function<void(const std::shared_ptr<BaseCube>&)> callback);
+    bool disconnectNativeTouch(std::uint64_t connectionId);
+    void fireNativeTouch(bool ended, const std::shared_ptr<BaseCube>& other);
     virtual void onNativeTouched(BaseCube& other);
     void setLocked(bool locked);
     void setMaterial(const Material& m);

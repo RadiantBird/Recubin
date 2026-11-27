@@ -1,7 +1,10 @@
 #include <Core/ProcessHandler.hpp>
+#include <Core/ProcessInstanceBridge.hpp>
 #include <Core/ProcessRuntimeManager.hpp>
 #include <Core/ProcessWatchdog.hpp>
 #include <Instances/Process.hpp>
+#include <Instances/BaseCube.hpp>
+#include <Instances/Workspace.hpp>
 #include <Util/AssetPath.hpp>
 
 #include <chrono>
@@ -9,6 +12,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string_view>
+#include <unordered_map>
 #include <thread>
 
 #if defined(_WIN32)
@@ -46,19 +50,28 @@ int runHandler(const fs::path& dll, bool two) {
     return ok ? 0 : 1;
 }
 
-int runManager(const fs::path& source, const fs::path& dll, bool infinite) {
-    auto process = std::make_shared<Process>();
+int runManager(const fs::path& source, const fs::path& dll, bool infinite,
+               const fs::path& compilerPath = {}) {
+    std::shared_ptr<Process> process = std::make_shared<Process>();
     process->Name = "FixtureProcess";
     process->Path = AssetPath::toStored(source);
     process->DllPath = AssetPath::toStored(dll);
-    auto system = System{};
-    system.EnableExecutingProcess = true;
+    std::shared_ptr<System> system = std::make_shared<System>();
+    std::shared_ptr<Workspace> workspace = std::make_shared<Workspace>();
+    system->addChild(workspace);
+    workspace->addChild(process);
+    system->EnableExecutingProcess = true;
+    ProcessInstanceBridge bridge(system);
     ProcessRuntimeManager::Config config;
     config.assetBase = fs::current_path();
     config.includeDirectories.push_back(fs::absolute("app/include"));
-    config.watchdogTimeout = std::chrono::milliseconds(100);
+    config.compilerPath = compilerPath;
+    config.instanceCallbacks = bridge.callbacks();
+    config.watchdogTimeout = infinite
+        ? std::chrono::milliseconds(100)
+        : std::chrono::milliseconds(2000);
     ProcessRuntimeManager manager;
-    if (!manager.prepare({process}, system, config)) {
+    if (!manager.prepare({process}, *system, config)) {
         std::cerr << "prepare failed: " << manager.lastError() << '\n';
         return 1;
     }
@@ -69,6 +82,34 @@ int runManager(const fs::path& source, const fs::path& dll, bool infinite) {
     if (infinite) {
         // The fixture blocks inside start(); the manager watchdog must terminate us.
         for (;;) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    std::unordered_map<std::string, std::shared_ptr<Instance>>::const_iterator created =
+        system->children.find("ProcessFixtureCube");
+    if (created == system->children.end()) {
+        std::cerr << "SDK fixture did not parent its Cube to System\n";
+        manager.stop();
+        return 1;
+    }
+    const std::shared_ptr<BaseCube> receiver =
+        std::dynamic_pointer_cast<BaseCube>(created->second);
+    const std::shared_ptr<BaseCube> other = std::make_shared<BaseCube>(
+        Vector3(0.0f, 0.0f, 0.0f), Vector3(1.0f, 1.0f, 1.0f));
+    if (!receiver) {
+        std::cerr << "SDK fixture child was not a BaseCube\n";
+        manager.stop();
+        return 1;
+    }
+    receiver->fireNativeTouch(false, other);
+    manager.pump();
+    if (!manager.lastError().empty()) {
+        std::cerr << "Process callback failed: " << manager.lastError() << '\n';
+        manager.stop();
+        return 1;
+    }
+    if (other->Name != "TouchedCallbackPassed") {
+        std::cerr << "Process Touched callback did not update its event Instance\n";
+        manager.stop();
+        return 1;
     }
     for (int i = 0; i < 10; ++i) manager.pump();
     manager.stop();
@@ -82,9 +123,11 @@ int wmain(int argc, wchar_t** argv) {
     if (mode == "--handler") return runHandler(first, false);
     if (mode == "--handler-two") return runHandler(first, true);
     if (mode == "--manager" && argc >= 4)
-        return runManager(fs::path(std::wstring(argv[3])), first, false);
+        return runManager(fs::path(std::wstring(argv[3])), first, false,
+                          argc >= 5 ? fs::path(std::wstring(argv[4])) : fs::path{});
     if (mode == "--manager-infinite" && argc >= 4)
-        return runManager(fs::path(std::wstring(argv[3])), first, true);
+        return runManager(fs::path(std::wstring(argv[3])), first, true,
+                          argc >= 5 ? fs::path(std::wstring(argv[4])) : fs::path{});
     if (mode == "--infinite") {
         ProcessHandler handler;
         if (!handler.load(first)) return 1;

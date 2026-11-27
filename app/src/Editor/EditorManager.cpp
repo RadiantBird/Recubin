@@ -644,6 +644,10 @@ void EditorManager::render(GLFWwindow* window) {
                 Loc::setLanguage(Loc::Lang::JA);
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::LanguageEnglish), nullptr, isEn))
                 Loc::setLanguage(Loc::Lang::EN);
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::SettingsSelectProcessCompiler)) &&
+                m_processCompilerSelectionAction) {
+                m_processCompilerSelectionAction();
+            }
             ImGui::Separator();
             if (ImGui::BeginMenu(Loc::t(Loc::LocKey::SettingsTheme))) {
                 if (ImGui::MenuItem(Loc::t(Loc::LocKey::ThemeClassic), nullptr,

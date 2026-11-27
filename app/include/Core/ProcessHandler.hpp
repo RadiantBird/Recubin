@@ -5,6 +5,7 @@
 #include <string>
 
 #include <recubin_process.h>
+class Instance;
 
 // Loads and drives one local C++ Process DLL.  All methods must be called
 // from the engine's frame thread.  A Process can yield only through the host
@@ -22,6 +23,12 @@ public:
         RCBNProcessSetNameFn setName = nullptr;
         RCBNProcessCreateInstanceFn createInstance = nullptr;
         RCBNProcessSetParentFn setParent = nullptr;
+        RCBNProcessGetParentFn getParent = nullptr;
+        RCBNProcessGetPropertyFn getProperty = nullptr;
+        RCBNProcessSetPropertyFn setProperty = nullptr;
+        RCBNProcessSubscribeInstanceEventFn connectInstanceEvent = nullptr;
+        RCBNProcessDisconnectInstanceEventFn disconnectInstanceEvent = nullptr;
+        RCBNProcessInstanceHandle (*registerInstance)(void*, const std::shared_ptr<Instance>&) = nullptr;
     };
     ProcessHandler();
     ~ProcessHandler();
@@ -30,6 +37,7 @@ public:
 
     bool load(const std::filesystem::path& dllPath);
     void setInstanceCallbacks(const InstanceCallbacks& callbacks);
+    void setSelfProcess(const std::shared_ptr<Instance>& instance);
     // Rebinds the host table immediately before resuming a DLL. Required when
     // multiple handlers share a loaded module on the same thread.
     void rebindHost() noexcept;

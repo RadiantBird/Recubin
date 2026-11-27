@@ -389,7 +389,9 @@ std::unique_ptr<IChildProcess> WindowsPlatform::launchChildProcess(
     startupInfo.lpAttributeList = attributeList;
 
     const std::wstring executable = utf8ToWide(options.executable);
-    std::wstring commandLineString = makeCommandLine(options);
+    std::wstring commandLineString = options.rawCommandLine.empty()
+        ? makeCommandLine(options)
+        : utf8ToWide(options.rawCommandLine);
     std::vector<wchar_t> commandLine(commandLineString.begin(), commandLineString.end());
     commandLine.push_back(L'\0');
     const std::wstring workingDirectory = utf8ToWide(options.workingDirectory);
@@ -485,7 +487,9 @@ std::unique_ptr<IPipedProcess> WindowsPlatform::launchPipedProcess(
     startupInfo.lpAttributeList = attributeList;
 
     const std::wstring executable = utf8ToWide(options.executable);
-    std::wstring commandLineString = makeCommandLine(options);
+    std::wstring commandLineString = options.rawCommandLine.empty()
+        ? makeCommandLine(options)
+        : utf8ToWide(options.rawCommandLine);
     std::vector<wchar_t> commandLine(commandLineString.begin(), commandLineString.end());
     commandLine.push_back(L'\0');
     const std::wstring workingDirectory = utf8ToWide(options.workingDirectory);

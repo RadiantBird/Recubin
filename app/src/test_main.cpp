@@ -46,6 +46,7 @@
 #include <Instances/Program.hpp>
 #include <Instances/Process.hpp>
 #include <Core/ProcessInstanceBridge.hpp>
+#include <Core/ProcessBuilder.hpp>
 #include <Instances/TextLabel.hpp>
 #include <Instances/TextButton.hpp>
 #include <Core/ScreenGuiLayout.hpp>
@@ -12272,6 +12273,13 @@ static int runSceneHierarchyGroupingRegression() {
     expect(scriptMatches.size() == 3 && InstanceCatalog::search("SCRIPT").size() == 3,
            "catalog search is case-insensitive and finds all script classes");
     expect(InstanceCatalog::search("SYSTEM").empty(), "catalog excludes system classes");
+    const auto processMatches = InstanceCatalog::search("process");
+    expect(processMatches.size() == 1 && processMatches.front().className == "Process" &&
+               processMatches.front().category == InstanceCategory::Script,
+           "catalog finds Process in the Script category");
+    const auto catalogProcess = InstanceCatalog::create("Process");
+    expect(catalogProcess && catalogProcess->getClassName() == "Process",
+           "catalog creates Process");
     expect(InstanceCatalog::create("Workspace") != nullptr, "catalog creates Workspace");
     const auto stringValueEntry = std::find_if(catalogEntries.begin(), catalogEntries.end(),
         [](const auto& entry) { return entry.className == "StringValue"; });
@@ -19727,6 +19735,17 @@ static int runProcessRegression() {
         if (!condition) ++failures;
     };
 
+    expect(ProcessBuilder::compilerKindForPath("C:/toolchains/cl.exe") ==
+               ProcessBuilder::CompilerKind::Msvc &&
+           ProcessBuilder::compilerKindForPath("C:/toolchains/clang-cl.exe") ==
+               ProcessBuilder::CompilerKind::ClangCl &&
+           ProcessBuilder::compilerKindForPath("C:/toolchains/g++.exe") ==
+               ProcessBuilder::CompilerKind::Gnu &&
+           ProcessBuilder::compilerKindForPath("C:/toolchains/gcc.exe") ==
+               ProcessBuilder::CompilerKind::Gnu &&
+           !ProcessBuilder::compilerKindForPath("C:/toolchains/not-a-compiler.exe"),
+           "Process recognizes supported compiler selections");
+
     auto process = std::make_shared<Process>();
     process->Name = "NativeProcess";
     YAML::Node sourcePath;
@@ -19757,6 +19776,12 @@ static int runProcessRegression() {
                callbacks.findChild(callbacks.userdata, systemHandle, "Workspace", &workspaceHandle) &&
                callbacks.findChild(callbacks.userdata, workspaceHandle, "NativeProcess", &processHandle),
            "Process bridge resolves System, Workspace, and Process handles");
+    RCBNProcessInstanceHandle parentHandle{};
+    expect(callbacks.getParent(callbacks.userdata, processHandle, &parentHandle) &&
+               parentHandle.id == workspaceHandle.id && parentHandle.generation == workspaceHandle.generation,
+           "Process bridge resolves the current parent");
+    expect(!callbacks.getParent(callbacks.userdata, systemHandle, &parentHandle),
+           "Process bridge reports no parent for the root");
     expect(callbacks.isInstanceOf(callbacks.userdata, processHandle, "Process") &&
                !callbacks.isInstanceOf(callbacks.userdata, processHandle, "Cube"),
            "Process bridge enforces safe exact/derived type checks");
@@ -19773,7 +19798,12 @@ static int runProcessRegression() {
                process->Name == "RenamedProcess",
            "Process bridge changes instance name");
     RCBNProcessInstanceHandle cubeHandle{};
-    expect(callbacks.createInstance(callbacks.userdata, "Cube", &cubeHandle) &&
+    expect(callbacks.createInstance(callbacks.userdata, "Cube", &cubeHandle),
+           "Process bridge creates an unattached Instance");
+    expect(!callbacks.setParent(callbacks.userdata, cubeHandle, cubeHandle) &&
+               callbacks.isInstanceValid(callbacks.userdata, cubeHandle),
+           "rejected parent preserves unattached Instance ownership");
+    expect(
                callbacks.setParent(callbacks.userdata, cubeHandle, workspaceHandle) &&
                workspace->getChild("Cube") != nullptr,
            "Process bridge creates an Instance and sets its parent");

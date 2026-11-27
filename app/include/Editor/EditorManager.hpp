@@ -27,6 +27,7 @@
 #include <filesystem>
 #include <unordered_map>
 #include <tuple>
+#include <utility>
 #include <unordered_set>
 #include <optional>
 #include <chrono>
@@ -175,6 +176,9 @@ public:
     // 開始失敗を次の ImGui フレームでローカライズ済みモーダルとして表示する。
     void showPlayStartError(const std::string& detail = {});
     void showLocalServerNetworkRequiredError();
+    void setProcessCompilerSelectionAction(std::function<void()> action) {
+        m_processCompilerSelectionAction = std::move(action);
+    }
 
     bool isDirty()  const { return m_isDirty; }
     void markDirty() {
@@ -302,6 +306,7 @@ private:
     bool m_showPlayStartError = false;
     PlayStartErrorKind m_playStartErrorKind = PlayStartErrorKind::Generic;
     std::string m_playStartErrorDetail;
+    std::function<void()> m_processCompilerSelectionAction;
 
     // パッケージダイアログ関連
     bool        m_showPackageDialog = false;

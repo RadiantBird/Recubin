@@ -23,6 +23,8 @@ struct ProcessHandler::Impl {
     RCBNProcessStartFn entryFn = nullptr;
     RCBNProcessStopFn stopEntryFn = nullptr;
     RCBNProcessBindHostFn bindHostFn = nullptr;
+    RCBNProcessBindHostFn engineBindHostFn = nullptr;
+    RCBNProcessUnbindHostFn unbindHostFn = nullptr;
     std::filesystem::path path;
     std::string error;
     bool running = false;
@@ -33,11 +35,54 @@ struct ProcessHandler::Impl {
     std::chrono::steady_clock::time_point wakeTime{};
     RCBNProcessHostApi hostApi{};
     ProcessHandler::InstanceCallbacks instanceCallbacks{};
+    RCBNProcessInstanceHandle selfHandle{};
+    static bool getSelfProcess(void* userdata, RCBNProcessInstanceHandle* result) {
+        auto* self = static_cast<Impl*>(userdata);
+        if (!self || !result || !self->selfHandle.id || !self->instanceCallbacks.isInstanceValid ||
+            !self->instanceCallbacks.isInstanceValid(self->instanceCallbacks.userdata, self->selfHandle)) return false;
+        *result = self->selfHandle;
+        return true;
+    }
+    static bool getParentBridge(void* userdata, RCBNProcessInstanceHandle child, RCBNProcessInstanceHandle* result) {
+        auto* self = static_cast<Impl*>(userdata);
+        return self && self->instanceCallbacks.getParent &&
+            self->instanceCallbacks.getParent(self->instanceCallbacks.userdata, child, result);
+    }
+    static bool getPropertyBridge(void* userdata, RCBNProcessInstanceHandle handle, const char* name,
+        std::uint32_t* kind, double* values, char* buffer, std::size_t capacity, std::size_t* required) {
+        auto* self = static_cast<Impl*>(userdata);
+        return self && self->instanceCallbacks.getProperty &&
+            self->instanceCallbacks.getProperty(self->instanceCallbacks.userdata, handle, name,
+                kind, values, buffer, capacity, required);
+    }
+    static bool setPropertyBridge(void* userdata, RCBNProcessInstanceHandle handle, const char* name,
+        std::uint32_t kind, const double* values, const char* stringValue) {
+        auto* self = static_cast<Impl*>(userdata);
+        return self && self->instanceCallbacks.setProperty &&
+            self->instanceCallbacks.setProperty(self->instanceCallbacks.userdata, handle, name,
+                kind, values, stringValue);
+    }
     struct HeartbeatConnection {
         RCBNProcessHeartbeatCallback callback = nullptr;
         void* userdata = nullptr;
+        RCBNProcessHeartbeatCleanupFn cleanup = nullptr;
     };
     std::unordered_map<std::uint64_t, HeartbeatConnection> heartbeatConnections;
+    struct EventCallbackState : std::enable_shared_from_this<EventCallbackState> {
+        Impl* owner = nullptr;
+        RCBNProcessInstanceEventCallback callback = nullptr;
+        void* callbackUserdata = nullptr;
+        RCBNProcessHeartbeatCleanupFn cleanup = nullptr;
+        ~EventCallbackState() {
+            if (cleanup) cleanup(callbackUserdata);
+        }
+    };
+    struct InstanceEventConnection {
+        RCBNProcessInstanceHandle instance{};
+        std::uint64_t subscriptionId = 0;
+        std::shared_ptr<EventCallbackState> callback;
+    };
+    std::unordered_map<std::uint64_t, InstanceEventConnection> instanceEventConnections;
     std::uint64_t nextHeartbeatConnection = 1;
     bool inHeartbeatCallback = false;
 
@@ -131,7 +176,17 @@ struct ProcessHandler::Impl {
         auto* self = static_cast<Impl*>(userdata);
         if (!self || !callback || !connectionId || self->stopping) return false;
         const auto id = self->nextHeartbeatConnection++;
-        self->heartbeatConnections.emplace(id, HeartbeatConnection{callback, callbackUserdata});
+        self->heartbeatConnections.emplace(id, HeartbeatConnection{callback, callbackUserdata, nullptr});
+        *connectionId = id;
+        return true;
+    }
+
+    static bool connectManagedHeartbeat(void* userdata, RCBNProcessHeartbeatCallback callback,
+        void* callbackUserdata, RCBNProcessHeartbeatCleanupFn cleanup, std::uint64_t* connectionId) {
+        auto* self = static_cast<Impl*>(userdata);
+        if (!self || !callback || !cleanup || !connectionId || self->stopping) return false;
+        const std::uint64_t id = self->nextHeartbeatConnection++;
+        self->heartbeatConnections.emplace(id, HeartbeatConnection{callback, callbackUserdata, cleanup});
         *connectionId = id;
         return true;
     }
@@ -139,10 +194,84 @@ struct ProcessHandler::Impl {
     static bool disconnectHeartbeat(void* userdata, std::uint64_t connectionId) {
         auto* self = static_cast<Impl*>(userdata);
         if (!self || connectionId == 0) return false;
-        return self->heartbeatConnections.erase(connectionId) != 0;
+        const auto found = self->heartbeatConnections.find(connectionId);
+        if (found != self->heartbeatConnections.end()) {
+            if (found->second.cleanup) found->second.cleanup(found->second.userdata);
+            self->heartbeatConnections.erase(found);
+            return true;
+        }
+        const auto event = self->instanceEventConnections.find(connectionId);
+        if (event == self->instanceEventConnections.end()) return false;
+        bool disconnected = false;
+        if (self->instanceCallbacks.disconnectInstanceEvent) {
+            disconnected = self->instanceCallbacks.disconnectInstanceEvent(
+                self->instanceCallbacks.userdata, event->second.instance,
+                event->second.subscriptionId);
+        }
+        self->instanceEventConnections.erase(event);
+        return disconnected;
     }
 
-    void clearHeartbeatConnections() noexcept { heartbeatConnections.clear(); }
+    static void dispatchInstanceEvent(void* userdata, RCBNProcessInstanceHandle eventInstance) {
+        auto* raw = static_cast<EventCallbackState*>(userdata);
+        if (!raw || !raw->callback) return;
+        std::shared_ptr<EventCallbackState> keepAlive = raw->shared_from_this();
+        try {
+            keepAlive->callback(keepAlive->callbackUserdata, eventInstance);
+        } catch (...) {
+            keepAlive->owner->error = "Unhandled C++ exception escaped Process Instance event callback";
+            keepAlive->owner->stopping = true;
+        }
+    }
+
+    static bool connectInstanceEvent(void* userdata, RCBNProcessInstanceHandle instance,
+        std::uint32_t eventKind, RCBNProcessInstanceEventCallback callback,
+        void* callbackUserdata, RCBNProcessHeartbeatCleanupFn cleanup,
+        std::uint64_t* connectionId) {
+        auto* self = static_cast<Impl*>(userdata);
+        if (!self || self->stopping || !callback || !cleanup || !connectionId ||
+            !self->instanceCallbacks.connectInstanceEvent ||
+            !self->instanceCallbacks.disconnectInstanceEvent) return false;
+        std::shared_ptr<EventCallbackState> state = std::make_shared<EventCallbackState>();
+        state->owner = self;
+        state->callback = callback;
+        state->callbackUserdata = callbackUserdata;
+        state->cleanup = cleanup;
+        std::uint64_t subscriptionId = 0;
+        if (!self->instanceCallbacks.connectInstanceEvent(self->instanceCallbacks.userdata,
+                instance, eventKind, &dispatchInstanceEvent, state.get(), &subscriptionId) ||
+            subscriptionId == 0) return false;
+        const std::uint64_t id = self->nextHeartbeatConnection++;
+        self->instanceEventConnections.emplace(id,
+            InstanceEventConnection{instance, subscriptionId, std::move(state)});
+        *connectionId = id;
+        return true;
+    }
+
+    static void reportError(void* userdata, const char* message) {
+        auto* self = static_cast<Impl*>(userdata);
+        if (!self) return;
+        self->error = message && *message
+            ? message
+            : "Unhandled C++ exception escaped Process DLL";
+        self->stopping = true;
+    }
+
+    void clearHeartbeatConnections() noexcept {
+        for (auto& [id, connection] : heartbeatConnections) {
+            (void)id;
+            if (connection.cleanup) connection.cleanup(connection.userdata);
+        }
+        heartbeatConnections.clear();
+        while (!instanceEventConnections.empty()) {
+            const auto current = instanceEventConnections.begin();
+            if (instanceCallbacks.disconnectInstanceEvent) {
+                instanceCallbacks.disconnectInstanceEvent(instanceCallbacks.userdata,
+                    current->second.instance, current->second.subscriptionId);
+            }
+            instanceEventConnections.erase(current);
+        }
+    }
 
     void fireHeartbeat(double deltaSeconds) {
         std::vector<std::uint64_t> ids;
@@ -181,7 +310,8 @@ struct ProcessHandler::Impl {
         // A Process that returns from start() may still own Heartbeat
         // connections. Keep its module alive until those connections are
         // explicitly disconnected or the host begins teardown.
-        self->running = !self->heartbeatConnections.empty();
+        self->running = !self->heartbeatConnections.empty() ||
+            !self->instanceEventConnections.empty();
         if (self->schedulerFiber) SwitchToFiber(self->schedulerFiber);
     }
 #endif
@@ -193,9 +323,25 @@ void ProcessHandler::setInstanceCallbacks(const InstanceCallbacks& callbacks) {
     m_impl->instanceCallbacks = callbacks;
 }
 
+void ProcessHandler::setSelfProcess(const std::shared_ptr<Instance>& instance) {
+    m_impl->selfHandle = m_impl->instanceCallbacks.registerInstance
+        ? m_impl->instanceCallbacks.registerInstance(m_impl->instanceCallbacks.userdata, instance)
+        : RCBNProcessInstanceHandle{};
+}
+
 void ProcessHandler::rebindHost() noexcept {
-    if (m_impl->bindHostFn && m_impl->module)
-        m_impl->bindHostFn(&m_impl->hostApi);
+    try {
+        if (m_impl->engineBindHostFn && m_impl->module)
+            m_impl->engineBindHostFn(&m_impl->hostApi);
+        if (m_impl->bindHostFn && m_impl->module)
+            m_impl->bindHostFn(&m_impl->hostApi);
+    } catch (const std::exception& error) {
+        m_impl->error = std::string("Process bindHost() failed: ") + error.what();
+        m_impl->stopping = true;
+    } catch (...) {
+        m_impl->error = "Process bindHost() failed with an unknown exception";
+        m_impl->stopping = true;
+    }
 }
 
 ProcessHandler::~ProcessHandler() {
@@ -231,6 +377,8 @@ bool ProcessHandler::load(const std::filesystem::path& dllPath) {
     m_impl->entryFn = reinterpret_cast<RCBNProcessStartFn>(GetProcAddress(m_impl->module, "rcbn_process_entry"));
     m_impl->stopEntryFn = reinterpret_cast<RCBNProcessStopFn>(GetProcAddress(m_impl->module, "rcbn_process_stop_entry"));
     m_impl->bindHostFn = reinterpret_cast<RCBNProcessBindHostFn>(GetProcAddress(m_impl->module, "bindHost"));
+    m_impl->engineBindHostFn = reinterpret_cast<RCBNProcessBindHostFn>(GetProcAddress(m_impl->module, "rcbn_process_bind_host"));
+    m_impl->unbindHostFn = reinterpret_cast<RCBNProcessUnbindHostFn>(GetProcAddress(m_impl->module, "rcbn_process_unbind_host"));
     if (!m_impl->startFn) {
         m_impl->error = "Process DLL does not export start()";
         FreeLibrary(m_impl->module);
@@ -275,11 +423,20 @@ bool ProcessHandler::start() {
         &Impl::createInstanceBridge,
         &Impl::setParentBridge,
         &Impl::connectHeartbeat,
-        &Impl::disconnectHeartbeat};
+        &Impl::disconnectHeartbeat,
+        &Impl::reportError,
+        &Impl::getSelfProcess,
+        &Impl::getParentBridge,
+        &Impl::getPropertyBridge,
+        &Impl::setPropertyBridge,
+        &Impl::connectManagedHeartbeat,
+        &Impl::connectInstanceEvent};
     m_impl->hostApi.userdata = m_impl.get();
-    if (m_impl->bindHostFn) m_impl->bindHostFn(&m_impl->hostApi);
+    m_impl->error.clear();
     m_impl->stopping = false;
     m_impl->returned = false;
+    rebindHost();
+    if (!m_impl->error.empty()) return false;
     m_impl->running = true;
     m_impl->lastYield = std::chrono::steady_clock::now();
     m_impl->processFiber = CreateFiber(0, &Impl::processEntry, m_impl.get());
@@ -303,7 +460,8 @@ bool ProcessHandler::pump(double deltaSeconds) {
     const double delta = deltaSeconds >= 0.0 ? deltaSeconds : elapsed;
     rebindHost();
     m_impl->fireHeartbeat(delta > 0.0 ? delta : 0.0);
-    if (m_impl->returned && m_impl->heartbeatConnections.empty()) {
+    if (m_impl->returned && m_impl->heartbeatConnections.empty() &&
+        m_impl->instanceEventConnections.empty()) {
         m_impl->running = false;
     }
     if (!m_impl->running) return !m_impl->stopping;
@@ -332,11 +490,19 @@ bool ProcessHandler::unload() {
         m_impl->error = "Process DLL cannot be unloaded while start() is still running";
         return false;
     }
-    if (m_impl->stopEntryFn) {
-        m_impl->stopEntryFn();
-    } else if (m_impl->stopFn) {
-        m_impl->stopFn();
+    rebindHost();
+    try {
+        if (m_impl->stopEntryFn) {
+            m_impl->stopEntryFn();
+        } else if (m_impl->stopFn) {
+            m_impl->stopFn();
+        }
+    } catch (const std::exception& error) {
+        m_impl->error = std::string("Unhandled C++ exception escaped Process stop(): ") + error.what();
+    } catch (...) {
+        m_impl->error = "Unhandled C++ exception escaped Process stop()";
     }
+    if (m_impl->unbindHostFn) m_impl->unbindHostFn(&m_impl->hostApi);
     m_impl->clearHeartbeatConnections();
     if (m_impl->processFiber) {
         DeleteFiber(m_impl->processFiber);

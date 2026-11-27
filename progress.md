@@ -832,3 +832,26 @@
 - 手動Save / Save As / Autosave期限到来時 / 終了前に作業ファイルを同期。外部変更はEdit中に1秒間隔で検出してSceneをdirty化し、Autosave recovery/snapshotにも反映する。内部バッファとの外部編集競合、同期失敗、Scene保存失敗では保存／終了を止め、データと作業ファイルを保持する。Play開始前の同期は追加していない。「保存せず終了」は同期や一時ファイル削除を行わない。今回の作業ファイルはScene保存成功後の正常終了時のみ削除し、Sceneに保存されなかったファイルは残す。
 - spec・Script / SceneLoader / CodeEditor / Autosave文書と`.gitignore`を更新。`--embedded-script-regression`で3クラスのScene round-trip、Temp名・上書き回避、外部同期、競合、欠落ファイル、Autosave前同期、保存後cleanupを確認。`--script-extension-regression`と`--autosave-regression`も成功。Windows xmake ReleaseのStudio / Test buildと`git diff --check`成功（既知のAPIENTRY・CRLF警告のみ）。
 - 未検証: GUIでの新規作成・既存ファイル取り込み・既定エディター起動と終了分岐の実操作、macOS。次はStudioで一連のGUI操作と競合後の復旧を確認する。
+
+## 2026-11-28 Process コンパイラ選択（未完了）
+
+- サブエージェントの途中変更を引き継ぎ、Config::compilerPath の重複定義を修正。Process 入口ラッパーが通常の停止要求のみを捕捉し、他の例外を reportError に渡すよう変更。Play 前確認では Disabled Process をコンパイラ選択対象から除外し、prepare/start 失敗を手動ビルド案内付きポップアップへ表示する。
+- Recubin / RecubinEngine / RecubinTest の Windows xmake ビルドは上記変更途中で成功。最終変更後の再検証が必要。
+- DLL がない一時ディレクトリと実在の MSVC 14.52.37025 を指定した ProcessRuntimeProbe は失敗: vcvars の cmd 構文エラー、exitCode=1、INCLUDE/LIB 未取得。引数分割の試行後も失敗。自動ビルドは未完成。
+- 未完了: Studio のコンパイラ再選択設定 UI、MSVC 環境の取得と初回ビルド、手動 DLL のビルド手順・ABI の実検証、例外境界とイベントの寿命レビュー、特殊パス、配布ゲーム、GUI 保存確認。生成ラッパーは stop/bindHost の存在をソース文字列検索で推測しており、誤検出するため正しい設計への変更が必要。
+- 次: ProcessBuilder の cmd.exe 引数・引用を実プロセスで修正し、一時の新規 DLL をビルドするテストを追加。コンパイラ未選択・失敗の表示、手動ビルド後の再試行、DLL ABI を検証してから完成とする。
+
+## 2026-11-28 型付き Process API（作業途中）
+
+- ProcessInstanceBridge::setParent が拒否された親設定でも生成直後の所有を解除する不具合を修正。親設定後に実際の Parent を確認し、失敗時は所有を維持する。循環参照拒否後も有効で、正しい親へ追加できる回帰を追加。
+- Windows xmake RecubinTest ビルド、--process-regression 成功。循環参照エラーログは意図した失敗検証。
+- 未完了: InstanceRef<T>、Instance::New<T>()、Parent / Name プロパティ、Cube 値・イベント、DLL 境界と生存期間、自動ビルドと実 DLL 検証。次はホスト API の寿命を解決し型付き参照の設計と ABI を実装する。既存ユーザー変更は保持。
+
+## 2026-11-28 C++ Process SDK 実装・検証
+
+- 型付き `InstanceRef<T>`、`Instance::New<T>()`、`GetSelfProcess()` / `GetSystem()`、`Parent` / `Name` と各 Instance プロパティ、厳密クラス検索、Heartbeat / Touched / TouchEnded 接続を実装。C ABI の世代付き参照、プロパティ転送、イベント寿命管理、Process 停止時のコールバック解放を追加。
+- `cl.exe` / `clang-cl.exe` / `g++.exe` / `gcc.exe` の選択と Settings からの変更、自動ビルド、失敗時の手動ビルド案内を実装。Process の実行拒否・SDK 欠落・パス不足・コンパイラ選択の案内を日英ローカライズ。C++ SDK、Process の説明、Scene 仕様も更新。
+- Windows xmake Release の Recubin / RecubinEngine / RecubinTest / RecubinProcessWaitFixture / RecubinProcessRuntimeProbe ビルド成功。`RecubinTest.exe --process-regression` 成功。
+- DLL がない新しい出力先から、MSVC 14.52.37025 で実ソースを自動ビルドし、SDK の Instance / event 処理と停止まで ProcessRuntimeProbe で確認。終了コード 0、生成 DLL 372224 bytes、`.exp` / `.lib` / `.pdb` sidecar なし。検証 DLL は削除済み。
+- 確認中に古い Probe バイナリが廃止済み `task::StopRequested` を参照して失敗することを確認。ソース側には該当参照がなく、最新ソースから対象を再ビルド後に同じ自動ビルド検証が成功した。xmake は `C:\Program Files\xmake\xmake.exe` から実行。
+- 未検証: clang-cl / GNU コンパイラの実環境ビルド、Studio GUI でのコンパイラ変更・dirty 保存確認・実画面エラー表示、配布ゲームの初回許可、macOS。次は GUI で Play 前保存・コンパイラ選択・エラー文言を確認し、必要なら各非 MSVC toolchain で DLL を手動検証する。

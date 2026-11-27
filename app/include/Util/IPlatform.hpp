@@ -30,6 +30,9 @@ enum class ApplicationIconResult {
 struct ChildProcessLaunchOptions {
     std::string executable;
     std::vector<std::string> arguments;
+    // Optional complete Win32 command line for programs such as cmd.exe whose
+    // parsing rules differ from CommandLineToArgvW. When set, this includes argv[0].
+    std::string rawCommandLine;
     std::string workingDirectory;
     std::optional<std::string> outputLogPath;
     std::map<std::string, std::string> environment;

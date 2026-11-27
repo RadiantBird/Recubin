@@ -248,6 +248,7 @@ void BaseCube::init() {
 void BaseCube::refreshTouchObservation() {
     const bool observed =
         m_nativeTouchObserved ||
+        !m_nativeTouchListeners.empty() ||
         (Touched && Touched->hasListeners()) ||
         (TouchEnded && TouchEnded->hasListeners());
     if (m_touchObservationActive == observed) return;
@@ -260,6 +261,39 @@ void BaseCube::setNativeTouchObserved(bool observed) {
     if (m_nativeTouchObserved == observed) return;
     m_nativeTouchObserved = observed;
     refreshTouchObservation();
+}
+
+std::uint64_t BaseCube::connectNativeTouch(bool ended,
+    std::function<void(const std::shared_ptr<BaseCube>&)> callback) {
+    if (!callback) return 0;
+    const std::uint64_t id = m_nextNativeTouchListenerId++;
+    m_nativeTouchListeners.push_back(NativeTouchListener{id, ended, std::move(callback)});
+    refreshTouchObservation();
+    return id;
+}
+
+bool BaseCube::disconnectNativeTouch(std::uint64_t connectionId) {
+    const auto found = std::find_if(m_nativeTouchListeners.begin(), m_nativeTouchListeners.end(),
+        [connectionId](const NativeTouchListener& listener) { return listener.id == connectionId; });
+    if (found == m_nativeTouchListeners.end()) return false;
+    m_nativeTouchListeners.erase(found);
+    refreshTouchObservation();
+    return true;
+}
+
+void BaseCube::fireNativeTouch(bool ended, const std::shared_ptr<BaseCube>& other) {
+    if (!other) return;
+    std::vector<std::uint64_t> ids;
+    for (const NativeTouchListener& listener : m_nativeTouchListeners) {
+        if (listener.ended == ended) ids.push_back(listener.id);
+    }
+    for (const std::uint64_t id : ids) {
+        const auto found = std::find_if(m_nativeTouchListeners.begin(), m_nativeTouchListeners.end(),
+            [id](const NativeTouchListener& listener) { return listener.id == id; });
+        if (found == m_nativeTouchListeners.end()) continue;
+        std::function<void(const std::shared_ptr<BaseCube>&)> callback = found->callback;
+        callback(other);
+    }
 }
 
 void BaseCube::onNativeTouched(BaseCube&) {}

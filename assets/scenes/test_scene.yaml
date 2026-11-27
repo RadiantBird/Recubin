@@ -12,7 +12,7 @@ Root:
     EnableIOAPI: true
     EnableIPCAPI: true
     EnableExternalFileAccess: false
-    EnableExecutingProcess: false
+    EnableExecutingProcess: true
     ProcessWatchdogTimeoutSeconds: 2
     AutoSpawnPlayerCharacter: true
     MaxClonesPerFrame: 1000
@@ -283,18 +283,18 @@ Root:
             Color: [0.3, 0.9, 1, 1]
             LineWidth: 0.2
         - ClassName: Cube
-          Name: Green
+          Name: Baseplate
           Properties:
-            Position: [-2, 0, -4]
-            Size: [2, 1, 1]
+            Position: [0, -10, 0]
+            Size: [128, 1, 128]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0, 1]
+            Color: [0, 1, 0.5, 1]
             CastShadow: true
             ShadowMode: Normal
             Unlit: false
             UseTriplanar: false
             TextureScale: 1
-            Anchored: false
+            Anchored: true
             CanCollide: true
             CanTouch: true
             MassDensity: 1
@@ -305,13 +305,22 @@ Root:
             Restitution: 0.1
             Locked: false
             LockFlags: []
+          Children:
+            - ClassName: Texture
+              Name: Texture_Top
+              Properties:
+                Texture: assets/image/Grass_Texture.png
+                Face: 2
+                Color: [1, 1, 1, 1]
+                StudsPerTileU: 1
+                StudsPerTileV: 1
         - ClassName: Cube
-          Name: Cube4
+          Name: Green
           Properties:
-            Position: [30.607662, -9, 50.33361]
-            Size: [4, 1, 2]
+            Position: [-2, 0, -4]
+            Size: [2, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
+            Color: [0, 1, 0, 1]
             CastShadow: true
             ShadowMode: Normal
             Unlit: false
@@ -379,38 +388,6 @@ Root:
                     TextColor: [0, 0, 0, 1]
                     FontSize: 0
         - ClassName: Cube
-          Name: Baseplate
-          Properties:
-            Position: [0, -10, 0]
-            Size: [128, 1, 128]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0.5, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: true
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-          Children:
-            - ClassName: Texture
-              Name: Texture_Top
-              Properties:
-                Texture: assets/image/Grass_Texture.png
-                Face: 2
-                Color: [1, 1, 1, 1]
-                StudsPerTileU: 1
-                StudsPerTileV: 1
-        - ClassName: Cube
           Name: Cube12
           Properties:
             Position: [8.118143, -8.859938, 35.223503]
@@ -465,7 +442,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [35.512238, -3.9315774, 56.61001]
+            Position: [42.323196, 2.5120199, 71.77555]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -708,6 +685,36 @@ Root:
             Restitution: 0.1
             Locked: false
             LockFlags: []
+        - ClassName: Cube
+          Name: CCC
+          Properties:
+            Position: [30.607662, -9, 50.33361]
+            Size: [4, 1, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+          Children:
+            - ClassName: Process
+              Name: Process
+              Properties:
+                ContentPath: scripts/SDK_DLL_test.cpp
+                Enabled: true
+                DllPath: scripts/SDK_DLL_test.dll
         - ClassName: Cube
           Name: Cube2
           Properties:

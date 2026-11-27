@@ -9,6 +9,8 @@ namespace ProcessBuilder {
 
 enum class CompilerKind {
     Msvc,
+    ClangCl,
+    Gnu,
 };
 
 struct BuildRequest {
@@ -17,11 +19,7 @@ struct BuildRequest {
     std::filesystem::path assetBase;
     std::vector<std::filesystem::path> headerPaths;
     std::vector<std::filesystem::path> includeDirectories;
-    // The selected compiler. The initial implementation supports MSVC;
-    // additional toolchains can be added without changing ProcessRuntimeManager.
-    CompilerKind compiler = CompilerKind::Msvc;
-    // Optional compiler executable selected in Studio. Empty means detect the
-    // selected compiler using the platform toolchain discovery rules.
+    // Compiler executable selected in Studio; required when a rebuild is needed.
     std::filesystem::path compilerPath;
 };
 
@@ -34,6 +32,8 @@ struct BuildResult {
     CompilerKind compilerKind = CompilerKind::Msvc;
     std::string log;
 };
+
+std::optional<CompilerKind> compilerKindForPath(const std::filesystem::path& path);
 
 // Builds a Process DLL when it is missing or older than its source/header
 // dependencies. The existing DLL is replaced only after a successful build.

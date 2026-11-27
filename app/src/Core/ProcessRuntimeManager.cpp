@@ -131,8 +131,15 @@ bool ProcessRuntimeManager::start() {
             return false;
         }
         entry.handler->setInstanceCallbacks(m_config.instanceCallbacks);
+        entry.handler->setSelfProcess(entry.instance);
         if (!entry.handler->start()) {
             report("Failed to start Process '" + entry.instance->Name + "': " +
+                   entry.handler->lastError());
+            stop();
+            return false;
+        }
+        if (!entry.handler->lastError().empty()) {
+            report("Process '" + entry.instance->Name + "' failed during start(): " +
                    entry.handler->lastError());
             stop();
             return false;
@@ -148,7 +155,14 @@ bool ProcessRuntimeManager::pump(double deltaSeconds) {
     bool anyRunning = false;
     for (auto& entry : m_entries) {
         entry->handler->rebindHost();
-        if (entry->handler->pump(deltaSeconds)) anyRunning = true;
+        const bool handlerRunning = entry->handler->pump(deltaSeconds);
+        if (!entry->handler->lastError().empty()) {
+            report("Process '" + entry->instance->Name + "' failed: " +
+                   entry->handler->lastError());
+            stop();
+            return false;
+        }
+        if (handlerRunning) anyRunning = true;
     }
     m_watchdog->heartbeat();
     if (!anyRunning) {

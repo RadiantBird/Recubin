@@ -130,11 +130,12 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
 
 - `System.EnableExecutingProcess` が `true` の場合のみ実行する。配布ゲームではネイティブコード実行の初回許可を要求する。
 - `System.UseNetwork` が `true` の場合は Process を実行しない。Process はローカル実行専用である。
-- Studio は DLL の欠落またはソース／ヘッダー更新を検出した場合、MSVC で DLL をビルドし、成功した場合だけ Play を開始する。失敗時は古い DLL を実行しない。配布ゲームは同梱 DLL を検証して使い、ユーザー環境でのビルドは行わない。
-- DLL の必須入口は `extern "C" void start()`。`stop()` と `bindHost()` は任意。継続処理は `task::wait()` でエンジンへ制御を返す。
-- `FindChild` は `std::optional<InstanceRef>`、`FindChildWithClass<U>` は名前と `U::ClassName()` の厳密一致時だけ `std::optional<U>` を返す。ハンドルは非所有で、Scene 切替・削除・DLL 解放後は無効である。
+- Studio は DLL の欠落または SDK ソース／ヘッダー更新を検出した場合、設定で選択した `cl.exe`、`clang-cl.exe`、`g++.exe`、`gcc.exe` のいずれかで DLL をビルドし、成功した場合だけ Play を開始する。コンパイラの選択は Studio Settings から変更できる。失敗時は古い DLL を実行せず、手動ビルド後の再試行を案内する。Play 開始前に Scene が dirty なら保存確認を行う。配布ゲームは同梱 DLL を検証して使い、ユーザー環境でのビルドは行わない。
+- DLL の必須入口は `extern "C" void start()`。`stop()` と `bindHost()` は任意。継続処理は `task::wait()` でエンジンへ制御を返し、停止要求後は戻り値で通常のループを抜ける。
+- `InstanceRef<T>` は Instance 実体を所有しない世代検証付き参照。`Instance::New<T>()` が型付き参照を返し、`Name` や `BaseCube` の値は `.Get()` / `.Set()` 形式で操作する。`FindChild<T>` は指定型へキャストする前提の `std::optional<InstanceRef<T>>`、`FindChildWithClass<T>` はクラス名が厳密一致した場合のみ `std::optional<InstanceRef<T>>` を返す。親は `Parent.Get<T>()` / `Parent.GetAs<T>()` / `Parent.Set(ref)` で扱う。`GetSelfProcess()` は実行中 Process 参照、`GetSystem()` は任意の System 参照を返す。
+- `System.Heartbeat.Connect(function)`、`BaseCube.Touched.Connect(function)`、`TouchEnded.Connect(function)` は関数ポインタとラムダを受け取る。接続解除には `Connection::Disconnect()` を呼ぶ。InstanceRef は Scene 切替・削除・DLL 解放後は無効である。
 - Play 停止時は停止要求、`stop()`、ホスト参照解除、DLL 解放の順に処理する。待機も API 呼び出しも行わない無限ループは watchdog が検出し、低水準ログ出力後にエンジンを終了する。`System.ProcessWatchdogTimeoutSeconds` は正の有限値を秒単位で指定し、既定値は 2 秒。不正値は警告を出して拒否する。
-- イベント、任意プロパティ読み書き、汎用 Workspace 操作、物理・描画 API、ネットワーク API は未実装である。
+- SDK の任意プロパティ読み書き、汎用 Workspace 操作、物理・描画 API、ネットワーク API は未実装である。現在の値 API は bool、int、float、string、`Vector3`、`Color4`、`CFrame` と限定された System / Process / BaseCube プロパティである。
   `Weather`はWorkspace直下に置く天候システムで、`CloudColor`（`Color4`）と
   `CloudHeight`（ワールド空間の雲層Y座標）を保持する。雲の水平クアッドはカメラのX/Zへ
   移動して描画範囲を維持するが、Y座標は`CloudHeight`を使い、カメラのYには追従しない。

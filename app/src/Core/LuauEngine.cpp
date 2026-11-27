@@ -3440,6 +3440,15 @@ void LuauEngine::onTouched(BaseCube* a, BaseCube* b) {
     if (!aShared || !bShared) return;
     std::weak_ptr<BaseCube> weakA = aShared;
     std::weak_ptr<BaseCube> weakB = bShared;
+    Instance* aWorkspace = aShared->findFirstAncestorWorkspace();
+    Instance* bWorkspace = bShared->findFirstAncestorWorkspace();
+    if (!aWorkspace || aWorkspace != bWorkspace) return;
+    aShared->fireNativeTouch(false, bShared);
+    aShared = weakA.lock();
+    bShared = weakB.lock();
+    if (!aShared || !bShared ||
+        !aShared->findFirstAncestorWorkspace() ||
+        aShared->findFirstAncestorWorkspace() != bShared->findFirstAncestorWorkspace()) return;
     if (aShared->Touched) {
         aShared->Touched->fire(L, [weakB](lua_State* Lx) -> int {
             auto other = weakB.lock();
@@ -3458,6 +3467,12 @@ void LuauEngine::onTouched(BaseCube* a, BaseCube* b) {
         aShared->findFirstAncestorWorkspace() !=
             bShared->findFirstAncestorWorkspace())
         return;
+    bShared->fireNativeTouch(false, aShared);
+    aShared = weakA.lock();
+    bShared = weakB.lock();
+    if (!aShared || !bShared ||
+        !aShared->findFirstAncestorWorkspace() ||
+        aShared->findFirstAncestorWorkspace() != bShared->findFirstAncestorWorkspace()) return;
     if (bShared->Touched) {
         bShared->Touched->fire(L, [weakA](lua_State* Lx) -> int {
             auto other = weakA.lock();
@@ -3475,6 +3490,13 @@ void LuauEngine::onTouchEnded(BaseCube* a, BaseCube* b) {
     if (!aShared || !bShared) return;
     std::weak_ptr<BaseCube> weakA = aShared;
     std::weak_ptr<BaseCube> weakB = bShared;
+    Instance* aWorkspace = aShared->findFirstAncestorWorkspace();
+    Instance* bWorkspace = bShared->findFirstAncestorWorkspace();
+    if (!aWorkspace || aWorkspace != bWorkspace) return;
+    aShared->fireNativeTouch(true, bShared);
+    aShared = weakA.lock();
+    bShared = weakB.lock();
+    if (!aShared || !bShared) return;
     auto fire = [&](const std::shared_ptr<BaseCube>& receiver,
                     const std::weak_ptr<BaseCube>& other) {
         if (!receiver || !receiver->TouchEnded) return;
@@ -3492,6 +3514,12 @@ void LuauEngine::onTouchEnded(BaseCube* a, BaseCube* b) {
         !aShared->findFirstAncestorWorkspace() ||
         aShared->findFirstAncestorWorkspace() !=
             bShared->findFirstAncestorWorkspace()) return;
+    bShared->fireNativeTouch(true, aShared);
+    aShared = weakA.lock();
+    bShared = weakB.lock();
+    if (!aShared || !bShared ||
+        !aShared->findFirstAncestorWorkspace() ||
+        aShared->findFirstAncestorWorkspace() != bShared->findFirstAncestorWorkspace()) return;
     fire(bShared, weakA);
 }
 

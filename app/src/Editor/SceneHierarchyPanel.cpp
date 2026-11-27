@@ -253,7 +253,7 @@ const ClassIconEntry kClassIcons[] = {
     {ICON_FILE,             {"FileRef"}},
     {ICON_TEXTFILE,         {"TextFile"}},
     {ICON_TEXT,             {"FontFile"}},
-    {ICON_PROGRAM,          {"Program"}},
+    {ICON_PROGRAM,          {"Program", "Process"}},
     {ICON_APPIMAGE,         {"AppImage"}},
     // パーツ
     {ICON_CUBE,             {"Cube"}},

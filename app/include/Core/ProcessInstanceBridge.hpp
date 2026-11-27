@@ -47,6 +47,22 @@ private:
     bool setName(RCBNProcessInstanceHandle handle, const char* name);
     bool createInstance(const char* className, RCBNProcessInstanceHandle* result);
     bool setParent(RCBNProcessInstanceHandle child, RCBNProcessInstanceHandle parent);
+    bool getParent(RCBNProcessInstanceHandle child, RCBNProcessInstanceHandle* result);
+    bool getProperty(RCBNProcessInstanceHandle handle, const char* name, std::uint32_t* kind,
+                     double* values, char* buffer, std::size_t capacity, std::size_t* required);
+    bool setProperty(RCBNProcessInstanceHandle handle, const char* name, std::uint32_t kind,
+                     const double* values, const char* stringValue);
+    bool connectInstanceEvent(RCBNProcessInstanceHandle instance, std::uint32_t eventKind,
+                              RCBNProcessInstanceEventCallback callback, void* callbackUserdata,
+                              std::uint64_t* subscriptionId);
+    bool disconnectInstanceEvent(RCBNProcessInstanceHandle instance, std::uint64_t subscriptionId);
+    static bool getParentThunk(void*, RCBNProcessInstanceHandle, RCBNProcessInstanceHandle*);
+    static bool getPropertyThunk(void*, RCBNProcessInstanceHandle, const char*, std::uint32_t*, double*, char*, std::size_t, std::size_t*);
+    static bool setPropertyThunk(void*, RCBNProcessInstanceHandle, const char*, std::uint32_t, const double*, const char*);
+    static bool connectInstanceEventThunk(void*, RCBNProcessInstanceHandle, std::uint32_t,
+        RCBNProcessInstanceEventCallback, void*, std::uint64_t*);
+    static bool disconnectInstanceEventThunk(void*, RCBNProcessInstanceHandle, std::uint64_t);
+    static RCBNProcessInstanceHandle registerInstanceThunk(void*, const std::shared_ptr<Instance>&);
 
     static bool findChildThunk(void*, RCBNProcessInstanceHandle, const char*, RCBNProcessInstanceHandle*);
     static bool findChildWithClassThunk(void*, RCBNProcessInstanceHandle, const char*, const char*, RCBNProcessInstanceHandle*);

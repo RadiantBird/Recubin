@@ -612,6 +612,9 @@ private:
         m_settings.loadPanelVisibility(m_editor);
         m_settings.loadEditorPreferences(m_editor, m_user.get(), m_window);
         m_processCompilerPath = m_settings.loadProcessCompilerPath();
+        m_editor->setProcessCompilerSelectionAction([this] {
+            selectProcessCompiler(false);
+        });
         m_editor->welcomePanel->lastScenePath = lastScenePath;
 
         m_editor->hierarchyPanel->onSwitchWorkspace = [this](Workspace* workspace) {
@@ -1183,17 +1186,54 @@ private:
         restorePlaySnapshot();
     }
 
+    bool selectProcessCompiler(bool reportCancellation)
+    {
+        const std::string selected = getPlatform().openFileDialog(
+            {{Loc::t(Loc::LocKey::ProcessCompilerFileFilter), "*.exe"}});
+        if (selected.empty()) {
+            if (reportCancellation) {
+                m_editor->showPlayStartError(
+                    Loc::t(Loc::LocKey::ProcessCompilerRequired));
+            }
+            return false;
+        }
+        const std::filesystem::path selectedPath = AssetPath::fromStored(selected);
+        if (!ProcessBuilder::compilerKindForPath(selectedPath)) {
+            m_editor->showPlayStartError(
+                Loc::t(Loc::LocKey::ProcessCompilerUnsupported));
+            return false;
+        }
+        m_processCompilerPath = AssetPath::toStored(selectedPath);
+        m_settings.saveProcessCompilerPath(m_processCompilerPath);
+        return true;
+    }
+
     bool startProcessRuntime()
     {
-        if (!m_system->EnableExecutingProcess || m_system->UseNetwork) return true;
         std::vector<std::shared_ptr<Process>> processes;
         collectProcessInstances(m_system, processes);
-        if (processes.empty()) return true;
+        const bool hasEnabledProcess = std::any_of(processes.begin(), processes.end(),
+            [](const auto& process) { return process && process->Enabled; });
+        if (!hasEnabledProcess) return true;
+        if (m_system->UseNetwork) {
+            m_editor->showPlayStartError(Loc::t(Loc::LocKey::ProcessNetworkUnavailable));
+            return false;
+        }
+        if (!m_system->EnableExecutingProcess) {
+            m_editor->showPlayStartError(Loc::t(Loc::LocKey::ProcessExecutionDisabled));
+            return false;
+        }
         bool compilerRequired = false;
         for (const auto& process : processes) {
-            if (!process || process->DllPath.empty() || process->Path.empty()) {
-                compilerRequired = true;
-                break;
+            if (!process || !process->Enabled) {
+                continue;
+            }
+            if (process->DllPath.empty() || process->Path.empty()) {
+                const std::string missing = process->Path.empty() ? "ContentPath" : "DllPath";
+                m_editor->showPlayStartError(std::string(Loc::t(Loc::LocKey::ProcessMissingPathPrefix)) +
+                    process->getFullPath() + Loc::t(Loc::LocKey::ProcessMissingPathMiddle) +
+                    missing + Loc::t(Loc::LocKey::ProcessMissingPathSuffix));
+                return false;
             }
             std::error_code timestampError;
             const auto dll = AssetPath::resolveAgainst(process->DllPath,
@@ -1213,17 +1253,7 @@ private:
             }
         }
         if (compilerRequired && m_processCompilerPath.empty()) {
-            const std::string selected = getPlatform().openFileDialog(
-                {{"MSVC compiler (cl.exe)", "*.exe"}});
-            if (!selected.empty()) {
-                m_processCompilerPath = selected;
-                m_settings.saveProcessCompilerPath(m_processCompilerPath);
-            } else {
-                m_editor->showPlayStartError(
-                    "Select an MSVC compiler (cl.exe) before starting Play.\n"
-                    "You can build the Process DLL manually and retry Play.");
-                return false;
-            }
+            if (!selectProcessCompiler(true)) return false;
         }
         const auto executableDirectory =
             std::filesystem::absolute(m_options.executablePath).parent_path();
@@ -1238,14 +1268,38 @@ private:
             !std::filesystem::is_regular_file(processHeader) ||
             !std::filesystem::is_regular_file(apiHeader)) {
             RCBN_ERROR("Process SDK headers are unavailable near the Studio executable or source tree.");
+            m_editor->showPlayStartError(Loc::t(Loc::LocKey::ProcessSdkUnavailable));
             return false;
         }
+        std::vector<std::filesystem::path> sdkHeaders;
+        std::error_code sdkScanError;
+        std::filesystem::recursive_directory_iterator sdkIterator(
+            sdkDirectory, std::filesystem::directory_options::skip_permission_denied,
+            sdkScanError);
+        const std::filesystem::recursive_directory_iterator sdkEnd;
+        while (!sdkScanError && sdkIterator != sdkEnd) {
+            if (sdkIterator->is_regular_file(sdkScanError)) {
+                const std::string extension = sdkIterator->path().extension().string();
+                if (extension == ".h" || extension == ".hpp" ||
+                    extension == ".inl" || extension == ".tpp") {
+                    sdkHeaders.push_back(sdkIterator->path());
+                }
+            }
+            sdkIterator.increment(sdkScanError);
+        }
+        if (sdkScanError) {
+            RCBN_ERROR("Failed to enumerate Process SDK headers under "
+                << AssetPath::toStored(sdkDirectory) << ": " << sdkScanError.message());
+            m_editor->showPlayStartError(Loc::t(Loc::LocKey::ProcessSdkUnavailable));
+            return false;
+        }
+        std::sort(sdkHeaders.begin(), sdkHeaders.end());
         if (!m_processBridge) m_processBridge =
             std::make_unique<ProcessInstanceBridge>(m_system);
         if (!m_processRuntime) m_processRuntime = std::make_unique<ProcessRuntimeManager>();
         ProcessRuntimeManager::Config config;
         config.assetBase = AssetPath::sceneAssetBaseDirectory();
-        config.sdkHeaders = {publicHeader, processHeader, apiHeader};
+        config.sdkHeaders = std::move(sdkHeaders);
         config.includeDirectories = {sdkDirectory, executableDirectory};
         config.compilerPath = AssetPath::fromStored(m_processCompilerPath);
         config.watchdogTimeout = std::chrono::milliseconds(
@@ -1256,6 +1310,9 @@ private:
         if (!m_processRuntime->prepare(processes, *m_system, config) ||
             !m_processRuntime->start()) {
             RCBN_ERROR("Process runtime failed: " << m_processRuntime->lastError());
+            m_editor->showPlayStartError(
+                std::string(Loc::t(Loc::LocKey::ProcessStartFailed)) +
+                m_processRuntime->lastError());
             m_processRuntime->stop();
             return false;
         }

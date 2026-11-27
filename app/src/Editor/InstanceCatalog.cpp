@@ -26,7 +26,7 @@ const std::vector<InstanceCatalogEntry> kEntries = {
     {"QuaternionValue", C::Values}, {"ObjectValue", C::Values},
     {"Folder", C::Container}, {"Model", C::Container}, {"Tool", C::Container},
     {"StarterCharacter", C::Container}, {"TextFile", C::File}, {"FileRef", C::File},
-    {"FontFile", C::File}, {"Program", C::File}, {"Script", C::Script}, {"LocalScript", C::Script},
+    {"FontFile", C::File}, {"Program", C::File}, {"Process", C::Script}, {"Script", C::Script}, {"LocalScript", C::Script},
     {"ModuleScript", C::Script}, {"AppImage", C::Other}, {"Animation", C::Other},
     {"Humanoid", C::Other}, {"SignalEvent", C::Other}
 };
