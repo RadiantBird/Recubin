@@ -58,6 +58,10 @@ class System : public Instance {
         bool EnableIOAPI = false;
         bool EnableIPCAPI = false;
         bool EnableExternalFileAccess = false;
+        // Native C++ Process DLL execution permission. Read-only from Luau.
+        bool EnableExecutingProcess = false;
+        // Native Process watchdog timeout in seconds. Must be finite and > 0.
+        float ProcessWatchdogTimeoutSeconds = 2.0f;
 
         // パッケージ済みゲーム起動時にUserへ適用するカメラモード。
         CameraMode DefaultCameraMode = CameraMode::Character;

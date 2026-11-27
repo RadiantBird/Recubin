@@ -6,7 +6,8 @@ struct SystemExtensionPermissions {
     bool io = false;
     bool ipc = false;
     bool external = false;
-    static constexpr int SCHEMA_VERSION = 1;
+    bool executingProcess = false;
+    static constexpr int SCHEMA_VERSION = 2;
 };
 
 namespace SystemExtensionConsent {

@@ -23,6 +23,7 @@
 | `EnableIOAPI` | `bool` | Luau I/O APIの許可（既定false） |
 | `EnableIPCAPI` | `bool` | IPC APIスタブの許可（既定false） |
 | `EnableExternalFileAccess` | `bool` | ゲーム領域外ファイルアクセスの許可（既定false） |
+| `EnableExecutingProcess` | `bool` | C++ Process DLL の実行許可（既定false）。Luauからは読み取り専用。配布ゲームでは初回同意が必要 |
 | `DefaultCameraMode` | `CameraMode` | パッケージ版ゲーム起動時のカメラモード（`Character`/`Free`/`Program`、既定`Character`） |
 | `NetworkInterpolationDelay` | `float` | Clientで他プレイヤー・同期物体を何秒前の状態として補間表示するか（0〜1、既定0.1）。長いほど通信の揺れに強く滑らか、短いほど現在に近い。Luauからは読み取り専用 |
 
@@ -63,7 +64,7 @@
 
 ## システム拡張と同意
 
-receiptはポータブルroot直下の`system_extensions.receipt`に、構成versionと権限集合（IO/IPC/External）を保存する。
+receiptはポータブルroot直下の`system_extensions.receipt`に、構成versionと権限集合（IO/IPC/External/Native C++ Process）を保存する。
 有効権限集合または構成versionが一致しない場合だけ、通常ランタイムのスクリプト開始前に警告を表示する。
 Continue時だけreceiptを書き込み、失敗時は警告して次回も再表示する。Quitまたはウィンドウ閉鎖は起動中止となる。
 全権限無効時も空集合のreceiptを更新する。Editorと`--editor-test`は警告・receiptを完全にバイパスする。

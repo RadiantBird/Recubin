@@ -165,6 +165,15 @@ if windows then
 end
 copy_tree(shaders_source, path.join(package_dir, "shaders"))
 copy_tree(fonts_source, path.join(package_dir, "assets", "fonts"))
+-- Process SDK headers are consumed by Studio when it builds a Process DLL.
+-- Keep them beside the executable so packaged Studio does not depend on CWD.
+mkdir(path.join(package_dir, "sdk", "include"))
+copy_file(path.join(root, "app", "include", "recubin.h"),
+          path.join(package_dir, "sdk", "include", "recubin.h"))
+copy_file(path.join(root, "app", "include", "recubin_process.h"),
+          path.join(package_dir, "sdk", "include", "recubin_process.h"))
+copy_file(path.join(root, "app", "include", "recubin_process_api.h"),
+          path.join(package_dir, "sdk", "include", "recubin_process_api.h"))
 for _, directory in ipairs({"scenes", "image", "models", "scripts"}) do
     mkdir(path.join(package_dir, "assets", directory))
 end

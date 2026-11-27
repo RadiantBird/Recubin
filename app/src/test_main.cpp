@@ -44,6 +44,8 @@
 #include <Instances/FontFile.hpp>
 #include <Instances/TextFile.hpp>
 #include <Instances/Program.hpp>
+#include <Instances/Process.hpp>
+#include <Core/ProcessInstanceBridge.hpp>
 #include <Instances/TextLabel.hpp>
 #include <Instances/TextButton.hpp>
 #include <Core/ScreenGuiLayout.hpp>
@@ -150,6 +152,7 @@
 
 static int runAnimationClipRegression();
 static int runSurfaceMarkRegression();
+static int runProcessRegression();
 
 #ifdef near
 #undef near
@@ -12551,6 +12554,30 @@ static int runSystemExtensionRegression() {
     expect(!system->EnableIOAPI && !system->EnableIPCAPI &&
                !system->EnableExternalFileAccess,
            "System extension defaults are disabled");
+    expect(system->ProcessWatchdogTimeoutSeconds == 2.0f,
+           "Process watchdog timeout defaults to two seconds");
+    system->setProperty("ProcessWatchdogTimeoutSeconds", YAML::Node(-1.0f));
+    expect(system->ProcessWatchdogTimeoutSeconds == 2.0f,
+           "invalid Process watchdog timeout is rejected");
+    system->setProperty("ProcessWatchdogTimeoutSeconds", YAML::Node(0.25f));
+    expect(system->ProcessWatchdogTimeoutSeconds == 0.25f,
+           "positive Process watchdog timeout is accepted");
+    const auto systemProperties = PropertyRegistry::collectSchema("System");
+    const auto watchdogProperty = std::ranges::find_if(
+        systemProperties, [](const PropertyDesc* property) {
+            return property && property->name == "ProcessWatchdogTimeoutSeconds";
+        });
+    expect(watchdogProperty != systemProperties.end(),
+           "System watchdog timeout property is registered");
+    if (watchdogProperty != systemProperties.end()) {
+        PropertyRegistry::writeValue(system.get(), **watchdogProperty, PropValue(-3.0f));
+        expect(system->ProcessWatchdogTimeoutSeconds == 0.25f,
+               "invalid editor property watchdog timeout is rejected");
+        PropertyRegistry::writeValue(system.get(), **watchdogProperty, PropValue(0.5f));
+        expect(system->ProcessWatchdogTimeoutSeconds == 0.5f,
+               "valid editor property watchdog timeout is accepted");
+        system->ProcessWatchdogTimeoutSeconds = 0.25f;
+    }
     system->EnableIOAPI = true;
     system->EnableIPCAPI = true;
     system->EnableExternalFileAccess = true;
@@ -12564,6 +12591,8 @@ static int runSystemExtensionRegression() {
     expect(loadedSystem && mergedSystem->EnableIOAPI && mergedSystem->EnableIPCAPI &&
                mergedSystem->EnableExternalFileAccess,
            "System extension YAML round-trip preserves values");
+    expect(loadedSystem && mergedSystem->ProcessWatchdogTimeoutSeconds == 0.25f,
+           "System watchdog timeout YAML round-trip preserves value");
     const auto consentRoot = fs.root();
     SystemExtensionPermissions consentPermissions{true, false, false};
     expect(SystemExtensionConsent::shouldWarn(consentRoot, consentPermissions),
@@ -19364,6 +19393,218 @@ int runRbxlxConvertRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runProcessPackagerRegression() {
+    namespace fs = std::filesystem;
+    const fs::path repo = fs::current_path();
+    const fs::path root = fs::temp_directory_path() / "recubin_process_packager_regression";
+    std::error_code ec;
+    fs::remove_all(root, ec);
+    fs::create_directories(root / "assets/process", ec);
+    fs::create_directories(root / "assets/scripts", ec);
+    fs::create_directories(root / "assets/fonts", ec);
+    for (const char* font : {"MPLUS1p-Regular.ttf", "DotGothic16-Regular.ttf", "fa-solid-900.ttf"}) {
+        fs::copy_file(repo / "assets/fonts" / font, root / "assets/fonts" / font,
+                      fs::copy_options::overwrite_existing, ec);
+    }
+    ec.clear();
+    std::ofstream(root / "assets/process/source.cpp") << "void start() {}\n";
+    std::ofstream(root / "assets/process/runtime.dll", std::ios::binary) << "dll";
+    std::ofstream(root / "assets/scripts/child.luau") << "print('child')\n";
+    const auto scene = root / "scene.yaml";
+    std::ofstream(scene) <<
+        "recubin:\n  type: scene\n  version: 0\nRoot:\n  ClassName: System\n"
+        "  Name: System\n  Children:\n    - ClassName: Process\n"
+        "      Name: P\n      Properties:\n        ContentPath: assets/process/source.cpp\n"
+        "        DllPath: assets/process/runtime.dll\n      Children:\n"
+        "        - ClassName: Script\n          Name: ProcessChild\n          Properties:\n"
+        "            ContentPath: assets/scripts/child.luau\n";
+    const auto oldCwd = fs::current_path();
+    fs::current_path(root, ec);
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[ProcessPackager] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    Packager::Config config;
+    config.gameName = "ProcessPackage";
+    config.outputDir = (root / "out").string();
+    config.scenePath = scene.filename().generic_string();
+#ifdef _WIN32
+    config.engineExePath = (repo / "build/windows/x64/release/Recubin.exe").string();
+#else
+    config.engineExePath = (repo / "build/Recubin").string();
+#endif
+    bool packaged = false;
+    try {
+        packaged = Packager::package(config, [](const std::string& message) {
+            std::cout << "[ProcessPackager] " << message << '\n';
+        });
+    } catch (const std::exception& exception) {
+        std::cerr << "[ProcessPackager] exception: " << exception.what() << '\n';
+    }
+    const fs::path packageRoot = root / "out" / "ProcessPackage";
+    const std::string packagedScene = FileLoader::readText(
+        fs::relative(packageRoot / "assets/scenes/ProcessPackage.rcbn", root).generic_string());
+    expect(packaged && !fs::exists(packageRoot / "assets/process/source.cpp") &&
+               fs::exists(packageRoot / "assets/process/runtime.dll") &&
+               packagedScene.find("assets/process/runtime.dll") != std::string::npos &&
+               fs::exists(packageRoot / "assets/scripts/child.luauc") &&
+               packagedScene.find("assets/scripts/child.luauc") != std::string::npos,
+           "Process source is omitted while DLL and child Script are packaged");
+    auto failureScene = [&](const char* name, const char* dll) {
+        const fs::path path = root / (std::string(name) + ".yaml");
+        std::ofstream out(path);
+        out << "recubin:\n  type: scene\n  version: 0\nRoot:\n  ClassName: System\n"
+               "  Children:\n    - ClassName: Process\n      Properties:\n        Enabled: true\n"
+            << "        DllPath: " << dll << "\n";
+        return path;
+    };
+    for (const auto& [name, dll] : {std::pair{"ProcessEmpty", "''"},
+                                    std::pair{"ProcessMissing", "assets/process/no.dll"}}) {
+        Packager::Config invalid = config;
+        invalid.gameName = name;
+        invalid.scenePath = failureScene(name, dll).filename().generic_string();
+        expect(!Packager::package(invalid, [](const std::string&) {}),
+               "enabled Process with empty or missing DLL is rejected");
+    }
+    fs::current_path(oldCwd, ec);
+    fs::remove_all(root, ec);
+    return failures == 0 ? 0 : 1;
+}
+
+static int runProcessRegression() {
+    namespace fs = std::filesystem;
+    int failures = 0;
+    const auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[Process] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto process = std::make_shared<Process>();
+    process->Name = "NativeProcess";
+    YAML::Node sourcePath;
+    sourcePath = "native\\process.cpp";
+    process->setProperty("ContentPath", sourcePath);
+    YAML::Node dllPath;
+    dllPath = "native\\process.dll";
+    process->setProperty("DllPath", dllPath);
+    process->Enabled = false;
+    expect(process->Path == "native/process.cpp" && process->DllPath == "native/process.dll",
+           "Process normalizes source and DLL paths");
+
+    auto clone = std::dynamic_pointer_cast<Process>(process->clone());
+    expect(clone && clone->Path == process->Path && clone->DllPath == process->DllPath &&
+               clone->Enabled == process->Enabled,
+           "Process clone preserves persistent configuration");
+
+    auto root = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    root->addChild(workspace);
+    workspace->addChild(process);
+    ProcessInstanceBridge bridge(root);
+    const auto callbacks = bridge.callbacks();
+    RCBNProcessInstanceHandle systemHandle{};
+    RCBNProcessInstanceHandle workspaceHandle{};
+    RCBNProcessInstanceHandle processHandle{};
+    expect(callbacks.getSystem(callbacks.userdata, &systemHandle) &&
+               callbacks.findChild(callbacks.userdata, systemHandle, "Workspace", &workspaceHandle) &&
+               callbacks.findChild(callbacks.userdata, workspaceHandle, "NativeProcess", &processHandle),
+           "Process bridge resolves System, Workspace, and Process handles");
+    expect(callbacks.isInstanceOf(callbacks.userdata, processHandle, "Process") &&
+               !callbacks.isInstanceOf(callbacks.userdata, processHandle, "Cube"),
+           "Process bridge enforces safe exact/derived type checks");
+    std::size_t requiredName = 0;
+    expect(callbacks.getName(callbacks.userdata, processHandle, nullptr, 0, &requiredName) &&
+               requiredName == std::string("NativeProcess").size(),
+           "Process bridge reports instance name length");
+    std::vector<char> nameBuffer(requiredName + 1, '\0');
+    expect(callbacks.getName(callbacks.userdata, processHandle, nameBuffer.data(),
+                             nameBuffer.size(), &requiredName) &&
+               std::string(nameBuffer.data()) == "NativeProcess",
+           "Process bridge reads instance name");
+    expect(callbacks.setName(callbacks.userdata, processHandle, "RenamedProcess") &&
+               process->Name == "RenamedProcess",
+           "Process bridge changes instance name");
+    RCBNProcessInstanceHandle cubeHandle{};
+    expect(callbacks.createInstance(callbacks.userdata, "Cube", &cubeHandle) &&
+               callbacks.setParent(callbacks.userdata, cubeHandle, workspaceHandle) &&
+               workspace->getChild("Cube") != nullptr,
+           "Process bridge creates an Instance and sets its parent");
+    const auto scenePath = std::filesystem::temp_directory_path() /
+        ("recubin_process_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()) + ".yaml");
+    const bool saved = SceneLoader::saveSceneResult(root.get(), scenePath.string());
+    auto loaded = SceneLoader::loadScene(scenePath.string());
+    auto loadedNode = loaded ? loaded->getChildByPath("Workspace\\RenamedProcess") : nullptr;
+    auto loadedProcess = loadedNode ? dynamic_cast<Process*>(loadedNode) : nullptr;
+    expect(saved && loadedProcess && loadedProcess->Path == process->Path &&
+               loadedProcess->DllPath == process->DllPath && !loadedProcess->Enabled,
+           "Process YAML save/load preserves source, DLL, and Enabled");
+
+    YAML::Node document = YAML::Load(FileLoader::readText(scenePath.string()));
+    std::vector<AssetDependencies::Dependency> dependencies;
+    AssetDependencies::collect(document, dependencies,
+                                scenePath.parent_path());
+    const auto hasDependency = [&](const std::string& source) {
+        return std::any_of(dependencies.begin(), dependencies.end(),
+            [&](const AssetDependencies::Dependency& dependency) {
+                return dependency.source == source;
+            });
+    };
+    expect(hasDependency("native/process.cpp") && hasDependency("native/process.dll"),
+           "AssetDependencies includes Process source and DLL for editor operations");
+
+    std::error_code error;
+    std::filesystem::remove(scenePath, error);
+    expect(!error, "temporary Process scene is removed");
+
+    const auto probe = fs::absolute("build/windows/x64/release/RecubinProcessWatchdogProbe.exe");
+    const auto heartbeatLog = fs::temp_directory_path() / "recubin_process_watchdog_heartbeat.log";
+    const auto timeoutLog = fs::temp_directory_path() / "recubin_process_watchdog_timeout.log";
+    if (fs::is_regular_file(probe)) {
+        const int heartbeatExit = PackageIntegrity::runProcess(probe.parent_path(),
+            "\"" + probe.filename().string() + "\" --heartbeat", heartbeatLog);
+        expect(heartbeatExit == 0, "watchdog heartbeat probe exits normally");
+        const int timeoutExit = PackageIntegrity::runProcess(probe.parent_path(),
+            "\"" + probe.filename().string() + "\" --timeout", timeoutLog);
+        expect(timeoutExit != 0, "watchdog timeout probe terminates the child process");
+    } else {
+        expect(false, "watchdog probe executable is available");
+    }
+    fs::remove(heartbeatLog, error);
+    fs::remove(timeoutLog, error);
+
+    const auto runtimeProbe = fs::absolute("build/windows/x64/release/RecubinProcessRuntimeProbe.exe");
+    const auto waitFixture = fs::absolute("build/windows/x64/release/RecubinProcessWaitFixture.dll");
+    const auto infiniteFixture = fs::absolute("build/windows/x64/release/RecubinProcessInfiniteFixture.dll");
+    const auto waitSource = fs::absolute("app/src/ProcessWaitFixture.cpp");
+    const auto infiniteSource = fs::absolute("app/src/ProcessInfiniteFixture.cpp");
+    const auto runtimeLog = fs::temp_directory_path() / "recubin_process_runtime_probe.log";
+    if (fs::is_regular_file(runtimeProbe) && fs::is_regular_file(waitFixture) &&
+        fs::is_regular_file(infiniteFixture)) {
+        const std::string probeExe = runtimeProbe.string();
+        expect(PackageIntegrity::runProcess(fs::current_path(),
+            "\"" + probeExe + "\" --handler \"" + waitFixture.string() + "\"", runtimeLog) == 0,
+            "ProcessHandler loads wait fixture and stops it");
+        expect(PackageIntegrity::runProcess(fs::current_path(),
+            "\"" + probeExe + "\" --handler-two \"" + waitFixture.string() + "\"", runtimeLog) == 0,
+            "ProcessHandler runs two instances from the same DLL");
+        expect(PackageIntegrity::runProcess(fs::current_path(),
+            "\"" + probeExe + "\" --manager \"" + waitFixture.string() +
+            "\" \"" + waitSource.string() + "\"", runtimeLog) == 0,
+            "ProcessRuntimeManager builds and runs wait fixture");
+        expect(PackageIntegrity::runProcess(fs::current_path(),
+            "\"" + probeExe + "\" --manager-infinite \"" + infiniteFixture.string() +
+            "\" \"" + infiniteSource.string() + "\"", runtimeLog) != 0,
+            "ProcessRuntimeManager watchdog terminates infinite fixture");
+    } else {
+        expect(false, "Process runtime fixture binaries are available");
+    }
+    fs::remove(runtimeLog, error);
+    return failures == 0 ? 0 : 1;
+}
+
 struct RegressionEntry {
     std::string_view name;
     int (*runner)(int, char**);
@@ -19437,6 +19678,8 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--network-avatar-regression", runNetworkAvatarRegression),
         REG("--character-tick-control-regression", runCharacterTickControlRegression),
         REG("--physical-file-instance-regression", runPhysicalFileInstanceRegression),
+        REG("--process-packager-regression", runProcessPackagerRegression),
+        REG("--process-regression", runProcessRegression),
         REG("--property-text-input-regression", runPropertyTextInputRegression),
         REG("--string-value-regression", runStringValueRegression),
         REG("--property-schema-regression", runPropertySchemaRegression),

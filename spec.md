@@ -119,6 +119,18 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
 - `luar_compiler.dll`は`python build.py`のビルド/実行時に`Luar Programming Language/luar-rs`を`cargo build --release`し、`dlls/luar_compiler.dll`へ自動反映する。cargoが無い環境はコミット済みDLLを使う。
 
 ## 特殊なインスタンス
+
+### Process（C++ DLL）
+
+`Process` Instance は `ContentPath`（C++ ソース）、`DllPath`（DLL）、`Enabled` を保持し、Play セッションの `ProcessRuntimeManager` が DLL のビルド・ロード・実行・停止を管理する。詳細な ABI と未実装範囲は `doc/Instances/Process.md` を参照する。
+
+- `System.EnableExecutingProcess` が `true` の場合のみ実行する。配布ゲームではネイティブコード実行の初回許可を要求する。
+- `System.UseNetwork` が `true` の場合は Process を実行しない。Process はローカル実行専用である。
+- Studio は DLL の欠落またはソース／ヘッダー更新を検出した場合、MSVC で DLL をビルドし、成功した場合だけ Play を開始する。失敗時は古い DLL を実行しない。配布ゲームは同梱 DLL を検証して使い、ユーザー環境でのビルドは行わない。
+- DLL の必須入口は `extern "C" void start()`。`stop()` と `bindHost()` は任意。継続処理は `task::wait()` でエンジンへ制御を返す。
+- `FindChild` は `std::optional<InstanceRef>`、`FindChildWithClass<U>` は名前と `U::ClassName()` の厳密一致時だけ `std::optional<U>` を返す。ハンドルは非所有で、Scene 切替・削除・DLL 解放後は無効である。
+- Play 停止時は停止要求、`stop()`、ホスト参照解除、DLL 解放の順に処理する。待機も API 呼び出しも行わない無限ループは watchdog が検出し、低水準ログ出力後にエンジンを終了する。`System.ProcessWatchdogTimeoutSeconds` は正の有限値を秒単位で指定し、既定値は 2 秒。不正値は警告を出して拒否する。
+- イベント、任意プロパティ読み書き、汎用 Workspace 操作、物理・描画 API、ネットワーク API は未実装である。
   `Weather`はWorkspace直下に置く天候システムで、`CloudColor`（`Color4`）と
   `CloudHeight`（ワールド空間の雲層Y座標）を保持する。雲の水平クアッドはカメラのX/Zへ
   移動して描画範囲を維持するが、Y座標は`CloudHeight`を使い、カメラのYには追従しない。

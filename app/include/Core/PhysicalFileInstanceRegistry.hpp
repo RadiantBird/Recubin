@@ -43,5 +43,6 @@ bool registerType(PhysicalFileInstanceType type,
 // static-library linking cannot discard their translation unit).
 void registerTextFileType();
 void registerProgramType();
+void registerProcessType();
 
 } // namespace PhysicalFileInstanceRegistry

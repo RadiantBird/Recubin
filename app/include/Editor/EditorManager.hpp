@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <tuple>
 #include <unordered_set>
+#include <optional>
 #include <Util/RuntimeFileSystem.hpp>
 #include <include/imgui/imgui.h>
 
@@ -180,6 +181,11 @@ public:
 
     // 未保存確認ダイアログを ImGui モーダルで表示する（毎フレーム render() 内で処理する）
     void requestSaveDialog(GLFWwindow* window);
+    // Play開始前の未保存確認。毎回のPlay遷移で呼び出し、結果を次フレーム以降に取得する。
+    void requestPlaySaveConfirmation();
+    std::optional<bool> takePlaySaveDecision();
+    bool isPlaySaveConfirmationPending() const;
+    void cancelPlaySaveConfirmation();
     bool hasDirtyCodeEditors() const;
     void requestCodeEditorSaveDialog(GLFWwindow* window);
 
@@ -241,6 +247,9 @@ private:
 
     // 未保存ダイアログ関連
     bool        m_showSaveDialog   = false;
+    bool        m_showPlaySaveConfirm = false;
+    bool        m_playSaveConfirmationPending = false;
+    std::optional<bool> m_playSaveDecision;
     bool        m_showSaveAsAssetDialog = false;
     std::string m_pendingSaveAsPath;
     GLFWwindow* m_dialogWindow     = nullptr;
@@ -306,6 +315,7 @@ private:
     void updateResponsiveScale();
     void handleEditorShortcuts();
     void renderSaveDialog();
+    void renderPlaySaveConfirmDialog();
     void renderSaveAsAssetDialog();
     void renderCodeEditorSaveDialog();
     void renderPlayLoadConfirmDialog();

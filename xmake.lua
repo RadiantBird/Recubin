@@ -232,9 +232,39 @@ target("RecubinTest")
     configure_binary(true)
 target_end()
 
-target("RecubinRuntime")
-    set_kind("static")
-    add_files("app/src/Core/User.cpp", "app/src/Core/Renderer.cpp", "app/src/Core/RecubinRuntime.cpp")
+target("RecubinProcessWatchdogProbe")
+    set_kind("binary")
+    add_files("app/src/ProcessWatchdogProbe.cpp", "app/src/Core/ProcessWatchdog.cpp")
+    add_includedirs("app/include", "app")
+    if is_plat("windows") then
+        set_runtimes("MD")
+        add_cxxflags("/utf-8", {tools = "cl"})
+    end
+target_end()
+
+target("RecubinProcessWaitFixture")
+    set_kind("shared")
+    add_files("app/src/ProcessWaitFixture.cpp")
+    add_includedirs("app/include", "app")
+    if is_plat("windows") then
+        set_runtimes("MD")
+        add_cxxflags("/utf-8", {tools = "cl"})
+    end
+target_end()
+
+target("RecubinProcessInfiniteFixture")
+    set_kind("shared")
+    add_files("app/src/ProcessInfiniteFixture.cpp")
+    add_includedirs("app/include", "app")
+    if is_plat("windows") then
+        set_runtimes("MD")
+        add_cxxflags("/utf-8", {tools = "cl"})
+    end
+target_end()
+
+target("RecubinProcessRuntimeProbe")
+    set_kind("binary")
+    add_files("app/src/ProcessRuntimeProbe.cpp", "app/src/Core/User.cpp", "app/src/Core/Renderer.cpp")
     configure_binary(true)
 target_end()
 

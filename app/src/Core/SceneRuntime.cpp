@@ -42,6 +42,8 @@ void copySystemScalars(const System& source, System& destination) {
     destination.EnableIOAPI = source.EnableIOAPI;
     destination.EnableIPCAPI = source.EnableIPCAPI;
     destination.EnableExternalFileAccess = source.EnableExternalFileAccess;
+    destination.EnableExecutingProcess = source.EnableExecutingProcess;
+    destination.ProcessWatchdogTimeoutSeconds = source.ProcessWatchdogTimeoutSeconds;
     destination.AutoSpawnPlayerCharacter = source.AutoSpawnPlayerCharacter;
     destination.DefaultCameraMode = source.DefaultCameraMode;
 }

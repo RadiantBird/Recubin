@@ -111,7 +111,7 @@ void rewriteNode(YAML::Node node, const std::unordered_map<std::string, std::str
 
 const std::vector<std::string_view>& fileKeys() {
     static const std::vector<std::string_view> keys = {
-        "ContentPath", "Texture", "FacePath", "MeshFile", "IconPath", "FragmentShaderFile",
+        "ContentPath", "DllPath", "Texture", "FacePath", "MeshFile", "IconPath", "FragmentShaderFile",
         "Image", "ClearAmbientPath", "RainAmbientPath", "SnowAmbientPath"};
     return keys;
 }

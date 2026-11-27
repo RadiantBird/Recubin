@@ -3,10 +3,22 @@
 #include <Instances/Workspace.hpp>
 #include <Core/PropertyRegistry.hpp>
 #include <algorithm>
+#include <cmath>
 #include <Util/Logger.hpp>
 
 static const bool s_systemRegistered = []{
     using namespace PropertyRegistry;
+    auto watchdogTimeout = field<&System::ProcessWatchdogTimeoutSeconds>(
+        "ProcessWatchdogTimeoutSeconds");
+    watchdogTimeout.set = [](Instance* object, const PropValue& value) {
+        const float candidate = std::get<float>(value);
+        if (!std::isfinite(candidate) || candidate <= 0.0f) {
+            RCBN_WARN("System.ProcessWatchdogTimeoutSeconds must be finite and positive; value rejected");
+            return;
+        }
+        static_cast<System*>(object)->ProcessWatchdogTimeoutSeconds = candidate;
+    };
+    watchdogTimeout.luaReadOnly().group("General");
     registerClass("System", {
         field<&System::BaseResolution>("BaseResolution", 1.f, 16384.f, 1.f).luaReadOnly(),
         field<&System::UseNetwork>("UseNetwork"),
@@ -15,6 +27,9 @@ static const bool s_systemRegistered = []{
         field<&System::EnableIOAPI>("EnableIOAPI").luaReadOnly(),
         field<&System::EnableIPCAPI>("EnableIPCAPI").luaReadOnly(),
         field<&System::EnableExternalFileAccess>("EnableExternalFileAccess").luaReadOnly(),
+        field<&System::EnableExecutingProcess>("EnableExecutingProcess")
+            .luaReadOnly().group("General"),
+        std::move(watchdogTimeout),
         field<&System::AutoSpawnPlayerCharacter>("AutoSpawnPlayerCharacter")
             .luaReadOnly().group("Runtime"),
         field<&System::MaxClonesPerFrame>("MaxClonesPerFrame", 0.0f, 1000000.0f, 1.0f).luaReadOnly(),
@@ -83,6 +98,15 @@ void System::setProperty(const std::string& name, const YAML::Node& value) {
             DefaultCameraMode = CameraMode::Character;
             return;
         }
+    }
+    if (name == "ProcessWatchdogTimeoutSeconds") {
+        const float candidate = value.as<float>();
+        if (!std::isfinite(candidate) || candidate <= 0.0f) {
+            RCBN_WARN("System.ProcessWatchdogTimeoutSeconds must be finite and positive; value rejected");
+            return;
+        }
+        ProcessWatchdogTimeoutSeconds = candidate;
+        return;
     }
     if (PropertyRegistry::loadProperty(this, "System", name, value)) return;
     if (name == "MaxClonesPerFrame")        { MaxClonesPerFrame        = value.as<int>();   return; }

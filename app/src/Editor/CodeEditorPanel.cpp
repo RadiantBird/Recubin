@@ -5,6 +5,7 @@
 #include <Editor/UiHelpers.hpp>
 #include <Instances/Instance.hpp>
 #include <Instances/Script.hpp>
+#include <Instances/Process.hpp>
 #include <Instances/TextFile.hpp>
 #include <Util/AssetPath.hpp>
 #include <Util/AssetGuard.hpp>
@@ -20,6 +21,7 @@
 #include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <string_view>
 
@@ -117,6 +119,18 @@ void CodeEditorPanel::loadTarget() {
 
     if (auto script = std::dynamic_pointer_cast<Script>(instance)) {
         m_text = script->Source;
+    } else if (auto process = std::dynamic_pointer_cast<Process>(instance)) {
+        if (process->Path.empty()) {
+            m_text.clear();
+        } else {
+            const auto path = AssetPath::resolveAgainst(
+                process->Path, AssetPath::sceneAssetBaseDirectory());
+            m_text = FileLoader::readText(AssetPath::toStored(path));
+            if (m_text.empty() && !std::filesystem::is_regular_file(path)) {
+                RCBN_ERROR("CodeEditorPanel: failed to read Process source "
+                           << process->getFullPath() << " (path=" << process->Path << ")");
+            }
+        }
     } else if (auto textFile = std::dynamic_pointer_cast<TextFile>(instance)) {
         if (m_runtimeFileSystem != nullptr) {
             const RuntimeFileResult result = m_runtimeFileSystem->readTextFile(textFile->Path, textFile->StorageId);
@@ -331,6 +345,31 @@ bool CodeEditorPanel::save() {
             }
         }
         script->Source = m_text;
+    } else if (auto process = std::dynamic_pointer_cast<Process>(instance)) {
+        if (process->Path.empty()) {
+            RCBN_ERROR("CodeEditorPanel: Process source path is empty for "
+                       << process->getFullPath());
+            return false;
+        }
+        if (!AssetGuard::allow(process->Path)) {
+            RCBN_ERROR("CodeEditorPanel: Process source path is not allowed: "
+                       << process->Path);
+            return false;
+        }
+        std::ofstream output(AssetPath::resolveAgainst(
+                                 process->Path, AssetPath::sceneAssetBaseDirectory()),
+                             std::ios::binary | std::ios::trunc);
+        if (!output.is_open()) {
+            RCBN_ERROR("CodeEditorPanel: failed to write Process source "
+                       << process->getFullPath() << " (path=" << process->Path << ")");
+            return false;
+        }
+        output.write(m_text.data(), static_cast<std::streamsize>(m_text.size()));
+        if (!output.good()) {
+            RCBN_ERROR("CodeEditorPanel: failed while writing Process source "
+                       << process->getFullPath() << " (path=" << process->Path << ")");
+            return false;
+        }
     } else if (auto textFile = std::dynamic_pointer_cast<TextFile>(instance)) {
         if (textFile->Path.empty()) return false;
         if (m_runtimeFileSystem != nullptr) {

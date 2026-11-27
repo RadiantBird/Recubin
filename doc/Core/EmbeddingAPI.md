@@ -1,4 +1,8 @@
-# Recubin C++ SDK API リファレンス
+# Recubin C++ SDK API リファレンス（アーカイブ）
+
+この文書は旧静的埋め込み SDK の記録です。現在の公開 API は Process DLL の
+`start()`、任意の `stop()` / `bindHost()`、`FindChild`、`FindChildWithClass`、
+`task::wait()` です。詳細は `app/include/recubin_process_api.h` を参照してください。
 
 この文書は、`#include <recubin.h>` から利用する公開 API の契約を説明します。対象は Windows / MSVC の静的 SDK です。公開ヘッダーは既存の `Instance`、`Workspace`、`Cube`、`Model`、`StringValue`、`Vector3`、`CFrame` も再公開するため、これらの型を使うコードは SDK の include tree と同じ C++23 / MSVC ランタイム設定でコンパイルしてください。
 

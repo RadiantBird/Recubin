@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include <map>
 
 // ==================================================================
 //  IPlatform
@@ -31,6 +32,7 @@ struct ChildProcessLaunchOptions {
     std::vector<std::string> arguments;
     std::string workingDirectory;
     std::optional<std::string> outputLogPath;
+    std::map<std::string, std::string> environment;
 };
 
 // 子プロセスをフレームを止めずに監視・終了するためのハンドル。

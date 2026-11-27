@@ -1,4 +1,8 @@
-# C++ 静的ライブラリ利用
+# C++ 静的ライブラリ利用（アーカイブ）
+
+このページの `recubin::Engine` 静的 SDK はアーカイブ済みです。新規の C++
+拡張は Process DLL API（`include/recubin.h`、`include/recubin_process_api.h`）を
+使用してください。旧 API は通常の xmake ビルド対象から除外されています。
 
 公開 API の各フィールド、戻り値、所有権、スレッド契約は [EmbeddingAPI.md](EmbeddingAPI.md) にまとめています。まず API リファレンスを確認し、その後このページの SDK 生成・リンク手順を実行してください。
 

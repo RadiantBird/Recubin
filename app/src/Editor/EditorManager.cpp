@@ -460,6 +460,7 @@ void EditorManager::render(GLFWwindow* window) {
 
     // ---- 未保存ダイアログ ----
     renderSaveDialog();
+    renderPlaySaveConfirmDialog();
     renderSaveAsAssetDialog();
     renderPlaySaveBlockedDialog();
     renderCodeEditorSaveDialog();
@@ -1570,6 +1571,75 @@ void EditorManager::requestSaveDialog(GLFWwindow* window) {
     m_saveDialogOpenedAt = ImGui::GetTime();
 }
 
+void EditorManager::requestPlaySaveConfirmation() {
+    if (m_playSaveConfirmationPending) return;
+    m_playSaveDecision.reset();
+    m_playSaveConfirmationPending = true;
+    m_showPlaySaveConfirm = true;
+}
+
+std::optional<bool> EditorManager::takePlaySaveDecision() {
+    if (!m_playSaveDecision) return std::nullopt;
+    const auto decision = m_playSaveDecision;
+    m_playSaveDecision.reset();
+    m_playSaveConfirmationPending = false;
+    return decision;
+}
+
+bool EditorManager::isPlaySaveConfirmationPending() const {
+    return m_playSaveConfirmationPending;
+}
+
+void EditorManager::cancelPlaySaveConfirmation() {
+    m_showPlaySaveConfirm = false;
+    m_playSaveConfirmationPending = false;
+    m_playSaveDecision.reset();
+}
+
+void EditorManager::renderPlaySaveConfirmDialog() {
+    if (m_showPlaySaveConfirm) {
+        ImGui::OpenPopup("###PlaySaveConfirm");
+        m_showPlaySaveConfirm = false;
+    }
+
+    if (!ImGui::BeginPopupModal("Save before Play?###PlaySaveConfirm", nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+        // Escape or another modal can close the popup without selecting an
+        // action. Treat that as cancellation so Play cannot proceed on a
+        // stale pending request.
+        if (m_playSaveConfirmationPending && !m_showPlaySaveConfirm) {
+            m_playSaveDecision = false;
+            m_playSaveConfirmationPending = false;
+        }
+        return;
+    }
+
+    ImGui::TextUnformatted("The scene has unsaved changes.");
+    ImGui::TextUnformatted("Save it before starting test play?");
+    ImGui::Separator();
+    if (ImGui::Button("Save and Play")) {
+        if (saveCurrentScene()) {
+            m_playSaveDecision = true;
+            ImGui::CloseCurrentPopup();
+        } else {
+            // A cancelled Save As dialog or an I/O failure must not start Play.
+            m_playSaveDecision = false;
+            ImGui::CloseCurrentPopup();
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Play without Saving")) {
+        m_playSaveDecision = true;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel")) {
+        m_playSaveDecision = false;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+}
+
 bool EditorManager::hasDirtyCodeEditors() const {
     for (const auto& panel : m_codeEditors) {
         if (panel && panel->isDirty()) return true;
@@ -2445,7 +2515,8 @@ void EditorManager::cleanupOrphanedSelection() {
 }
 
 void EditorManager::openCodeEditor(const std::shared_ptr<Instance>& target) {
-    if (!target || (!target->IsA("Script") && !target->IsA("TextFile"))) {
+    if (!target || (!target->IsA("Script") && !target->IsA("TextFile") &&
+                    !target->IsA("Process"))) {
         RCBN_WARN("Editor: attempted to open an unsupported auxiliary editor target");
         return;
     }

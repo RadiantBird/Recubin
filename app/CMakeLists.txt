@@ -65,7 +65,6 @@ set(PER_TARGET_SOURCES
     "${CMAKE_SOURCE_DIR}/src/watcher.cpp"
     "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
     "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
-    "${CMAKE_SOURCE_DIR}/src/Core/RecubinRuntime.cpp"
 )
 set(CORE_SOURCES ${ALL_SOURCES})
 list(REMOVE_ITEM CORE_SOURCES ${PER_TARGET_SOURCES})
@@ -130,6 +129,9 @@ add_executable(RecubinTest
     $<TARGET_OBJECTS:RecubinCore>
 )
 
+option(RECUBIN_BUILD_ARCHIVED_SDK "Build the archived static SDK" OFF)
+
+if(RECUBIN_BUILD_ARCHIVED_SDK)
 # ---- Recubin static library (public runtime API) ----
 # RecubinRuntime owns the GLFW context and runtime frame loop behind
 # include/recubin.h.  Keep the existing executable targets unchanged while
@@ -318,7 +320,7 @@ foreach(shader_file IN LISTS RECUBIN_SOKOL_SHADER_FILES)
 endforeach()
 add_custom_target(RecubinSokolShaders DEPENDS ${RECUBIN_SOKOL_SHADER_HEADERS})
 list(APPEND COMMON_INCLUDES "${RECUBIN_SOKOL_GENERATED_DIR}")
-foreach(shader_consumer RecubinCore Recubin RecubinEngine RecubinTest RecubinRuntimeCore)
+foreach(shader_consumer RecubinCore Recubin RecubinEngine RecubinTest)
     add_dependencies(${shader_consumer} RecubinSokolShaders)
 endforeach()
 
@@ -483,6 +485,8 @@ if(WIN32)
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Recubin
     )
 endif()
+
+endif() # RECUBIN_BUILD_ARCHIVED_SDK
 
 # ==============================================================================
 # --- 5. DLLの自動コピー設定 (Visual Studio対応) ---

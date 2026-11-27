@@ -64,6 +64,17 @@ std::wstring makeCommandLine(const ChildProcessLaunchOptions& options) {
     return commandLine;
 }
 
+std::vector<wchar_t> makeEnvironmentBlock(const ChildProcessLaunchOptions& options) {
+    std::vector<wchar_t> block;
+    for (const auto& [key, value] : options.environment) {
+        const std::wstring item = utf8ToWide(key + "=" + value);
+        block.insert(block.end(), item.begin(), item.end());
+        block.push_back(L'\0');
+    }
+    block.push_back(L'\0');
+    return block;
+}
+
 struct CloseWindowContext {
     DWORD processId = 0;
     bool posted = false;
@@ -382,12 +393,14 @@ std::unique_ptr<IChildProcess> WindowsPlatform::launchChildProcess(
     std::vector<wchar_t> commandLine(commandLineString.begin(), commandLineString.end());
     commandLine.push_back(L'\0');
     const std::wstring workingDirectory = utf8ToWide(options.workingDirectory);
+    const auto environment = makeEnvironmentBlock(options);
 
     PROCESS_INFORMATION processInfo{};
     const BOOL created = CreateProcessW(
         executable.c_str(), commandLine.data(), nullptr, nullptr, TRUE,
         CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
-        nullptr, workingDirectory.empty() ? nullptr : workingDirectory.c_str(),
+        options.environment.empty() ? nullptr : const_cast<wchar_t*>(environment.data()),
+        workingDirectory.empty() ? nullptr : workingDirectory.c_str(),
         &startupInfo.StartupInfo, &processInfo);
 
     DeleteProcThreadAttributeList(attributeList);
@@ -476,12 +489,14 @@ std::unique_ptr<IPipedProcess> WindowsPlatform::launchPipedProcess(
     std::vector<wchar_t> commandLine(commandLineString.begin(), commandLineString.end());
     commandLine.push_back(L'\0');
     const std::wstring workingDirectory = utf8ToWide(options.workingDirectory);
+    const auto environment = makeEnvironmentBlock(options);
 
     PROCESS_INFORMATION processInfo{};
     const BOOL created = CreateProcessW(
         executable.c_str(), commandLine.data(), nullptr, nullptr, TRUE,
         CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
-        nullptr, workingDirectory.empty() ? nullptr : workingDirectory.c_str(),
+        options.environment.empty() ? nullptr : const_cast<wchar_t*>(environment.data()),
+        workingDirectory.empty() ? nullptr : workingDirectory.c_str(),
         &startupInfo.StartupInfo, &processInfo);
 
     DeleteProcThreadAttributeList(attributeList);

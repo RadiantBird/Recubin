@@ -21,6 +21,8 @@
 #include <Instances/PathfindingService.hpp>
 
 #include <Core/Physics.hpp>
+#include <Core/ProcessInstanceBridge.hpp>
+#include <Core/ProcessRuntimeManager.hpp>
 #include <Core/Renderer.hpp>
 #include <Core/LuauEngine.hpp>
 #include <Core/SceneLoader.hpp>
@@ -519,9 +521,13 @@ int main(int argc, char* argv[]) {
     // System flags are authoritative), but before network/physics/scripts.
     if (!runtimeArgs.editorTest) {
         SystemExtensionPermissions permissions{
-            system->EnableIOAPI, system->EnableIPCAPI, system->EnableExternalFileAccess};
+            system->EnableIOAPI,
+            system->EnableIPCAPI,
+            system->EnableExternalFileAccess,
+            system->EnableExecutingProcess};
         const auto applicationRoot = runtimeFs->root();
-        const bool anyEnabled = permissions.io || permissions.ipc || permissions.external;
+        const bool anyEnabled = permissions.io || permissions.ipc || permissions.external ||
+                                permissions.executingProcess;
         if (!anyEnabled) {
             if (!SystemExtensionConsent::write(applicationRoot, permissions))
                 RCBN_WARN("System extension receipt could not be written; it will be retried.");
@@ -548,6 +554,7 @@ int main(int argc, char* argv[]) {
                 if (permissions.io) ImGui::BulletText("I/O API - read and write game data files.");
                 if (permissions.ipc) ImGui::BulletText("IPC API - communicate with external processes.");
                 if (permissions.external) ImGui::BulletText("External File Access - access files outside the game data directory.");
+                if (permissions.executingProcess) ImGui::BulletText("Native C++ Process - execute packaged native code.");
                 ImGui::Spacing();
                 ImGui::TextWrapped("These permissions may read, modify, or communicate outside the game sandbox.");
                 if (ImGui::Button("Continue", ImVec2(120, 0))) continueRuntime = true;
@@ -741,6 +748,34 @@ int main(int argc, char* argv[]) {
     luauEngine->executeWorkspaceScripts(*workspace);
     luauEngine->executeSystemScripts();
 
+    std::vector<std::shared_ptr<Process>> processInstances;
+    collectProcessInstances(system, processInstances);
+    ProcessInstanceBridge processBridge(system);
+    ProcessRuntimeManager processRuntime;
+    if (!processInstances.empty() && system->EnableExecutingProcess) {
+        ProcessRuntimeManager::Config processConfig;
+        processConfig.assetBase = AssetPath::sceneAssetBaseDirectory();
+        processConfig.allowBuild = false;
+        processConfig.watchdogTimeout = std::chrono::milliseconds(
+            static_cast<int64_t>(system->ProcessWatchdogTimeoutSeconds * 1000.0f));
+        processConfig.instanceCallbacks = processBridge.callbacks();
+        processConfig.reportError = [](const std::string& message) {
+            RCBN_ERROR("Process: " << message);
+        };
+        processConfig.requestEngineStop = [&window] {
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        };
+        if (!processRuntime.prepare(processInstances, *system, processConfig) ||
+            !processRuntime.start()) {
+            RCBN_ERROR("Process runtime failed: " << processRuntime.lastError());
+            return -1;
+        }
+    } else if (!processInstances.empty()) {
+        RCBN_WARN(system->UseNetwork
+            ? "Native Process instances are disabled while networking is enabled."
+            : "Native Process instances are disabled by System.EnableExecutingProcess.");
+    }
+
     // その後にキャラクターをスポーンする
     if (system->AutoSpawnPlayerCharacter) {
         user->spawnCharacter(system.get(), workspace.get());
@@ -778,6 +813,13 @@ int main(int argc, char* argv[]) {
         if (selfCheck) deltaTime = 1.0f / 60.0f;  // 実行時間に左右されない固定dt
         SystemState::get().deltaTime = deltaTime;
         syncCharacterWorkspace();
+        if (processRuntime.isRunning()) {
+            processRuntime.pump(deltaTime);
+            if (processRuntime.hasFatalError()) {
+                RCBN_ERROR("Process runtime stopped: " << processRuntime.lastError());
+                break;
+            }
+        }
 
         // ---- ネットワークポーリング（物理更新より前＝受信内容を反映してからシミュレートする） ----
         NetworkManager::get().update(deltaTime);
@@ -884,6 +926,7 @@ int main(int argc, char* argv[]) {
     }
 
     // ---- クリーンアップ ----
+    processRuntime.stop();
     NetworkManager::get().shutdown();
     NetworkManager::get().onRoleChanged = nullptr;
     NetworkManager::get().onGameMessage = nullptr;

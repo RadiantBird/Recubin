@@ -218,16 +218,44 @@ static bool isFileKey(const std::string& key) { return hasKey(AssetDependencies:
 static bool isSequenceKey(const std::string& key) { return hasKey(AssetDependencies::sequenceKeys(), key); }
 static bool isDirectoryKey(const std::string& key) { return hasKey(AssetDependencies::directoryKeys(), key); }
 
+static YAML::Node findMapValue(const YAML::Node& map, std::string_view key) {
+    if (!map || !map.IsMap()) return {};
+    for (auto it = map.begin(); it != map.end(); ++it) {
+        if (it->first.IsScalar() && it->first.as<std::string>() == key) {
+            return it->second;
+        }
+    }
+    return {};
+}
+
 // Walk YAML tree and collect file-referencing values for given keys.
 // out: vector of (yamlNodeRef-like info isn't trackable, so we collect string paths)
 // DataPath はディレクトリ参照（Terrainのチャンク保存先）のため、ファイルパスとは別に dirPaths に集める。
-static void collectPaths(const YAML::Node& node, std::vector<std::string>& paths, std::vector<std::string>& dirPaths) {
+static void collectPaths(const YAML::Node& node, std::vector<std::string>& paths,
+                         std::vector<std::string>& dirPaths,
+                         std::vector<std::string>* processDllPaths = nullptr,
+                         bool processNode = false,
+                         bool* processMissingDll = nullptr) {
     if (node.IsMap()) {
+        const YAML::Node classNode = findMapValue(node, "ClassName");
+        const bool isProcess = processNode || (classNode.IsScalar() &&
+            classNode.as<std::string>("") == "Process");
+        const bool processRequiresDll = isProcess &&
+            (!findMapValue(node, "Enabled") || findMapValue(node, "Enabled").as<bool>(true));
         for (auto it = node.begin(); it != node.end(); ++it) {
             std::string key = it->first.as<std::string>();
             if (isFileKey(key) && it->second.IsScalar()) {
+                if (isProcess && key == "ContentPath") continue;
                 std::string v = it->second.as<std::string>();
-                if (!v.empty()) paths.push_back(v);
+                if (processRequiresDll && key == "DllPath" && v.empty()) {
+                    if (processMissingDll) *processMissingDll = true;
+                    continue;
+                }
+                if (!v.empty()) {
+                    paths.push_back(v);
+                    if (isProcess && key == "DllPath" && processDllPaths)
+                        processDllPaths->push_back(v);
+                }
             } else if (isSequenceKey(key) && it->second.IsSequence()) {
                 const YAML::Node skyboxPaths = it->second;
                 for (const auto& elem : skyboxPaths) {
@@ -240,12 +268,14 @@ static void collectPaths(const YAML::Node& node, std::vector<std::string>& paths
                 std::string v = it->second.as<std::string>();
                 if (!v.empty()) dirPaths.push_back(v);
             } else {
-                collectPaths(it->second, paths, dirPaths);
+                const bool isProcessProperties = processRequiresDll && key == "Properties";
+                collectPaths(it->second, paths, dirPaths, processDllPaths,
+                             isProcessProperties, processMissingDll);
             }
         }
     } else if (node.IsSequence()) {
         for (const auto& child : node) {
-            collectPaths(child, paths, dirPaths);
+            collectPaths(child, paths, dirPaths, processDllPaths, false, processMissingDll);
         }
     }
 }
@@ -824,7 +854,14 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     // Collect all asset paths referenced in the scene
     std::vector<std::string> rawPaths;
     std::vector<std::string> rawDirPaths;
-    collectPaths(sceneNode, rawPaths, rawDirPaths);
+    std::vector<std::string> processDllPaths;
+    bool processMissingDll = false;
+    collectPaths(sceneNode, rawPaths, rawDirPaths, &processDllPaths, false,
+                 &processMissingDll);
+    if (processMissingDll) {
+        log("[ERROR] Enabled Process has an empty DllPath");
+        return false;
+    }
 
     // Deduplicate
     std::sort(rawPaths.begin(), rawPaths.end());
@@ -850,6 +887,11 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
             if (fs::exists(legacySource)) src = legacySource;
         }
         if (!fs::exists(src)) {
+            if (std::find(processDllPaths.begin(), processDllPaths.end(), rawPath) !=
+                processDllPaths.end()) {
+                log("[ERROR] Process DLL not found: " + rawPath);
+                return false;
+            }
             log("[WARN] File not found, skipping: " + rawPath);
             continue;
         }

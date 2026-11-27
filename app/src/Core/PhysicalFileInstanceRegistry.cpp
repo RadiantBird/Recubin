@@ -39,6 +39,7 @@ void ensureBuiltinsRegistered() {
         ensureBaseSchemaRegistered();
         PhysicalFileInstanceRegistry::registerTextFileType();
         PhysicalFileInstanceRegistry::registerProgramType();
+        PhysicalFileInstanceRegistry::registerProcessType();
 #define RCBN_FILE_INSTANCE(ClassName, Kind, Category, DialogLabel, Filter)       \
         PhysicalFileInstanceRegistry::registerType(                             \
             PhysicalFileInstanceType{                                           \

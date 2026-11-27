@@ -1,0 +1,509 @@
+cmake_minimum_required(VERSION 3.26)
+project(Recubin)
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# --- 1. MSVC ランタイム設定 (修正済み) ---
+# 依存ライブラリが Release ランタイム (/MD) でビルドされているため、
+# Debug 構成でも /MD を使ってランタイム不一致を避けます
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+
+# --- 2. グローバル設定 ---
+add_compile_options(
+    "$<$<CXX_COMPILER_ID:MSVC>:/utf-8>"
+    "$<$<CXX_COMPILER_ID:MSVC>:/Z7>"
+    "$<$<CXX_COMPILER_ID:MSVC>:/MP>"
+    "$<$<CXX_COMPILER_ID:MSVC>:/permissive->"
+)
+
+# --- 2.5. Recast/Detour (パスファインディング用ナビメッシュライブラリ) ---
+set(RECASTNAVIGATION_DEMO OFF CACHE BOOL "" FORCE)
+set(RECASTNAVIGATION_TESTS OFF CACHE BOOL "" FORCE)
+set(RECASTNAVIGATION_EXAMPLES OFF CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation)
+
+# --- 2.6. Box3D ---
+set(BOX3D_SAMPLES OFF CACHE BOOL "" FORCE)
+set(BOX3D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(BOX3D_DOCS OFF CACHE BOOL "" FORCE)
+set(BOX3D_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(BOX3D_PROFILE OFF CACHE BOOL "" FORCE)
+set(BOX3D_VALIDATE OFF CACHE BOOL "" FORCE)
+set(BOX3D_SANITIZE OFF CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_SOURCE_DIR}/temp_libs/box3d EXCLUDE_FROM_ALL)
+if(MSVC)
+    set_target_properties(box3d PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+endif()
+
+# --- 3. ソース収集 ---
+# Recubin / RecubinEngine の二重コンパイルを避けるため、両ターゲットで共有できる
+# ソース（エントリポイントと EDITOR_DISABLED で分岐する User.cpp/Renderer.cpp を除く全て）を
+# RecubinCore という OBJECT ライブラリとして1回だけコンパイルし、各ターゲットはそれをリンクする。
+file(GLOB_RECURSE ALL_SOURCES_CPP "src/*.cpp")
+file(GLOB_RECURSE ALL_SOURCES_C "src/*.c")
+set(ALL_SOURCES ${ALL_SOURCES_CPP} ${ALL_SOURCES_C})
+if(APPLE)
+    list(APPEND ALL_SOURCES "${CMAKE_SOURCE_DIR}/src/Util/MacPlatform.mm")
+endif()
+set(STUDIO_SOURCES
+    "${CMAKE_SOURCE_DIR}/src/main.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Studio/StudioLaunch.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Studio/StudioApplication.cpp"
+)
+set(PER_TARGET_SOURCES
+    ${STUDIO_SOURCES}
+    "${CMAKE_SOURCE_DIR}/src/game_main.cpp"
+    "${CMAKE_SOURCE_DIR}/src/test_main.cpp"
+    "${CMAKE_SOURCE_DIR}/src/watcher.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/RecubinRuntime.cpp"
+)
+set(CORE_SOURCES ${ALL_SOURCES})
+list(REMOVE_ITEM CORE_SOURCES ${PER_TARGET_SOURCES})
+list(REMOVE_ITEM CORE_SOURCES
+    "${CMAKE_SOURCE_DIR}/src/Core/PhysXPhysicsBackend.cpp"
+)
+
+# --- シャドーイング検出（デフォルト無効の警告を明示的に有効化） ---
+# /w14456: ローカル変数が外側スコープのローカル変数を隠す
+# /w14457: ローカル変数が関数パラメータを隠す
+# /w14458: ローカル変数がメンバ変数を隠す
+# LuauEngine.cpp は Lua/Luau C API の慣習で `lua_State* L` という引数名を
+# 意図的にメンバー変数 L (メインVM state) と同名にしている（コルーチン等、メンバーとは
+# 別の state を渡すための設計）ため、C4458 が大量に誤検出される。有効化の対象から除外する
+# （AdditionalOptions で後から /wd4458 を足しても DisableSpecificWarnings の評価順の都合で
+#  上書きできないため、最初から適用しない方式にする）。
+set(SHADOW_CHECK_SOURCES ${ALL_SOURCES})
+list(REMOVE_ITEM SHADOW_CHECK_SOURCES "${CMAKE_SOURCE_DIR}/src/Core/LuauEngine.cpp")
+set_source_files_properties(${SHADOW_CHECK_SOURCES} PROPERTIES COMPILE_OPTIONS
+    "$<$<CXX_COMPILER_ID:MSVC>:/w14456>;$<$<CXX_COMPILER_ID:MSVC>:/w14457>;$<$<CXX_COMPILER_ID:MSVC>:/w14458>"
+)
+set_source_files_properties("${CMAKE_SOURCE_DIR}/src/Core/TimeStretchNode.cpp" PROPERTIES COMPILE_OPTIONS
+    "$<$<CXX_COMPILER_ID:MSVC>:/O2>;$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-O3>"
+)
+
+add_library(RecubinCore OBJECT ${CORE_SOURCES})
+target_include_directories(RecubinCore PRIVATE
+    "${CMAKE_SOURCE_DIR}/temp_libs/box3d/include"
+)
+
+if(WIN32)
+    add_executable(Watcher
+        "${CMAKE_SOURCE_DIR}/src/watcher.cpp"
+    )
+    target_compile_definitions(Watcher PRIVATE
+        WINVER=0x0600
+        _WIN32_WINNT=0x0600
+    )
+    target_link_libraries(Watcher PRIVATE comctl32)
+endif()
+
+add_executable(Recubin
+    ${STUDIO_SOURCES}
+    "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
+    $<TARGET_OBJECTS:RecubinCore>
+)
+
+# ---- RecubinEngine (ゲームランタイム専用) ----
+add_executable(RecubinEngine
+    "${CMAKE_SOURCE_DIR}/src/game_main.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
+    $<TARGET_OBJECTS:RecubinCore>
+)
+
+# ---- RecubinTest (ヘッドレスLuauテストランナー) ----
+add_executable(RecubinTest
+    "${CMAKE_SOURCE_DIR}/src/test_main.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
+    $<TARGET_OBJECTS:RecubinCore>
+)
+
+# ---- Recubin static library (public runtime API) ----
+# RecubinRuntime owns the GLFW context and runtime frame loop behind
+# include/recubin.h.  Keep the existing executable targets unchanged while
+# sharing the same core translation units and runtime implementation.
+add_library(RecubinRuntimeCore STATIC
+    "${CMAKE_SOURCE_DIR}/src/Core/User.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/Renderer.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Core/RecubinRuntime.cpp"
+    $<TARGET_OBJECTS:RecubinCore>
+)
+set_target_properties(RecubinRuntimeCore PROPERTIES
+    OUTPUT_NAME "RecubinRuntimeCore"
+)
+add_library(RecubinRuntime INTERFACE)
+set_target_properties(RecubinRuntime PROPERTIES EXPORT_NAME Runtime)
+
+# The macOS package regression signs a real RecubinEngine Mach-O into its
+# temporary App Bundle, so ensure it exists before RecubinTest is run.
+if(APPLE)
+    add_dependencies(RecubinTest RecubinEngine)
+endif()
+
+# --- 4. 静的リンクの強制定義 (重要) ---
+set(LIB_DIR "${CMAKE_SOURCE_DIR}/include/libs")
+set(COMMON_INCLUDES ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/include/imgui
+    ${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation/Recast/Include
+    ${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation/Detour/Include
+    ${CMAKE_SOURCE_DIR}/temp_libs/signalsmith-stretch/include
+    .)
+
+if(WIN32)
+    set(COMMON_DEFS
+        YAML_CPP_STATIC_LIBRARIES 
+        GLEW_STATIC 
+        NOMINMAX 
+        RECUBIN_NO_LUAU_PRAGMA
+        $<$<CONFIG:Debug>:NDEBUG>
+    )
+
+    set(COMMON_LIBS
+        "${LIB_DIR}/glfw3.lib"
+        "${LIB_DIR}/glew32s.lib"
+        opengl32 user32 gdi32 shell32
+        "${LIB_DIR}/Luau.Ast.lib"
+        "${LIB_DIR}/Luau.Bytecode.lib"
+        "${LIB_DIR}/Luau.Compiler.lib"
+        "${LIB_DIR}/Luau.VM.lib"
+        "${LIB_DIR}/Luau.Common.lib"
+        "${LIB_DIR}/yaml-cpp.lib"
+        Recast
+        Detour
+        ws2_32
+        winmm
+    )
+else()
+    # --- Mac対応 ---
+    # GLFW / GLEW は配布先のHomebrew dylibに依存しないよう、
+    # Homebrew等でインストールされた静的archiveを明示的に解決する。
+    #   brew install glfw glew
+    set(COMMON_DEFS
+        YAML_CPP_STATIC_LIBRARIES 
+        GLEW_STATIC 
+        NOMINMAX 
+        $<$<CONFIG:Debug>:NDEBUG>
+    )
+
+    set(RECUBIN_ORIGINAL_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    find_library(RECUBIN_GLFW_STATIC_LIBRARY NAMES glfw3 glfw REQUIRED)
+    find_library(RECUBIN_GLEW_STATIC_LIBRARY NAMES GLEW glew REQUIRED)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${RECUBIN_ORIGINAL_FIND_LIBRARY_SUFFIXES})
+    if(NOT RECUBIN_GLFW_STATIC_LIBRARY MATCHES "\\.a$" OR
+       NOT RECUBIN_GLEW_STATIC_LIBRARY MATCHES "\\.a$")
+        message(FATAL_ERROR "Mac向けGLFW/GLEWには静的archive (.a) が必要です。")
+    endif()
+
+    find_path(RECUBIN_GLFW_INCLUDE_DIR NAMES GLFW/glfw3.h REQUIRED)
+    find_path(RECUBIN_GLEW_INCLUDE_DIR NAMES GL/glew.h REQUIRED)
+    list(APPEND COMMON_INCLUDES
+        ${RECUBIN_GLFW_INCLUDE_DIR}
+        ${RECUBIN_GLEW_INCLUDE_DIR}
+    )
+    find_package(OpenGL REQUIRED)
+
+    include(FetchContent)
+
+    # Luau: リポジトリ内にビルド元のバージョン記録が無いため、
+    # 既定でmasterを取得する。RECUBIN_LUAU_GIT_TAGで固定バージョンに上書き可能。
+    set(RECUBIN_LUAU_GIT_TAG "0.731" CACHE STRING "Luauの取得元git tag/コミット")
+    FetchContent_Declare(
+        Luau
+        GIT_REPOSITORY https://github.com/luau-lang/luau.git
+        GIT_TAG ${RECUBIN_LUAU_GIT_TAG}
+    )
+    FetchContent_MakeAvailable(Luau)
+
+    # yaml-cpp: Homebrew版には同梱patched headerが使う未リリースAPIが無く、最新masterは
+    # convert<T, Enable>へ変更され同梱ヘッダのconvert<T>とリンク互換性がないため、
+    # 以前の成功実績があり同梱ヘッダと一致するコミットを既定にする。旧既定値masterだけは
+    # 一度移行し、ユーザーが指定した別のタグ/コミットは維持する。
+    set(RECUBIN_YAMLCPP_DEFAULT_GIT_TAG "356643ba267039367d87fa70ce3d8f87144f55e9")
+    if(DEFINED RECUBIN_YAMLCPP_GIT_TAG AND RECUBIN_YAMLCPP_GIT_TAG STREQUAL "master")
+        set(RECUBIN_YAMLCPP_GIT_TAG "${RECUBIN_YAMLCPP_DEFAULT_GIT_TAG}" CACHE STRING "同梱ヘッダと互換性があるyaml-cppのgitコミット" FORCE)
+    else()
+        set(RECUBIN_YAMLCPP_GIT_TAG "${RECUBIN_YAMLCPP_DEFAULT_GIT_TAG}" CACHE STRING "同梱ヘッダと互換性があるyaml-cppのgitコミット")
+    endif()
+    set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        yaml-cpp
+        GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+        GIT_TAG ${RECUBIN_YAMLCPP_GIT_TAG}
+    )
+    FetchContent_MakeAvailable(yaml-cpp)
+
+    set(COMMON_LIBS
+        ${RECUBIN_GLFW_STATIC_LIBRARY}
+        yaml-cpp
+        ${RECUBIN_GLEW_STATIC_LIBRARY}
+        OpenGL::GL
+        "-framework Cocoa"
+        "-framework UniformTypeIdentifiers"
+        "-framework IOKit"
+        "-framework CoreFoundation"
+        "-framework CoreVideo"
+        Luau.Ast
+        Luau.Compiler
+        Luau.VM
+        Luau.Common
+        Recast
+        Detour
+    )
+endif()
+
+# --- 4.5. sokol_gfx / sokol-shdc ---
+# 描画バックエンドの選択。sokol-shdc が生成するシェーダーヘッダーも同じ定義で分岐するため、
+# 全ターゲット共通にする（Metal へ移行するときは Apple だけ SOKOL_METAL に切り替える）。
+list(APPEND COMMON_DEFS SOKOL_GLCORE)
+
+# shaders/sokol/*.glsl を sokol-shdc で <build>/generated/shaders/<名前>.h に変換する。
+# C++ からは #include <shaders/<名前>.h> で読む。名前が "_" で始まるファイルは
+# @include 専用とみなして単独では変換しない（変更時は全シェーダーを作り直す）。
+# sokol-shdc は tools/sokol-shdc/<win32|osx_arm64|osx>/ に置く（git 管理外。取得元: floooh/sokol-tools-bin）。
+# 生成コードは sokol_gfx.h の構造体に依存するので、include/sokol/sokol_gfx.h と同じ時期のものを使うこと。
+if(WIN32)
+    set(RECUBIN_SOKOL_SHDC_DIR "${CMAKE_SOURCE_DIR}/tools/sokol-shdc/win32")
+elseif(APPLE AND CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64")
+    set(RECUBIN_SOKOL_SHDC_DIR "${CMAKE_SOURCE_DIR}/tools/sokol-shdc/osx_arm64")
+else()
+    set(RECUBIN_SOKOL_SHDC_DIR "${CMAKE_SOURCE_DIR}/tools/sokol-shdc/osx")
+endif()
+find_program(RECUBIN_SOKOL_SHDC NAMES sokol-shdc HINTS "${RECUBIN_SOKOL_SHDC_DIR}" NO_DEFAULT_PATH)
+
+set(RECUBIN_SOKOL_SHADER_DIR "${CMAKE_SOURCE_DIR}/shaders/sokol")
+set(RECUBIN_SOKOL_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
+file(GLOB RECUBIN_SOKOL_SHADER_FILES CONFIGURE_DEPENDS "${RECUBIN_SOKOL_SHADER_DIR}/*.glsl")
+set(RECUBIN_SOKOL_SHADER_HEADERS)
+if(MSVC)
+    set(RECUBIN_SOKOL_SHDC_ERRFMT msvc)
+else()
+    set(RECUBIN_SOKOL_SHDC_ERRFMT gcc)
+endif()
+foreach(shader_file IN LISTS RECUBIN_SOKOL_SHADER_FILES)
+    get_filename_component(shader_name "${shader_file}" NAME_WE)
+    if(shader_name MATCHES "^_")
+        continue()
+    endif()
+    if(NOT RECUBIN_SOKOL_SHDC)
+        message(FATAL_ERROR "sokol-shdc が見つかりません（${RECUBIN_SOKOL_SHDC_DIR}）。"
+                            "floooh/sokol-tools-bin から取得して配置してください。")
+    endif()
+    set(shader_header "${RECUBIN_SOKOL_GENERATED_DIR}/shaders/${shader_name}.h")
+    add_custom_command(
+        OUTPUT "${shader_header}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${RECUBIN_SOKOL_GENERATED_DIR}/shaders"
+        COMMAND "${RECUBIN_SOKOL_SHDC}"
+            --input "${shader_file}"
+            --output "${shader_header}"
+            --slang glsl410:metal_macos
+            --ifdef
+            --errfmt ${RECUBIN_SOKOL_SHDC_ERRFMT}
+        DEPENDS ${RECUBIN_SOKOL_SHADER_FILES}
+        COMMENT "[sokol-shdc] ${shader_name}.glsl"
+        VERBATIM
+    )
+    list(APPEND RECUBIN_SOKOL_SHADER_HEADERS "${shader_header}")
+endforeach()
+add_custom_target(RecubinSokolShaders DEPENDS ${RECUBIN_SOKOL_SHADER_HEADERS})
+list(APPEND COMMON_INCLUDES "${RECUBIN_SOKOL_GENERATED_DIR}")
+foreach(shader_consumer RecubinCore Recubin RecubinEngine RecubinTest RecubinRuntimeCore)
+    add_dependencies(${shader_consumer} RecubinSokolShaders)
+endforeach()
+
+# ---- RecubinCore (共有オブジェクトライブラリ) ----
+target_compile_definitions(RecubinCore PRIVATE ${COMMON_DEFS})
+target_include_directories(RecubinCore PRIVATE ${COMMON_INCLUDES})
+
+# ---- Recubin (エディター付き) ----
+target_compile_definitions(Recubin PRIVATE ${COMMON_DEFS})
+target_include_directories(Recubin PRIVATE ${COMMON_INCLUDES})
+target_link_options(Recubin PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>
+    $<$<CXX_COMPILER_ID:MSVC>:/DEBUG>
+    $<$<CXX_COMPILER_ID:MSVC>:/ignore:4099>
+)
+target_link_libraries(Recubin PRIVATE ${COMMON_LIBS} box3d::box3d)
+
+# ---- RecubinEngine (ゲームランタイム専用) ----
+target_compile_definitions(RecubinEngine PRIVATE ${COMMON_DEFS} EDITOR_DISABLED)
+target_include_directories(RecubinEngine PRIVATE ${COMMON_INCLUDES})
+target_link_options(RecubinEngine PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>
+    $<$<CXX_COMPILER_ID:MSVC>:/DEBUG>
+    $<$<CXX_COMPILER_ID:MSVC>:/ignore:4099>
+)
+target_link_libraries(RecubinEngine PRIVATE ${COMMON_LIBS} box3d::box3d)
+
+# ---- RecubinTest (ヘッドレスLuauテストランナー) ----
+target_compile_definitions(RecubinTest PRIVATE ${COMMON_DEFS} EDITOR_DISABLED)
+target_include_directories(RecubinTest PRIVATE ${COMMON_INCLUDES})
+target_link_options(RecubinTest PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/NODEFAULTLIB:LIBCMT>
+    $<$<CXX_COMPILER_ID:MSVC>:/DEBUG>
+    $<$<CXX_COMPILER_ID:MSVC>:/ignore:4099>
+)
+target_link_libraries(RecubinTest PRIVATE ${COMMON_LIBS} box3d::box3d)
+
+# ---- RecubinRuntime public SDK target ----
+target_compile_definitions(RecubinRuntimeCore PRIVATE ${COMMON_DEFS} EDITOR_DISABLED)
+target_include_directories(RecubinRuntimeCore PRIVATE ${COMMON_INCLUDES})
+target_compile_definitions(RecubinRuntime INTERFACE ${COMMON_DEFS} EDITOR_DISABLED)
+target_compile_options(RecubinRuntime INTERFACE $<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
+target_include_directories(RecubinRuntime INTERFACE
+    "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>"
+    "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include/imgui>"
+    "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation/Recast/Include>"
+    "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/temp_libs/recastnavigation/Detour/Include>"
+    "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/temp_libs/signalsmith-stretch/include>"
+    "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/generated>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+    "$<INSTALL_INTERFACE:.>"
+)
+# On Windows, rebuild the output archive with the third-party archives folded
+# into it.  This makes the installed Recubin.lib self-contained; the consumer
+# still needs the platform libraries listed below (OpenGL/Win32/audio/network).
+if(WIN32)
+    set(RECUBIN_ARCHIVE_DEPS
+        "${LIB_DIR}/glfw3.lib"
+        "${LIB_DIR}/glew32s.lib"
+        "${LIB_DIR}/Luau.Ast.lib"
+        "${LIB_DIR}/Luau.Bytecode.lib"
+        "${LIB_DIR}/Luau.Compiler.lib"
+        "${LIB_DIR}/Luau.VM.lib"
+        "${LIB_DIR}/Luau.Common.lib"
+        "${LIB_DIR}/yaml-cpp.lib"
+        "$<TARGET_FILE:Recast>"
+        "$<TARGET_FILE:Detour>"
+        "$<TARGET_FILE:box3d>"
+    )
+    add_dependencies(RecubinRuntimeCore Recast Detour box3d)
+    set(RECUBIN_ARCHIVE_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/Recubin-$<CONFIG>.lib")
+    add_custom_command(OUTPUT "${RECUBIN_ARCHIVE_OUTPUT}"
+        COMMAND ${CMAKE_COMMAND} -E rm -f
+            "${CMAKE_CURRENT_BINARY_DIR}/Recubin-merged-$<CONFIG>.lib"
+            "${CMAKE_CURRENT_BINARY_DIR}/Recubin-filtered-$<CONFIG>.lib"
+        COMMAND "${CMAKE_AR}"
+            "/OUT:${CMAKE_CURRENT_BINARY_DIR}/Recubin-merged-$<CONFIG>.lib"
+            "$<TARGET_FILE:RecubinRuntimeCore>"
+            ${RECUBIN_ARCHIVE_DEPS}
+        COMMAND "${CMAKE_AR}"
+            "/OUT:${CMAKE_CURRENT_BINARY_DIR}/Recubin-filtered-$<CONFIG>.lib"
+            "/REMOVE:libglew_static.dir\\$<CONFIG>\\glew.res"
+            "${CMAKE_CURRENT_BINARY_DIR}/Recubin-merged-$<CONFIG>.lib"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_BINARY_DIR}/Recubin-filtered-$<CONFIG>.lib"
+            "${RECUBIN_ARCHIVE_OUTPUT}"
+        DEPENDS RecubinRuntimeCore Recast Detour box3d
+                ${LIB_DIR}/glfw3.lib ${LIB_DIR}/glew32s.lib
+                ${LIB_DIR}/Luau.Ast.lib ${LIB_DIR}/Luau.Bytecode.lib
+                ${LIB_DIR}/Luau.Compiler.lib ${LIB_DIR}/Luau.VM.lib
+                ${LIB_DIR}/Luau.Common.lib ${LIB_DIR}/yaml-cpp.lib
+                "$<TARGET_FILE:Recast>" "$<TARGET_FILE:Detour>"
+                "$<TARGET_FILE:box3d>"
+        COMMENT "[Recubin] Folding third-party archives into Recubin.lib"
+        VERBATIM
+    )
+    add_custom_target(RecubinSdkArchive DEPENDS "${RECUBIN_ARCHIVE_OUTPUT}")
+    add_dependencies(RecubinRuntime RecubinSdkArchive)
+    target_link_options(RecubinRuntime INTERFACE
+        "$<BUILD_INTERFACE:/WHOLEARCHIVE:${RECUBIN_ARCHIVE_OUTPUT}>"
+        "$<INSTALL_INTERFACE:/WHOLEARCHIVE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_LIBDIR}/Recubin.lib>"
+    )
+    # Force file-scope registration units (PropertyRegistry, Instance classes)
+    # to remain linked when the external application only references the C API.
+    target_link_libraries(RecubinRuntime INTERFACE
+        "$<BUILD_INTERFACE:${RECUBIN_ARCHIVE_OUTPUT}>"
+        "$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_LIBDIR}/Recubin.lib>"
+        opengl32 user32 gdi32 shell32 ws2_32 winmm
+    )
+else()
+    # Non-Windows builds retain normal transitive archive dependencies.  The
+    # SDK merge step is intentionally Windows-specific for the first release.
+    target_link_libraries(RecubinRuntime INTERFACE ${COMMON_LIBS} box3d::box3d)
+endif()
+add_library(Recubin::Runtime ALIAS RecubinRuntime)
+
+if(WIN32)
+    install(TARGETS RecubinRuntime EXPORT RecubinTargets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/Recubin-$<CONFIG>.lib"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RENAME Recubin.lib
+    )
+    install(FILES "${CMAKE_SOURCE_DIR}/include/recubin.h"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+    # Public headers include only the Box3D runtime surface. Keep deprecated
+    # PhysX headers out of the SDK to avoid exposing an unsupported backend.
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+        PATTERN "PhysX" EXCLUDE
+        PATTERN "PhysXPhysicsBackend.hpp" EXCLUDE
+    )
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/assets/fonts"
+        DESTINATION assets
+    )
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/shaders"
+        DESTINATION .
+    )
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/examples/embedding"
+        DESTINATION examples
+    )
+    install(FILES "${CMAKE_SOURCE_DIR}/doc/Core/Embedding.md"
+                  "${CMAKE_SOURCE_DIR}/doc/Core/EmbeddingAPI.md"
+        DESTINATION doc/Core
+    )
+    install(EXPORT RecubinTargets
+        FILE RecubinTargets.cmake
+        NAMESPACE Recubin::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Recubin
+    )
+    configure_package_config_file(
+        "${CMAKE_SOURCE_DIR}/cmake/RecubinConfig.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/RecubinConfig.cmake"
+        INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Recubin"
+    )
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/RecubinConfig.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Recubin
+    )
+endif()
+
+# ==============================================================================
+# --- 5. DLLの自動コピー設定 (Visual Studio対応) ---
+# ==============================================================================
+# if(WIN32)
+#     # コピー元となるDLLフォルダのパス
+#     set(DLL_SOURCE_DIR "${CMAKE_SOURCE_DIR}/dlls")
+
+#     # Recubin (エディター付き) の出力先へコピー
+#     add_custom_command(TARGET Recubin POST_BUILD
+#         COMMAND ${CMAKE_COMMAND} -E copy_directory
+#         "${DLL_SOURCE_DIR}"
+#         "$<TARGET_FILE_DIR:Recubin>"
+#         COMMENT "[CMake] Copying DLLs to Recubin output directory..."
+#     )
+
+#     # RecubinEngine (ゲームランタイム) の出力先へコピー
+#     add_custom_command(TARGET RecubinEngine POST_BUILD
+#         COMMAND ${CMAKE_COMMAND} -E copy_directory
+#         "${DLL_SOURCE_DIR}"
+#         "$<TARGET_FILE_DIR:RecubinEngine>"
+#         COMMENT "[CMake] Copying DLLs to RecubinEngine output directory..."
+#     )
+# endif()

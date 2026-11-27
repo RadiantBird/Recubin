@@ -816,3 +816,11 @@
 - 非表示 Studio の検証用シーンでコピー・元参照維持・保存失敗時の復旧・異内容衝突を確認。コピー後に元画像を一時移動して再読込し、新しい画像から読み込むことを確認。日本語名保存後の終了と再起動、Play / Stop も成功。実際の `the_last.rcbn` は変更していない。
 - 未検証: 基準設定／旧基準修復の OS フォルダ選択を含む実画面操作、macOS、実際の配布パッケージの起動。ランタイムの AssetGuard により、外部基準を使う場合は配布前のパッケージングが必要。GUI 操作の多様なシーンでの確認を継続する。
 - 最終追加検証: 日本語フォルダへ Save As 後の画像読み込みと正常終了、日本語 Scene を最後に開いた状態での再起動、非表示 Studio の Play / Stop、保存失敗後の元参照での再保存を確認。Recubin / RecubinEngine / RecubinTest の最新 xmake ビルドと上記7回帰を再実行し成功。
+
+## 2026-11-27 C++ Process SDK 再設計（未完了）
+
+- Process Instance、DLL/Fiber 実行、基本 Instance API・Heartbeat、System 実行許可・同意、Play 前の dirty 保存確認、watchdog、配布依存収集、旧静的 SDK の archive/sdk-static 保存を途中実装した。
+- 最重要の未完了: DLL が存在しない状態の自動ビルドは MSVC 環境抽出に失敗する。ProcessBuilder の cmd/vcvars 環境抽出と Unicode 環境を修正し、通常・日本語・%PATH%・& パスで DLL 不在から実ビルドし、Studio Play まで確認する。環境抽出は10秒タイムアウトで失敗する。
+- --process-regression は既存 DLL fixture を用いており、自動ビルド成功の証拠にはならない。欠落 DLL の実ビルド検証へ修正する。Heartbeat と API の実運用、SDK の主要プロパティ・イベント全体、Play 前保存確認の GUI 分岐、実パッケージゲーム起動は未検証／一部未実装。spec.md・Process.md と実装の整合も最終確認が必要。
+- Windows xmake で Recubin / RecubinEngine / RecubinTest ビルド成功。--process-regression と --process-packager-regression 成功、ただし前者の自動ビルド検証は上記の通り不十分。--system-extension-regression は watchdog 設定の対象項目が通ったが、default file system uses construction-time current directory が失敗。git diff --check --ignore-submodules は CRLF 警告のみ。
+- 次: ProcessBuilder::msvcEnvironment で vcvars の stderr と exit code を正確に取得し引用・環境抽出を修正。新しい DLL 出力先でテストし、その後 Studio 配布 SDK と UI 操作・ゲーム配布を統合検証する。Process 実行基盤の未完成部分やユーザーの変更を削除しない。

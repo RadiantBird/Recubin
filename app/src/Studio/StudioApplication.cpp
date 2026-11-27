@@ -11,6 +11,8 @@
 #include <Core/GLFWInputBackend.hpp>
 #include <Core/LuauEngine.hpp>
 #include <Core/Physics.hpp>
+#include <Core/ProcessInstanceBridge.hpp>
+#include <Core/ProcessRuntimeManager.hpp>
 #include <Core/Renderer.hpp>
 #include <Core/SceneRuntime.hpp>
 #include <Core/SystemState.hpp>
@@ -131,6 +133,8 @@ public:
     void savePanelVisibility(EditorManager* editor);
     void loadEditorPreferences(EditorManager* editor, User* user, GLFWwindow* window);
     void saveEditorPreferences(EditorManager* editor, User* user);
+    std::string loadProcessCompilerPath();
+    void saveProcessCompilerPath(const std::string& path);
 
 private:
     YAML::Node loadEditorSettings();
@@ -209,6 +213,24 @@ std::string EditorSettings::loadLastScenePath() {
 void EditorSettings::saveLastScenePath(const std::string& path) {
     YAML::Node root = loadEditorSettings();
     root["LastScenePath"] = path;
+    writeEditorSettings(root);
+}
+
+std::string EditorSettings::loadProcessCompilerPath() {
+    YAML::Node root = loadEditorSettings();
+    try {
+        if (root && root["Process"] && root["Process"]["CompilerPath"])
+            return root["Process"]["CompilerPath"].as<std::string>();
+    } catch (const std::exception& error) {
+        m_loadFailed = true;
+        RCBN_ERROR("Invalid Process compiler setting: " << error.what());
+    }
+    return {};
+}
+
+void EditorSettings::saveProcessCompilerPath(const std::string& path) {
+    YAML::Node root = loadEditorSettings();
+    root["Process"]["CompilerPath"] = path;
     writeEditorSettings(root);
 }
 
@@ -589,6 +611,7 @@ private:
         m_editor->initializeAutosaveRecovery();
         m_settings.loadPanelVisibility(m_editor);
         m_settings.loadEditorPreferences(m_editor, m_user.get(), m_window);
+        m_processCompilerPath = m_settings.loadProcessCompilerPath();
         m_editor->welcomePanel->lastScenePath = lastScenePath;
 
         m_editor->hierarchyPanel->onSwitchWorkspace = [this](Workspace* workspace) {
@@ -647,6 +670,7 @@ private:
 
     void releaseSceneRuntime()
     {
+        if (m_processRuntime) m_processRuntime->stop();
         m_workspaces = SceneRuntime::collectWorkspaces(m_system);
         m_luau->cancelAllTasks();
         SceneRuntime::releaseTerrainStreamers(m_workspaces);
@@ -835,6 +859,9 @@ private:
 
     bool updateInput(const FrameState& frame)
     {
+        if (!frame.runtimeFrameOk) {
+            return false;
+        }
         auto& state = SystemState::get();
         const auto* viewport = GetFocusedViewport();
         state.viewportFocused = !frame.windowInactive && viewport &&
@@ -909,7 +936,7 @@ private:
 
     void updateWorkspaceEffects(const FrameState& frame)
     {
-        if (frame.navMeshBusy) {
+        if (!frame.runtimeFrameOk || frame.navMeshBusy) {
             return;
         }
         {
@@ -950,6 +977,13 @@ private:
 
     void updateRuntime(FrameState& frame)
     {
+        if (frame.isPlaying && m_processRuntime && m_processRuntime->isRunning()) {
+            if (!m_processRuntime->pump(frame.deltaTime) && m_processRuntime->hasFatalError()) {
+                RCBN_ERROR("Process runtime stopped: " << m_processRuntime->lastError());
+                returnToEdit();
+                frame.runtimeFrameOk = false;
+            }
+        }
         if (!frame.isPlaying || !frame.runtimeFrameOk || frame.isPaused ||
             frame.navMeshBusy) {
             return;
@@ -1011,9 +1045,29 @@ private:
     void updatePlayTransition(FrameState& frame)
     {
         if (frame.isPlaying && !m_wasPlaying) {
-            frame.playTransitionAccepted = startPlay();
-        } else if (!frame.isPlaying && m_wasPlaying) {
-            stopPlay();
+            // A dirty scene must be explicitly handled before any runtime or
+            // Process state is started.  The modal result is consumed on a
+            // later frame so the ImGui dialog can render without blocking the
+            // engine loop.
+            const auto decision = m_editor->takePlaySaveDecision();
+            if (m_editor->isDirty() && !decision) {
+                if (!m_editor->isPlaySaveConfirmationPending()) {
+                    m_editor->requestPlaySaveConfirmation();
+                }
+                frame.playTransitionAccepted = false;
+            } else if (decision && !*decision) {
+                returnToEdit();
+                frame.playTransitionAccepted = false;
+            } else {
+                frame.playTransitionAccepted = startPlay();
+            }
+        } else if (!frame.isPlaying) {
+            if (m_editor->isPlaySaveConfirmationPending()) {
+                m_editor->cancelPlaySaveConfirmation();
+            }
+            if (m_wasPlaying) {
+                stopPlay();
+            }
         }
         m_wasPlaying = frame.isPlaying && frame.playTransitionAccepted;
     }
@@ -1043,6 +1097,14 @@ private:
             beginNetworkClientCleanup();
             clearEditorNetwork();
             restoreObserverBinding();
+            restorePlaySnapshot();
+            returnToEdit();
+            return false;
+        }
+
+        if (!startProcessRuntime()) {
+            beginNetworkClientCleanup();
+            clearEditorNetwork();
             restorePlaySnapshot();
             returnToEdit();
             return false;
@@ -1104,11 +1166,91 @@ private:
 
     void stopPlay()
     {
+        if (m_processRuntime) m_processRuntime->stop();
         if (m_editor->activePlayMode() == EditorPlayMode::LocalServer) {
             beginNetworkClientCleanup();
             clearEditorNetwork();
         }
         restorePlaySnapshot();
+    }
+
+    bool startProcessRuntime()
+    {
+        if (!m_system->EnableExecutingProcess || m_system->UseNetwork) return true;
+        std::vector<std::shared_ptr<Process>> processes;
+        collectProcessInstances(m_system, processes);
+        if (processes.empty()) return true;
+        bool compilerRequired = false;
+        for (const auto& process : processes) {
+            if (!process || process->DllPath.empty() || process->Path.empty()) {
+                compilerRequired = true;
+                break;
+            }
+            std::error_code timestampError;
+            const auto dll = AssetPath::resolveAgainst(process->DllPath,
+                                                       AssetPath::sceneAssetBaseDirectory());
+            const auto source = AssetPath::resolveAgainst(process->Path,
+                                                          AssetPath::sceneAssetBaseDirectory());
+            if (!std::filesystem::is_regular_file(dll, timestampError) || timestampError) {
+                compilerRequired = true;
+                break;
+            }
+            const auto dllTime = std::filesystem::last_write_time(dll, timestampError);
+            const auto sourceTime = std::filesystem::last_write_time(source, timestampError);
+            if (timestampError || !std::filesystem::is_regular_file(source, timestampError) ||
+                timestampError || sourceTime > dllTime) {
+                compilerRequired = true;
+                break;
+            }
+        }
+        if (compilerRequired && m_processCompilerPath.empty()) {
+            const std::string selected = getPlatform().openFileDialog(
+                {{"MSVC compiler (cl.exe)", "*.exe"}});
+            if (!selected.empty()) {
+                m_processCompilerPath = selected;
+                m_settings.saveProcessCompilerPath(m_processCompilerPath);
+            } else {
+                m_editor->showPlayStartError(
+                    "Select an MSVC compiler (cl.exe) before starting Play.\n"
+                    "You can build the Process DLL manually and retry Play.");
+                return false;
+            }
+        }
+        const auto executableDirectory =
+            std::filesystem::absolute(m_options.executablePath).parent_path();
+        const auto packagedSdk = executableDirectory / "sdk" / "include";
+        const auto sourceSdk = std::filesystem::current_path() / "app" / "include";
+        const auto sdkDirectory = std::filesystem::is_directory(packagedSdk)
+            ? packagedSdk : sourceSdk;
+        const auto publicHeader = sdkDirectory / "recubin.h";
+        const auto processHeader = sdkDirectory / "recubin_process.h";
+        const auto apiHeader = sdkDirectory / "recubin_process_api.h";
+        if (!std::filesystem::is_regular_file(publicHeader) ||
+            !std::filesystem::is_regular_file(processHeader) ||
+            !std::filesystem::is_regular_file(apiHeader)) {
+            RCBN_ERROR("Process SDK headers are unavailable near the Studio executable or source tree.");
+            return false;
+        }
+        if (!m_processBridge) m_processBridge =
+            std::make_unique<ProcessInstanceBridge>(m_system);
+        if (!m_processRuntime) m_processRuntime = std::make_unique<ProcessRuntimeManager>();
+        ProcessRuntimeManager::Config config;
+        config.assetBase = AssetPath::sceneAssetBaseDirectory();
+        config.sdkHeaders = {publicHeader, processHeader, apiHeader};
+        config.includeDirectories = {sdkDirectory, executableDirectory};
+        config.compilerPath = AssetPath::fromStored(m_processCompilerPath);
+        config.watchdogTimeout = std::chrono::milliseconds(
+            static_cast<int64_t>(m_system->ProcessWatchdogTimeoutSeconds * 1000.0f));
+        config.instanceCallbacks = m_processBridge->callbacks();
+        config.reportError = [](const std::string& message) { RCBN_ERROR("Process: " << message); };
+        config.requestEngineStop = [this] { glfwSetWindowShouldClose(m_window, GLFW_TRUE); };
+        if (!m_processRuntime->prepare(processes, *m_system, config) ||
+            !m_processRuntime->start()) {
+            RCBN_ERROR("Process runtime failed: " << m_processRuntime->lastError());
+            m_processRuntime->stop();
+            return false;
+        }
+        return true;
     }
 
     bool startLocalServer()
@@ -1430,6 +1572,9 @@ private:
     std::unique_ptr<Renderer> m_renderer;
     std::unique_ptr<AudioService> m_audio;
     std::shared_ptr<System> m_system;
+    std::unique_ptr<ProcessInstanceBridge> m_processBridge;
+    std::unique_ptr<ProcessRuntimeManager> m_processRuntime;
+    std::string m_processCompilerPath;
     std::unique_ptr<LuauEngine> m_luau;
     std::shared_ptr<User> m_user;
     std::shared_ptr<Workspace> m_workspace;
