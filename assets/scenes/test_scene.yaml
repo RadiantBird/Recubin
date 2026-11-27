@@ -23,26 +23,6 @@ Root:
     LockAspectRatio: true
     UseFixedResolution: false
   Children:
-    - ClassName: MaterialService
-      Name: MaterialService
-      Children:
-        - ClassName: Material
-          Name: MetalV2
-          Properties:
-            Metallic: 1
-            Roughness: 0.2
-            Reflectance: 0.5
-            BaseColorMap: ""
-            RoughnessMap: ""
-            MetallicMap: ""
-            NormalMap: ""
-            TextureScale: 4
-            NormalStrength: 1
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            MassDensity: 1
-            Conductive: true
     - ClassName: Users
       Name: Users
       Children:
@@ -157,10 +137,425 @@ Root:
                     GripC1:
                       Position: [0, 0, 0]
                       Rotation: [-0, -0, -0, 1]
-    - ClassName: AppImage
-      Name: AppImage
+    - ClassName: StarterCharacter
+      Name: Model
       Properties:
-        IconPath: assets/image/the-cat.png
+        Position: [-2.89672, 1.000001, -4.240821]
+        Size: [1, 1, 1]
+        Rotation: [0, 0, 0, 1]
+      Children:
+        - ClassName: Cube
+          Name: LeftArm
+          Properties:
+            Position: [1.3967199, -1.000001, 4.240821]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: LeftLeg
+          Properties:
+            Position: [2.39672, -3.000001, 4.240821]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.14117648, 0.31764707, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: RightArm
+          Properties:
+            Position: [4.39672, -1.000001, 4.240821]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: RightLeg
+          Properties:
+            Position: [3.39672, -3.000001, 4.240821]
+            Size: [1, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.14117648, 0.31764707, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: Root
+          Properties:
+            Position: [2.89672, -1.000001, 4.240821]
+            Size: [2, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.5, 0.5, 0]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: [AngularX, AngularZ]
+          Children:
+            - ClassName: Force
+              Name: YawForce
+              Properties:
+                Enabled: false
+                RelativeTo: World
+                Torque: true
+                MaintainVelocity: true
+                Value: [0, 0, 0]
+                AxisMask: [0, 1, 0]
+        - ClassName: Cube
+          Name: Torso
+          Properties:
+            Position: [2.89672, -1.000001, 4.240821]
+            Size: [2, 2, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.39215687, 0.047058824, 0.1254902, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Sphere
+          Name: Head
+          Properties:
+            Position: [2.89672, 0.49999905, 4.240821]
+            Size: [1.25, 1.25, 1.25]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+          Children:
+            - ClassName: Decal
+              Name: Decal
+              Properties:
+                Texture: assets/image/hehe.png
+                Face: 0
+                Color: [1, 1, 1, 1]
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
+                Mode: 0
+        - ClassName: Animation
+          Name: R6Walk
+          Properties:
+            Length: 0.6666667
+            Speed: 1
+            Looped: true
+            ContentPath: assets/anims/r6_walk.rcanim
+        - ClassName: BallSocket
+          Name: LeftHipRagdoll
+          Properties:
+            Enabled: false
+            Cube0: Model\Torso
+            Cube1: Model\LeftLeg
+            AngularXMode: Limited
+            AngularXMin: -50
+            AngularXMax: 50
+            AngularYMode: Limited
+            AngularYMin: -45
+            AngularYMax: 45
+            AngularZMode: Limited
+            AngularZMin: -40
+            AngularZMax: 40
+        - ClassName: BallSocket
+          Name: LeftShoulderRagdoll
+          Properties:
+            Enabled: false
+            Cube0: Model\Torso
+            Cube1: Model\LeftArm
+            AngularXMode: Limited
+            AngularXMin: -90
+            AngularXMax: 90
+            AngularYMode: Limited
+            AngularYMin: -75
+            AngularYMax: 75
+            AngularZMode: Limited
+            AngularZMin: -110
+            AngularZMax: 110
+        - ClassName: BallSocket
+          Name: NeckRagdoll
+          Properties:
+            Enabled: false
+            Cube0: Model\Torso
+            Cube1: Model\Head
+            AngularXMode: Limited
+            AngularXMin: -45
+            AngularXMax: 45
+            AngularYMode: Limited
+            AngularYMin: -60
+            AngularYMax: 60
+            AngularZMode: Limited
+            AngularZMin: -35
+            AngularZMax: 35
+        - ClassName: BallSocket
+          Name: RightHipRagdoll
+          Properties:
+            Enabled: false
+            Cube0: Model\Torso
+            Cube1: Model\RightLeg
+            AngularXMode: Limited
+            AngularXMin: -50
+            AngularXMax: 50
+            AngularYMode: Limited
+            AngularYMin: -45
+            AngularYMax: 45
+            AngularZMode: Limited
+            AngularZMin: -40
+            AngularZMax: 40
+        - ClassName: BallSocket
+          Name: RightShoulderRagdoll
+          Properties:
+            Enabled: false
+            Cube0: Model\Torso
+            Cube1: Model\RightArm
+            AngularXMode: Limited
+            AngularXMin: -90
+            AngularXMax: 90
+            AngularYMode: Limited
+            AngularYMin: -75
+            AngularYMax: 75
+            AngularZMode: Limited
+            AngularZMin: -110
+            AngularZMax: 110
+        - ClassName: BallSocket
+          Name: RootJointRagdoll
+          Properties:
+            Enabled: false
+            Cube0: Model\Root
+            Cube1: Model\Torso
+            AngularXMode: Free
+            AngularXMin: -180
+            AngularXMax: 180
+            AngularYMode: Free
+            AngularYMin: -180
+            AngularYMax: 180
+            AngularZMode: Free
+            AngularZMin: -180
+            AngularZMax: 180
+        - ClassName: Gyro
+          Name: RootGyro
+          Properties:
+            Enabled: false
+            Part: Model\Root
+            XEnabled: true
+            XTargetAngle: 0
+            XMaxTorque: 3.4028235e+38
+            XMaxAngularSpeed: 180
+            YEnabled: false
+            YTargetAngle: 0
+            YMaxTorque: 3.4028235e+38
+            YMaxAngularSpeed: 180
+            ZEnabled: true
+            ZTargetAngle: 0
+            ZMaxTorque: 3.4028235e+38
+            ZMaxAngularSpeed: 180
+        - ClassName: Humanoid
+          Name: Humanoid
+          Properties:
+            WalkSpeed: 16
+            JumpPower: 48.522
+            ClimbSpeed: 10
+            HipHeight: 3
+            JumpHeight: 5.99996
+            ImpactRagdollThreshold: 45
+            RagdollRecoverySpeed: 2.5
+            RagdollRecoveryDelay: 1
+            MaxHealth: 100
+            RespawnTime: 5
+            Health: 100
+            WalkAnimation: R6Walk
+        - ClassName: Motor6D
+          Name: LeftHip
+          Properties:
+            Enabled: true
+            Part0: Model\Torso
+            Part1: Model\LeftLeg
+            C0:
+              Position: [-0.5, -1, 0]
+              Rotation: [0, 0, 0, 1]
+            C1:
+              Position: [0, 1, 0]
+              Rotation: [0, 0, 0, 1]
+            Transform:
+              Position: [0, 0, 0]
+              Rotation: [0, 0, 0, 1]
+            Frequency: 10
+            DampingRatio: 1
+        - ClassName: Motor6D
+          Name: LeftShoulder
+          Properties:
+            Enabled: true
+            Part0: Model\Torso
+            Part1: Model\LeftArm
+            C0:
+              Position: [-1.5, 0.5, 0]
+              Rotation: [0, 0, 0, 1]
+            C1:
+              Position: [0, 0.5, 0]
+              Rotation: [0, 0, 0, 1]
+            Transform:
+              Position: [0, 0, 0]
+              Rotation: [0, 0, 0, 1]
+            Frequency: 10
+            DampingRatio: 1
+        - ClassName: Motor6D
+          Name: Neck
+          Properties:
+            Enabled: true
+            Part0: Model\Torso
+            Part1: Model\Head
+            C0:
+              Position: [0, 1.5, 0]
+              Rotation: [0, 0, 0, 1]
+            C1:
+              Position: [0, 0, 0]
+              Rotation: [0, 0, 0, 1]
+            Transform:
+              Position: [0, 0, 0]
+              Rotation: [0, 0, 0, 1]
+            Frequency: 10
+            DampingRatio: 1
+        - ClassName: Motor6D
+          Name: RightHip
+          Properties:
+            Enabled: true
+            Part0: Model\Torso
+            Part1: Model\RightLeg
+            C0:
+              Position: [0.5, -1, 0]
+              Rotation: [0, 0, 0, 1]
+            C1:
+              Position: [0, 1, 0]
+              Rotation: [0, 0, 0, 1]
+            Transform:
+              Position: [0, 0, 0]
+              Rotation: [0, 0, 0, 1]
+            Frequency: 10
+            DampingRatio: 1
+        - ClassName: Motor6D
+          Name: RightShoulder
+          Properties:
+            Enabled: true
+            Part0: Model\Torso
+            Part1: Model\RightArm
+            C0:
+              Position: [1.5, 0.5, 0]
+              Rotation: [0, 0, 0, 1]
+            C1:
+              Position: [0, 0.5, 0]
+              Rotation: [0, 0, 0, 1]
+            Transform:
+              Position: [0, 0, 0]
+              Rotation: [0, 0, 0, 1]
+            Frequency: 10
+            DampingRatio: 1
+        - ClassName: Motor6D
+          Name: RootJoint
+          Properties:
+            Enabled: true
+            Part0: Model\Root
+            Part1: Model\Torso
+            C0:
+              Position: [0, 0, 0]
+              Rotation: [0, 0, 0, 1]
+            C1:
+              Position: [0, 0, 0]
+              Rotation: [0, 0, 0, 1]
+            Transform:
+              Position: [0, 0, 0]
+              Rotation: [0, 0, 0, 1]
+            Frequency: 10
+            DampingRatio: 1
     - ClassName: Workspace
       Name: Workspace
       Properties:
@@ -169,192 +564,54 @@ Root:
         PhysicsEnabled: true
         PhysicsSubsteps: 8
       Children:
-        - ClassName: Cube
-          Name: Blue
-          Properties:
-            Position: [-2, 0, -8]
-            Size: [1, 4, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Rope
-          Name: Rope
-          Properties:
-            Enabled: true
-            Cube0: Branch
-            Cube1: Saw
-            MaxDistance: 3
-            Stiffness: 100
-            Damping: 10
-            Color: [0.3, 0.9, 1, 1]
-            LineWidth: 0.2
-        - ClassName: Cube
-          Name: SpecialCube
-          Properties:
-            Position: [31.257055, -5.6158414, 50.550472]
-            Size: [4, 1, 2]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.90851736, 0, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: true
-            CanTouch: true
-            CollisionGroup: Special
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
+        - ClassName: Folder
+          Name: _Effects
           Children:
-            - ClassName: Script
-              Name: NewScript
+            - ClassName: PostEffect
+              Name: CRT
               Properties:
-                Enabled: true
-                ContentPath: ""
-                ScriptExtension: Luau
-              Embedded: true
-              EmbeddedSource: "-- NewScript\nlocal cube = script.Parent\n\nwhile wait(0.2) do\n    cube.Color = Color4.new(\n        math.random(0.0, 1.0),\n        math.random(0.0, 1.0),\n        math.random(0.0, 1.0),\n        1.0\n    )\nend"
-        - ClassName: Cube
-          Name: Branch
-          Properties:
-            Position: [2.4310784, -4, 11.834326]
-            Size: [5, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: true
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Cube
-          Name: Cube111
-          Properties:
-            Position: [4.4310784, -7, 11.834326]
-            Size: [1, 5, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: true
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Cube
-          Name: Red
-          Properties:
-            Position: [2, 0, -4]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0, 0, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-          Children:
-            - ClassName: SurfaceGui
-              Name: SurfaceGui
+                Enabled: false
+                Type: 1
+                ZIndex: 1
+                Intensity: 1
+                Param1: 16
+                Param2: 0.15
+            - ClassName: PostEffect
+              Name: Pixel
               Properties:
-                Size: [200, 100]
-                Norm: Pixel
-                Active: true
-                Visible: true
-                BackgroundColor: [1, 1, 1, 1]
+                Enabled: false
+                Type: 3
+                ZIndex: 2
+                Intensity: 1
+                Param1: 3
+                Param2: 0.15
+            - ClassName: PostEffect
+              Name: Poster
+              Properties:
+                Enabled: false
+                Type: 2
                 ZIndex: 0
-                Face: Front
-              Children:
-                - ClassName: TextLabel
-                  Name: TextLabel
-                  Properties:
-                    Size: [100, 40]
-                    Norm: Pixel
-                    Active: true
-                    Visible: true
-                    BackgroundColor: [1, 1, 1, 1]
-                    ZIndex: 0
-                    Position: [0, 0]
-                    UseFontFile: false
-                    Font: Default
-                    Text: Hello world!
-                    TextColor: [0, 0, 0, 1]
-                    FontSize: 0
-        - ClassName: Cube
-          Name: Green
+                Intensity: 1
+                Param1: 4
+                Param2: 0.15
+        - ClassName: Script
+          Name: 2006
           Properties:
-            Position: [-2, 0, -4]
-            Size: [2, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 0, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
+            Enabled: false
+            ContentPath: scripts/2006.luau
+            ScriptExtension: Luau
+        - ClassName: Script
+          Name: HelloLuar
+          Properties:
+            Enabled: false
+            ContentPath: scripts/HelloLuar.luar
+            ScriptExtension: Luar
+        - ClassName: Script
+          Name: HiGeorge
+          Properties:
+            Enabled: false
+            ContentPath: ""
+            ScriptExtension: Luau
         - ClassName: Cube
           Name: Baseplate
           Properties:
@@ -387,271 +644,42 @@ Root:
                 Color: [1, 1, 1, 1]
                 StudsPerTileU: 1
                 StudsPerTileV: 1
-        - ClassName: Skybox
-          Name: Skybox
+        - ClassName: Cube
+          Name: Blue
           Properties:
-            Position: [37.388897, -2.3496745, 62.643364]
-            Size: [7500, 5000, 10000]
+            Position: [-2, 0, -8]
+            Size: [1, 4, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [0, 0.5019608, 0.5019608, 1]
-            CastShadow: false
+            Color: [0, 0, 1, 1]
+            CastShadow: true
             ShadowMode: Normal
-            Unlit: true
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: Branch
+          Properties:
+            Position: [2.4310784, -4, 11.834326]
+            Size: [5, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
             UseTriplanar: false
             TextureScale: 1
             Anchored: true
-            CanCollide: false
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-            SkyboxPaths: ["", "", "", "", "", ""]
-          Children:
-            - ClassName: Decal
-              Name: Decal_Right
-              Properties:
-                Face: 4
-                Color: [1, 1, 1, 1]
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
-        - ClassName: Script
-          Name: HiGeorge
-          Properties:
-            Enabled: false
-            ContentPath: ""
-            ScriptExtension: Luau
-        - ClassName: Cube
-          Name: Cube1
-          Properties:
-            Position: [8.118143, -6.9850116, 35.223503]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Cube
-          Name: Cube12
-          Properties:
-            Position: [8.118143, -8.859938, 35.223503]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Script
-          Name: 2006
-          Properties:
-            Enabled: false
-            ContentPath: scripts/2006.luau
-            ScriptExtension: Luau
-        - ClassName: TriangularPrism
-          Name: TriangularPrism
-          Properties:
-            Position: [1.03006, -9, 0.87993336]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Cube
-          Name: Floppa1
-          Properties:
-            Position: [1.0775726, -6.4693694, -8.327957]
-            Size: [2, 2, 2]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-          Children:
-            - ClassName: Decal
-              Name: Decal_Front
-              Properties:
-                Texture: assets/image/floppa2048.jpg
-                Face: 0
-                Color: [1, 1, 1, 1]
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
-            - ClassName: Decal
-              Name: Decal_Top
-              Properties:
-                Texture: assets/image/salad-cat.jpg
-                Face: 2
-                Color: [1, 1, 1, 1]
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
-            - ClassName: Decal
-              Name: Decal_Left
-              Properties:
-                Texture: assets/image/Limabis_logo.png
-                Face: 5
-                Color: [1, 1, 1, 1]
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
-            - ClassName: Decal
-              Name: Decal_Back
-              Properties:
-                Texture: assets/image/the-cat.png
-                Face: 1
-                Color: [1, 1, 1, 1]
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
-            - ClassName: Decal
-              Name: Decal_Bottom
-              Properties:
-                Texture: assets/image/smile.png
-                Face: 3
-                Color: [1, 1, 1, 1]
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
-            - ClassName: Decal
-              Name: Decal_Right
-              Properties:
-                Texture: assets/image/bliss.jpg
-                Face: 4
-                Color: [1, 1, 1, 1]
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
-        - ClassName: Cube
-          Name: Radio
-          Properties:
-            Position: [-17.76123, -2.9499998, -6.6466923]
-            Size: [13.340713, 13.1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-          Children:
-            - ClassName: Sound
-              Name: Sound
-              Properties:
-                Position: [0, 0, 0]
-                Size: [1, 1, 1]
-                Rotation: [0, 0, 0, 1]
-                ContentPath: ""
-                AutoPlay: false
-                Looped: true
-                SoundGroup: SFX
-                Volume: 1
-                Speed: 1
-                PreservePitch: false
-        - ClassName: Cylinder
-          Name: Cylinder
-          Properties:
-            Position: [-7.639315, -9, -10.798485]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: true
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Sphere
-          Name: Sphere
-          Properties:
-            Position: [2.7700124, 5, 0]
-            Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
             CanCollide: true
             CanTouch: true
             MassDensity: 1
@@ -716,18 +744,18 @@ Root:
             Locked: false
             LockFlags: []
         - ClassName: Cube
-          Name: Cube11
+          Name: Cube1
           Properties:
-            Position: [0.43107843, -7, 11.834326]
-            Size: [1, 5, 1]
+            Position: [8.118143, -6.9850116, 35.223503]
+            Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
+            Color: [0, 1, 1, 1]
             CastShadow: true
             ShadowMode: Normal
             Unlit: false
             UseTriplanar: false
             TextureScale: 1
-            Anchored: true
+            Anchored: false
             CanCollide: true
             CanTouch: true
             MassDensity: 1
@@ -761,6 +789,310 @@ Root:
             Restitution: 0.1
             Locked: false
             LockFlags: []
+        - ClassName: Cube
+          Name: Cube3
+          Properties:
+            Position: [-9.912365, -9, 17.636595]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Material: MaterialService\MetalV2
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: Cube4
+          Properties:
+            Position: [20.405926, -9, 43.45034]
+            Size: [4, 1, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: Cube11
+          Properties:
+            Position: [0.43107843, -7, 11.834326]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: Cube12
+          Properties:
+            Position: [8.118143, -8.859938, 35.223503]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: Cube111
+          Properties:
+            Position: [4.4310784, -7, 11.834326]
+            Size: [1, 5, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: Floppa1
+          Properties:
+            Position: [1.0775726, -6.4693694, -8.327957]
+            Size: [2, 2, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+          Children:
+            - ClassName: Decal
+              Name: Decal_Back
+              Properties:
+                Texture: assets/image/the-cat.png
+                Face: 1
+                Color: [1, 1, 1, 1]
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
+                Mode: 0
+            - ClassName: Decal
+              Name: Decal_Bottom
+              Properties:
+                Texture: assets/image/smile.png
+                Face: 3
+                Color: [1, 1, 1, 1]
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
+                Mode: 0
+            - ClassName: Decal
+              Name: Decal_Front
+              Properties:
+                Texture: assets/image/floppa2048.jpg
+                Face: 0
+                Color: [1, 1, 1, 1]
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
+                Mode: 0
+            - ClassName: Decal
+              Name: Decal_Left
+              Properties:
+                Texture: assets/image/Limabis_logo.png
+                Face: 5
+                Color: [1, 1, 1, 1]
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
+                Mode: 0
+            - ClassName: Decal
+              Name: Decal_Right
+              Properties:
+                Texture: assets/image/bliss.jpg
+                Face: 4
+                Color: [1, 1, 1, 1]
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
+                Mode: 0
+            - ClassName: Decal
+              Name: Decal_Top
+              Properties:
+                Texture: assets/image/salad-cat.jpg
+                Face: 2
+                Color: [1, 1, 1, 1]
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
+                Mode: 0
+        - ClassName: Cube
+          Name: Green
+          Properties:
+            Position: [-2, 0, -4]
+            Size: [2, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 1, 0, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: Radio
+          Properties:
+            Position: [-17.76123, -2.9499998, -6.6466923]
+            Size: [13.340713, 13.1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+          Children:
+            - ClassName: Sound
+              Name: Sound
+              Properties:
+                Position: [0, 0, 0]
+                Size: [1, 1, 1]
+                Rotation: [0, 0, 0, 1]
+                ContentPath: ""
+                AutoPlay: false
+                Looped: true
+                SoundGroup: SFX
+                Volume: 1
+                Speed: 1
+                PreservePitch: false
+        - ClassName: Cube
+          Name: Red
+          Properties:
+            Position: [2, 0, -4]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0, 0, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+          Children:
+            - ClassName: SurfaceGui
+              Name: SurfaceGui
+              Properties:
+                Size: [200, 100]
+                Norm: Pixel
+                Active: true
+                Visible: true
+                BackgroundColor: [1, 1, 1, 1]
+                ZIndex: 0
+                Face: Front
+              Children:
+                - ClassName: TextLabel
+                  Name: TextLabel
+                  Properties:
+                    Size: [100, 40]
+                    Norm: Pixel
+                    Active: true
+                    Visible: true
+                    BackgroundColor: [1, 1, 1, 1]
+                    ZIndex: 0
+                    Position: [0, 0]
+                    UseFontFile: false
+                    Font: Default
+                    Text: Hello world!
+                    TextColor: [0, 0, 0, 1]
+                    FontSize: 0
         - ClassName: Cube
           Name: Saw
           Properties:
@@ -807,77 +1139,95 @@ Root:
             Restitution: 0.1
             Locked: false
             LockFlags: []
-        - ClassName: Rope
-          Name: Rope1
+        - ClassName: Cube
+          Name: SpecialCube
           Properties:
-            Enabled: true
-            Cube0: Branch
-            Cube1: Saw2
-            MaxDistance: 3
-            Stiffness: 100
-            Damping: 10
-            Color: [0.3, 0.9, 1, 1]
-            LineWidth: 0.2
-        - ClassName: Weld
-          Name: Weld
-          Properties:
-            Enabled: true
-            Cube0: Saw
-            Cube1: Saw2
-        - ClassName: Motor
-          Name: Motor
-          Properties:
-            Enabled: true
-            Cube0: Cube1
-            Cube1: Cube12
-            Axis: [0, 1, 0]
-            DriveVelocity: 1
-            MaxForce: 1000
-            Servo: false
-            TargetAngle: 0
-        - ClassName: Script
-          Name: HelloLuar
-          Properties:
-            Enabled: false
-            ContentPath: scripts/HelloLuar.luar
-            ScriptExtension: Luar
-        - ClassName: Lighting
-          Name: Lighting
-          Properties:
-            Brightness: 1
-            Color: [1, 1, 1, 1]
-            ShadowDistance: 160
-            ShadowFadeDistance: 20
-        - ClassName: Folder
-          Name: _Effects
+            Position: [31.257055, -5.6158414, 50.550472]
+            Size: [4, 1, 2]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 0.90851736, 0, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            CollisionGroup: Special
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
           Children:
-            - ClassName: PostEffect
-              Name: Poster
+            - ClassName: Script
+              Name: NewScript
               Properties:
-                Enabled: false
-                Type: 2
-                ZIndex: 0
-                Intensity: 1
-                Param1: 4
-                Param2: 0.15
-            - ClassName: PostEffect
-              Name: CRT
+                Enabled: true
+                ContentPath: ""
+                ScriptExtension: Luau
+              Embedded: true
+              EmbeddedSource: "-- NewScript\nlocal cube = script.Parent\n\nwhile wait(0.2) do\n    cube.Color = Color4.new(\n        math.random(0.0, 1.0),\n        math.random(0.0, 1.0),\n        math.random(0.0, 1.0),\n        1.0\n    )\nend"
+        - ClassName: Cylinder
+          Name: Cylinder
+          Properties:
+            Position: [-7.639315, -9, -10.798485]
+            Size: [1, 1, 1]
+            Rotation: [0, 0, 0, 1]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Skybox
+          Name: Skybox
+          Properties:
+            Position: [26.690096, -3.5406911, 54.952328]
+            Size: [7500, 5000, 10000]
+            Rotation: [0, 0, 0, 1]
+            Color: [0, 0.5019608, 0.5019608, 1]
+            CastShadow: false
+            ShadowMode: Normal
+            Unlit: true
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+            SkyboxPaths: ["", "", "", "", "", ""]
+          Children:
+            - ClassName: Decal
+              Name: Decal_Right
               Properties:
-                Enabled: false
-                Type: 1
-                ZIndex: 1
-                Intensity: 1
-                Param1: 16
-                Param2: 0.15
-            - ClassName: PostEffect
-              Name: Pixel
-              Properties:
-                Enabled: false
-                Type: 3
-                ZIndex: 2
-                Intensity: 1
-                Param1: 3
-                Param2: 0.15
+                Face: 4
+                Color: [1, 1, 1, 1]
+                UVCenter: [0.5, 0.5]
+                UVRadius: 0.15
+                Mode: 0
         - ClassName: SpawnLocation
           Name: SpawnLocation
           Properties:
@@ -902,20 +1252,10 @@ Root:
             Locked: false
             LockFlags: []
             Enabled: true
-        - ClassName: SurfaceMark
-          Name: SurfaceMark
+        - ClassName: Sphere
+          Name: Sphere
           Properties:
-            Position: [-17.149, -3.019, -1.7621205]
-            Size: [10, 7, 16]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            FilterMode: Exclude
-            Texture: C:/Users/Ryarta/Pictures/idea1.png
-            FilterInstances: [Skybox]
-        - ClassName: Cube
-          Name: Cube3
-          Properties:
-            Position: [-9.912365, -9, 17.636595]
+            Position: [2.7700124, 5, 0]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -933,99 +1273,15 @@ Root:
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-            Material: MaterialService\MetalV2
             Locked: false
             LockFlags: []
-        - ClassName: Sun
-          Name: Sun
+        - ClassName: TriangularPrism
+          Name: TriangularPrism
           Properties:
-            Angle: [135, 30]
-            Color: [1, 0.9812915, 0.873817, 1]
-            Distance: 1000
-            GlowIntensity: 0.4
-            GlowRadius: 6
-            VeilIntensity: 0.1
-            VeilFalloff: 6
-            SpikeIntensity: 0.5
-            SpikeCount: 12
-            SpikeLength: 3
-            SpikeRotation: 0
-            HorizonFade: true
-    - ClassName: StarterCharacter
-      Name: Model
-      Properties:
-        Position: [-2.89672, 1.000001, -4.240821]
-        Size: [1, 1, 1]
-        Rotation: [0, 0, 0, 1]
-      Children:
-        - ClassName: Cube
-          Name: LeftArm
-          Properties:
-            Position: [1.3967199, -1.000001, 4.240821]
-            Size: [1, 2, 1]
+            Position: [1.03006, -9, 0.87993336]
+            Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: false
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Humanoid
-          Name: Humanoid
-          Properties:
-            WalkSpeed: 16
-            JumpPower: 48.522
-            ClimbSpeed: 10
-            HipHeight: 3
-            JumpHeight: 5.99996
-            ImpactRagdollThreshold: 45
-            RagdollRecoverySpeed: 2.5
-            RagdollRecoveryDelay: 1
-            MaxHealth: 100
-            RespawnTime: 5
-            Health: 100
-            WalkAnimation: R6Walk
-        - ClassName: Cube
-          Name: RightArm
-          Properties:
-            Position: [4.39672, -1.000001, 4.240821]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: false
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Cube
-          Name: Root
-          Properties:
-            Position: [2.89672, -1.000001, 4.240821]
-            Size: [2, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.5, 0.5, 0]
             CastShadow: true
             ShadowMode: Normal
             Unlit: false
@@ -1041,335 +1297,102 @@ Root:
             DynamicFriction: 0.5
             Restitution: 0.1
             Locked: false
-            LockFlags: [AngularX, AngularZ]
-          Children:
-            - ClassName: Force
-              Name: YawForce
-              Properties:
-                Enabled: false
-                RelativeTo: World
-                Torque: true
-                MaintainVelocity: true
-                Value: [0, 0, 0]
-                AxisMask: [0, 1, 0]
-        - ClassName: Sphere
-          Name: Head
+            LockFlags: []
+        - ClassName: Lighting
+          Name: Lighting
           Properties:
-            Position: [2.89672, 0.49999905, 4.240821]
-            Size: [1.25, 1.25, 1.25]
+            Brightness: 1
+            Color: [1, 1, 1, 1]
+            ShadowDistance: 160
+            ShadowFadeDistance: 20
+        - ClassName: Motor
+          Name: Motor
+          Properties:
+            Enabled: true
+            Cube0: Cube1
+            Cube1: Cube12
+            Axis: [0, 1, 0]
+            DriveVelocity: 1
+            MaxForce: 1000
+            Servo: false
+            TargetAngle: 0
+        - ClassName: Rope
+          Name: Rope
+          Properties:
+            Enabled: true
+            Cube0: Branch
+            Cube1: Saw
+            MaxDistance: 3
+            Stiffness: 100
+            Damping: 10
+            Color: [0.3, 0.9, 1, 1]
+            LineWidth: 0.2
+        - ClassName: Rope
+          Name: Rope1
+          Properties:
+            Enabled: true
+            Cube0: Branch
+            Cube1: Saw2
+            MaxDistance: 3
+            Stiffness: 100
+            Damping: 10
+            Color: [0.3, 0.9, 1, 1]
+            LineWidth: 0.2
+        - ClassName: Sun
+          Name: Sun
+          Properties:
+            Angle: [135, 30]
+            Color: [1, 0.9812915, 0.873817, 1]
+            Distance: 1000
+            GlowIntensity: 0.4
+            GlowRadius: 6
+            VeilIntensity: 0.1
+            VeilFalloff: 6
+            SpikeIntensity: 0.5
+            SpikeCount: 12
+            SpikeLength: 3
+            SpikeRotation: 0
+            HorizonFade: true
+        - ClassName: SurfaceMark
+          Name: SurfaceMark
+          Properties:
+            Position: [-17.149, -3.019, -1.7621205]
+            Size: [10, 7, 16]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: false
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
+            FilterMode: Exclude
+            Texture: C:/Users/Ryarta/Pictures/idea1.png
+            FilterInstances: [Skybox]
+        - ClassName: Weld
+          Name: Weld
+          Properties:
+            Enabled: true
+            Cube0: Saw
+            Cube1: Saw2
+    - ClassName: AppImage
+      Name: AppImage
+      Properties:
+        IconPath: assets/image/the-cat.png
+    - ClassName: MaterialService
+      Name: MaterialService
+      Children:
+        - ClassName: Material
+          Name: MetalV2
+          Properties:
+            Metallic: 1
+            Roughness: 0.2
+            Reflectance: 0.5
+            BaseColorMap: ""
+            RoughnessMap: ""
+            MetallicMap: ""
+            NormalMap: ""
+            TextureScale: 4
+            NormalStrength: 1
             StaticFriction: 0.5
             DynamicFriction: 0.5
             Restitution: 0.1
-            Locked: false
-            LockFlags: []
-          Children:
-            - ClassName: Decal
-              Name: Decal
-              Properties:
-                Texture: assets/image/hehe.png
-                Face: 0
-                Color: [1, 1, 1, 1]
-                UVCenter: [0.5, 0.5]
-                UVRadius: 0.15
-                Mode: 0
-        - ClassName: Cube
-          Name: LeftLeg
-          Properties:
-            Position: [2.39672, -3.000001, 4.240821]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0.14117648, 0.31764707, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: false
-            CanTouch: true
             MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Cube
-          Name: Torso
-          Properties:
-            Position: [2.89672, -1.000001, 4.240821]
-            Size: [2, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0.39215687, 0.047058824, 0.1254902, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: false
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Motor6D
-          Name: RootJoint
-          Properties:
-            Enabled: true
-            Part0: Model\Root
-            Part1: Model\Torso
-            C0:
-              Position: [0, 0, 0]
-              Rotation: [0, 0, 0, 1]
-            C1:
-              Position: [0, 0, 0]
-              Rotation: [0, 0, 0, 1]
-            Transform:
-              Position: [0, 0, 0]
-              Rotation: [0, 0, 0, 1]
-            Frequency: 10
-            DampingRatio: 1
-        - ClassName: Cube
-          Name: RightLeg
-          Properties:
-            Position: [3.39672, -3.000001, 4.240821]
-            Size: [1, 2, 1]
-            Rotation: [0, 0, 0, 1]
-            Color: [0, 0.14117648, 0.31764707, 1]
-            CastShadow: true
-            ShadowMode: Normal
-            Unlit: false
-            UseTriplanar: false
-            TextureScale: 1
-            Anchored: false
-            CanCollide: false
-            CanTouch: true
-            MassDensity: 1
-            CCDMode: Default
-            MaterialType: 0
-            StaticFriction: 0.5
-            DynamicFriction: 0.5
-            Restitution: 0.1
-            Locked: false
-            LockFlags: []
-        - ClassName: Animation
-          Name: R6Walk
-          Properties:
-            Length: 0.6666667
-            Speed: 1
-            Looped: true
-            ContentPath: assets/anims/r6_walk.rcanim
-        - ClassName: BallSocket
-          Name: RootJointRagdoll
-          Properties:
-            Enabled: false
-            Cube0: Model\Root
-            Cube1: Model\Torso
-            AngularXMode: Free
-            AngularXMin: -180
-            AngularXMax: 180
-            AngularYMode: Free
-            AngularYMin: -180
-            AngularYMax: 180
-            AngularZMode: Free
-            AngularZMin: -180
-            AngularZMax: 180
-        - ClassName: Motor6D
-          Name: Neck
-          Properties:
-            Enabled: true
-            Part0: Model\Torso
-            Part1: Model\Head
-            C0:
-              Position: [0, 1.5, 0]
-              Rotation: [0, 0, 0, 1]
-            C1:
-              Position: [0, 0, 0]
-              Rotation: [0, 0, 0, 1]
-            Transform:
-              Position: [0, 0, 0]
-              Rotation: [0, 0, 0, 1]
-            Frequency: 10
-            DampingRatio: 1
-        - ClassName: BallSocket
-          Name: NeckRagdoll
-          Properties:
-            Enabled: false
-            Cube0: Model\Torso
-            Cube1: Model\Head
-            AngularXMode: Limited
-            AngularXMin: -45
-            AngularXMax: 45
-            AngularYMode: Limited
-            AngularYMin: -60
-            AngularYMax: 60
-            AngularZMode: Limited
-            AngularZMin: -35
-            AngularZMax: 35
-        - ClassName: Motor6D
-          Name: LeftShoulder
-          Properties:
-            Enabled: true
-            Part0: Model\Torso
-            Part1: Model\LeftArm
-            C0:
-              Position: [-1.5, 0.5, 0]
-              Rotation: [0, 0, 0, 1]
-            C1:
-              Position: [0, 0.5, 0]
-              Rotation: [0, 0, 0, 1]
-            Transform:
-              Position: [0, 0, 0]
-              Rotation: [0, 0, 0, 1]
-            Frequency: 10
-            DampingRatio: 1
-        - ClassName: BallSocket
-          Name: LeftShoulderRagdoll
-          Properties:
-            Enabled: false
-            Cube0: Model\Torso
-            Cube1: Model\LeftArm
-            AngularXMode: Limited
-            AngularXMin: -90
-            AngularXMax: 90
-            AngularYMode: Limited
-            AngularYMin: -75
-            AngularYMax: 75
-            AngularZMode: Limited
-            AngularZMin: -110
-            AngularZMax: 110
-        - ClassName: Motor6D
-          Name: RightShoulder
-          Properties:
-            Enabled: true
-            Part0: Model\Torso
-            Part1: Model\RightArm
-            C0:
-              Position: [1.5, 0.5, 0]
-              Rotation: [0, 0, 0, 1]
-            C1:
-              Position: [0, 0.5, 0]
-              Rotation: [0, 0, 0, 1]
-            Transform:
-              Position: [0, 0, 0]
-              Rotation: [0, 0, 0, 1]
-            Frequency: 10
-            DampingRatio: 1
-        - ClassName: BallSocket
-          Name: RightShoulderRagdoll
-          Properties:
-            Enabled: false
-            Cube0: Model\Torso
-            Cube1: Model\RightArm
-            AngularXMode: Limited
-            AngularXMin: -90
-            AngularXMax: 90
-            AngularYMode: Limited
-            AngularYMin: -75
-            AngularYMax: 75
-            AngularZMode: Limited
-            AngularZMin: -110
-            AngularZMax: 110
-        - ClassName: Motor6D
-          Name: LeftHip
-          Properties:
-            Enabled: true
-            Part0: Model\Torso
-            Part1: Model\LeftLeg
-            C0:
-              Position: [-0.5, -1, 0]
-              Rotation: [0, 0, 0, 1]
-            C1:
-              Position: [0, 1, 0]
-              Rotation: [0, 0, 0, 1]
-            Transform:
-              Position: [0, 0, 0]
-              Rotation: [0, 0, 0, 1]
-            Frequency: 10
-            DampingRatio: 1
-        - ClassName: BallSocket
-          Name: LeftHipRagdoll
-          Properties:
-            Enabled: false
-            Cube0: Model\Torso
-            Cube1: Model\LeftLeg
-            AngularXMode: Limited
-            AngularXMin: -50
-            AngularXMax: 50
-            AngularYMode: Limited
-            AngularYMin: -45
-            AngularYMax: 45
-            AngularZMode: Limited
-            AngularZMin: -40
-            AngularZMax: 40
-        - ClassName: Motor6D
-          Name: RightHip
-          Properties:
-            Enabled: true
-            Part0: Model\Torso
-            Part1: Model\RightLeg
-            C0:
-              Position: [0.5, -1, 0]
-              Rotation: [0, 0, 0, 1]
-            C1:
-              Position: [0, 1, 0]
-              Rotation: [0, 0, 0, 1]
-            Transform:
-              Position: [0, 0, 0]
-              Rotation: [0, 0, 0, 1]
-            Frequency: 10
-            DampingRatio: 1
-        - ClassName: BallSocket
-          Name: RightHipRagdoll
-          Properties:
-            Enabled: false
-            Cube0: Model\Torso
-            Cube1: Model\RightLeg
-            AngularXMode: Limited
-            AngularXMin: -50
-            AngularXMax: 50
-            AngularYMode: Limited
-            AngularYMin: -45
-            AngularYMax: 45
-            AngularZMode: Limited
-            AngularZMin: -40
-            AngularZMax: 40
-        - ClassName: Gyro
-          Name: RootGyro
-          Properties:
-            Enabled: false
-            Part: Model\Root
-            XEnabled: true
-            XTargetAngle: 0
-            XMaxTorque: 3.4028235e+38
-            XMaxAngularSpeed: 180
-            YEnabled: false
-            YTargetAngle: 0
-            YMaxTorque: 3.4028235e+38
-            YMaxAngularSpeed: 180
-            ZEnabled: true
-            ZTargetAngle: 0
-            ZMaxTorque: 3.4028235e+38
-            ZMaxAngularSpeed: 180
+            Conductive: true
     - ClassName: PathfindingService
       Name: PathfindingService
       Properties:
