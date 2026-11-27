@@ -259,7 +259,7 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
                              const std::filesystem::path& autosaveRoot,
                              ImFont* codeEditorFont,
                              RuntimeFileSystem* runtimeFileSystem)
-    : m_autosave(autosaveRoot) {
+    : m_autosave(autosaveRoot), m_embeddedScripts(m_autosave.storageRoot()) {
     m_workspace = workspace;
     m_system    = system;
     m_user      = user;
@@ -343,6 +343,10 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
     hierarchyPanel->onOpenEditor = [this](const std::shared_ptr<Instance>& target) {
         openCodeEditor(target);
     };
+    hierarchyPanel->onCreateEmbeddedScript =
+        [this](const std::shared_ptr<Script>& script, std::string& error) {
+            return m_embeddedScripts.ensureWorkingFile(script, error);
+        };
 
     propertiesPanel->m_terrainBrush = &m_terrainBrush;
     viewportPanel->m_terrainBrush   = &m_terrainBrush;
@@ -374,7 +378,83 @@ bool EditorManager::beginAutosaveSession() {
 void EditorManager::updateAutosave() {
     if (!isEditMode()) return;
     m_autosave.setSceneMetadata(m_sceneMetadata);
-    m_autosave.update();
+    const auto now = std::chrono::steady_clock::now();
+    constexpr auto embeddedScriptPollInterval = std::chrono::seconds(1);
+    if (m_lastEmbeddedScriptPoll == std::chrono::steady_clock::time_point{} ||
+        now - m_lastEmbeddedScriptPoll >= embeddedScriptPollInterval) {
+        m_lastEmbeddedScriptPoll = now;
+        bool externalChanges = false;
+        std::string error;
+        Instance* root = m_system ? static_cast<Instance*>(m_system)
+                                  : static_cast<Instance*>(m_workspace);
+        if (root &&
+            !m_embeddedScripts.hasExternalChanges(root, externalChanges, error)) {
+            if (error != m_lastEmbeddedSyncError) {
+                RCBN_ERROR("Embedded Script change detection failed: " << error);
+                m_lastEmbeddedSyncError = error;
+            }
+        } else if (root && externalChanges) {
+            synchronizeEmbeddedScripts(false);
+        }
+    }
+    m_autosave.update([this] { return synchronizeEmbeddedScripts(false); });
+}
+
+bool EditorManager::synchronizeEmbeddedScripts(bool showError) {
+    Instance* root = m_system ? static_cast<Instance*>(m_system)
+                              : static_cast<Instance*>(m_workspace);
+    if (!root) return true;
+
+    auto findEditor = [this](Script* script) -> CodeEditorPanel* {
+        for (auto& panel : m_codeEditors) {
+            if (panel && panel->target().get() == script) return panel.get();
+        }
+        return nullptr;
+    };
+    bool changed = false;
+    std::string error;
+    const bool success = m_embeddedScripts.synchronize(
+        root, findEditor, changed, error);
+    if (changed) markDirty();
+    if (!success) {
+        if (error != m_lastEmbeddedSyncError) {
+            RCBN_ERROR("Embedded Script synchronization failed: " << error);
+            m_lastEmbeddedSyncError = error;
+        }
+        if (showError)
+            getPlatform().showErrorDialog("Embedded Script Synchronization Failed", error);
+        return false;
+    }
+    m_lastEmbeddedSyncError.clear();
+    return true;
+}
+
+bool EditorManager::prepareForExit() {
+    if (m_exitWithoutSavingRequested) return true;
+    if (!synchronizeEmbeddedScripts(true)) return false;
+    Instance* root = m_system ? static_cast<Instance*>(m_system)
+                              : static_cast<Instance*>(m_workspace);
+    if (!m_exitSaveSucceeded && !m_isDirty && !hasDirtyCodeEditors() &&
+        root && m_embeddedScripts.hasTrackedFiles() && !scenePath.empty()) {
+        if (!saveCurrentScene()) {
+            getPlatform().showErrorDialog(
+                "Scene Save Failed",
+                "The Scene could not be saved. Embedded Script working files were retained.");
+            return false;
+        }
+    }
+    return true;
+}
+
+bool EditorManager::cleanupEmbeddedScriptsAfterNormalExit() {
+    std::string error;
+    if (m_exitSaveSucceeded &&
+        !m_embeddedScripts.cleanupAfterNormalExit(error)) {
+        RCBN_ERROR("Embedded Script cleanup failed: " << error);
+        getPlatform().showErrorDialog("Embedded Script Cleanup Failed", error);
+        return false;
+    }
+    return true;
 }
 
 bool EditorManager::flushAutosaveRecovery() {
@@ -903,6 +983,7 @@ bool EditorManager::saveSceneAs() {
 
 bool EditorManager::saveSceneAsToPath(const std::string& target, bool copyAssets) {
     if (!m_system && !m_workspace) return false;
+    if (!synchronizeEmbeddedScripts(true)) return false;
 
     const std::filesystem::path targetPath = std::filesystem::absolute(
         AssetPath::fromStored(target)).lexically_normal();
@@ -1009,6 +1090,7 @@ bool EditorManager::saveSceneAsForAutomation(const std::string& target, bool cop
 
 bool EditorManager::saveCurrentScene() {
     if (!m_system && !m_workspace) return false;
+    if (!synchronizeEmbeddedScripts(true)) return false;
     std::string targetPath = scenePath;
     // 無題シーン: 保存先を決める（キャンセルなら何もしない = dirty維持）
     if (targetPath.empty()) {
@@ -1037,6 +1119,8 @@ bool EditorManager::saveCurrentScene() {
         return false;
     }
     m_isDirty = false;
+    m_exitSaveSucceeded = true;
+    m_embeddedScripts.markSceneSaved(saveRoot);
     if (targetPath != scenePath) {
         endAutosaveSessionNormally();
         if (auto stale = m_autosave.findCrashRecoveryForScene(targetPath))
@@ -1694,6 +1778,10 @@ void EditorManager::renderCodeEditorSaveDialog() {
     if (EditorUi::dangerButton(Loc::t(Loc::LocKey::SaveAndQuit),
                                m_codeEditorSaveDialogOpenedAt, quitCooldown)) {
         if (saveDirtyCodeEditors()) {
+            if (m_isDirty && !saveCurrentScene()) {
+                ImGui::EndPopup();
+                return;
+            }
             if (m_codeEditorDialogWindow)
                 glfwSetWindowShouldClose(m_codeEditorDialogWindow, GLFW_TRUE);
             ImGui::CloseCurrentPopup();
@@ -1702,6 +1790,7 @@ void EditorManager::renderCodeEditorSaveDialog() {
     ImGui::SameLine();
     if (EditorUi::dangerButton(Loc::t(Loc::LocKey::QuitWithoutSaving),
                                m_codeEditorSaveDialogOpenedAt, quitCooldown)) {
+        requestExitWithoutSaving();
         if (m_codeEditorDialogWindow)
             glfwSetWindowShouldClose(m_codeEditorDialogWindow, GLFW_TRUE);
         ImGui::CloseCurrentPopup();
@@ -1745,6 +1834,7 @@ void EditorManager::renderSaveDialog() {
         const bool quitWithoutSavingReady = ImGui::GetTime() - m_saveDialogOpenedAt >= quitCooldown;
         if (EditorUi::dangerButton(Loc::t(Loc::LocKey::QuitWithoutSaving), m_saveDialogOpenedAt, quitCooldown)) {
             m_isDirty = false;
+            requestExitWithoutSaving();
             hierarchyPanel->selectedInstance = nullptr;
             hierarchyPanel->selectedInstances.clear();
             m_history.clear();
@@ -2546,8 +2636,29 @@ void EditorManager::openCodeEditor(const std::shared_ptr<Instance>& target) {
         }
     }
 
+    if (auto script = std::dynamic_pointer_cast<Script>(target);
+        script && script->IsEmbedded) {
+        std::string error;
+        if (!m_embeddedScripts.ensureWorkingFile(script, error)) {
+            RCBN_ERROR("Editor: failed to prepare embedded Script '" << script->getFullPath()
+                       << "': " << error);
+            getPlatform().showErrorDialog(
+                "Embedded Script Error",
+                "Unable to prepare the working file for '" + script->getFullPath() +
+                    "':\n" + error);
+            return;
+        }
+    }
+
     auto panel = std::make_unique<CodeEditorPanel>(target, 0, m_codeEditorFont,
                                                     m_runtimeFileSystem);
+    panel->setOnEmbeddedSourceChanged(
+        [this](const std::shared_ptr<Script>& script, const std::string& source,
+               std::string& error) {
+            if (!m_embeddedScripts.saveEditorBuffer(script, source, error)) return false;
+            markDirty();
+            return true;
+        });
     m_codeEditors.push_back(std::move(panel));
 }
 

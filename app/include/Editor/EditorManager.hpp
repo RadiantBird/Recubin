@@ -14,6 +14,7 @@
 #include <Editor/AudioDebugPanel.hpp>
 #include <Editor/CollisionGroupsPanel.hpp>
 #include <Editor/CodeEditorPanel.hpp>
+#include <Editor/EmbeddedScriptWorkspace.hpp>
 #include <Editor/ViewportFocusManager.hpp>
 #include <Instances/Workspace.hpp>
 #include <Core/User.hpp>
@@ -28,6 +29,7 @@
 #include <tuple>
 #include <unordered_set>
 #include <optional>
+#include <chrono>
 #include <Util/RuntimeFileSystem.hpp>
 #include <include/imgui/imgui.h>
 
@@ -174,7 +176,12 @@ public:
     void showLocalServerNetworkRequiredError();
 
     bool isDirty()  const { return m_isDirty; }
-    void markDirty()      { m_isDirty = true; if (m_autosave.isActive()) m_autosave.markSceneChanged(); }
+    void markDirty() {
+        m_isDirty = true;
+        m_exitSaveSucceeded = false;
+        m_embeddedScripts.markSceneDirty();
+        if (m_autosave.isActive()) m_autosave.markSceneChanged();
+    }
     void updateAutosave();
     bool flushAutosaveRecovery();
     bool beginAutosaveSession();
@@ -190,6 +197,13 @@ public:
     void cancelPlaySaveConfirmation();
     bool hasDirtyCodeEditors() const;
     void requestCodeEditorSaveDialog(GLFWwindow* window);
+    bool prepareForExit();
+    void requestExitWithoutSaving() {
+        m_exitWithoutSavingRequested = true;
+        m_exitSaveSucceeded = false;
+    }
+    bool exitWithoutSavingRequested() const { return m_exitWithoutSavingRequested; }
+    bool cleanupEmbeddedScriptsAfterNormalExit();
 
     // シーンファイルの読み込み要求（Open Scene / Load ボタン共通の入口）
     // Edit モード中は即座に pendingLoadPath へ反映。Play/Pause 中は終了確認ポップアップを挟む
@@ -230,6 +244,11 @@ private:
     User*      m_user      = nullptr;
     bool       m_isDirty   = false;
     AutosaveManager m_autosave;
+    EmbeddedScriptWorkspace m_embeddedScripts;
+    bool m_exitSaveSucceeded = false;
+    bool m_exitWithoutSavingRequested = false;
+    std::string m_lastEmbeddedSyncError;
+    std::chrono::steady_clock::time_point m_lastEmbeddedScriptPoll{};
     SceneLoader::SceneDocumentMetadata m_sceneMetadata;
     std::filesystem::path m_assetRootAbsolute;
     bool m_showLoadError = false;
@@ -326,6 +345,7 @@ private:
     void renderPlayStartErrorDialog();
     void renderPackageDialog();
     bool saveCurrentScene();
+    bool synchronizeEmbeddedScripts(bool showError);
     bool saveSceneAs();
     bool saveSceneAsToPath(const std::string& target, bool copyAssets);
     bool chooseAssetRootDirectory();

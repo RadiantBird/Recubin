@@ -13,6 +13,12 @@ performed synchronously through a same-directory temporary file followed by an
 atomic replacement. A session lock and recovery document are removed by
 `endSessionNormally` or `discardRecovery`, while snapshots are retained.
 
+The editor polls tracked Embedded Script work files for external changes once
+per second and marks the Scene dirty when a change is found. Before periodic
+recovery and snapshot writes, a callback synchronizes the files; a
+synchronization failure prevents a stale Scene from being written. Explicit
+recovery flushes used by Play snapshots do not invoke this callback.
+
 Crash candidates are accepted only when both the lock and recovery document
 exist and the recovery can be loaded by `SceneLoader`. The currently active
 session directory is excluded from crash discovery. A lock whose recovery has

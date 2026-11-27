@@ -82,6 +82,7 @@
 #include <filesystem>
 #include <vector>
 #include <cctype>
+#include <stdexcept>
 
 #ifdef _WIN32
 #include <windows26.h>
@@ -411,6 +412,17 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(
             tool->setLegacyGripOffset(CFrame(legacyGripPosition, legacyGripRotation));
         }
     }
+    if (instance->IsA("Script") && node["Embedded"]) {
+        const bool embedded = node["Embedded"].as<bool>();
+        instance->setProperty("Embedded", YAML::Node(embedded));
+        if (embedded) {
+            if (!node["EmbeddedSource"] || !node["EmbeddedSource"].IsScalar()) {
+                throw std::runtime_error(
+                    "Embedded Script '" + className + "' is missing scalar EmbeddedSource");
+            }
+            instance->setProperty("EmbeddedSource", node["EmbeddedSource"]);
+        }
+    }
     if (className == "Terrain" &&
         (!node["Properties"] || !node["Properties"]["DataPath"])) {
         // DataPath導入前の旧形式だけは従来のterrainディレクトリを
@@ -735,6 +747,14 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
         }
 
         out << YAML::EndMap;
+    }
+
+    if (inst->IsA("Script")) {
+        const auto* script = static_cast<const Script*>(inst);
+        if (script->IsEmbedded) {
+            out << YAML::Key << "Embedded" << YAML::Value << true;
+            out << YAML::Key << "EmbeddedSource" << YAML::Value << script->Source;
+        }
     }
 
     // 子要素。Weatherの自動生成子（WeatherSkyAnchor等）も通常通り保存する。

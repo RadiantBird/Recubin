@@ -47,6 +47,7 @@ public:
     void setSceneMetadata(const SceneLoader::SceneDocumentMetadata& metadata);
     bool update();
     bool update(std::chrono::steady_clock::time_point now);
+    bool update(std::function<bool()> beforeSave);
     bool flushRecovery();
     void setIoFailureCallback(IoFailureCallback callback);
 
@@ -67,6 +68,8 @@ public:
 private:
     bool saveRecovery(std::chrono::steady_clock::time_point now);
     bool saveSnapshot(std::chrono::steady_clock::time_point now);
+    bool update(std::chrono::steady_clock::time_point now,
+                const std::function<bool()>& beforeSave);
     bool atomicWrite(const std::filesystem::path& target, const std::string& data,
                      const std::string& operation) const;
     bool writeLock() const;

@@ -816,6 +816,13 @@ private:
 
     bool checkExit()
     {
+        if (m_editor->exitWithoutSavingRequested()) {
+            return true;
+        }
+        if (!m_editor->prepareForExit()) {
+            glfwSetWindowShouldClose(m_window, GLFW_FALSE);
+            return false;
+        }
         if (m_editor->isDirty()) {
             m_editor->requestSaveDialog(m_window);
         } else if (m_editor->hasDirtyCodeEditors()) {
@@ -1522,6 +1529,7 @@ private:
             m_settings.saveEditorPreferences(m_editor, m_user.get());
             stopLocalServerForExit();
             m_editor->endAutosaveSessionNormally();
+            m_editor->cleanupEmbeddedScriptsAfterNormalExit();
             releaseEditorSceneReferences();
         }
 

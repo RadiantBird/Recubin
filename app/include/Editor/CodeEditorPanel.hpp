@@ -3,10 +3,12 @@
 #include <Editor/EditorPanel.hpp>
 
 #include <memory>
+#include <functional>
 #include <string>
 #include <vector>
 
 class Instance;
+class Script;
 class RuntimeFileSystem;
 struct ImFont;
 struct ImGuiInputTextCallbackData;
@@ -28,6 +30,11 @@ public:
     void setDockspaceId(ImGuiID dockspaceId);
     void setOpen(bool open);
     bool save();
+    void setOnEmbeddedSourceChanged(
+        std::function<bool(const std::shared_ptr<Script>&, const std::string&,
+                           std::string&)> callback);
+    const std::string& editorText() const { return m_text; }
+    void reloadEmbeddedSource();
 
     struct HighlightSpan {
         int begin = 0;
@@ -52,6 +59,8 @@ private:
     bool m_focused = false;
     bool m_loaded = false;
     bool m_highlightLuar = false; // ハイライトキャッシュ構築時のScriptExtension==Luar
+    std::function<bool(const std::shared_ptr<Script>&, const std::string&,
+                       std::string&)> m_onEmbeddedSourceChanged;
 
     static int resizeInputCallback(ImGuiInputTextCallbackData* data);
     void loadTarget();

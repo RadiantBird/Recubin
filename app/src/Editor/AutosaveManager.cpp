@@ -309,17 +309,34 @@ bool AutosaveManager::flushRecovery() {
     return ok;
 }
 
-bool AutosaveManager::update() { return update(Clock::now()); }
+bool AutosaveManager::update() { return update(Clock::now(), {}); }
 
 bool AutosaveManager::update(Clock::time_point now) {
+    return update(now, {});
+}
+
+bool AutosaveManager::update(std::function<bool()> beforeSave) {
+    return update(Clock::now(), beforeSave);
+}
+
+bool AutosaveManager::update(Clock::time_point now,
+                             const std::function<bool()>& beforeSave) {
     if (!m_active) return false;
+    const bool recoveryDue = m_recoveryDirty &&
+        now - m_lastChange >= m_config.recoveryDebounce &&
+        (m_lastRecoveryAttempt == Clock::time_point{} ||
+         now - m_lastRecoveryAttempt >= m_config.retryBackoff);
+    const bool snapshotDue = m_snapshotDirty &&
+        now - m_lastSnapshot >= m_config.snapshotInterval &&
+        (m_lastSnapshotAttempt == Clock::time_point{} ||
+         now - m_lastSnapshotAttempt >= m_config.retryBackoff);
+    if ((recoveryDue || snapshotDue) && beforeSave && !beforeSave()) return false;
+
     bool changed = false;
-    if (m_recoveryDirty && now - m_lastChange >= m_config.recoveryDebounce &&
-        (m_lastRecoveryAttempt == Clock::time_point{} || now - m_lastRecoveryAttempt >= m_config.retryBackoff)) {
+    if (recoveryDue) {
         if (saveRecovery(now)) { m_recoveryDirty = false; changed = true; }
     }
-    if (m_snapshotDirty && now - m_lastSnapshot >= m_config.snapshotInterval &&
-        (m_lastSnapshotAttempt == Clock::time_point{} || now - m_lastSnapshotAttempt >= m_config.retryBackoff)) {
+    if (snapshotDue) {
         if (saveSnapshot(now)) { m_snapshotDirty = false; changed = true; }
     }
     return changed;

@@ -16,6 +16,7 @@ editor_settings.yaml
 desktop.ini
 prompt.md
 /.autosave/
+/temp/embedded-scripts/
 _snapshot.rcbn
 
 *.glb

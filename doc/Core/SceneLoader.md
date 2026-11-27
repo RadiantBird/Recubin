@@ -90,6 +90,13 @@ SceneRuntimeのstageではロード失敗時に以前のアセット基準へ戻
 `SerializeResult`はnull root、Emitter失敗、シリアライズ例外時に説明メッセージを返す。
 `saveSceneResult`はこの結果を利用し、成功／失敗だけを必要とする既存呼び出し向けのbool APIを維持する。
 
+### Scriptソースの保存
+
+`Script`、`LocalScript`、`ModuleScript`の外部参照は従来どおり`Properties.ContentPath`と
+`ScriptExtension`で保存する。埋め込みScriptは`Embedded: true`と専用の`EmbeddedSource`キーで本文を保存し、
+`ContentPath`は空にする。旧`Properties.Source`はPathの別名として扱われるため、埋め込み本文には流用しない。
+一時作業ファイルのパスはSceneへ出力しない。
+
 ### Save As とアセット基準
 
 EditorのSave AsはSceneLoaderのシリアライズ結果から依存を収集する。コピーを選んだ場合は

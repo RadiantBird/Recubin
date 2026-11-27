@@ -103,6 +103,7 @@
 #include <Editor/CommandHistory.hpp>
 #include <Editor/GuiAutomationCommand.hpp>
 #include <Editor/AutosaveManager.hpp>
+#include <Editor/EmbeddedScriptWorkspace.hpp>
 #include <Editor/AssetDialogs.hpp>
 #include <Editor/SceneHierarchyGrouping.hpp>
 #include <Editor/SceneHierarchySelection.hpp>
@@ -139,6 +140,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <algorithm>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -948,6 +950,218 @@ int runScriptExtensionRegression() {
     }
 
     std::filesystem::remove_all(dir, ec);
+    return failures == 0 ? 0 : 1;
+}
+
+int runEmbeddedScriptRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[EmbeddedScript] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    const auto testRoot = std::filesystem::temp_directory_path() /
+        ("recubin_embedded_script_regression_" + std::to_string(std::rand()));
+    const auto storageRoot = testRoot / "storage";
+    std::error_code ec;
+    std::filesystem::create_directories(testRoot, ec);
+    auto system = std::make_shared<System>();
+    auto workspace = std::make_shared<Workspace>();
+    system->addChild(workspace);
+
+    const std::array<std::shared_ptr<Script>, 3> scripts = {{
+        std::make_shared<Script>(), std::make_shared<LocalScript>(),
+        std::make_shared<ModuleScript>()}};
+    const std::array<std::string, 3> sources = {{
+        "print('Script inline')\n", "print('LocalScript inline')\n",
+        "local M = {}\nreturn M\n"}};
+    for (std::size_t index = 0; index < scripts.size(); ++index) {
+        scripts[index]->Name = "Embedded" + std::to_string(index);
+        scripts[index]->IsEmbedded = true;
+        scripts[index]->ScriptExt = index == 2 ? ScriptExtension::Luar : ScriptExtension::Luau;
+        scripts[index]->Source = sources[index];
+        workspace->addChild(scripts[index]);
+    }
+
+    EmbeddedScriptWorkspace embedded(storageRoot);
+    std::vector<std::filesystem::path> workingFiles;
+    for (const auto& script : scripts) {
+        std::string error;
+        const bool created = embedded.ensureWorkingFile(script, error);
+        expect(created, "creates a generated working file: " + error);
+        if (created) workingFiles.emplace_back(script->Path);
+    }
+    expect(workingFiles.size() == scripts.size() &&
+               std::filesystem::exists(storageRoot / "temp" / "embedded-scripts"),
+           "working files are located under storageRoot/temp/embedded-scripts");
+    if (workingFiles.size() == scripts.size()) {
+        expect(workingFiles[0].filename().string().rfind("__Recubin_", 0) == 0 &&
+                   workingFiles[0].extension() == ".luau" &&
+                   workingFiles[2].extension() == ".luar",
+               "generated files use the reserved prefix and source-language extension");
+        const std::string firstFileContents = FileLoader::readText(scripts[0]->Path);
+        auto duplicate = std::make_shared<Script>();
+        duplicate->IsEmbedded = true;
+        duplicate->Source = "duplicate must not overwrite";
+        duplicate->Path = scripts[0]->Path;
+        std::string error;
+        expect(embedded.ensureWorkingFile(duplicate, error) &&
+                   duplicate->Path != scripts[0]->Path &&
+                   FileLoader::readText(scripts[0]->Path) == firstFileContents,
+               "stale Path values do not overwrite an existing working file");
+        if (!error.empty()) expect(false, error);
+    }
+
+    const auto scenePath = testRoot / "embedded.rcbn";
+    expect(SceneLoader::saveSceneResult(system.get(), scenePath.string()),
+           "saves embedded source to a Scene");
+    const std::string sceneYaml = FileLoader::readText(scenePath.string());
+    expect(sceneYaml.find("EmbeddedSource:") != std::string::npos &&
+               sceneYaml.find("__Recubin_") == std::string::npos,
+           "Scene stores inline source and never stores a working-file path");
+    auto loaded = SceneLoader::loadSceneResult(scenePath.string());
+    expect(loaded && loaded.root != nullptr, "loads embedded Scene data");
+    if (loaded.root) {
+        for (std::size_t index = 0; index < scripts.size(); ++index) {
+            std::shared_ptr<Script> found;
+            auto visit = [&](auto&& self, Instance* current) -> void {
+                if (!current) return;
+                if (current->Name == scripts[index]->Name && current->IsA("Script"))
+                    found = std::static_pointer_cast<Script>(current->shared_from_this());
+                for (const auto& [name, child] : current->children) {
+                    (void)name;
+                    if (child) self(self, child.get());
+                }
+            };
+            visit(visit, loaded.root.get());
+            expect(found && found->IsEmbedded && found->Source == sources[index] &&
+                       found->Path.empty(),
+                   scripts[index]->getClassName() +
+                       " round-trips embedded source without a Path");
+        }
+    }
+
+    if (!workingFiles.empty()) {
+        {
+            std::ofstream externalEdit(workingFiles[0], std::ios::binary | std::ios::trunc);
+            externalEdit << "print('external edit')\n";
+        }
+        bool externalChangesDetected = false;
+        std::string detectionError;
+        expect(embedded.hasExternalChanges(system.get(), externalChangesDetected,
+                                           detectionError) &&
+                   externalChangesDetected,
+               "detects external file changes so Autosave can mark the Scene dirty");
+        bool changed = false;
+        std::string error;
+        const bool synchronized = embedded.synchronize(
+            system.get(), {}, changed, error);
+        expect(synchronized && changed &&
+                   scripts[0]->Source == "print('external edit')\n",
+               "imports external edits before Scene serialization");
+        detectionError.clear();
+        expect(embedded.hasExternalChanges(system.get(), externalChangesDetected,
+                                           detectionError) &&
+                   !externalChangesDetected,
+               "clears external-change detection after synchronization");
+
+        const std::string editorSource = "print('editor-side update')\n";
+        error.clear();
+        expect(embedded.saveEditorBuffer(scripts[1], editorSource, error) &&
+                   scripts[1]->Source == editorSource &&
+                   FileLoader::readText(workingFiles[1].string()) == editorSource,
+               "Code Editor saves update both Source and the working file");
+
+        const std::string externalVersion = "print('external side')\n";
+        const std::string internalVersion = "print('internal side')\n";
+        {
+            std::ofstream externalEdit(workingFiles[2], std::ios::binary | std::ios::trunc);
+            externalEdit << externalVersion;
+        }
+        scripts[2]->Source = internalVersion;
+        error.clear();
+        expect(!embedded.saveEditorBuffer(scripts[2], internalVersion, error) &&
+                   error.find("conflict") != std::string::npos &&
+                   FileLoader::readText(workingFiles[2].string()) == externalVersion,
+               "Code Editor save reports a conflict without overwriting the external file");
+        error.clear();
+        expect(!embedded.synchronize(system.get(), {}, changed, error) &&
+                   error.find("conflict") != std::string::npos &&
+                   scripts[2]->Source == internalVersion &&
+                   FileLoader::readText(workingFiles[2].string()) == externalVersion,
+               "reports conflicting internal and external edits without discarding either");
+        scripts[2]->Source = externalVersion;
+        error.clear();
+        expect(embedded.synchronize(system.get(), {}, changed, error) &&
+                   scripts[2]->Source == externalVersion,
+               "allows an explicit conflict resolution to the external version");
+
+        AutosaveManager::Config config;
+        config.recoveryDebounce = std::chrono::milliseconds(0);
+        config.snapshotInterval = std::chrono::hours(1);
+        config.retryBackoff = std::chrono::seconds(0);
+        AutosaveManager autosave(storageRoot / "autosave", config);
+        const bool autosaveStarted = autosave.beginSession(system.get(), scenePath.string());
+        autosave.markSceneChanged();
+        const auto recoveryPath = autosave.autosaveDirectory() / "recovery.rcbn";
+        const bool staleAutosaveBlocked = !autosave.update([] { return false; }) &&
+            !std::filesystem::exists(recoveryPath);
+        bool synchronizationCalled = false;
+        const bool autosaveWritten = autosave.update([&] {
+            std::string syncError;
+            synchronizationCalled = embedded.synchronize(
+                system.get(), {}, changed, syncError);
+            return synchronizationCalled;
+        });
+        expect(autosaveStarted, "Autosave session starts for embedded source");
+        expect(staleAutosaveBlocked,
+               "Autosave does not write recovery when pre-save synchronization fails");
+        expect(synchronizationCalled && autosaveWritten,
+               "Autosave invokes synchronization before writing recovery");
+        expect(FileLoader::readText(recoveryPath.string()).find("print('external side')") !=
+                   std::string::npos,
+               "Autosave recovery contains the synchronized external source");
+        autosave.endSessionNormally();
+
+        std::filesystem::remove(workingFiles[0], ec);
+        error.clear();
+        expect(!embedded.synchronize(system.get(), {}, changed, error) &&
+                   !error.empty() && !std::filesystem::exists(workingFiles[0]),
+               "a missing work file is reported and is not silently recreated");
+        {
+            std::ofstream restore(workingFiles[0], std::ios::binary | std::ios::trunc);
+            restore << scripts[0]->Source;
+        }
+
+        error.clear();
+        expect(embedded.cleanupAfterNormalExit(error) &&
+                   std::filesystem::exists(workingFiles[0]),
+               "does not delete work files before a successful Scene save");
+        expect(SceneLoader::saveSceneResult(system.get(), scenePath.string()),
+               "saves synchronized external and internal edits to the Scene");
+        embedded.markSceneSaved(system.get());
+        expect(embedded.cleanupAfterNormalExit(error) &&
+                   std::none_of(workingFiles.begin(), workingFiles.end(),
+                                [](const auto& path) { return std::filesystem::exists(path); }),
+               "deletes only current-session work files after a successful Scene save");
+    }
+
+    EmbeddedScriptWorkspace removedScriptWorkspace(storageRoot / "removed-script");
+    auto removedScript = std::make_shared<Script>();
+    removedScript->IsEmbedded = true;
+    removedScript->Source = "print('not in saved Scene')\n";
+    std::string removedScriptError;
+    const bool removedScriptFileCreated =
+        removedScriptWorkspace.ensureWorkingFile(removedScript, removedScriptError);
+    const auto removedScriptPath = std::filesystem::path(removedScript->Path);
+    removedScriptWorkspace.markSceneSaved(system.get());
+    expect(removedScriptFileCreated &&
+               removedScriptWorkspace.cleanupAfterNormalExit(removedScriptError) &&
+               std::filesystem::exists(removedScriptPath),
+           "retains work files for scripts omitted from the saved Scene");
+
+    std::filesystem::remove_all(testRoot, ec);
     return failures == 0 ? 0 : 1;
 }
 
@@ -19757,6 +19971,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--motor-axle-regression", runMotorAxleRegression),
         REG("--spring-prismatic-regression", runSpringPrismaticRegression),
         REG("--script-extension-regression", runScriptExtensionRegression),
+        REG("--embedded-script-regression", runEmbeddedScriptRegression),
         REG("--physics-lifecycle-regression", runPhysicsLifecycleRegression),
         REG("--constraint-rebind-regression", runConstraintRebindRegression),
         REG("--terrain-instance-regression", runTerrainInstanceRegression),

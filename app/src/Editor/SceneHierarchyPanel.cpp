@@ -103,6 +103,7 @@ static bool hierarchyContainsInstance(Instance* root, Instance* target) {
 static std::string pickFile() {
     return getPlatform().openFileDialog({
         {"Luau Script (*.luau)", "*.luau"},
+        {"Lua Script (*.lua)", "*.lua"},
         {"Luar Script (*.luar)", "*.luar"},
     });
 }
@@ -750,6 +751,7 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
         static char s_name[128] = "NewScript";
         static int  s_mode = 0; // 0=新規作成, 1=既存ファイル
         static int  s_extension = static_cast<int>(ScriptExtension::Luau);
+        static int  s_storage = 1; // 0=embedded, 1=external
 
         if (ImGui::RadioButton(Loc::t(Loc::LocKey::ScriptModeNew), &s_mode, 0)) {
             m_scriptDialogError.clear();
@@ -759,6 +761,14 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
             m_scriptDialogError.clear();
         }
         ImGui::Separator();
+
+        ImGui::Text("%s", Loc::t(Loc::LocKey::ScriptStorageLabel));
+        ImGui::RadioButton(Loc::t(Loc::LocKey::ScriptStorageEmbedded), &s_storage, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton(Loc::t(Loc::LocKey::ScriptStorageExternal), &s_storage, 1);
+        if (s_mode == 1 && s_storage == 0) {
+            ImGui::TextDisabled("%s", Loc::t(Loc::LocKey::ScriptImportHint));
+        }
 
         if (s_mode == 0) {
             ImGui::Text("%s", Loc::t(Loc::LocKey::ScriptNameLabel));
@@ -787,6 +797,7 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
                 m_pickExtension = static_cast<ScriptExtension>(s_extension);
                 m_pickParent   = m_pendingScriptParent;
                 m_pickExisting = (s_mode == 1);
+                m_pickEmbedded = (s_storage == 0);
                 m_doPick       = true;
                 m_pendingScriptParent.reset();
                 ImGui::CloseCurrentPopup();
@@ -824,7 +835,7 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
                     std::filesystem::absolute(std::filesystem::path(filePath), ec);
                 if (!ec) filePath = absolutePath.string();
             }
-        } else {
+        } else if (!m_pickEmbedded) {
             std::string folder = pickFolder();
             if (!folder.empty()) {
                 std::error_code ec;
@@ -869,8 +880,26 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
             }
         }
 
-        if (!filePath.empty() && m_pickParent && m_history) {
-            getPlatform().revealInFileManager(filePath);
+        std::string importedSource;
+        if (m_pickEmbedded && m_pickExisting && !filePath.empty()) {
+            std::ifstream input(filePath, std::ios::binary);
+            if (!input.is_open()) {
+                filePath.clear();
+                reopenWithError("Unable to read the selected script file.");
+            } else {
+                importedSource.assign(std::istreambuf_iterator<char>(input),
+                                      std::istreambuf_iterator<char>());
+                if (input.bad()) {
+                    filePath.clear();
+                    reopenWithError("Unable to read the selected script file.");
+                }
+            }
+        }
+
+        const bool hasSource =
+            m_pickEmbedded ? (!m_pickExisting || !filePath.empty()) : !filePath.empty();
+        if (hasSource && m_pickParent && m_history) {
+            if (!m_pickEmbedded) getPlatform().revealInFileManager(filePath);
 
             // 既存選択時はファイル名をスクリプト名にする
             if (m_pickExisting) {
@@ -891,6 +920,31 @@ void SceneHierarchyPanel::renderNewScriptDialog() {
             script->Name = m_pickName;
             // 新規作成は選択した拡張子、既存ファイルはコンストラクタがPathの拡張子から決めた値を使う
             if (!m_pickExisting) script->ScriptExt = m_pickExtension;
+            if (m_pickEmbedded) {
+                if (!m_pickExisting) {
+                    if (m_pendingScriptClass == ScriptInsertClass::ModuleScript) {
+                        script->Source = "-- " + m_pickName +
+                            "\nlocal M = {}\n\nreturn M\n";
+                    } else {
+                        script->Source = "-- " + m_pickName + "\n";
+                    }
+                } else {
+                    script->Source = std::move(importedSource);
+                }
+                script->IsEmbedded = true;
+                script->Path.clear();
+                std::string error;
+                if (!onCreateEmbeddedScript ||
+                    !onCreateEmbeddedScript(script, error)) {
+                    m_scriptDialogError = error.empty()
+                        ? "Unable to create the embedded script working file."
+                        : error;
+                    m_pendingScriptParent = m_pickParent;
+                    m_openScriptDialog = true;
+                    m_pickParent.reset();
+                    return;
+                }
+            }
             if (!m_pendingGroupTargets.empty()) {
                 auto groupParent = m_pendingGroupTargets.front()->Parent.lock();
                 if (groupParent) {

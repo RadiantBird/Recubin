@@ -20,6 +20,7 @@ class Script : public Instance {
         string Source = "";
         string Path = "";
         ScriptExtension ScriptExt = ScriptExtension::Luau;
+        bool IsEmbedded = false;
 
         Workspace* lastWorkspace = nullptr;
         System*    lastSystem    = nullptr;  // Workspace外(System配下)で登録中の場合のみ非null

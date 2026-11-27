@@ -11,6 +11,8 @@
 #include <Util/AssetGuard.hpp>
 #include <Util/Logger.hpp>
 #include <Util/RuntimeFileSystem.hpp>
+#include <Util/Platform.hpp>
+#include <Util/IPlatform.hpp>
 #include <include/imgui/imgui.h>
 #include <include/imgui/imgui_internal.h>
 
@@ -112,6 +114,20 @@ bool CodeEditorPanel::wantsClose() const { return m_closeRequested; }
 void CodeEditorPanel::clearCloseRequest() { m_closeRequested = false; }
 void CodeEditorPanel::setDockspaceId(ImGuiID dockspaceId) { m_dockspaceId = dockspaceId; }
 void CodeEditorPanel::setOpen(bool open) { isOpen = open; }
+void CodeEditorPanel::setOnEmbeddedSourceChanged(
+    std::function<bool(const std::shared_ptr<Script>&, const std::string&,
+                       std::string&)> callback) {
+    m_onEmbeddedSourceChanged = std::move(callback);
+}
+
+void CodeEditorPanel::reloadEmbeddedSource() {
+    auto script = std::dynamic_pointer_cast<Script>(m_target.lock());
+    if (!script || !script->IsEmbedded) return;
+    m_text = script->Source;
+    m_loadedText = m_text;
+    m_dirty = false;
+    rebuildHighlightCache();
+}
 
 void CodeEditorPanel::loadTarget() {
     auto instance = m_target.lock();
@@ -319,7 +335,19 @@ bool CodeEditorPanel::save() {
     if (!instance) return false;
     if (!m_dirty) return true;
     if (auto script = std::dynamic_pointer_cast<Script>(instance)) {
-        if (!script->Path.empty()) {
+        if (script->IsEmbedded) {
+            if (!m_onEmbeddedSourceChanged) {
+                RCBN_ERROR("CodeEditorPanel: no embedded Script save handler is available for "
+                           << script->getFullPath());
+                return false;
+            }
+            std::string error;
+            if (!m_onEmbeddedSourceChanged(script, m_text, error)) {
+                RCBN_ERROR("CodeEditorPanel: failed to save embedded Script "
+                           << script->getFullPath() << ": " << error);
+                return false;
+            }
+        } else if (!script->Path.empty()) {
             if (script->isPrecompiled || script->Path.ends_with(".luauc")) {
                 RCBN_ERROR("CodeEditorPanel: refusing to overwrite precompiled Script "
                            << script->getFullPath() << " (path=" << script->Path << ")");
@@ -444,6 +472,22 @@ void CodeEditorPanel::onRender() {
         ImGui::End();
     } else {
         m_focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+        if (auto script = std::dynamic_pointer_cast<Script>(instance);
+            script && script->IsEmbedded) {
+            if (ImGui::Button(Loc::t(Loc::LocKey::CodeEditorOpenExternal))) {
+                std::error_code ec;
+                if (script->Path.empty() ||
+                    !std::filesystem::is_regular_file(
+                        AssetPath::fromStored(script->Path), ec) || ec) {
+                    RCBN_ERROR("CodeEditorPanel: embedded Script working file is unavailable for "
+                               << script->getFullPath() << " (path=" << script->Path << ")");
+                } else {
+                    getPlatform().revealInFileManager(script->Path);
+                }
+            }
+            ImGui::SameLine();
+            ImGui::TextDisabled("%s", script->Path.c_str());
+        }
         if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
             ImGui::GetIO().KeyCtrl) {
             const bool increase = ImGui::IsKeyPressed(ImGuiKey_Equal) ||

@@ -114,7 +114,11 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
 - `Script` / `LocalScript` / `ModuleScript` は `ScriptExtension`（`Luau` / `Luar`）を持ち、実行時にLuarコンパイラを通すかはこの値だけで決まる（ファイル名や`Name`は見ない）。
 - `Path`を設定すると`.luar`→`Luar`、`.luau`/`.lua`→`Luau`に追従する。`.luauc`は変更しない。YAMLに項目が無い旧シーンは`Path`から決まる。
 - YAMLは`ContentPath`の後に`ScriptExtension: Luau|Luar`（文字列）で保存する。読み込み時は明示値が`Path`からの追従を上書きする。
-- 新規スクリプト作成ダイアログは新規ファイルの拡張子（`.luau`/`.luar`）を選べる。既存ファイルを選ぶ場合は拡張子から決まる。
+- 新規スクリプト作成ダイアログは埋め込みソースまたは外部ファイルを選択できる。既存の`.luau`/`.lua`/`.luar`は、従来どおり外部参照として開くか、本文を埋め込みとして取り込める。
+- 埋め込みScriptはScene YAMLに`Embedded: true`と`EmbeddedSource`で状態と本文を保存し、`ContentPath`は空にする。旧`Properties.Source`はPathの別名として維持し、埋め込み本文とは混同しない。埋め込みでない既存Sceneの`ContentPath`形式は変更しない。
+- 埋め込みScriptの外部編集用ファイルはストレージルートの`temp/embedded-scripts/__Recubin_<一意ID>.<拡張子>`に排他的に生成する。Sceneにはその一時パスを保存しない。作業ファイルはScene保存、Autosave、終了前に同期し、Play開始前には同期しない。外部編集と未保存のCode Editorバッファが競合するときはどちらも上書きせず、保存と終了を止めて競合を報告する。
+- 同期または正式Scene保存に失敗した場合、作業ファイルを保持し、Save/終了を中止する。現在のセッションで作成したファイルだけを、正常終了時かつScene保存成功後に削除する。前回の異常終了で残ったファイルは削除・上書きしない。
+- 新規スクリプト作成では拡張子（`.luau`/`.luar`）を選べる。既存ファイルは拡張子から言語を決める。
 - パッケージ時、`.luar`は`LuarCompiler`でLuau化してから`.luauc`に出力する（パッケージ済みゲームにLuar DLLは不要）。
 - `luar_compiler.dll`は`python build.py`のビルド/実行時に`Luar Programming Language/luar-rs`を`cargo build --release`し、`dlls/luar_compiler.dll`へ自動反映する。cargoが無い環境はコミット済みDLLを使う。
 

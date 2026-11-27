@@ -46,6 +46,8 @@ public:
     std::function<void(Workspace*)> onOpenSecondaryViewport;
     // Script/TextFile のダブルクリックを中央の補助エディタへ転送する。
     std::function<void(const std::shared_ptr<Instance>&)> onOpenEditor;
+    std::function<bool(const std::shared_ptr<Script>&, std::string&)>
+        onCreateEmbeddedScript;
 
     SceneHierarchyPanel();
     void onRender() override;
@@ -115,6 +117,7 @@ private:
     // フォルダ/ファイル選択待ち（ピッカーはポップアップ外で実行）
     bool                      m_doPick      = false;
     bool                      m_pickExisting = false; // true=既存ファイル選択
+    bool                      m_pickEmbedded = false;
     std::string               m_pickName;
     ScriptExtension           m_pickExtension = ScriptExtension::Luau; // 新規作成するファイルの拡張子
     std::shared_ptr<Instance> m_pickParent;

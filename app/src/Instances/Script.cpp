@@ -27,7 +27,13 @@ void followPathExtension(Script& script) {
 
 void setScriptPath(Script& script, const std::string& path) {
     script.Path = path;
+    if (!path.empty()) script.IsEmbedded = false;
     followPathExtension(script);
+    if (path.empty()) {
+        script.Source.clear();
+        script.isPrecompiled = false;
+        return;
+    }
     // .luauc files are pre-compiled bytecode — load as binary
     const bool isBytecode = script.Path.size() >= 6 &&
                             script.Path.rfind(".luauc") == script.Path.size() - 6;
@@ -63,7 +69,8 @@ const bool s_scriptRegistered = [] {
         field<&Script::Enabled>("Enabled"),
         custom("Path", PropType::String,
             [](Instance* instance) -> PropValue {
-                return static_cast<Script*>(instance)->Path;
+                const auto* script = static_cast<Script*>(instance);
+                return script->IsEmbedded ? std::string{} : script->Path;
             },
             [](Instance* instance, const PropValue& value) {
                 setScriptPath(*static_cast<Script*>(instance), std::get<std::string>(value));
@@ -75,6 +82,7 @@ const bool s_scriptRegistered = [] {
                    dst->Source = src->Source;
                    dst->Path = src->Path;
                    dst->isPrecompiled = src->isPrecompiled;
+                   dst->IsEmbedded = src->IsEmbedded;
                }),
         // Pathの後ろに置く: 保存時はPath→言語の順で書かれ、読込時に明示値がPathからの追従を上書きする
         enumProp<&Script::ScriptExt>("ScriptExtension", {{"Luau", 0}, {"Luar", 1}}, /*yamlAsString*/true),
@@ -108,6 +116,21 @@ Script::Script(string path) : Instance("Script"), Coroutine(nullptr), Path(path)
 
 void Script::setProperty(const std::string& name, const YAML::Node& value) {
     if (PropertyRegistry::loadProperty(this, "Script", name, value)) return;
+
+    if (name == "Embedded") {
+        IsEmbedded = value.as<bool>();
+        if (IsEmbedded) {
+            Path.clear();
+            Source.clear();
+            isPrecompiled = false;
+        }
+        return;
+    }
+    if (name == "EmbeddedSource") {
+        Source = value.as<std::string>();
+        isPrecompiled = false;
+        return;
+    }
 
     // Path と Source は旧YAMLの別名。ContentPathは上のスキーマ定義が受け持つ。
     if (name == "Source" || name == "Path") {

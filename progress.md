@@ -824,3 +824,11 @@
 - --process-regression は既存 DLL fixture を用いており、自動ビルド成功の証拠にはならない。欠落 DLL の実ビルド検証へ修正する。Heartbeat と API の実運用、SDK の主要プロパティ・イベント全体、Play 前保存確認の GUI 分岐、実パッケージゲーム起動は未検証／一部未実装。spec.md・Process.md と実装の整合も最終確認が必要。
 - Windows xmake で Recubin / RecubinEngine / RecubinTest ビルド成功。--process-regression と --process-packager-regression 成功、ただし前者の自動ビルド検証は上記の通り不十分。--system-extension-regression は watchdog 設定の対象項目が通ったが、default file system uses construction-time current directory が失敗。git diff --check --ignore-submodules は CRLF 警告のみ。
 - 次: ProcessBuilder::msvcEnvironment で vcvars の stderr と exit code を正確に取得し引用・環境抽出を修正。新しい DLL 出力先でテストし、その後 Studio 配布 SDK と UI 操作・ゲーム配布を統合検証する。Process 実行基盤の未完成部分やユーザーの変更を削除しない。
+
+## 2026-11-27 埋め込みLuau/Luarスクリプト対応
+
+- `Script` / `LocalScript` / `ModuleScript` にScene内の`Embedded` / `EmbeddedSource`形式を追加。従来の外部`ContentPath`と旧`Properties.Source`のPath別名を維持し、埋め込みの作業パスはSceneへ出力しない。
+- 新規スクリプトで埋め込み／外部参照を選択でき、既存Luau/Luarファイルを埋め込みとして取り込める。埋め込みScriptはストレージルートの`temp/embedded-scripts/`へ排他的な`__Recubin_<一意ID>.<拡張子>`作業ファイルを生成し、Code Editorから既定アプリで開ける。Code Editorの保存も競合確認後に同作業ファイルへ反映する。
+- 手動Save / Save As / Autosave期限到来時 / 終了前に作業ファイルを同期。外部変更はEdit中に1秒間隔で検出してSceneをdirty化し、Autosave recovery/snapshotにも反映する。内部バッファとの外部編集競合、同期失敗、Scene保存失敗では保存／終了を止め、データと作業ファイルを保持する。Play開始前の同期は追加していない。「保存せず終了」は同期や一時ファイル削除を行わない。今回の作業ファイルはScene保存成功後の正常終了時のみ削除し、Sceneに保存されなかったファイルは残す。
+- spec・Script / SceneLoader / CodeEditor / Autosave文書と`.gitignore`を更新。`--embedded-script-regression`で3クラスのScene round-trip、Temp名・上書き回避、外部同期、競合、欠落ファイル、Autosave前同期、保存後cleanupを確認。`--script-extension-regression`と`--autosave-regression`も成功。Windows xmake ReleaseのStudio / Test buildと`git diff --check`成功（既知のAPIENTRY・CRLF警告のみ）。
+- 未検証: GUIでの新規作成・既存ファイル取り込み・既定エディター起動と終了分岐の実操作、macOS。次はStudioで一連のGUI操作と競合後の復旧を確認する。
