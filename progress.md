@@ -881,3 +881,10 @@
 - `RbxlxConverter.cpp` の競合では既存の埋め込みスクリプト出力を保持し、ordered children の出力を統合。
 - Windows xmake Release の `RecubinTest` ビルド成功。`--deterministic-rcbn-serialization-regression` 全 PASS（failures=0）。マージ差分の `git diff --check` 成功。
 - 未完了: なし。既存の RobloxScriptTranspiler 変更を含む `750bc5a` は保持。
+
+## 2026-11-28 欠落アセットの Explorer ハイライト
+
+- `codex/missing-asset-highlights` の6ファイルを `959b0d1` として確定し、`master` にマージ。SceneLoader の deterministic ordering 変更とも競合なく統合。
+- Instance ごとに明示修復ラベルと AssetDependencies の欠損／種別不一致状態を保持し、Explorer の該当行を黄色で表示する。
+- Windows xmake Release `RecubinTest` build 成功。`--asset-repair-highlight-regression` 全 PASS（failures=0）。欠落・誤種別 fixture に伴う Script 読込警告あり。
+- 未検証: Studio の Explorer 実画面でハイライト表示と、正常・空任意参照が非強調であること。次: ユーザーが Studio で表示を確認する。

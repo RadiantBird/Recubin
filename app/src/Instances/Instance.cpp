@@ -424,6 +424,8 @@ std::vector<std::shared_ptr<Instance>> Instance::cloneForest(
             map[
                 const_cast<Instance*>(&original)
             ] = copy;
+            copy->setAssetRepairRequired(original.isAssetRepairRequired());
+            copy->setHasMissingAssetReference(original.hasMissingAssetReference());
 
             auto* originalSpatial =
                 dynamic_cast<const Spatial*>(&original);
