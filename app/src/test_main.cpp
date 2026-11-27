@@ -85,6 +85,7 @@
 #include <Core/SceneLoader.hpp>
 #include <Core/RbxlxConverter.hpp>
 #include <Core/RbxlxDocument.hpp>
+#include <Core/RobloxScriptTranspiler.hpp>
 #include <Core/AnimationClip.hpp>
 #include <Core/SceneRuntime.hpp>
 #include <Core/AudioService.hpp>
@@ -19641,6 +19642,100 @@ int runRbxlxConvertRegression() {
     expect(sameSet(loadedPositions, sourcePositions, &loadedPaths), "BaseCube world positions match the rbxlx CFrames");
     expect(sameSet(loadedSizes, sourceSizes, &loadedPaths), "BaseCube sizes match the rbxlx sizes");
 
+    // RobloxScriptTranspiler の基本 API 変換とコメント・文字列非破壊の検証
+    {
+        const std::string rbxSrc =
+            "-- Instance.new(\"Part\") FindFirstChild\n"
+            "local label = \"FindFirstChild Color3.new\"\n"
+            "local ws = game:GetService(\"Workspace\")\n"
+            "local rs = game:GetService(\"RunService\")\n"
+            "local p = Instance.new(\"Part\")\n"
+            "local w = Instance.new('WedgePart')\n"
+            "p.Color = Color3.fromRGB(255, 128, 0)\n"
+            "local c0 = Color3.new()\n"
+            "local c1 = Color3.new(0.1, 0.2, 0.3)\n"
+            "local a = game.Workspace:FindFirstChild(\"Baseplate\")\n"
+            "local b = ws:WaitForChild(\"SpawnLocation\")\n"
+            "local pl = game:GetService(\"Players\")\n";
+        const RobloxScriptTranspiler::Result tr = RobloxScriptTranspiler::transpile(rbxSrc);
+        expect(tr.source.find("-- Instance.new(\"Part\") FindFirstChild") != std::string::npos,
+               "transpiler preserves comments");
+        expect(tr.source.find("\"FindFirstChild Color3.new\"") != std::string::npos,
+               "transpiler preserves string literals");
+        expect(tr.source.find("local ws = workspace") != std::string::npos,
+               "transpiler converts game:GetService(\"Workspace\") to workspace");
+        expect(tr.source.find("local rs = System") != std::string::npos,
+               "transpiler converts game:GetService(\"RunService\") to System");
+        expect(tr.source.find("Instance.new(\"Cube\")") != std::string::npos,
+               "transpiler converts Instance.new(\"Part\") to Cube");
+        expect(tr.source.find("Instance.new('Wedge')") != std::string::npos,
+               "transpiler converts Instance.new('WedgePart') to Wedge");
+        expect(tr.source.find("Color4.fromRGBA(255, 128, 0)") != std::string::npos,
+               "transpiler converts Color3.fromRGB to Color4.fromRGBA");
+        expect(tr.source.find("Color4.new(0, 0, 0)") != std::string::npos,
+               "transpiler converts Color3.new() to Color4.new(0, 0, 0)");
+        expect(tr.source.find("Color4.new(0.1, 0.2, 0.3)") != std::string::npos,
+               "transpiler converts Color3.new(...) to Color4.new(...)");
+        expect(tr.source.find("workspace:FindChild(\"Baseplate\")") != std::string::npos,
+               "transpiler converts game.Workspace:FindFirstChild to workspace:FindChild");
+        expect(tr.source.find("ws:WaitChild(\"SpawnLocation\")") != std::string::npos,
+               "transpiler converts :WaitForChild to :WaitChild");
+        expect(!tr.warnings.empty(), "transpiler reports unsupported service warning");
+    }
+
+    // .rbxlx の Script が埋め込み出力＋トランスパイルされることの検証
+    {
+        const fs::path scriptRbxlx = work / "ScriptTest.rbxlx";
+        const fs::path scriptOut = work / "ScriptTest.rcbn";
+        const std::string xml =
+            "<roblox version=\"4\">\n"
+            "  <Item class=\"Workspace\" referent=\"RBX1\">\n"
+            "    <Properties><string name=\"Name\">Workspace</string></Properties>\n"
+            "    <Item class=\"Script\" referent=\"RBX2\">\n"
+            "      <Properties>\n"
+            "        <string name=\"Name\">HelloScript</string>\n"
+            "        <bool name=\"Disabled\">false</bool>\n"
+            "        <ProtectedString name=\"Source\"><![CDATA[local p = Instance.new(\"Part\")\n"
+            "local x = game.Workspace:FindFirstChild(\"Part\")\n"
+            "]]></ProtectedString>\n"
+            "      </Properties>\n"
+            "    </Item>\n"
+            "  </Item>\n"
+            "</roblox>\n";
+        {
+            std::ofstream ofs(scriptRbxlx, std::ios::binary);
+            ofs << xml;
+        }
+        const RbxlxConverter::Result scriptConv = RbxlxConverter::convertFile(scriptRbxlx, scriptOut);
+        expect(static_cast<bool>(scriptConv), "script rbxlx convertFile succeeds");
+        expect(!fs::exists(work / "ScriptTest_scripts"),
+               "no external _scripts directory created when embedded");
+
+        auto scriptScene = SceneLoader::loadSceneResult(scriptOut.string());
+        expect(static_cast<bool>(scriptScene), "script converted scene loads");
+        if (scriptScene && scriptScene.root) {
+            std::shared_ptr<Script> foundScript;
+            auto findScript = [&](auto& self, Instance* node) -> void {
+                for (auto& [n, ch] : node->children) {
+                    if (ch->IsA("Script") && ch->Name == "HelloScript") {
+                        foundScript = std::static_pointer_cast<Script>(ch);
+                        return;
+                    }
+                    self(self, ch.get());
+                }
+            };
+            findScript(findScript, scriptScene.root.get());
+            expect(foundScript != nullptr, "HelloScript found in loaded scene");
+            if (foundScript) {
+                expect(foundScript->IsEmbedded, "HelloScript is embedded");
+                expect(foundScript->Path.empty(), "HelloScript Path is empty");
+                expect(foundScript->Source.find("Instance.new(\"Cube\")") != std::string::npos &&
+                           foundScript->Source.find("workspace:FindChild(\"Part\")") != std::string::npos,
+                       "HelloScript source is transpiled");
+            }
+        }
+    }
+
     fs::remove_all(work, ec);
     std::cout << "[RbxlxConvert] " << (failures == 0 ? "all passed" : "failures present")
               << " (failures=" << failures << ")\n";
@@ -19854,7 +19949,7 @@ static int runProcessRegression() {
     const auto runtimeProbe = fs::absolute("build/windows/x64/release/RecubinProcessRuntimeProbe.exe");
     const auto waitFixture = fs::absolute("build/windows/x64/release/RecubinProcessWaitFixture.dll");
     const auto infiniteFixture = fs::absolute("build/windows/x64/release/RecubinProcessInfiniteFixture.dll");
-    const auto waitSource = fs::absolute("app/src/ProcessWaitFixture.cpp");
+    const auto waitSource = fs::absolute("scripts/ProcessWaitFixture.cpp");
     const auto infiniteSource = fs::absolute("app/src/ProcessInfiniteFixture.cpp");
     const auto runtimeLog = fs::temp_directory_path() / "recubin_process_runtime_probe.log";
     if (fs::is_regular_file(runtimeProbe) && fs::is_regular_file(waitFixture) &&

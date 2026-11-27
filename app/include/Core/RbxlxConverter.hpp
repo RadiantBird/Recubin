@@ -8,7 +8,7 @@
 //   - Snap / Weld / WeldConstraint / ManualWeld は Weld、Motor6D は Motor6D にする。
 //   - 対応クラスのないサービスやコンテナは、変換できる子孫があれば Folder にする。
 //   - rbxassetid などの Roblox 側アセットは取得できないので、参照を空にして警告する。
-// Script の Source は「<出力ファイル名>_scripts/」に .luau として書き出す。
+// Script の Source は RobloxScriptTranspiler で Recubin 基本 API へ変換し、埋め込みスクリプトとして出力する。
 namespace RbxlxConverter {
 
 struct Result {

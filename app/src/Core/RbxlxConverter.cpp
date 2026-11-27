@@ -1,5 +1,6 @@
 #include <Core/RbxlxConverter.hpp>
 #include <Core/RbxlxDocument.hpp>
+#include <Core/RobloxScriptTranspiler.hpp>
 #include <Util/AtomicFile.hpp>
 #include <Util/Logger.hpp>
 #include <yaml-cpp/yaml.h>
@@ -46,15 +47,15 @@ struct OutNode {
     std::vector<PendingRef> refs;
     bool requireRefs = false;   // 参照が解決できなければ自身を捨てる（ジョイント）
     bool removed = false;
+    bool embedded = false;
+    std::string embeddedSource;
 };
 
 struct Context {
-    fs::path scriptDir;
     std::unordered_map<std::string, OutNode*> byReferent;
     std::map<std::string, int> skippedClasses;   // 捨てたクラス → 件数
     std::map<std::string, int> notes;            // その他の警告 → 件数
     int skippedCount = 0;
-    int scriptIndex = 0;
     const RbxNode* lighting = nullptr;
 };
 
@@ -368,34 +369,20 @@ std::unique_ptr<OutNode> mapObjectValue(const RbxNode& rbx, Context&) {
     return out;
 }
 
-std::string sanitizeFileName(const std::string& name) {
-    std::string result;
-    for (char c : name) {
-        const bool safe = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-';
-        result += safe ? c : '_';
-    }
-    return result.empty() ? std::string("Script") : result;
-}
-
-// Source を .luau に書き出して ContentPath に入れる（Recubin のシーンは Source を直接持たない）。
+// Source を RobloxScriptTranspiler で変換し、埋め込みスクリプトとして保持する。
 std::unique_ptr<OutNode> mapScriptAs(const RbxNode& rbx, Context& ctx, const char* className) {
     auto out = makeNode(className, rbx);
     if (std::string_view(className) != "ModuleScript") {
         out->properties["Enabled"] = !rbx.getBool("Disabled", false);
     }
 
-    const fs::path file = ctx.scriptDir /
-        (sanitizeFileName(out->name) + "_" + std::to_string(++ctx.scriptIndex) + ".luau");
-    std::error_code ec;
-    fs::create_directories(ctx.scriptDir, ec);
-    std::string error;
-    if (ec || !AtomicFile::writeReplacing(file, rbx.getString("Source"), error)) {
-        RCBN_ERROR("[RbxlxConverter] Failed to write script " << file.string() << ": "
-                   << (ec ? ec.message() : error));
-        addNote(ctx, std::string(className) + ": failed to write source file");
-        return out;
+    const RobloxScriptTranspiler::Result transpiled =
+        RobloxScriptTranspiler::transpile(rbx.getString("Source"));
+    for (const std::string& warning : transpiled.warnings) {
+        addNote(ctx, std::string(className) + ": " + warning);
     }
-    out->properties["ContentPath"] = fs::absolute(file, ec).string();
+    out->embedded = true;
+    out->embeddedSource = transpiled.source;
     return out;
 }
 
@@ -674,6 +661,10 @@ void emitNode(YAML::Emitter& out, const OutNode& node, int& count) {
         }
         out << YAML::EndMap;
     }
+    if (node.embedded) {
+        out << YAML::Key << "Embedded" << YAML::Value << true;
+        out << YAML::Key << "EmbeddedSource" << YAML::Value << node.embeddedSource;
+    }
     const bool hasChildren = std::any_of(node.children.begin(), node.children.end(),
         [](const auto& child) { return !child->removed; });
     if (hasChildren) {
@@ -731,7 +722,6 @@ Result convertFile(const fs::path& input, const fs::path& output) {
     }
 
     Context ctx;
-    ctx.scriptDir = output.parent_path() / (output.stem().string() + "_scripts");
 
     auto root = buildScene(*document, ctx);
     uniquifyNames(*root);

@@ -855,3 +855,22 @@
 - DLL がない新しい出力先から、MSVC 14.52.37025 で実ソースを自動ビルドし、SDK の Instance / event 処理と停止まで ProcessRuntimeProbe で確認。終了コード 0、生成 DLL 372224 bytes、`.exp` / `.lib` / `.pdb` sidecar なし。検証 DLL は削除済み。
 - 確認中に古い Probe バイナリが廃止済み `task::StopRequested` を参照して失敗することを確認。ソース側には該当参照がなく、最新ソースから対象を再ビルド後に同じ自動ビルド検証が成功した。xmake は `C:\Program Files\xmake\xmake.exe` から実行。
 - 未検証: clang-cl / GNU コンパイラの実環境ビルド、Studio GUI でのコンパイラ変更・dirty 保存確認・実画面エラー表示、配布ゲームの初回許可、macOS。次は GUI で Play 前保存・コンパイラ選択・エラー文言を確認し、必要なら各非 MSVC toolchain で DLL を手動検証する。
+- 追加: 回帰 fixture を `scripts/ProcessWaitFixture.cpp` へ移動。`scripts/ProcessShowcase.cpp` に Workspace 上で12個のCubeを色変化・軌道移動させるデモを追加し、`RecubinProcessShowcase.dll` と回帰 fixture DLL を Windows xmake Release でビルド。
+
+## 2026-11-28 Roblox スクリプトトランスパイラ実装
+
+- `RobloxScriptTranspiler`（`app/include/Core/RobloxScriptTranspiler.hpp` / `app/src/Core/RobloxScriptTranspiler.cpp`）を新規実装。Luau の AST パーサー（`Luau::Parser::parse`）で構文解析し、`AstVisitor` で該当ノードの `Location` を収集、スパン置換する方式。コメント・文字列リテラル内を誤置換しない。
+- 変換対象 API:
+  - `Instance.new("Part")` → `Instance.new("Cube")` 等（`instanceClassMap` テーブル: Part/MeshPart/UnionOperation/IntersectOperation/CornerWedgePart→Cube、WedgePart→Wedge、TrussPart→Truss、VehicleSeat→Seat、RemoteEvent/BindableEvent→Event）
+  - `:FindFirstChild(...)` → `:FindChild(...)`、`:WaitForChild(...)` → `:WaitChild(...)`
+  - `Color3.new(...)` → `Color4.new(...)`、`Color3.fromRGB(...)` → `Color4.fromRGBA(...)`
+  - `game.Workspace` → `workspace`、`game.Lighting` → `workspace:FindChild("Lighting")`
+  - `game:GetService("Workspace")` → `workspace`、`"RunService"` → `System`、`"Lighting"` → `workspace:FindChild("Lighting")`、`"Chat"` → `ChatService`
+  - 未対応 API はサイレントではなく `Result::warnings` に記録する
+  - 引用符スタイル（`'` / `"`）はソース位置の先頭文字を参照して保持する
+- `RbxlxConverter::mapScriptAs` を変更: `Script` / `LocalScript` / `ModuleScript` のソースをトランスパイルし、外部 `_scripts/*.luau` ファイルへの書き出しをやめて `Embedded: true` / `EmbeddedSource` として埋め込み出力するよう変更。`ctx.scriptDir` / `ctx.scriptIndex` フィールドは不要になり除去。
+- `xmake.lua` の `include_dirs` に `external/luau/Ast/include` / `external/luau/Common/include` を追加。
+- `--rbxlx-convert-regression` にトランスパイラ単体テスト（コメント・文字列非破壊、各変換、警告）と埋め込み変換の統合テスト（`HelloScript` が `Embedded=true`・`Path` 空・ソース変換済みでロードされる）を追加。
+- Windows xmake Release RecubinCore / RecubinTest ビルド成功。`--rbxlx-convert-regression` 全 PASS（failures=0）。`--embedded-script-regression` も全 PASS。`git diff --check` 警告のみ（CRLF）。
+- 未検証: LocalScript / ModuleScript の埋め込みが実 GUI で正常に動くか、変換後スクリプトの実行動作。
+- 次: 実際の Roblox プロジェクトを変換してスクリプトの挙動を確認し、必要なら変換対象 API を追加する。

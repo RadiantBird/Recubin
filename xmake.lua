@@ -149,6 +149,8 @@ local include_dirs = {
     "external/nanosvg/src",
     "external/stb",
     "external/yaml-cpp/include",
+    "external/luau/Ast/include",
+    "external/luau/Common/include",
     external_dir,
     "app",
     "app/include",
@@ -244,7 +246,19 @@ target_end()
 
 target("RecubinProcessWaitFixture")
     set_kind("shared")
-    add_files("app/src/ProcessWaitFixture.cpp")
+    add_includedirs("app/include", "app")
+    if is_plat("windows") then
+        set_runtimes("MD")
+        add_cxxflags("/utf-8", {tools = "cl"})
+    end
+    add_files("scripts/ProcessWaitFixture.cpp")
+target_end()
+
+target("RecubinProcessShowcase")
+    set_kind("shared")
+    set_languages("c++23")
+    add_includedirs("app/include")
+    add_files("scripts/ProcessShowcase.cpp")
     add_includedirs("app/include", "app")
     if is_plat("windows") then
         set_runtimes("MD")
