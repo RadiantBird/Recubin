@@ -2629,9 +2629,7 @@ void EditorManager::openCodeEditor(const std::shared_ptr<Instance>& target) {
         auto openedTarget = panel->target();
         if (openedTarget && openedTarget.get() == target.get()) {
             panel->setOpen(true);
-            const std::string windowId = "###CodeEditor_" +
-                std::to_string(reinterpret_cast<std::uintptr_t>(target.get()));
-            ImGui::SetWindowFocus(windowId.c_str());
+            ImGui::SetWindowFocus(panel->windowId().c_str());
             return;
         }
     }
@@ -2678,8 +2676,19 @@ void EditorManager::closeCodeEditors() {
     m_codeEditors.clear();
 }
 
-void EditorManager::setWorkspace(Workspace* ws) {
-    closeCodeEditors();
+void EditorManager::captureCodeEditorTargets() {
+    m_embeddedScripts.captureSceneIdentities(m_system);
+    for (auto& panel : m_codeEditors) {
+        if (panel && !panel->captureTargetIdentity()) {
+            RCBN_WARN("Editor: unable to capture the target of an open Code Editor panel");
+        }
+    }
+}
+
+void EditorManager::setWorkspace(Workspace* ws, bool preserveCodeEditors) {
+    if (!preserveCodeEditors) {
+        closeCodeEditors();
+    }
     m_workspace                  = ws;
     hierarchyPanel->workspace    = ws;
     viewportPanel->workspace     = ws;
@@ -2687,6 +2696,37 @@ void EditorManager::setWorkspace(Workspace* ws) {
     hierarchyPanel->selectedInstances.clear();
     m_history.clear();
     m_isDirty = false;
+
+    if (!preserveCodeEditors) return;
+
+    m_embeddedScripts.rebindAfterSceneReload(m_system);
+    for (auto& panel : m_codeEditors) {
+        if (!panel) continue;
+        panel->setRuntimeFileSystem(m_runtimeFileSystem);
+
+        std::shared_ptr<Instance> target;
+        std::function<void(Instance*)> findTarget = [&](Instance* parent) {
+            if (!parent || target) return;
+            for (const auto& [name, child] : parent->getChildren()) {
+                (void)name;
+                if (!child) continue;
+                if (child->getFullPath() == panel->targetPath() &&
+                    child->getClassName() == panel->targetClassName()) {
+                    target = child;
+                    return;
+                }
+                findTarget(child.get());
+                if (target) return;
+            }
+        };
+        findTarget(m_system);
+
+        if (!panel->rebindTarget(target)) {
+            RCBN_WARN("Editor: closing Code Editor panel because its target was not restored: "
+                      << panel->targetPath());
+            panel->setOpen(false);
+        }
+    }
 }
 
 void EditorManager::beginViewportRender() {

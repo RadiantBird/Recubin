@@ -29,6 +29,12 @@ public:
     void clearCloseRequest();
     void setDockspaceId(ImGuiID dockspaceId);
     void setOpen(bool open);
+    const std::string& windowId() const;
+    const std::string& targetPath() const;
+    const std::string& targetClassName() const;
+    bool captureTargetIdentity();
+    bool rebindTarget(const std::shared_ptr<Instance>& target);
+    void setRuntimeFileSystem(RuntimeFileSystem* runtimeFileSystem);
     bool save();
     void setOnEmbeddedSourceChanged(
         std::function<bool(const std::shared_ptr<Script>&, const std::string&,
@@ -44,6 +50,9 @@ public:
 
 private:
     std::weak_ptr<Instance> m_target;
+    std::string m_targetPath;
+    std::string m_targetClassName;
+    std::string m_windowId;
     ImGuiID m_dockspaceId = 0;
     ImFont* m_codeFont = nullptr;
     float m_codeFontSize = 17.0f;

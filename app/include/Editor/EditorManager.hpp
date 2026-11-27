@@ -125,7 +125,8 @@ public:
     void render() { render(nullptr); }
 
     // Stop 後の workspace リロード時に全パネルのポインタを一括更新する
-    void setWorkspace(Workspace* ws);
+    void setWorkspace(Workspace* ws, bool preserveCodeEditors = false);
+    void captureCodeEditorTargets();
     // Runtime TextFile overlay service is owned by LuauEngine and may be
     // replaced when a scene is loaded; the code editor keeps only a borrow.
     void setRuntimeFileSystem(RuntimeFileSystem* runtimeFileSystem) {

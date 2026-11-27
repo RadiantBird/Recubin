@@ -1161,6 +1161,38 @@ int runEmbeddedScriptRegression() {
                std::filesystem::exists(removedScriptPath),
            "retains work files for scripts omitted from the saved Scene");
 
+    EmbeddedScriptWorkspace reboundWorkspace(storageRoot / "rebound");
+    auto prePlaySystem = std::make_shared<System>();
+    auto prePlayWorkspace = std::make_shared<Workspace>();
+    auto prePlayScript = std::make_shared<Script>();
+    prePlayScript->Name = "RestoredEmbedded";
+    prePlayScript->IsEmbedded = true;
+    prePlayScript->Source = "print('before play')\n";
+    prePlayWorkspace->addChild(prePlayScript);
+    prePlaySystem->addChild(prePlayWorkspace);
+    std::string reboundError;
+    const bool prePlayFileCreated =
+        reboundWorkspace.ensureWorkingFile(prePlayScript, reboundError);
+
+    auto restoredSystem = std::make_shared<System>();
+    auto restoredWorkspace = std::make_shared<Workspace>();
+    auto restoredScript = std::make_shared<Script>();
+    restoredScript->Name = prePlayScript->Name;
+    restoredScript->IsEmbedded = true;
+    restoredScript->Source = prePlayScript->Source;
+    restoredWorkspace->addChild(restoredScript);
+    restoredSystem->addChild(restoredWorkspace);
+    const std::string restoredPath = prePlayScript->Path;
+    reboundWorkspace.rebindAfterSceneReload(restoredSystem.get());
+    const std::string restoredSource = "print('after play')\n";
+    expect(prePlayFileCreated &&
+               reboundWorkspace.ensureWorkingFile(restoredScript, reboundError) &&
+               restoredScript->Path == restoredPath &&
+               reboundWorkspace.saveEditorBuffer(
+                   restoredScript, restoredSource, reboundError) &&
+               FileLoader::readText(restoredPath) == restoredSource,
+           "rebinds embedded Script work files after Scene restoration");
+
     std::filesystem::remove_all(testRoot, ec);
     return failures == 0 ? 0 : 1;
 }

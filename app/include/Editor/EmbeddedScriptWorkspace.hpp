@@ -16,6 +16,8 @@ public:
     explicit EmbeddedScriptWorkspace(std::filesystem::path storageRoot);
 
     bool ensureWorkingFile(const std::shared_ptr<Script>& script, std::string& error);
+    void captureSceneIdentities(Instance* root);
+    void rebindAfterSceneReload(Instance* root);
     bool saveEditorBuffer(const std::shared_ptr<Script>& script,
                           const std::string& source, std::string& error);
     bool hasExternalChanges(Instance* root, bool& changed, std::string& error) const;
@@ -34,6 +36,7 @@ private:
         std::string lastSyncedContents;
         bool savedInScene = false;
         bool hasUnsavedChanges = false;
+        std::string instancePath;
     };
 
     std::filesystem::path m_storageRoot;

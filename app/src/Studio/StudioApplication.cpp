@@ -630,7 +630,8 @@ private:
         return true;
     }
 
-    bool installScene(SceneRuntime::Bound bound, bool markDirty)
+    bool installScene(SceneRuntime::Bound bound, bool markDirty,
+                      bool preserveCodeEditors = false)
     {
         if (!bound.workspace) {
             RCBN_ERROR("Scene binding did not provide a Workspace.");
@@ -644,7 +645,7 @@ private:
         if (m_editor) {
             m_editor->setRuntimeFileSystem(m_luau->runtimeFileSystem());
             m_editor->setSceneMetadata(bound.metadata);
-            m_editor->setWorkspace(m_workspace.get());
+            m_editor->setWorkspace(m_workspace.get(), preserveCodeEditors);
             if (markDirty) {
                 m_editor->markDirty();
             }
@@ -736,7 +737,7 @@ private:
         clearSceneForReplacement();
         installScene(
             SceneRuntime::loadAndBind(SNAPSHOT_PATH, m_system, m_user, *m_luau, m_window),
-            m_snapshotDirty);
+            m_snapshotDirty, true);
         m_editor->setSceneMetadata(m_originalSceneMetadata);
     }
 
@@ -1140,6 +1141,7 @@ private:
 
     void savePlaySnapshot()
     {
+        m_editor->captureCodeEditorTargets();
         // Play 開始時に Inventory の実体から Slots を再構築し、System Script も再実行可能にする。
         m_user->syncToolsFromInventory();
         m_luau->resetSystemScripts();

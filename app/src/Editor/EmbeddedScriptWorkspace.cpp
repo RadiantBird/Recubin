@@ -58,6 +58,7 @@ bool EmbeddedScriptWorkspace::ensureWorkingFile(
         if (existing->second.script.lock() != script) {
             m_entries.erase(existing);
         } else {
+            existing->second.instancePath = script->getFullPath();
             std::error_code ec;
             if (!std::filesystem::is_regular_file(existing->second.path, ec) || ec) {
                 error = ec ? filesystemError("Unable to inspect embedded script working file",
@@ -73,10 +74,50 @@ bool EmbeddedScriptWorkspace::ensureWorkingFile(
 
     std::filesystem::path path;
     if (!createWorkingFile(script, path, error)) return false;
-    m_entries.emplace(script.get(), Entry{script, path, script->Source, false, false});
+    Entry entry{script, path, script->Source, false, false};
+    entry.instancePath = script->getFullPath();
+    m_entries.emplace(script.get(), std::move(entry));
     m_createdFiles.push_back(path);
     script->Path = AssetPath::toStored(path);
     return true;
+}
+
+void EmbeddedScriptWorkspace::captureSceneIdentities(Instance* root) {
+    if (!root) return;
+
+    std::vector<std::shared_ptr<Script>> scripts;
+    collectEmbeddedScripts(root, scripts);
+    for (const auto& script : scripts) {
+        const auto entry = m_entries.find(script.get());
+        if (entry == m_entries.end() || entry->second.script.lock() != script) continue;
+        entry->second.instancePath = script->getFullPath();
+    }
+}
+
+void EmbeddedScriptWorkspace::rebindAfterSceneReload(Instance* root) {
+    if (!root) return;
+
+    std::vector<std::shared_ptr<Script>> scripts;
+    collectEmbeddedScripts(root, scripts);
+    for (const auto& script : scripts) {
+        const auto current = m_entries.find(script.get());
+        if (current != m_entries.end() && current->second.script.lock() == script) {
+            continue;
+        }
+
+        auto previous = std::find_if(
+            m_entries.begin(), m_entries.end(),
+            [&script](const auto& entry) {
+                return entry.second.instancePath == script->getFullPath();
+            });
+        if (previous == m_entries.end()) continue;
+
+        Entry entry = std::move(previous->second);
+        m_entries.erase(previous);
+        entry.script = script;
+        entry.instancePath = script->getFullPath();
+        m_entries.emplace(script.get(), std::move(entry));
+    }
 }
 
 bool EmbeddedScriptWorkspace::saveEditorBuffer(

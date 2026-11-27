@@ -104,6 +104,9 @@ CodeEditorPanel::CodeEditorPanel(std::shared_ptr<Instance> target, ImGuiID docks
     auto instance = m_target.lock();
     title = instance ? instance->Name : "Code Editor";
     isOpen = instance != nullptr;
+    captureTargetIdentity();
+    m_windowId = "###CodeEditor_" +
+        std::to_string(reinterpret_cast<std::uintptr_t>(this));
     loadTarget();
 }
 
@@ -114,6 +117,33 @@ bool CodeEditorPanel::wantsClose() const { return m_closeRequested; }
 void CodeEditorPanel::clearCloseRequest() { m_closeRequested = false; }
 void CodeEditorPanel::setDockspaceId(ImGuiID dockspaceId) { m_dockspaceId = dockspaceId; }
 void CodeEditorPanel::setOpen(bool open) { isOpen = open; }
+const std::string& CodeEditorPanel::windowId() const { return m_windowId; }
+const std::string& CodeEditorPanel::targetPath() const { return m_targetPath; }
+const std::string& CodeEditorPanel::targetClassName() const { return m_targetClassName; }
+
+bool CodeEditorPanel::captureTargetIdentity() {
+    auto instance = m_target.lock();
+    if (!instance) return false;
+    m_targetPath = instance->getFullPath();
+    m_targetClassName = instance->getClassName();
+    return true;
+}
+
+bool CodeEditorPanel::rebindTarget(const std::shared_ptr<Instance>& target) {
+    if (!target || target->getFullPath() != m_targetPath ||
+        target->getClassName() != m_targetClassName) {
+        return false;
+    }
+
+    m_target = target;
+    title = target->Name;
+    return true;
+}
+
+void CodeEditorPanel::setRuntimeFileSystem(RuntimeFileSystem* runtimeFileSystem) {
+    m_runtimeFileSystem = runtimeFileSystem;
+}
+
 void CodeEditorPanel::setOnEmbeddedSourceChanged(
     std::function<bool(const std::shared_ptr<Script>&, const std::string&,
                        std::string&)> callback) {
@@ -462,8 +492,7 @@ void CodeEditorPanel::onRender() {
     auto instance = m_target.lock();
     if (!instance) { isOpen = false; m_closeRequested = true; return; }
     if (!m_loaded) loadTarget();
-    const std::string windowTitle = instance->Name + (m_dirty ? "*" : "") +
-        "###CodeEditor_" + std::to_string(reinterpret_cast<uintptr_t>(instance.get()));
+    const std::string windowTitle = instance->Name + (m_dirty ? "*" : "") + m_windowId;
     ImGui::SetNextWindowDockID(m_dockspaceId, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(720.0f, 460.0f), ImGuiCond_FirstUseEver);
     const bool wasOpen = isOpen;
