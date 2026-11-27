@@ -377,9 +377,18 @@ void SceneHierarchyPanel::drawNode(
         renameFocusPending = false;
     }
     bool renaming = !readOnly && !inst->isRuntimeNameLocked() && (inst == renamingInstance);
+    const bool needsAssetRepair = inst->needsAssetRepair();
+    if (needsAssetRepair) {
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.65f, 0.48f, 0.05f, 0.72f));
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.78f, 0.60f, 0.08f, 0.86f));
+        ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.92f, 0.70f, 0.10f, 0.94f));
+    }
     bool open = renaming
         ? ImGui::TreeNodeEx(inst, flags, "%s", getClassIcon(inst->getClassName()))
         : ImGui::TreeNodeEx(inst, flags, "%s %s", getClassIcon(inst->getClassName()), inst->Name.c_str());
+    if (needsAssetRepair) {
+        ImGui::PopStyleColor(3);
+    }
     GuiAutomation::registerLastItem(std::string("Explorer/Node/") + inst->getFullPath());
 
     if (inst == m_revealRequest) {

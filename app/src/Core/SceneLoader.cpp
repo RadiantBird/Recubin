@@ -23,12 +23,14 @@
 #include <Instances/AppImage.hpp>
 #include <Core/PhysicalFileInstanceRegistry.hpp>
 #include <functional>
+#include <algorithm>
 #include <Instances/SignalEvent.hpp>
 #include <Instances/Humanoid.hpp>
 #include <Instances/PathfindingService.hpp>
 #include <Instances/MaterialService.hpp>
 #include <Instances/MaterialInstance.hpp>
 #include <Core/PropertyRegistry.hpp>
+#include <Core/AssetDependencies.hpp>
 #include <Instances/Animation.hpp>
 #include <Instances/StarterCharacter.hpp>
 #include <Instances/Skybox.hpp>
@@ -357,6 +359,9 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(
             return nullptr;
         }
     }
+    instance->setAssetRepairRequired(
+        node["AssetRepairRequired"] ? node["AssetRepairRequired"].as<bool>() : false);
+    instance->setHasMissingAssetReference(false);
 
     // プロパティの設定
     if (node["Properties"]) {
@@ -439,6 +444,23 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(
     if (!isMergeInstance && node["Name"]) {
         instance->Name = node["Name"].as<std::string>();
     }
+
+    YAML::Node instanceAssetNode(YAML::NodeType::Map);
+    for (auto it = node.begin(); it != node.end(); ++it) {
+        const std::string key = it->first.as<std::string>();
+        if (key != "Children") {
+            instanceAssetNode[key] = it->second;
+        }
+    }
+    std::vector<AssetDependencies::Dependency> assetDependencies;
+    AssetDependencies::collect(
+        instanceAssetNode, assetDependencies, AssetPath::sceneAssetBaseDirectory());
+    const bool hasMissingAssetReference = std::any_of(
+        assetDependencies.begin(), assetDependencies.end(),
+        [](const AssetDependencies::Dependency& dependency) {
+            return !dependency.exists;
+        });
+    instance->setHasMissingAssetReference(hasMissingAssetReference);
 
     // 子要素の解析
     if (node["Children"]) {
@@ -667,6 +689,9 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     out << YAML::BeginMap;
     out << YAML::Key << "ClassName" << YAML::Value << inst->getClassName();
     out << YAML::Key << "Name"      << YAML::Value << inst->Name;
+    if (inst->isAssetRepairRequired()) {
+        out << YAML::Key << "AssetRepairRequired" << YAML::Value << true;
+    }
 
     // プロパティ
     const bool hasSchemaProperties = !PropertyRegistry::collectApplicableSchema(inst).empty();

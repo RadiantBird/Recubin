@@ -11332,6 +11332,146 @@ static int runDefaultCameraModeRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+static int runAssetRepairHighlightRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[AssetRepairHighlight] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    const auto work = std::filesystem::temp_directory_path() /
+        ("recubin_asset_repair_regression_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()));
+    const auto assets = work / "assets";
+    std::error_code ec;
+    std::filesystem::create_directories(assets, ec);
+    if (ec) {
+        expect(false, "temporary asset directory can be created");
+        return 1;
+    }
+
+    std::ofstream validAsset(assets / "valid.luau", std::ios::binary);
+    validAsset << "-- valid";
+    validAsset.close();
+    const bool validAssetWritten = static_cast<bool>(validAsset);
+    expect(validAssetWritten, "existing file fixture can be written");
+    if (!validAssetWritten) {
+        std::filesystem::remove_all(work, ec);
+        return 1;
+    }
+    std::filesystem::create_directories(assets / "wrong-kind.luau", ec);
+    if (ec) {
+        expect(false, "invalid file-kind fixture can be created");
+        std::filesystem::remove_all(work, ec);
+        return 1;
+    }
+
+    const auto scenePath = work / "repair_scene.rcbn";
+    std::ofstream scene(scenePath, std::ios::binary | std::ios::trunc);
+    scene << "recubin:\n"
+             "  type: scene\n"
+             "  version: 0\n"
+             "  assetRoot: assets\n"
+             "Root:\n"
+             "  ClassName: Folder\n"
+             "  Name: Root\n"
+             "  Children:\n"
+             "    - ClassName: Script\n"
+             "      Name: Missing\n"
+             "      Properties:\n"
+             "        ContentPath: missing.luau\n"
+             "    - ClassName: Script\n"
+             "      Name: WrongKind\n"
+             "      Properties:\n"
+             "        ContentPath: wrong-kind.luau\n"
+             "    - ClassName: Script\n"
+             "      Name: Valid\n"
+             "      Properties:\n"
+             "        ContentPath: valid.luau\n"
+             "    - ClassName: Script\n"
+             "      Name: Empty\n"
+             "      Properties:\n"
+             "        ContentPath: ''\n"
+             "    - ClassName: Folder\n"
+             "      Name: Explicit\n"
+             "      AssetRepairRequired: true\n";
+    scene.close();
+    const bool sceneWritten = static_cast<bool>(scene);
+    expect(sceneWritten, "scene fixture can be written");
+    if (!sceneWritten) {
+        std::filesystem::remove_all(work, ec);
+        return 1;
+    }
+
+    const auto loaded = SceneLoader::loadSceneResult(scenePath.string());
+    expect(static_cast<bool>(loaded), "scene with file references loads");
+    if (!loaded || !loaded.root) {
+        std::filesystem::remove_all(work, ec);
+        return 1;
+    }
+
+    const auto* missing = loaded.root->getChild("Missing");
+    const auto* wrongKind = loaded.root->getChild("WrongKind");
+    const auto* valid = loaded.root->getChild("Valid");
+    const auto* empty = loaded.root->getChild("Empty");
+    const auto* explicitLabel = loaded.root->getChild("Explicit");
+    expect(missing && missing->hasMissingAssetReference() && missing->needsAssetRepair(),
+           "missing file dependency is detected on its owning Instance");
+    expect(wrongKind && wrongKind->hasMissingAssetReference(),
+           "a directory is invalid for a regular file dependency");
+    expect(valid && !valid->hasMissingAssetReference() && !valid->needsAssetRepair(),
+           "existing file dependency is not highlighted");
+    expect(empty && !empty->hasMissingAssetReference(),
+           "empty optional file reference is not highlighted");
+    expect(explicitLabel && explicitLabel->isAssetRepairRequired() &&
+               explicitLabel->needsAssetRepair(),
+           "explicit YAML repair label is loaded");
+
+    auto clone = loaded.root->cloneTree();
+    const auto* clonedMissing = clone ? clone->getChild("Missing") : nullptr;
+    const auto* clonedExplicit = clone ? clone->getChild("Explicit") : nullptr;
+    expect(clonedMissing && clonedMissing->hasMissingAssetReference() &&
+               clonedExplicit && clonedExplicit->isAssetRepairRequired(),
+           "both repair states survive subtree cloning");
+
+    SceneLoader::SceneDocumentMetadata metadata;
+    metadata.assetRoot = "assets";
+    const auto roundTripPath = work / "repair_round_trip.rcbn";
+    const bool sceneSaved =
+        SceneLoader::saveSceneResult(loaded.root.get(), roundTripPath.string(), metadata);
+    expect(sceneSaved, "repair labels serialize with the scene");
+    if (!sceneSaved) {
+        std::filesystem::remove_all(work, ec);
+        return 1;
+    }
+    const YAML::Node roundTripYaml = YAML::LoadFile(roundTripPath.string());
+    const YAML::Node nodes = roundTripYaml["Root"]["Children"];
+    bool missingLabelWasOmitted = false;
+    bool explicitLabelWasSaved = false;
+    for (const auto& node : nodes) {
+        const std::string name = node["Name"].as<std::string>();
+        if (name == "Missing")
+            missingLabelWasOmitted = !node["AssetRepairRequired"];
+        if (name == "Explicit")
+            explicitLabelWasSaved =
+                node["AssetRepairRequired"] && node["AssetRepairRequired"].as<bool>();
+    }
+    expect(missingLabelWasOmitted,
+           "automatic missing-file state is not serialized as an explicit label");
+    expect(explicitLabelWasSaved, "explicit repair label round-trips in node-level YAML");
+
+    const auto reloaded = SceneLoader::loadSceneResult(roundTripPath.string());
+    expect(reloaded && reloaded.root->getChild("Missing") &&
+               reloaded.root->getChild("Missing")->hasMissingAssetReference() &&
+               reloaded.root->getChild("Explicit") &&
+               reloaded.root->getChild("Explicit")->isAssetRepairRequired(),
+           "automatic detection and explicit label are restored independently");
+
+    std::filesystem::remove_all(work, ec);
+    return failures == 0 ? 0 : 1;
+}
+
 static int runSceneLoadTransactionRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const std::string& message) {
@@ -20020,6 +20160,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--viewport-helper-regression", runViewportHelperRegression),
         REG("--autosave-regression", runAutosaveRegression),
         REG("--asset-path-regression", runAssetPathRegression),
+        REG("--asset-repair-highlight-regression", runAssetRepairHighlightRegression),
         REG("--scene-asset-copy-regression", runSceneAssetCopyRegression),
         REG("--rbxlx-convert-regression", runRbxlxConvertRegression),
         REG("--app-image-regression", runAppImageRegression),

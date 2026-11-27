@@ -43,6 +43,13 @@ class Instance : public std::enable_shared_from_this<Instance> {
         void lockRuntimeName() { m_runtimeNameLocked = true; }
         bool isRuntimeNameLocked() const { return m_runtimeNameLocked; }
         bool renameToAuthoritative(const std::string& newName);
+        void setAssetRepairRequired(bool required) { m_assetRepairRequired = required; }
+        bool isAssetRepairRequired() const { return m_assetRepairRequired; }
+        void setHasMissingAssetReference(bool missing) { m_hasMissingAssetReference = missing; }
+        bool hasMissingAssetReference() const { return m_hasMissingAssetReference; }
+        bool needsAssetRepair() const {
+            return m_assetRepairRequired || m_hasMissingAssetReference;
+        }
 
         Instance* findFirstAncestorWorkspace();
         Instance* findFirstAncestorSystem();
@@ -55,7 +62,10 @@ class Instance : public std::enable_shared_from_this<Instance> {
         Instance(string name);
 
         // Poolから再貸出しする前に、派生クラスが実行時状態を初期化する。
-        virtual void init() {}
+        virtual void init() {
+            m_assetRepairRequired = false;
+            m_hasMissingAssetReference = false;
+        }
 
         virtual string getClassName();
         virtual bool IsA(std::string className);
@@ -105,5 +115,7 @@ class Instance : public std::enable_shared_from_this<Instance> {
         static std::string uniqueChildName(const Instance& parent, const std::string& base);
         mutable std::unordered_map<std::string, int> m_nameSuffixHints;
         bool m_runtimeNameLocked = false;
+        bool m_assetRepairRequired = false;
+        bool m_hasMissingAssetReference = false;
         std::uint64_t m_childrenRevision = 0;
 };
