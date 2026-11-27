@@ -183,6 +183,18 @@ static const bool s_baseCubeRegistered = []{
         custom("CanTouch", PropType::Bool,
             [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->CanTouch); },
             [](Instance* o, const PropValue& v) { static_cast<BaseCube*>(o)->setCanTouch(std::get<bool>(v)); }),
+        []() {
+            PropertyDesc collisionGroup = custom("CollisionGroup", PropType::String,
+                [](Instance* o) { return PropValue(static_cast<BaseCube*>(o)->CollisionGroup); },
+                [](Instance* o, const PropValue& v) {
+                    static_cast<BaseCube*>(o)->setCollisionGroup(std::get<std::string>(v));
+                });
+            collisionGroup.group("Physics");
+            collisionGroup.serializeIf([](const Instance* o) {
+                return static_cast<const BaseCube*>(o)->CollisionGroup != "Default";
+            });
+            return collisionGroup;
+        }(),
         massDensity,
         ccdMode,
         materialType,
@@ -215,6 +227,7 @@ void BaseCube::init() {
     Anchored = false;
     CanCollide = true;
     CanTouch = true;
+    CollisionGroup = "Default";
     CastShadow = true;
     ShadowMode = ::ShadowMode::Normal;
     Unlit = false;
@@ -400,6 +413,19 @@ void BaseCube::setCanTouch(bool canTouch) {
     CanTouch = canTouch;
     if (m_physicsOwner && m_physicsOwner->hasBody(*this))
         m_physicsOwner->refreshCollisionFilter(*this);
+}
+
+void BaseCube::setCollisionGroup(const std::string& group) {
+    std::string normalized = group;
+    if (normalized.empty()) {
+        RCBN_WARN("Empty CollisionGroup for " << Name << "; falling back to Default");
+        normalized = "Default";
+    }
+    if (CollisionGroup == normalized) return;
+    CollisionGroup = std::move(normalized);
+    if (m_physicsOwner && m_physicsOwner->hasBody(*this)) {
+        m_physicsOwner->refreshCollisionFilter(*this);
+    }
 }
 
 void BaseCube::setLocked(bool locked) {

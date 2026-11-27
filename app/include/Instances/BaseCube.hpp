@@ -58,6 +58,7 @@ public:
     bool Anchored = false;
     bool CanCollide = true;
     bool CanTouch = true;
+    std::string CollisionGroup = "Default";
     bool CastShadow = true;
     using ShadowModeType = ::ShadowMode;
     ShadowModeType ShadowMode = ::ShadowMode::Normal;
@@ -115,6 +116,7 @@ public:
     void setAnchored(bool anchored);
     void setCanCollide(bool canCollide);
     void setCanTouch(bool canTouch);
+    void setCollisionGroup(const std::string& group);
     bool isTouchObserved() const { return m_touchObservationActive; }
     // Luaリスナーとは別に、エンジン内部(派生クラス)がTouchを受信するためのフック。
     // setNativeTouchObserved(true)の間、このCubeにTouchセンサーが作られonNativeTouchedが呼ばれる

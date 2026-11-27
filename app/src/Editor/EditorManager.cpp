@@ -297,6 +297,12 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
     profilerPanel->isOpen = false;
     audioDebugPanel     = std::make_unique<AudioDebugPanel>();
     audioDebugPanel->isOpen = false;
+    collisionGroupsPanel = std::make_unique<CollisionGroupsPanel>();
+    collisionGroupsPanel->isOpen = false;
+    collisionGroupsPanel->setSystem(dynamic_cast<System*>(m_system));
+    collisionGroupsPanel->setOnChanged([this]() {
+        markDirty();
+    });
 
     hierarchyPanel->workspace   = workspace;
     hierarchyPanel->systemRoot  = system;
@@ -545,6 +551,7 @@ void EditorManager::render(GLFWwindow* window) {
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelWelcome),        nullptr, &welcomePanel->isOpen);
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelProfiler),       nullptr, &profilerPanel->isOpen);
             ImGui::MenuItem(Loc::t(Loc::LocKey::PanelAudioDebug),     nullptr, &audioDebugPanel->isOpen);
+            ImGui::MenuItem(Loc::t(Loc::LocKey::PanelCollisionGroups), nullptr, &collisionGroupsPanel->isOpen);
             ImGui::Separator();
             ImGui::MenuItem(Loc::t(Loc::LocKey::MenuPhysicsDebug),    nullptr, &viewportPanel->showPhysicsDebug);
             ImGui::MenuItem(Loc::t(Loc::LocKey::MenuRenderingDebug), nullptr, &viewportPanel->showRenderingDebug);
@@ -583,6 +590,7 @@ void EditorManager::render(GLFWwindow* window) {
     welcomePanel->dockspaceId = dockId;
     profilerPanel->dockspaceId = dockId;
     audioDebugPanel->dockspaceId = dockId;
+    collisionGroupsPanel->dockspaceId = dockId;
     ImGui::DockSpace(dockId, ImVec2(0, 0), ImGuiDockNodeFlags_None);
 
     ImGui::End(); // DockSpaceHost
@@ -606,6 +614,7 @@ void EditorManager::render(GLFWwindow* window) {
     welcomePanel->title        = std::string(Loc::t(Loc::LocKey::PanelWelcome)) + "###Welcome";
     profilerPanel->title       = std::string(Loc::t(Loc::LocKey::PanelProfiler)) + "###Profiler";
     audioDebugPanel->title     = std::string(Loc::t(Loc::LocKey::PanelAudioDebug)) + "###AudioDebug";
+    collisionGroupsPanel->title = std::string(Loc::t(Loc::LocKey::PanelCollisionGroups)) + "###CollisionGroups";
 
     // プロファイラーのEditor UI Breakdown用に、パネルごとのCPU時間を計測する。
     auto renderPanel = [](const char* sectionName, auto& panel) {
@@ -624,6 +633,10 @@ void EditorManager::render(GLFWwindow* window) {
     // 診断の計測は、パネルが開いている間だけ行う。
     AudioDiagnostics::get().setEnabled(audioDebugPanel->isOpen);
     renderPanel("ui.audioDebug", audioDebugPanel);
+    if (collisionGroupsPanel) {
+        collisionGroupsPanel->setSystem(dynamic_cast<System*>(m_system));
+    }
+    renderPanel("ui.collisionGroups", collisionGroupsPanel);
 
     // ようこそを閉じた直後、ImGuiのフォールバックは最後に描画されたウィンドウ
     // (プロファイラー等)へフォーカスし、そのドックの選択タブを奪ってしまう。

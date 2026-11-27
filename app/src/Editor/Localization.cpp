@@ -351,6 +351,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
 
     // ---- AudioDebugPanel ----
     { "音声デバッグ", "Audio Debug" },
+    { "コリジョングループ", "Collision Groups" },
 } };
 
 Lang g_lang = Lang::JA;

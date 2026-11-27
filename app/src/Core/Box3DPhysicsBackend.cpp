@@ -964,6 +964,25 @@ void Box3DPhysicsBackend::applyLockFlags(BaseCube& cube) {
     if (B3_IS_NON_NULL(id)) b3Body_SetMotionLocks(id, toB3Locks(cube.LockFlags));
 }
 
+void Box3DPhysicsBackend::setCollisionGroupSnapshot(
+    std::shared_ptr<const CollisionGroupSnapshot> snapshot) {
+    m_collisionGroupSnapshot = std::move(snapshot);
+}
+
+void Box3DPhysicsBackend::refreshAllCollisionFilters() {
+    for (const BodyEntry& entry : m_bodies) {
+        if (B3_IS_NULL(entry.bodyId) || !b3Body_IsValid(entry.bodyId)) continue;
+        const int shapeCount = b3Body_GetShapeCount(entry.bodyId);
+        if (shapeCount <= 0) continue;
+        std::vector<b3ShapeId> shapes(shapeCount);
+        b3Body_GetShapes(entry.bodyId, shapes.data(), shapeCount);
+        for (b3ShapeId shape : shapes) {
+            if (b3Shape_IsSensor(shape)) continue;
+            forceShapeRefilter(shape, b3Shape_GetFilter(shape));
+        }
+    }
+}
+
 void Box3DPhysicsBackend::refreshCollisionFilter(BaseCube& cube) {
     const b3BodyId id = bodyId(cube);
     if (B3_IS_NULL(id) || !b3Body_IsValid(id)) return;
@@ -2900,6 +2919,12 @@ bool Box3DPhysicsBackend::customFilter(
     }
     const auto snapshot = backend->m_noCollisionSnapshot;
     if (snapshot && snapshot->contains(normalizePair(first, second))) {
+        return false;
+    }
+
+    const auto groupSnapshot = backend->m_collisionGroupSnapshot;
+    if (groupSnapshot &&
+        !groupSnapshot->areCollidable(first->CollisionGroup, second->CollisionGroup)) {
         return false;
     }
 

@@ -15,6 +15,7 @@ Box3D物理シミュレーション対応の3D基底クラス。Workspaceへ追�
 | `Anchored` | `bool` | true = 静的オブジェクト（重力・力の影響なし） |
 | `CanCollide` | `bool` | 物理的な反発・拘束の有無 |
 | `CanTouch` | `bool` | overlap接触イベントへの参加。既定値は`true` |
+| `CollisionGroup` | `string` | コリジョングループ名。既定値は`"Default"` |
 | `CastShadow` | `bool` | false の場合は常に影を生成しない |
 | `ShadowMode` | `ShadowMode` | `Always`（透明度を無視）、`Never`（影なし）、`Normal`（`Color.a > 0.001`）。既定値は `Normal`。MeshCube の fallback geometry は `Normal` でも影を生成する |
 | `Color` | `Color4` | オブジェクト色 |

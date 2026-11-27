@@ -112,6 +112,11 @@ public:
     virtual void setGravityEnabled(BaseCube& cube, bool enabled) = 0;
     virtual void applyLockFlags(BaseCube& cube) = 0;
     virtual void refreshCollisionFilter(BaseCube& cube) = 0;
+    virtual void setCollisionGroupSnapshot(
+        std::shared_ptr<const CollisionGroupSnapshot> snapshot) {
+        (void)snapshot;
+    }
+    virtual void refreshAllCollisionFilters() {}
     virtual std::size_t getTouchSensorShapeCount() const { return 0; }
     // Touchedを発火させるセンサー接触が、2つのCubeの間で現在有効か
     virtual bool isTouchActive(const BaseCube&, const BaseCube&) const { return false; }

@@ -66,6 +66,10 @@ Gyro Instanceが保持し、Box3D backendは有効な軸だけへPD制御トル�
 
 グループが変わる（子のreparent、Humanoidの追加・削除など）と`refreshCollisionFilter`が呼ばれる。Box3Dの`b3Shape_SetFilter`は`filter`が同一だと何もしないが、グループは`customFilter`側にあり`filter`自体は変わらないため、`forceShapeRefilter`が別の値を経由して戻し、既存の接触の破棄とペアの再判定を起こす。
 
+## コリジョングループ（Box3D）
+
+`System`がグループ名一覧とグループペアの衝突可否マトリックスを保持し、`BaseCube.CollisionGroup`（既定値`"Default"`）で各パーツの所属グループを指定する。`Box3DPhysicsBackend::customFilter`が`CollisionGroupSnapshot`を参照して物理応答（反発）のみを制御し、`Touched`/`TouchEnded`や`Raycast`には影響しない。
+
 ## 依存関係
 
 - Box3D

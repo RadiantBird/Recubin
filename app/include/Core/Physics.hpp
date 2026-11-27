@@ -8,6 +8,7 @@
 #include <unordered_set>
 
 class Attachment;
+class System;
 
 class Physics {
 private:
@@ -27,6 +28,7 @@ private:
     };
     std::vector<PreStepCallbackEntry> m_preStepCallbacks;
     bool m_available = false;
+    std::uint64_t m_syncedCollisionGroupRevision = 0;
     double m_wavePhaseOffsetTicks = 0.0;
     double m_wavePhaseTargetOffsetTicks = 0.0;
     bool m_hasWavePhaseTarget = false;
@@ -111,6 +113,7 @@ public:
     void setGravityEnabled(BaseCube& cube, bool enabled);
     void applyLockFlags(BaseCube& cube);
     void refreshCollisionFilter(BaseCube& cube);
+    void syncCollisionGroups(const System& system);
     std::size_t getTouchSensorShapeCount() const;
     bool isTouchActive(const BaseCube& first, const BaseCube& second) const;
     bool hasSupportContact(const BaseCube& rider, const BaseCube& support) const;

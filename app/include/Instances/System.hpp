@@ -1,14 +1,23 @@
 #pragma once
+#include <Core/PhysicsTypes.hpp>
 #include <Instances/Instance.hpp>
 #include <Core/RCBNScriptSignal.hpp>
 #include <Math/Vector2.hpp>
+#include <cstdint>
 #include <memory>
+#include <set>
 #include <string>
+#include <utility>
+#include <vector>
 
 class System : public Instance {
     private:
         // Workspace::registerScriptと同じ方式(信頼できるクラスのみに操作を許可)
         friend class Script;
+
+        std::vector<std::string> m_collisionGroups = {"Default"};
+        std::set<std::pair<std::string, std::string>> m_nonCollidableGroupPairs;
+        std::uint64_t m_collisionGroupRevision = 1;
 
         void registerScript(const std::shared_ptr<Instance>& s);
         void unregisterScript(const std::shared_ptr<Instance>& s);
@@ -74,4 +83,21 @@ class System : public Instance {
         bool IsA(std::string className) override;
         void addChild(std::shared_ptr<Instance> child) override;
         void setProperty(const std::string& name, const YAML::Node& value) override;
+
+        bool registerCollisionGroup(const std::string& name);
+        bool unregisterCollisionGroup(const std::string& name);
+        bool setCollisionGroupsCollidable(
+            const std::string& groupA,
+            const std::string& groupB,
+            bool collidable);
+        bool areCollisionGroupsCollidable(
+            const std::string& groupA,
+            const std::string& groupB) const;
+        const std::vector<std::string>& getCollisionGroups() const {
+            return m_collisionGroups;
+        }
+        std::uint64_t getCollisionGroupRevision() const {
+            return m_collisionGroupRevision;
+        }
+        std::shared_ptr<const CollisionGroupSnapshot> buildCollisionGroupSnapshot() const;
 };

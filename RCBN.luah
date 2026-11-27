@@ -38,6 +38,7 @@ export type BaseCube = Spatial & {
     Color: Color4,
     Anchored: boolean,
     CanCollide: boolean,
+    CollisionGroup: string,
     Velocity: Vector3, -- read only
     Touched: Signal,
     CastShadow: boolean,

@@ -19611,6 +19611,117 @@ struct RegressionEntry {
     bool sceneHarness;
 };
 
+int runCollisionGroupRegression() {
+    int failures = 0;
+    auto check = [&](bool cond, const char* msg) {
+        if (!cond) {
+            std::cerr << "[FAIL] CollisionGroup: " << msg << "\n";
+            ++failures;
+        }
+    };
+
+    // 1. System のグループ登録・削除・衝突マトリックス
+    auto system = std::make_shared<System>();
+    check(system->getCollisionGroups().size() == 1 &&
+          system->getCollisionGroups().front() == "Default",
+          "Default group should exist initially");
+    check(!system->unregisterCollisionGroup("Default"),
+          "Default group cannot be unregistered");
+    check(system->registerCollisionGroup("Player"),
+          "Should register Player group");
+    check(system->registerCollisionGroup("Enemy"),
+          "Should register Enemy group");
+    check(!system->registerCollisionGroup("Player"),
+          "Duplicate group registration should return false");
+    check(system->areCollisionGroupsCollidable("Player", "Enemy"),
+          "Groups should be collidable by default");
+    check(system->setCollisionGroupsCollidable("Player", "Enemy", false),
+          "Should disable collision between Player and Enemy");
+    check(!system->areCollisionGroupsCollidable("Player", "Enemy"),
+          "Player and Enemy should not be collidable");
+    check(!system->areCollisionGroupsCollidable("Enemy", "Player"),
+          "Collision pair check should be symmetric");
+
+    // 2. BaseCube と派生クラスのプロパティ・clone・YAML 保存/読込
+    auto workspace = std::make_shared<Workspace>();
+    system->addChild(workspace);
+
+    auto cubeA = std::static_pointer_cast<BaseCube>(createBaseCubeInstance("Cube"));
+    cubeA->Name = "CubeA";
+    cubeA->setPosition(Vector3(0, 5, 0));
+    cubeA->setSize(Vector3(2, 2, 2));
+    cubeA->setCollisionGroup("Player");
+    workspace->addChild(cubeA);
+
+    auto sphereB = std::static_pointer_cast<BaseCube>(createBaseCubeInstance("Sphere"));
+    sphereB->Name = "SphereB";
+    sphereB->setPosition(Vector3(0, 1, 0));
+    sphereB->setSize(Vector3(4, 2, 4));
+    sphereB->Anchored = true;
+    sphereB->setCollisionGroup("Enemy");
+    workspace->addChild(sphereB);
+
+    auto cloned = std::dynamic_pointer_cast<Cube>(cubeA->clone());
+    check(cloned && cloned->CollisionGroup == "Player",
+          "Clone should preserve CollisionGroup");
+
+    const auto serialized = SceneLoader::serializeSceneResult(system.get());
+    check(serialized.success, "Scene serialization should succeed");
+    const auto tempPath = std::filesystem::temp_directory_path() / "recubin_collision_group_test.yaml";
+    {
+        std::ofstream out(tempPath, std::ios::binary);
+        out << serialized.yaml;
+    }
+    auto loadedSystem = std::make_shared<System>();
+    SceneLoader::LoadContext loadCtx;
+    loadCtx.registerMergeInstance("System", loadedSystem);
+    const auto loadRes = SceneLoader::loadSceneResult(tempPath.string(), loadCtx);
+    std::error_code ec;
+    std::filesystem::remove(tempPath, ec);
+    check(loadRes.status == SceneLoader::LoadStatus::Success,
+          "Scene load should succeed");
+    check(!loadedSystem->areCollisionGroupsCollidable("Player", "Enemy"),
+          "Loaded system should preserve non-collidable pair");
+    auto loadedWs = std::dynamic_pointer_cast<Workspace>(
+        loadedSystem->getChildByPath("Workspace") ? loadedSystem->getChildByPath("Workspace")->shared_from_this() : nullptr);
+    auto loadedCubeA = (loadedWs && loadedWs->getChildByPath("CubeA"))
+        ? std::dynamic_pointer_cast<BaseCube>(loadedWs->getChildByPath("CubeA")->shared_from_this())
+        : nullptr;
+    check(loadedCubeA && loadedCubeA->CollisionGroup == "Player",
+          "Loaded CubeA should preserve CollisionGroup");
+
+    // 3. Box3D 物理ステップで非衝突グループがすり抜け、Raycast はヒットすること
+    auto physics = std::make_shared<Physics>();
+    physics->init();
+    workspace->setPhysicsEngine(physics.get());
+    physics->createActor(cubeA);
+    physics->createActor(sphereB);
+
+    for (int i = 0; i < 60; ++i) {
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    check(cubeA->getPosition().y < 0.0f,
+          "Non-collidable groups should pass through each other");
+
+    RaycastHit hit;
+    const bool rayHit = physics->raycast(Vector3(0, 10, 0), Vector3(0, -1, 0), 30.0f, hit);
+    check(rayHit && hit.instance == sphereB.get(),
+          "Raycast should still hit non-collidable group");
+
+    // 4. 衝突を有効に戻すと反発すること
+    system->setCollisionGroupsCollidable("Player", "Enemy", true);
+    cubeA->teleportTo(Vector3(0, 5, 0));
+    physics->setLinearVelocity(*cubeA, Vector3(0, 0, 0));
+    for (int i = 0; i < 60; ++i) {
+        physics->update(*workspace, 1.0f / 60.0f);
+    }
+    check(cubeA->getPosition().y >= 1.5f,
+          "Collidable groups should rest on top of each other");
+
+    workspace->setPhysicsEngine(nullptr);
+    return failures == 0 ? 0 : 1;
+}
+
 int dedicatedReturn(int result);
 
 const std::vector<RegressionEntry>& regressionRegistry() {
@@ -19632,6 +19743,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--default-camera-mode-regression", runDefaultCameraModeRegression),
         REG("--scene-load-transaction-regression", runSceneLoadTransactionRegression),
         REG("--system-extension-regression", runSystemExtensionRegression),
+        REG("--collision-group-regression", runCollisionGroupRegression),
         REG("--program-ipc-regression", runProgramIpcRegression),
         REG("--scene-hierarchy-grouping-regression", runSceneHierarchyGroupingRegression),
         REG("--gui-automation-regression", runGuiAutomationRegression),

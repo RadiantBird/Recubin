@@ -15,6 +15,7 @@
 #include "include/Instances/Spring.hpp"
 #include "include/Instances/PrismaticConstraint.hpp"
 #include "include/Instances/Weld.hpp"
+#include "include/Instances/System.hpp"
 #include "include/Instances/Workspace.hpp"
 #include "include/Util/FrameProfiler.hpp"
 #include "include/Util/Logger.hpp"
@@ -477,6 +478,12 @@ void Physics::reconcileConstraints(Workspace& workspace) {
 
 void Physics::update(Workspace& workspace, float dt) {
     if (!isAvailable()) return;
+    for (auto parent = workspace.Parent.lock(); parent; parent = parent->Parent.lock()) {
+        if (parent->IsA("System")) {
+            syncCollisionGroups(*static_cast<const System*>(parent.get()));
+            break;
+        }
+    }
     {
         FrameProfiler::Scope reconcile("physics.reconcileConstraints");
         reconcileConstraints(workspace);
@@ -637,6 +644,15 @@ void Physics::applyLockFlags(BaseCube& cube) {
 }
 void Physics::refreshCollisionFilter(BaseCube& cube) {
     if (isAvailable() && ownsBody(cube)) m_backend->refreshCollisionFilter(cube);
+}
+
+void Physics::syncCollisionGroups(const System& system) {
+    if (!isAvailable()) return;
+    const std::uint64_t revision = system.getCollisionGroupRevision();
+    if (m_syncedCollisionGroupRevision == revision) return;
+    m_syncedCollisionGroupRevision = revision;
+    m_backend->setCollisionGroupSnapshot(system.buildCollisionGroupSnapshot());
+    m_backend->refreshAllCollisionFilters();
 }
 bool Physics::isTouchActive(const BaseCube& first, const BaseCube& second) const {
     return isAvailable() && m_backend->isTouchActive(first, second);

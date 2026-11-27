@@ -3,6 +3,9 @@
 #include <include/Math/CFrame.hpp>
 #include <include/Math/Vector3.hpp>
 #include <cstdint>
+#include <set>
+#include <string>
+#include <utility>
 #include <vector>
 
 class Instance;
@@ -133,3 +136,15 @@ constexpr PhysicsLockFlags& operator|=(PhysicsLockFlags& lhs, PhysicsLockFlags r
 constexpr bool hasPhysicsLockFlag(PhysicsLockFlags flags, PhysicsLockFlags flag) {
     return (static_cast<std::uint8_t>(flags) & static_cast<std::uint8_t>(flag)) != 0;
 }
+
+struct CollisionGroupSnapshot {
+    std::set<std::pair<std::string, std::string>> nonCollidablePairs;
+
+    bool areCollidable(const std::string& first, const std::string& second) const {
+        if (nonCollidablePairs.empty()) return true;
+        const std::string& a = first.empty() ? std::string("Default") : first;
+        const std::string& b = second.empty() ? std::string("Default") : second;
+        const auto pair = a <= b ? std::pair{a, b} : std::pair{b, a};
+        return !nonCollidablePairs.contains(pair);
+    }
+};

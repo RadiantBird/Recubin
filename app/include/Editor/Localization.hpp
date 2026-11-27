@@ -144,6 +144,7 @@ enum class LocKey {
 
     // ---- AudioDebugPanel ----
     PanelAudioDebug,
+    PanelCollisionGroups,
 
     Count
 };

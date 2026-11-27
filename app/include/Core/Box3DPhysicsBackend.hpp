@@ -127,6 +127,7 @@ private:
     std::vector<NoCollisionEntry> m_noCollisionEntries;
     bool m_batchCreatingConstraints = false;
     std::shared_ptr<const std::set<CubePair>> m_noCollisionSnapshot;
+    std::shared_ptr<const CollisionGroupSnapshot> m_collisionGroupSnapshot;
     std::vector<TerrainEntry> m_terrains;
     std::unordered_map<const BaseCube*, BuoyancyProxy> m_buoyancyProxyCache;
     // LiquidCube references are maintained when physics bodies are created
@@ -248,6 +249,9 @@ public:
     void setGravityEnabled(BaseCube& cube, bool enabled) override;
     void applyLockFlags(BaseCube& cube) override;
     void refreshCollisionFilter(BaseCube& cube) override;
+    void setCollisionGroupSnapshot(
+        std::shared_ptr<const CollisionGroupSnapshot> snapshot) override;
+    void refreshAllCollisionFilters() override;
     std::size_t getTouchSensorShapeCount() const override;
     bool isTouchActive(const BaseCube& first, const BaseCube& second) const override;
     bool hasSupportContact(const BaseCube& rider, const BaseCube& support) const override;
