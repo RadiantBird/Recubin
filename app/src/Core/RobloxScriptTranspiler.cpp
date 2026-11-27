@@ -60,12 +60,16 @@ const std::unordered_map<std::string_view, std::string_view>& instanceClassMap()
     static const std::unordered_map<std::string_view, std::string_view> table = {
         { "Part", "Cube" },
         { "MeshPart", "Cube" },
+
+        // NOTE: This looks horrible. we should fix this because we don't have any shape builder!
         { "UnionOperation", "Cube" },
         { "IntersectOperation", "Cube" },
+        // And this...
         { "CornerWedgePart", "Cube" },
+
         { "WedgePart", "Wedge" },
         { "TrussPart", "Truss" },
-        { "VehicleSeat", "Seat" },
+        { "VehicleSeat", "Seat" }, // NOTE: In recubin, Seat also act as VehicleSeat so its OK
         { "RemoteEvent", "Event" },
         { "BindableEvent", "Event" },
     };
