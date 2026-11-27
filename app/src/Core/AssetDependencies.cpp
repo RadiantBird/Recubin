@@ -25,7 +25,8 @@ std::string lowerExtension(std::string_view path) {
     return ext;
 }
 
-void addDependency(const std::string& source, bool directory, std::vector<Dependency>& out) {
+void addDependency(const std::string& source, bool directory, const fs::path& baseDirectory,
+                   std::vector<Dependency>& out) {
     if (source.empty()) return;
     const auto duplicate = std::find_if(out.begin(), out.end(), [&](const Dependency& d) {
         return d.source == source && d.directory == directory;
@@ -35,8 +36,8 @@ void addDependency(const std::string& source, bool directory, std::vector<Depend
     Dependency dependency;
     dependency.source = source;
     dependency.directory = directory;
-    const fs::path path = AssetPath::fromStored(source);
-    dependency.absolute = path.is_absolute();
+    const fs::path path = AssetPath::resolveAgainst(source, baseDirectory);
+    dependency.absolute = AssetPath::fromStored(source).is_absolute();
     dependency.autosave = hasAutosaveComponent(path);
     std::error_code ec;
     if (directory) {
@@ -46,7 +47,7 @@ void addDependency(const std::string& source, bool directory, std::vector<Depend
         dependency.executable = isExecutablePath(source);
     }
     if (dependency.exists && !dependency.autosave) {
-        for (const auto& entry : listFiles(dependency)) {
+        for (const auto& entry : listFiles(dependency, baseDirectory)) {
             std::error_code sizeEc;
             const auto bytes = fs::file_size(entry.path, sizeEc);
             if (!sizeEc) dependency.size += bytes;
@@ -56,26 +57,28 @@ void addDependency(const std::string& source, bool directory, std::vector<Depend
     out.push_back(std::move(dependency));
 }
 
-void collectNode(const YAML::Node& node, std::vector<Dependency>& out) {
+void collectNode(const YAML::Node& node, const fs::path& baseDirectory,
+                 std::vector<Dependency>& out) {
     if (node.IsMap()) {
         for (auto it = node.begin(); it != node.end(); ++it) {
             const std::string key = it->first.as<std::string>("");
             // it-> は一時プロキシを返すため、参照ではなくNodeハンドルをコピーして保持する。
             const YAML::Node value = it->second;
             if (containsKey(fileKeys(), key) && value.IsScalar()) {
-                addDependency(value.as<std::string>(""), false, out);
+                addDependency(value.as<std::string>(""), false, baseDirectory, out);
             } else if (containsKey(directoryKeys(), key) && value.IsScalar()) {
-                addDependency(value.as<std::string>(""), true, out);
+                addDependency(value.as<std::string>(""), true, baseDirectory, out);
             } else if (containsKey(sequenceKeys(), key) && value.IsSequence()) {
                 for (const auto& element : value) {
-                    if (element.IsScalar()) addDependency(element.as<std::string>(""), false, out);
+                    if (element.IsScalar()) addDependency(element.as<std::string>(""), false,
+                                                          baseDirectory, out);
                 }
             } else {
-                collectNode(value, out);
+                collectNode(value, baseDirectory, out);
             }
         }
     } else if (node.IsSequence()) {
-        for (const auto& child : node) collectNode(child, out);
+        for (const auto& child : node) collectNode(child, baseDirectory, out);
     }
 }
 
@@ -150,13 +153,15 @@ bool isExecutablePath(std::string_view path) {
     return std::find(extensions.begin(), extensions.end(), ext) != extensions.end();
 }
 
-void collect(const YAML::Node& node, std::vector<Dependency>& out) {
-    collectNode(node, out);
+void collect(const YAML::Node& node, std::vector<Dependency>& out,
+             const fs::path& baseDirectory) {
+    collectNode(node, baseDirectory, out);
 }
 
-std::vector<FileEntry> listFiles(const Dependency& dependency) {
+std::vector<FileEntry> listFiles(const Dependency& dependency,
+                                 const fs::path& baseDirectory) {
     std::vector<FileEntry> files;
-    const fs::path root = AssetPath::fromStored(dependency.source);
+    const fs::path root = AssetPath::resolveAgainst(dependency.source, baseDirectory);
     std::error_code ec;
     if (!dependency.directory) {
         if (fs::is_regular_file(root, ec))

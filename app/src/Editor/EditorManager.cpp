@@ -15,6 +15,8 @@
 #include <Instances/ScreenGuiObject.hpp>
 #include <Editor/GuiToolbarActions.hpp>
 #include <Core/SystemState.hpp>
+#include <Util/AssetPath.hpp>
+#include <Core/PropertyRegistry.hpp>
 #include <Instances/Cylinder.hpp>
 #include <Instances/TriangularPrism.hpp>
 #include <Instances/Wedge.hpp>
@@ -44,6 +46,8 @@
 #include <Instances/PathfindingService.hpp>
 #include <Core/CharacterRig.hpp>
 #include <Core/SceneLoader.hpp>
+#include <Core/AssetDependencies.hpp>
+#include <Core/SceneAssetCopy.hpp>
 #include <Core/RbxlxConverter.hpp>
 #include <Instances/System.hpp>
 #include <include/imgui/imgui.h>
@@ -54,13 +58,37 @@
 #include <string>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <unordered_set>
 #include <Util/AssetPath.hpp>
 #include <Util/Logger.hpp>
 #include <Util/Platform.hpp>
 #include <Util/IPlatform.hpp>
+
+static bool filesHaveSameBytes(const std::filesystem::path& first,
+                               const std::filesystem::path& second) {
+    std::error_code ec;
+    const auto firstSize = std::filesystem::file_size(first, ec);
+    if (ec) return false;
+    const auto secondSize = std::filesystem::file_size(second, ec);
+    if (ec || firstSize != secondSize) return false;
+    std::ifstream left(first, std::ios::binary);
+    std::ifstream right(second, std::ios::binary);
+    if (!left || !right) return false;
+    std::array<char, 64 * 1024> leftBuffer{};
+    std::array<char, 64 * 1024> rightBuffer{};
+    while (left && right) {
+        left.read(leftBuffer.data(), static_cast<std::streamsize>(leftBuffer.size()));
+        right.read(rightBuffer.data(), static_cast<std::streamsize>(rightBuffer.size()));
+        if (left.gcount() != right.gcount()) return false;
+        if (!std::equal(leftBuffer.begin(), leftBuffer.begin() + left.gcount(), rightBuffer.begin()))
+            return false;
+    }
+    return true;
+}
 
 static bool treeContainsInstance(Instance* root, Instance* target) {
     if (!root || !target) return false;
@@ -72,6 +100,16 @@ static bool treeContainsInstance(Instance* root, Instance* target) {
 }
 
 namespace {
+void cleanupCopiedAssets(const std::vector<std::filesystem::path>& files) {
+    for (auto it = files.rbegin(); it != files.rend(); ++it) {
+        std::error_code error;
+        std::filesystem::remove(*it, error);
+        if (error) {
+            RCBN_WARN("Save As cleanup failed: " << AssetPath::toStored(*it)
+                      << " (" << error.message() << ")");
+        }
+    }
+}
 
 struct EditorThemeColors {
     ImVec4 toolbarActive;
@@ -158,18 +196,24 @@ R6AnimationBindingTarget findR6AnimationBindingTarget(Instance* system) {
 }
 
 std::shared_ptr<Animation> addDefaultR6Walk(const R6AnimationBindingTarget& target,
-                                             const std::string& contentPath) {
+                                             const std::string& contentPath,
+                                             bool builtIn = false) {
     if (!target.character || !target.humanoid) return nullptr;
     auto animation = std::make_shared<Animation>();
     animation->Name = "R6Walk";
-    YAML::Node pathNode;
-    pathNode = contentPath;
-    animation->setProperty("ContentPath", pathNode);
+    if (builtIn) {
+        animation->setBuiltInClip(AnimationClip::defaultR6Walk());
+    } else {
+        YAML::Node pathNode;
+        pathNode = contentPath;
+        animation->setProperty("ContentPath", pathNode);
+    }
     target.character->addChild(animation);
     target.humanoid->setWalkAnimation(animation);
     if (target.humanoid->getWalkAnimation() != animation ||
         target.humanoid->getWalkAnimationPath() != "R6Walk" ||
-        animation->ContentPath != contentPath ||
+        animation->ContentPath != (builtIn ? "" : contentPath) ||
+        (builtIn && animation->getSource() != AnimationSource::BuiltIn) ||
         target.character->getChild("R6Walk") != animation.get()) {
         RCBN_ERROR("R6 Walk migration produced an incomplete binding: character="
                    << target.character->getFullPath()
@@ -416,6 +460,7 @@ void EditorManager::render(GLFWwindow* window) {
 
     // ---- 未保存ダイアログ ----
     renderSaveDialog();
+    renderSaveAsAssetDialog();
     renderPlaySaveBlockedDialog();
     renderCodeEditorSaveDialog();
     // ---- テストプレイ中のシーン読み込み確認ダイアログ ----
@@ -453,8 +498,26 @@ void EditorManager::render(GLFWwindow* window) {
                 if (!isEditMode()) m_showPlaySaveBlocked = true;
                 else if (!saveActiveCodeEditor()) saveCurrentScene();
             }
+            if (ImGui::MenuItem("Save Scene As...")) {
+                if (isEditMode()) saveSceneAs();
+            }
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuOpenScene), "Ctrl+O")) openSceneDialog();
             ImGui::BeginDisabled(!isEditMode());
+            if (ImGui::MenuItem("Set Asset Directory...")) {
+                if (scenePath.empty()) {
+                    if (saveCurrentScene()) chooseAssetRootDirectory();
+                } else {
+                    chooseAssetRootDirectory();
+                }
+            }
+            if (ImGui::MenuItem("Repair Asset Paths...")) {
+                if (scenePath.empty()) {
+                    if (saveCurrentScene()) repairAssetRootDirectory();
+                } else {
+                    repairAssetRootDirectory();
+                }
+            }
+            ImGui::Separator();
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuRestoreDefaultR6Animations)))
                 m_showRestoreR6Confirm = true;
             ImGui::EndDisabled();
@@ -815,6 +878,121 @@ void EditorManager::handleEditorShortcuts() {
     }
 }
 
+bool EditorManager::saveSceneAs() {
+    const std::string target = getPlatform().saveFileDialog(
+        {{"Scene (*.rcbn;*.yaml;*.yml)", "*.rcbn;*.yaml;*.yml"}}, "rcbn");
+    if (target.empty()) return false;
+    m_pendingSaveAsPath = target;
+    m_showSaveAsAssetDialog = true;
+    return true;
+}
+
+bool EditorManager::saveSceneAsToPath(const std::string& target, bool copyAssets) {
+    if (!m_system && !m_workspace) return false;
+
+    const std::filesystem::path targetPath = std::filesystem::absolute(
+        AssetPath::fromStored(target)).lexically_normal();
+    const std::filesystem::path newBase = targetPath.parent_path();
+    const std::filesystem::path oldBase = m_assetRootAbsolute.empty()
+        ? AssetPath::sceneAssetBaseDirectory(scenePath, m_sceneMetadata.assetRoot)
+        : m_assetRootAbsolute;
+    const auto serialized = SceneLoader::serializeSceneResult(
+        m_system ? static_cast<Instance*>(m_system) : static_cast<Instance*>(m_workspace),
+        m_sceneMetadata);
+    if (!serialized) return false;
+
+    std::unordered_map<std::string, std::string> rewrites;
+    std::vector<std::filesystem::path> createdCopies;
+    if (copyAssets) {
+        YAML::Node document;
+        try { document = YAML::Load(serialized.yaml); }
+        catch (const std::exception& error) {
+            RCBN_ERROR("Save As serialization parse failed: " << error.what());
+            return false;
+        }
+        auto copied = SceneAssetCopy::copyDependencies(document, oldBase, newBase);
+        if (!copied.success) {
+            cleanupCopiedAssets(copied.createdFiles);
+            RCBN_ERROR("Save As asset copy failed: " << copied.error);
+            return false;
+        }
+        rewrites = std::move(copied.rewrites);
+        createdCopies = std::move(copied.createdFiles);
+    }
+
+    std::vector<std::string> unresolved;
+    std::vector<std::tuple<Instance*, const PropertyDesc*, std::string,
+                           Skybox*, int, std::string>> originalReferences;
+    if (copyAssets && !rewriteAssetReferences(rewrites, unresolved, newBase,
+                                              &originalReferences)) return false;
+    if (copyAssets && !unresolved.empty()) {
+        AssetPath::ScopedSceneAssetBaseDirectory scope(oldBase);
+        for (const auto& original : originalReferences) {
+            if (std::get<3>(original)) {
+                std::get<3>(original)->setSkyboxPath(std::get<4>(original),
+                                                     std::get<5>(original));
+            } else {
+                std::get<1>(original)->set(std::get<0>(original),
+                                           PropValue(std::get<2>(original)));
+            }
+        }
+        cleanupCopiedAssets(createdCopies);
+        RCBN_ERROR("Save As could not rewrite asset references; refusing to save.");
+        return false;
+    }
+    const std::string previousScenePath = scenePath;
+    const auto previousMetadata = m_sceneMetadata;
+    const auto previousAssetRoot = m_assetRootAbsolute;
+    scenePath = AssetPath::toStored(targetPath);
+    if (copyAssets) {
+        m_assetRootAbsolute = newBase;
+        m_sceneMetadata.assetRoot = ".";
+        AssetPath::setSceneAssetBaseDirectory(newBase);
+    } else {
+        // Legacy scenes have no recorded root. Keep their old CWD-based
+        // references explicit while Save As changes only the scene filename.
+        m_assetRootAbsolute = oldBase;
+        AssetPath::setSceneAssetBaseDirectory(oldBase);
+    }
+    const bool scenePathChanged = previousScenePath != scenePath;
+    if (!saveCurrentScene()) {
+        if (copyAssets) {
+            AssetPath::ScopedSceneAssetBaseDirectory scope(oldBase);
+            for (const auto& original : originalReferences) {
+                if (std::get<3>(original)) {
+                    std::get<3>(original)->setSkyboxPath(std::get<4>(original),
+                                                         std::get<5>(original));
+                } else {
+                    std::get<1>(original)->set(std::get<0>(original),
+                                               PropValue(std::get<2>(original)));
+                }
+            }
+        }
+        scenePath = previousScenePath;
+        m_sceneMetadata = previousMetadata;
+        m_assetRootAbsolute = previousAssetRoot;
+        syncAssetRootDirectory(scenePath);
+        cleanupCopiedAssets(createdCopies);
+        return false;
+    }
+    if (scenePathChanged) {
+        endAutosaveSessionNormally();
+        if (auto stale = m_autosave.findCrashRecoveryForScene(scenePath))
+            m_autosave.discardRecovery(*stale);
+        beginAutosaveSession();
+    }
+    if (!unresolved.empty()) {
+        std::string message = "Unresolved asset references:";
+        for (const auto& path : unresolved) message += "\n" + path;
+        showSceneLoadError(message);
+    }
+    return true;
+}
+
+bool EditorManager::saveSceneAsForAutomation(const std::string& target, bool copyAssets) {
+    return saveSceneAsToPath(target, copyAssets);
+}
+
 bool EditorManager::saveCurrentScene() {
     if (!m_system && !m_workspace) return false;
     std::string targetPath = scenePath;
@@ -823,6 +1001,20 @@ bool EditorManager::saveCurrentScene() {
         std::string path = getPlatform().saveFileDialog({{"Scene (*.rcbn;*.yaml;*.yml)", "*.rcbn;*.yaml;*.yml"}}, "rcbn");
         if (path.empty()) return false;
         targetPath = path;
+    }
+    // Keep the asset directory portable when a new scene receives its first
+    // filename.  The metadata stores a path relative to the scene directory;
+    // the importer uses the absolute directory held by AssetDialogs.
+    if (!m_assetRootAbsolute.empty()) {
+        const std::filesystem::path sceneDirectory =
+            std::filesystem::absolute(AssetPath::fromStored(targetPath)).parent_path();
+        const auto relative = AssetPath::relativeTo(m_assetRootAbsolute, sceneDirectory);
+        if (!relative) {
+            RCBN_ERROR("Failed to represent asset directory relative to scene: "
+                       << m_assetRootAbsolute.string());
+            return false;
+        }
+        m_sceneMetadata.assetRoot = *relative;
     }
     // System とその全ての子（Workspace, Lighting など）を保存
     Instance* saveRoot = m_system ? m_system : static_cast<Instance*>(m_workspace);
@@ -837,6 +1029,206 @@ bool EditorManager::saveCurrentScene() {
             m_autosave.discardRecovery(*stale);
         scenePath = targetPath;
         beginAutosaveSession();
+    }
+    return true;
+}
+
+void EditorManager::setSceneMetadata(const SceneLoader::SceneDocumentMetadata& metadata) {
+    m_sceneMetadata = metadata;
+    m_autosave.setSceneMetadata(metadata);
+    syncAssetRootDirectory(scenePath);
+}
+
+void EditorManager::syncAssetRootDirectory(const std::string& sceneFilePath) {
+    if (m_sceneMetadata.assetRoot.empty()) {
+        m_assetRootAbsolute.clear();
+        m_assetDialogs.assetExtractRoot.clear();
+        AssetPath::setSceneAssetBaseDirectory(std::filesystem::current_path());
+        return;
+    }
+    std::filesystem::path sceneDirectory;
+    if (!sceneFilePath.empty())
+        sceneDirectory = std::filesystem::absolute(AssetPath::fromStored(sceneFilePath)).parent_path();
+    else
+        sceneDirectory = std::filesystem::current_path();
+    m_assetRootAbsolute = (sceneDirectory / AssetPath::fromStored(m_sceneMetadata.assetRoot)).lexically_normal();
+    m_assetDialogs.assetExtractRoot = AssetPath::toStored(m_assetRootAbsolute);
+    AssetPath::setSceneAssetBaseDirectory(m_assetRootAbsolute);
+}
+
+bool EditorManager::chooseAssetRootDirectory() {
+    const std::string selected = getPlatform().openFolderDialog();
+    if (selected.empty()) return false;
+    const std::filesystem::path chosen = std::filesystem::absolute(AssetPath::fromStored(selected)).lexically_normal();
+    std::filesystem::path sceneDirectory = scenePath.empty()
+        ? std::filesystem::current_path()
+        : std::filesystem::absolute(AssetPath::fromStored(scenePath)).parent_path();
+    if (chosen.root_name() != sceneDirectory.root_name()) {
+        showSceneLoadError("Asset directory must be on the same drive as the scene.");
+        return false;
+    }
+    const auto relative = AssetPath::relativeTo(chosen, sceneDirectory);
+    if (!relative) {
+        showSceneLoadError("Asset directory cannot be represented relative to the scene.");
+        return false;
+    }
+    const std::filesystem::path oldBase = m_assetRootAbsolute.empty()
+        ? AssetPath::sceneAssetBaseDirectory(scenePath, m_sceneMetadata.assetRoot)
+        : m_assetRootAbsolute;
+    std::vector<std::string> unresolved;
+    if (!rebaseAssetReferences(oldBase, chosen, unresolved)) return false;
+    m_assetRootAbsolute = chosen;
+    m_sceneMetadata.assetRoot = *relative;
+    m_assetDialogs.assetExtractRoot = AssetPath::toStored(chosen);
+    AssetPath::setSceneAssetBaseDirectory(chosen);
+    markDirty();
+    if (!unresolved.empty()) {
+        std::string message = "Unresolved asset references:";
+        for (const auto& path : unresolved) message += "\n" + path;
+        showSceneLoadError(message);
+    }
+    return true;
+}
+
+bool EditorManager::repairAssetRootDirectory() {
+    const std::string selected = getPlatform().openFolderDialog();
+    if (selected.empty()) return false;
+    const std::filesystem::path oldBase = std::filesystem::absolute(AssetPath::fromStored(selected)).lexically_normal();
+    const std::filesystem::path sceneDirectory = std::filesystem::absolute(
+        AssetPath::fromStored(scenePath)).parent_path();
+    const std::filesystem::path newBase = m_assetRootAbsolute.empty()
+        ? sceneDirectory : m_assetRootAbsolute;
+    const auto relative = AssetPath::relativeTo(newBase, sceneDirectory);
+    if (!relative) {
+        showSceneLoadError("Repaired asset directory cannot be represented relative to the scene.");
+        return false;
+    }
+    std::vector<std::string> unresolved;
+    if (!rebaseAssetReferences(oldBase, newBase, unresolved)) return false;
+    m_assetRootAbsolute = newBase;
+    m_sceneMetadata.assetRoot = *relative;
+    m_assetDialogs.assetExtractRoot = AssetPath::toStored(newBase);
+    AssetPath::setSceneAssetBaseDirectory(newBase);
+    markDirty();
+    return true;
+}
+
+bool EditorManager::rebaseAssetReferences(const std::filesystem::path& oldBase,
+                                          const std::filesystem::path& newBase,
+                                          std::vector<std::string>& unresolved) {
+    struct Change { Instance* object; const PropertyDesc* property; std::string value; };
+    std::vector<Change> changes;
+    struct SkyboxChange { Skybox* object; int face; std::string value; };
+    std::vector<SkyboxChange> skyboxChanges;
+    std::function<void(Instance&)> visit = [&](Instance& object) {
+        if (object.IsA("Skybox")) {
+            auto& skybox = static_cast<Skybox&>(object);
+            for (std::size_t faceIndex = 0; faceIndex < 6; ++faceIndex) {
+                const std::string source = skybox.skyboxPaths[faceIndex];
+                if (source.empty()) continue;
+                const std::filesystem::path resolved = AssetPath::resolveAgainst(source, oldBase);
+                std::error_code ec;
+                if (!std::filesystem::is_regular_file(resolved, ec)) {
+                    unresolved.push_back(source);
+                    continue;
+                }
+                const auto stored = AssetPath::relativeTo(resolved, newBase);
+                if (!stored) { unresolved.push_back(source); continue; }
+                skyboxChanges.push_back({&skybox, static_cast<int>(faceIndex), *stored});
+            }
+        }
+        for (const PropertyDesc* property : PropertyRegistry::collectApplicableSchema(&object)) {
+            if (!property || property->type != PropType::String || !property->get || !property->set) continue;
+            const bool isFileReference = property->editorWidget == EditorWidget::FilePath ||
+                                         property->name == "DataPath";
+            if (!isFileReference) continue;
+            const auto value = property->get(&object);
+            const std::string source = std::get<std::string>(value);
+            if (source.empty()) continue;
+            const std::filesystem::path resolved = AssetPath::resolveAgainst(source, oldBase);
+            std::error_code ec;
+            if (!std::filesystem::is_regular_file(resolved, ec) &&
+                !std::filesystem::is_directory(resolved, ec)) {
+                unresolved.push_back(source);
+                continue;
+            }
+            const auto stored = AssetPath::relativeTo(resolved, newBase);
+            if (!stored) {
+                unresolved.push_back(source);
+                continue;
+            }
+            changes.push_back({&object, property, *stored});
+        }
+        for (const auto& [name, child] : object.getChildren())
+            if (child) visit(*child);
+    };
+    if (m_system) visit(*m_system);
+    if (changes.empty() && skyboxChanges.empty()) return true;
+    AssetPath::ScopedSceneAssetBaseDirectory scope(newBase);
+    for (const Change& change : changes)
+        change.property->set(change.object, PropValue(change.value));
+    for (const SkyboxChange& change : skyboxChanges)
+        change.object->setSkyboxPath(change.face, change.value);
+    return true;
+}
+
+bool EditorManager::rewriteAssetReferences(
+    const std::unordered_map<std::string, std::string>& rewrites,
+    std::vector<std::string>& unresolved,
+    const std::filesystem::path& baseDirectory,
+    std::vector<std::tuple<Instance*, const PropertyDesc*, std::string,
+                           Skybox*, int, std::string>>* originals) {
+    struct Change { Instance* object; const PropertyDesc* property; std::string value; };
+    struct SkyboxChange { Skybox* object; int face; std::string value; };
+    std::vector<Change> changes;
+    std::vector<SkyboxChange> skyboxChanges;
+    std::unordered_set<std::string> matched;
+    std::function<void(Instance&)> visit = [&](Instance& object) {
+        if (object.IsA("Skybox")) {
+            auto& skybox = static_cast<Skybox&>(object);
+            for (std::size_t face = 0; face < 6; ++face) {
+                const auto found = rewrites.find(skybox.skyboxPaths[face]);
+                if (found != rewrites.end()) {
+                    matched.insert(found->first);
+                    skyboxChanges.push_back({&skybox, static_cast<int>(face), found->second});
+                }
+            }
+        }
+        for (const PropertyDesc* property : PropertyRegistry::collectApplicableSchema(&object)) {
+            if (!property || property->type != PropType::String || !property->get || !property->set)
+                continue;
+            const bool isFileReference = property->editorWidget == EditorWidget::FilePath ||
+                                         property->name == "DataPath";
+            if (!isFileReference) continue;
+            const std::string source = std::get<std::string>(property->get(&object));
+            const auto found = rewrites.find(source);
+            if (found != rewrites.end()) {
+                matched.insert(found->first);
+                changes.push_back({&object, property, found->second});
+            }
+        }
+        for (const auto& [name, child] : object.getChildren())
+            if (child) visit(*child);
+    };
+    if (m_system) visit(*m_system);
+    else if (m_workspace) visit(*m_workspace);
+    for (const auto& [source, destination] : rewrites) {
+        (void)destination;
+        if (!matched.contains(source)) unresolved.push_back(source);
+    }
+    if (changes.empty() && skyboxChanges.empty()) return true;
+    AssetPath::ScopedSceneAssetBaseDirectory scope(baseDirectory);
+    for (const Change& change : changes) {
+        if (originals) originals->emplace_back(change.object, change.property,
+                                                std::get<std::string>(change.property->get(change.object)),
+                                                nullptr, 0, std::string{});
+        change.property->set(change.object, PropValue(change.value));
+    }
+    for (const SkyboxChange& change : skyboxChanges) {
+        if (originals) originals->emplace_back(nullptr, nullptr, std::string{},
+                                                change.object, change.face,
+                                                change.object->skyboxPaths[change.face]);
+        change.object->setSkyboxPath(change.face, change.value);
     }
     return true;
 }
@@ -881,10 +1273,13 @@ EditorManager::migrateCharacterAnimationBindings(
             metadata.characterAnimationBindingsVersion = 1;
             return CharacterAnimationMigrationResult::RecordedOnly;
         }
-        const std::string contentPath = metadata.legacyWalkContentPath.empty()
-            ? "assets/anims/r6_walk.rcanim"
-            : migrateLegacyWalkContentPath(scenePath, metadata.legacyWalkContentPath);
-        insertedWalk = addDefaultR6Walk(target, contentPath) != nullptr;
+        if (metadata.legacyWalkContentPath.empty()) {
+            insertedWalk = addDefaultR6Walk(target, {}, true) != nullptr;
+        } else {
+            const std::string contentPath = migrateLegacyWalkContentPath(
+                scenePath, metadata.legacyWalkContentPath);
+            insertedWalk = addDefaultR6Walk(target, contentPath, false) != nullptr;
+        }
         if (!insertedWalk) {
             // Do not mark a failed migration as complete; the next load must
             // be able to retry after the malformed rig is repaired.
@@ -898,7 +1293,7 @@ EditorManager::migrateCharacterAnimationBindings(
 
 bool EditorManager::restoreDefaultR6Bindings(Instance* system) {
     const auto target = findR6AnimationBindingTarget(system);
-    return addDefaultR6Walk(target, "assets/anims/r6_walk.rcanim") != nullptr;
+    return addDefaultR6Walk(target, {}, true) != nullptr;
 }
 
 void EditorManager::restoreDefaultR6Animations() {
@@ -1282,6 +1677,36 @@ void EditorManager::renderSaveDialog() {
         }
         ImGui::EndPopup();
     }
+}
+
+void EditorManager::renderSaveAsAssetDialog() {
+    if (m_showSaveAsAssetDialog) {
+        ImGui::OpenPopup("###SaveAsAssets");
+        m_showSaveAsAssetDialog = false;
+    }
+    if (!ImGui::BeginPopupModal("Save scene assets?###SaveAsAssets", nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) return;
+    ImGui::TextUnformatted("Copy referenced assets beside the new scene?");
+    ImGui::TextUnformatted("Choosing reference keeps the current asset directory.");
+    if (ImGui::Button("Copy assets")) {
+        const std::string path = m_pendingSaveAsPath;
+        m_pendingSaveAsPath.clear();
+        if (!saveSceneAsToPath(path, true)) showSceneLoadError("Save As failed while copying assets.");
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Keep references")) {
+        const std::string path = m_pendingSaveAsPath;
+        m_pendingSaveAsPath.clear();
+        if (!saveSceneAsToPath(path, false)) showSceneLoadError("Save As failed.");
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel")) {
+        m_pendingSaveAsPath.clear();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
 }
 
 void EditorManager::renderPackageDialog() {

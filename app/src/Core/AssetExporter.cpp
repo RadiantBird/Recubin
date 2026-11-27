@@ -156,6 +156,11 @@ bool isExportable(Instance& instance) {
 }
 
 Plan prepare(const std::vector<Instance*>& roots) {
+    return prepare(roots, {});
+}
+
+Plan prepare(const std::vector<Instance*>& roots,
+             const fs::path& dependencyBaseDirectory) {
     Plan plan;
     std::vector<std::shared_ptr<Instance>> targets;
     for (Instance* root : roots) {
@@ -194,7 +199,9 @@ Plan prepare(const std::vector<Instance*>& roots) {
     }
     plan.document = document;
 
-    AssetDependencies::collect(document["Asset"], plan.dependencies);
+    plan.dependencyBaseDirectory = dependencyBaseDirectory;
+    AssetDependencies::collect(document["Asset"], plan.dependencies,
+                                dependencyBaseDirectory);
     for (const auto& dependency : plan.dependencies) {
         if (!dependency.exists)
             plan.warnings.push_back("File not found, cannot be embedded: " + dependency.source);
@@ -220,7 +227,8 @@ AssetContainer::Result write(const Plan& plan, const Options& options, const std
             continue;
         if (!dependency.exists || dependency.autosave) continue;
         const std::string directoryLogical = AssetDependencies::logicalPath(dependency.source);
-        for (const auto& entry : AssetDependencies::listFiles(dependency)) {
+        for (const auto& entry : AssetDependencies::listFiles(
+                 dependency, plan.dependencyBaseDirectory)) {
             AssetContainer::EmbeddedFile file;
             file.source = dependency.source;
             file.directory = dependency.directory;

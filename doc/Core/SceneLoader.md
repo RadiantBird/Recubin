@@ -75,5 +75,26 @@ read-only互換データとして読み取るが、新規保存へは出力し�
 `serializeSceneResult`と正式保存は
 同じEmitter経路を利用するため、Autosaveも正式Sceneと同一形式になる。
 
+### シーンのアセット基準ディレクトリ
+
+`recubin.assetRoot` が存在する場合、その値はシーンファイルの親ディレクトリからの
+相対ディレクトリとして扱う。`Texture`、Materialの画像マップ、Skyboxなど、ロード中に
+生成される外部ファイル参照は、SceneLoaderのロード期間中この基準を一時的に使用する。
+`assetRoot` が空または存在しない旧形式のシーンは、従来どおりプロセスのカレント
+ディレクトリを基準とする。絶対パスの`assetRoot`は共有性を損なうため拒否する。
+
+SceneRuntimeのstageではロード失敗時に以前のアセット基準へ戻し、commitが完了した場合だけ
+新しい基準を有効にする。実行時の外部ファイルアクセス制限（AssetGuard等）はこの基準を
+緩和しない。
+
 `SerializeResult`はnull root、Emitter失敗、シリアライズ例外時に説明メッセージを返す。
 `saveSceneResult`はこの結果を利用し、成功／失敗だけを必要とする既存呼び出し向けのbool APIを維持する。
+
+### Save As とアセット基準
+
+EditorのSave AsはSceneLoaderのシリアライズ結果から依存を収集する。コピーを選んだ場合は
+`SceneAssetCopy`が旧基準から新しいシーン親へ依存をコピーし、保存する参照を新基準からの
+相対パスへ置換する。旧基準外の依存は新基準の`external/`配下へ置く。既存ファイルはバイト一致時
+だけ再利用し、異なる内容の同名ファイルは上書きしない。欠落依存、衝突、I/O失敗ではSceneの保存を
+完了せず、EditorManagerが参照、metadata、scene pathを元へ戻す。コピーを拒否した場合は旧基準を
+保持した相対`assetRoot`を新Sceneへ記録する。

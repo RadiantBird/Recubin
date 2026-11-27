@@ -2,6 +2,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <functional>
 struct GLFWwindow;
 namespace GuiAutomation {
 // Syntax-only parser hook used by regression tests; does not affect the live queue.
@@ -14,4 +15,5 @@ void afterRender(GLFWwindow* window);
 bool enabled();
 // --ui-automation-hidden が指定されたとき真(ウィンドウを表示せずに起動する)。--ui-automation なしでは常に偽。
 bool hiddenWindow();
+void registerSaveAsHandler(std::function<bool(const std::string&, bool)> handler);
 }

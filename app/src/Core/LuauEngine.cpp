@@ -3,6 +3,7 @@
 #include "include/Core/PropertyRegistry.hpp"
 #include "include/Core/LuarCompiler.hpp"
 #include "include/Core/FileLoader.hpp"
+#include "include/Util/AssetPath.hpp"
 #include "include/Core/Physics.hpp"
 #include "include/Core/RCBNScriptSignal.hpp"
 #include "include/Instances/Workspace.hpp"
@@ -1018,7 +1019,9 @@ bool LuauEngine::loadScriptChunk(lua_State* co, Script& script) {
     // ファイルが真実の源: 実行直前に最新ソースを再読込する
     // (外部エディタ編集・新規作成直後の内容を反映。空読込時は既存を保持)
     if (!script.isPrecompiled && !script.Path.empty()) {
-        std::string latest = FileLoader::readText(script.Path);
+        const std::string resolvedPath = AssetPath::toStored(AssetPath::resolveAgainst(
+            script.Path, AssetPath::sceneAssetBaseDirectory()));
+        std::string latest = FileLoader::readText(resolvedPath);
         if (!latest.empty()) script.Source = latest;
     }
 

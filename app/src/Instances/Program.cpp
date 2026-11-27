@@ -91,11 +91,14 @@ bool Program::start(std::string& error) {
         error = "Program.Path is empty";
         return false;
     }
-    if (!AssetGuard::allow(Path)) {
+    const std::filesystem::path resolvedPath = AssetPath::resolveAgainst(
+        Path, AssetPath::sceneAssetBaseDirectory());
+    const std::string resolvedStoredPath = AssetPath::toStored(resolvedPath);
+    if (!AssetGuard::allow(resolvedStoredPath)) {
         error = "Program path denied";
         return false;
     }
-    const std::filesystem::path executable = AssetPath::fromStored(Path);
+    const std::filesystem::path executable = resolvedPath;
     std::error_code ec;
     if (!std::filesystem::is_regular_file(executable, ec)) {
         error = "Program executable not found: " + Path;

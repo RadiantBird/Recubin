@@ -75,6 +75,7 @@
 #include <Core/SelfCheck.hpp>
 #include <Core/AssetContainer.hpp>
 #include <Core/AssetDependencies.hpp>
+#include <Core/SceneAssetCopy.hpp>
 #include <Core/AssetExporter.hpp>
 #include <Core/AssetImporter.hpp>
 #include <Util/Sha256.hpp>
@@ -9156,7 +9157,11 @@ int runAutosaveRegression() {
     config.snapshotCount = 5;
     auto system = std::make_shared<System>();
     AutosaveManager manager(storageRoot, config);
-    expect(manager.beginSession(system.get(), rootPath / "Main.rcbn"),
+    SceneLoader::SceneDocumentMetadata autosaveMetadata;
+    autosaveMetadata.assetRoot = "assets";
+    fs::create_directories(rootPath / "assets", ec);
+    manager.setSceneMetadata(autosaveMetadata);
+    expect(manager.beginSession(system.get(), rootPath / "Main.rcbn", autosaveMetadata),
            "named session creates its autosave lock");
     const fs::path namedDir = storageRoot / ".autosave" / "Main.rcbn";
     expect(fs::exists(namedDir / "session.lock") && manager.logicalScenePath().filename() == "Main.rcbn",
@@ -9174,6 +9179,12 @@ int runAutosaveRegression() {
     expect(manager.update(now + std::chrono::seconds(2)), "debounce update writes recovery");
     expect(fs::exists(namedDir / "recovery.rcbn") && !manager.isRecoveryDirty(),
            "successful recovery clears only recovery dirty state");
+    const auto recoveryResult = SceneLoader::loadSceneResult((namedDir / "recovery.rcbn").string());
+    expect(recoveryResult &&
+               AssetPath::sceneAssetBaseDirectory((namedDir / "recovery.rcbn").string(),
+                                                   recoveryResult.metadata.assetRoot) ==
+                   (rootPath / "assets").lexically_normal(),
+           "autosave recovery preserves the logical scene asset base");
     fs::current_path(changedCwd, ec);
     AutosaveManager cwdObserver(storageRoot, config);
     expect(!ec && cwdObserver.findCrashRecoveryForScene((rootPath / "Main.rcbn").string()) != nullptr &&
@@ -9195,6 +9206,17 @@ int runAutosaveRegression() {
         if (SceneLoader::loadSceneResult(entry.path().string())) ++readableSnapshots;
     }
     expect(readableSnapshots == 5, "all rotated snapshots remain readable Scene YAML");
+    bool snapshotsKeepAssetBase = true;
+    for (const auto& entry : fs::directory_iterator(namedDir)) {
+        if (!entry.path().filename().string().starts_with("snapshot_") ||
+            entry.path().extension() != ".rcbn") continue;
+        const auto snapshotResult = SceneLoader::loadSceneResult(entry.path().string());
+        snapshotsKeepAssetBase = snapshotsKeepAssetBase && snapshotResult &&
+            AssetPath::sceneAssetBaseDirectory(entry.path().string(),
+                                               snapshotResult.metadata.assetRoot) ==
+                (rootPath / "assets").lexically_normal();
+    }
+    expect(snapshotsKeepAssetBase, "autosave snapshots preserve the logical scene asset base");
     manager.endSessionNormally();
     expect(!fs::exists(namedDir / "session.lock") && !fs::exists(namedDir / "recovery.rcbn"),
            "normal session end removes lock and recovery");
@@ -9343,6 +9365,70 @@ int runAutosaveRegression() {
     return failures == 0 ? 0 : 1;
 }
 
+int runSceneAssetCopyRegression() {
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[SceneAssetCopy] " << (condition ? "PASS: " : "FAIL: ")
+                  << message << '\n';
+        if (!condition) ++failures;
+    };
+    const auto root = std::filesystem::temp_directory_path() /
+        ("recubin_scene_asset_copy_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()));
+    const auto oldBase = root / "old";
+    const auto newBase = root / "new";
+    std::error_code ec;
+    std::filesystem::create_directories(oldBase / "assets", ec);
+    std::filesystem::create_directories(root / "external", ec);
+    const auto source = oldBase / "assets" / "texture.bin";
+    const auto external = root / "external" / "mesh.bin";
+    {
+        std::ofstream(source, std::ios::binary) << "texture-data";
+        std::ofstream(external, std::ios::binary) << "mesh-data";
+    }
+    const YAML::Node scene = YAML::Load(
+        "Texture: assets/texture.bin\nMeshFile: ../external/mesh.bin\n");
+    auto copied = SceneAssetCopy::copyDependencies(scene, oldBase, newBase);
+    expect(copied.success, "copies in-base and external dependencies");
+    expect(copied.rewrites["assets/texture.bin"] == "assets/texture.bin",
+           "in-base reference keeps relative layout");
+    expect(copied.rewrites["../external/mesh.bin"].starts_with("external/"),
+           "external reference is moved under external");
+    std::filesystem::remove(source, ec);
+    std::filesystem::remove(external, ec);
+    expect(std::filesystem::is_regular_file(newBase / "assets/texture.bin") &&
+               std::filesystem::is_regular_file(newBase / copied.rewrites["../external/mesh.bin"]),
+           "copied references resolve after original files move");
+
+    const auto externalImage = root / "external" / "image.png";
+    const auto externalImageDestination = newBase / "external" / "image.png";
+    std::ofstream(externalImage, std::ios::binary) << "new-image";
+    std::filesystem::create_directories(externalImageDestination.parent_path(), ec);
+    std::ofstream(externalImageDestination, std::ios::binary) << "old-image";
+    const YAML::Node externalCollisionScene = YAML::Load(
+        "Image: ../external/image.png\n");
+    auto externalCollisionResult = SceneAssetCopy::copyDependencies(
+        externalCollisionScene, oldBase, newBase);
+    expect(externalCollisionResult.success &&
+               externalCollisionResult.rewrites["../external/image.png"] ==
+                   "external/image_1.png" &&
+               std::filesystem::is_regular_file(newBase / "external/image_1.png"),
+           "external file collision keeps the extension after suffixing");
+
+    const auto collision = newBase / "assets" / "collision.bin";
+    std::filesystem::create_directories(collision.parent_path(), ec);
+    std::ofstream(collision, std::ios::binary) << "different";
+    const YAML::Node collisionScene = YAML::Load("Texture: assets/collision.bin\n");
+    std::ofstream(oldBase / "assets" / "collision.bin", std::ios::binary) << "original";
+    auto collisionResult = SceneAssetCopy::copyDependencies(collisionScene, oldBase, newBase);
+    expect(!collisionResult.success, "different-content collision is rejected");
+    const YAML::Node missingScene = YAML::Load("Texture: assets/missing.bin\n");
+    auto missingResult = SceneAssetCopy::copyDependencies(missingScene, oldBase, newBase);
+    expect(!missingResult.success, "missing dependency is reported");
+    std::filesystem::remove_all(root, ec);
+    return failures == 0 ? 0 : 1;
+}
+
 int runAssetPathRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -9396,6 +9482,74 @@ int runAssetPathRegression() {
     std::filesystem::create_directories(portableRoot / "shaders", ec);
     std::filesystem::create_directories(portableRoot / "assets" / "fonts", ec);
     std::filesystem::create_directories(developmentRoot, ec);
+    {
+        const auto sceneDirectory = tempRoot / "project" / "scenes";
+        const auto assetDirectory = tempRoot / "project" / "assets";
+        std::filesystem::create_directories(sceneDirectory, ec);
+        std::filesystem::create_directories(assetDirectory, ec);
+        const auto sceneFile = sceneDirectory / "portable_scene.rcbn";
+        auto sceneRoot = std::make_shared<System>();
+        SceneLoader::SceneDocumentMetadata metadata;
+        metadata.assetRoot = "../assets";
+        expect(SceneLoader::saveSceneResult(sceneRoot.get(), sceneFile.string(), metadata),
+               "scene with an asset base directory saves");
+        const auto loaded = SceneLoader::loadSceneResult(sceneFile.string());
+        expect(loaded && loaded.metadata.assetRoot == "../assets",
+               "scene asset base directory round-trips through YAML");
+
+        std::error_code cwdError;
+        std::filesystem::current_path(developmentRoot, cwdError);
+        const auto resolvedBase = AssetPath::sceneAssetBaseDirectory(
+            sceneFile.string(), loaded.metadata.assetRoot);
+        expect(!cwdError && resolvedBase == assetDirectory.lexically_normal(),
+               "scene asset base resolves independently of the process working directory");
+        std::filesystem::current_path(originalCwd, cwdError);
+
+        const auto previousBase = AssetPath::sceneAssetBaseDirectory();
+        AssetPath::setSceneAssetBaseDirectory(previousBase);
+        {
+            AssetPath::ScopedSceneAssetBaseDirectory scoped(assetDirectory);
+            expect(AssetPath::sceneAssetBaseDirectory() == assetDirectory,
+                   "asset base scope applies while scene resources are loaded");
+        }
+        expect(AssetPath::sceneAssetBaseDirectory() == previousBase,
+               "asset base scope restores its previous value");
+
+        const auto absoluteSceneFile = sceneDirectory / "absolute_asset_root.rcbn";
+        std::ofstream absoluteOut(absoluteSceneFile);
+        absoluteOut << "recubin:\n  type: scene\n  version: 0\n"
+                       "  assetRoot: 'C:/outside/assets'\n"
+                       "Root:\n  ClassName: System\n  Name: System\n";
+        absoluteOut.close();
+        const auto absoluteResult = SceneLoader::loadSceneResult(absoluteSceneFile.string());
+        expect(!absoluteResult && absoluteResult.status == SceneLoader::LoadStatus::InvalidType,
+               "absolute scene asset base is rejected explicitly");
+
+        const std::array<std::string, 3> invalidAssetRoots = {
+            "C:relative/assets", "/rooted/assets", "\\\\rooted\\assets"
+        };
+        for (const std::string& invalidRoot : invalidAssetRoots) {
+            const auto invalidRootScene = sceneDirectory /
+                ("invalid_asset_root_" + std::to_string(invalidRoot.size()) + ".rcbn");
+            std::ofstream invalidOut(invalidRootScene);
+            invalidOut << "recubin:\n  type: scene\n  version: 0\n"
+                          "  assetRoot: '" << invalidRoot << "'\n"
+                          "Root:\n  ClassName: System\n  Name: System\n";
+            invalidOut.close();
+            const auto invalidResult = SceneLoader::loadSceneResult(invalidRootScene.string());
+            expect(!invalidResult && invalidResult.status == SceneLoader::LoadStatus::InvalidType,
+                   "drive-relative and rooted scene asset bases are rejected");
+        }
+        const auto nonScalarScene = sceneDirectory / "non_scalar_asset_root.rcbn";
+        std::ofstream nonScalarOut(nonScalarScene);
+        nonScalarOut << "recubin:\n  type: scene\n  version: 0\n"
+                        "  assetRoot: [assets]\n"
+                        "Root:\n  ClassName: System\n  Name: System\n";
+        nonScalarOut.close();
+        const auto nonScalarResult = SceneLoader::loadSceneResult(nonScalarScene.string());
+        expect(!nonScalarResult && nonScalarResult.status == SceneLoader::LoadStatus::InvalidType,
+               "non-scalar scene asset base is rejected");
+    }
     std::ofstream(portableRoot / "RecubinEngine", std::ios::binary) << "runtime";
     const auto portableSelection = selectMacEditorRoot(
         portableRoot / "Recubin", developmentRoot);
@@ -9541,6 +9695,8 @@ int runAssetPathRegression() {
 #else
             "Recubin.exe";
 #endif
+        expect(!AssetPath::isPortableRelative("C:relative/assets"),
+               "drive-relative asset base validator rejects the packager fixture");
         std::vector<std::string> packageLogs;
         const bool packaged = Packager::package(packageConfig, [&packageLogs](const std::string& message) {
             packageLogs.push_back(message);
@@ -10250,6 +10406,24 @@ static int runAnimationClipRegression() {
         auto starterWalk = std::dynamic_pointer_cast<Animation>(starter->getChildren().at("R6Walk"));
         auto starterHumanoid = std::dynamic_pointer_cast<Humanoid>(
             starter->getChildren().at("Humanoid"));
+        const auto builtInRoundTripPath = tempRoot / "builtin_r6_walk_scene.rcbn";
+        expect(SceneLoader::saveSceneResult(starter.get(), builtInRoundTripPath.string()),
+               "built-in R6 Walk scene saves");
+        const auto loadedBuiltInScene = SceneLoader::loadSceneResult(builtInRoundTripPath.string());
+        const auto loadedBuiltInWalkNode = loadedBuiltInScene.root
+            ? loadedBuiltInScene.root->getChild("R6Walk") : nullptr;
+        const auto loadedBuiltInWalk = loadedBuiltInWalkNode
+            ? std::dynamic_pointer_cast<Animation>(loadedBuiltInWalkNode->shared_from_this())
+            : nullptr;
+        expect(loadedBuiltInWalk && loadedBuiltInWalk->getSource() == AnimationSource::BuiltIn &&
+                   loadedBuiltInWalk->ContentPath.empty() && loadedBuiltInWalk->getClip() &&
+                   loadedBuiltInWalk->getClip()->tracks.size() == builtin.tracks.size(),
+               "built-in R6 Walk preserves its source across Scene save/load");
+        const auto clonedBuiltInWalk = loadedBuiltInWalk
+            ? std::dynamic_pointer_cast<Animation>(loadedBuiltInWalk->clone()) : nullptr;
+        expect(clonedBuiltInWalk && clonedBuiltInWalk->getSource() == AnimationSource::BuiltIn &&
+                   clonedBuiltInWalk->ContentPath.empty(),
+               "built-in R6 Walk clone preserves its source");
         auto starterJump = std::make_shared<Animation>();
         starterJump->Name = "R6Jump";
         starterJump->ContentPath = "assets/anims/r6_jump.rcanim";
@@ -10260,10 +10434,13 @@ static int runAnimationClipRegression() {
         starterEquip->ContentPath = "assets/anims/r6_equip.rcanim";
         starter->addChild(starterEquip);
         starterHumanoid->setEquipAnimation(starterEquip);
+        const bool defaultWalkBuiltIn = starterWalk &&
+            starterWalk->getSource() == AnimationSource::BuiltIn;
         if (starterWalk) starterWalk->setClip(injected);
         expect(starterWalk && starterHumanoid &&
                    starterHumanoid->getWalkAnimation() == starterWalk &&
-                   starterWalk->ContentPath == "assets/anims/r6_walk.rcanim",
+                   defaultWalkBuiltIn &&
+                   starterWalk->ContentPath.empty(),
                "default StarterCharacter exposes R6Walk and Humanoid references it");
         auto starterRoot = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("Root"));
         auto starterTorso = std::dynamic_pointer_cast<BaseCube>(starter->getChildren().at("Torso"));
@@ -10736,8 +10913,9 @@ static int runAnimationClipRegression() {
         auto insertedWalk = insertionHumanoid ? insertionHumanoid->getWalkAnimation() : nullptr;
         expect(insertionResult == EditorManager::CharacterAnimationMigrationResult::Inserted &&
                    insertionMetadata.characterAnimationBindingsVersion == 1 &&
-                   insertedWalk && insertedWalk->ContentPath == "assets/anims/r6_walk.rcanim",
-               "unmigrated empty R6 Walk binding is filled once with the standard asset");
+                   insertedWalk && insertedWalk->ContentPath.empty() &&
+                   insertedWalk->getSource() == AnimationSource::BuiltIn,
+               "unmigrated empty R6 Walk binding is filled once with the built-in clip");
 
         insertionHumanoid->setWalkAnimation(nullptr);
         insertionStarter->removeChild(insertedWalk->Name);
@@ -10803,8 +10981,8 @@ static int runAnimationClipRegression() {
 
         expect(EditorManager::restoreDefaultR6Bindings(insertionSystem.get()) &&
                    insertionHumanoid->getWalkAnimation() &&
-                   insertionHumanoid->getWalkAnimation()->ContentPath ==
-                       "assets/anims/r6_walk.rcanim",
+                   insertionHumanoid->getWalkAnimation()->ContentPath.empty() &&
+                   insertionHumanoid->getWalkAnimation()->getSource() == AnimationSource::BuiltIn,
                "explicit Restore Default Animations can reset a migrated empty binding");
     }
 
@@ -10934,6 +11112,7 @@ static int runSceneLoadTransactionRegression() {
         "recubin:\n"
         "  type: scene\n"
         "  version: 0\n"
+        "  assetRoot: ../shared_assets\n"
         "Root:\n"
         "  ClassName: System\n"
         "  Properties:\n"
@@ -11025,6 +11204,8 @@ static int runSceneLoadTransactionRegression() {
         scenePath.string(), liveSystem, liveUser);
     expect(static_cast<bool>(staged),
            "User/Inventory/Tool scene stages successfully");
+    expect(staged.metadata.assetRoot == "../shared_assets",
+           "staging carries the scene asset base metadata");
     expect(staged.system &&
                staged.system->getChildByPath("Users\\User\\Inventory\\Hammer"),
            "staged tree retains User/Inventory/Tool without skipping User");
@@ -11094,6 +11275,20 @@ static int runSceneLoadTransactionRegression() {
                liveSystem->getChild("ChatService") &&
                liveSystem->getChild("MaterialService"),
            "commit supplies default runtime services");
+    expect(AssetPath::sceneAssetBaseDirectory() ==
+               AssetPath::sceneAssetBaseDirectory(scenePath.string(), "../shared_assets"),
+           "commit activates the staged scene asset base");
+
+    const auto previousAssetBase = AssetPath::sceneAssetBaseDirectory();
+    SceneRuntime::StagedSceneLoad invalidStaged;
+    invalidStaged.metadata.assetRoot = "../should_not_apply";
+    invalidStaged.scenePath = scenePath.string();
+    invalidStaged.status = SceneLoader::LoadStatus::YamlError;
+    LuauEngine invalidEngine;
+    const auto failedCommit = SceneRuntime::commitAndBind(
+        std::move(invalidStaged), liveSystem, liveUser, invalidEngine, nullptr);
+    expect(!failedCommit.workspace && AssetPath::sceneAssetBaseDirectory() == previousAssetBase,
+           "failed commit preserves the previously active scene asset base");
 
     auto missingUserSystem = std::make_shared<System>();
     auto missingUser = std::make_shared<User>(
@@ -11194,6 +11389,8 @@ static int runGuiAutomationRegression() {
                validateGuiAutomationCommand("script_profile on") &&
                validateGuiAutomationCommand("script_profile dump") &&
                validateGuiAutomationCommand("wait_frames 30") &&
+               validateGuiAutomationCommand("save_as \"out/scene.yaml\" copy") &&
+               validateGuiAutomationCommand("save_as \"out/scene.yaml\" keep") &&
                validateGuiAutomationCommand("quit"),
            "valid GUI automation commands are accepted");
     expect(!validateGuiAutomationCommand("click Picker extra") &&
@@ -11207,7 +11404,9 @@ static int runGuiAutomationRegression() {
                !validateGuiAutomationCommand("wait_frames soon") &&
                !validateGuiAutomationCommand("wait Picker nope") &&
                !validateGuiAutomationCommand("mouse nope 1") &&
-               !validateGuiAutomationCommand("mouse_down 3"),
+               !validateGuiAutomationCommand("mouse_down 3") &&
+               !validateGuiAutomationCommand("save_as out/scene.yaml") &&
+               !validateGuiAutomationCommand("save_as out/scene.yaml invalid"),
            "malformed GUI automation commands are rejected");
     expect(!PngWriter::writeRgba8(path.string(), 2, 2, {}, &error), "invalid RGBA buffer is rejected");
     std::error_code ec; std::filesystem::remove(path, ec);
@@ -19221,6 +19420,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--viewport-helper-regression", runViewportHelperRegression),
         REG("--autosave-regression", runAutosaveRegression),
         REG("--asset-path-regression", runAssetPathRegression),
+        REG("--scene-asset-copy-regression", runSceneAssetCopyRegression),
         REG("--rbxlx-convert-regression", runRbxlxConvertRegression),
         REG("--app-image-regression", runAppImageRegression),
         REG("--runtime-launch-args-regression", runRuntimeLaunchArgsRegression),

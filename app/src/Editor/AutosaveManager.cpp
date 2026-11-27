@@ -12,6 +12,19 @@
 #endif
 
 namespace {
+
+SceneLoader::SceneDocumentMetadata metadataForTransientScene(
+    const SceneLoader::SceneDocumentMetadata& source,
+    const std::filesystem::path& logicalScenePath,
+    const std::filesystem::path& transientPath) {
+    SceneLoader::SceneDocumentMetadata result = source;
+    if (source.assetRoot.empty()) return result;
+    const auto sourceBase = AssetPath::sceneAssetBaseDirectory(
+        AssetPath::toStored(logicalScenePath), source.assetRoot);
+    if (const auto relative = AssetPath::relativeTo(sourceBase, transientPath.parent_path()))
+        result.assetRoot = *relative;
+    return result;
+}
 using Clock = std::chrono::steady_clock;
 std::string pathString(const std::filesystem::path& p) { return AssetPath::toStored(p); }
 
@@ -226,9 +239,11 @@ bool AutosaveManager::atomicWrite(const std::filesystem::path& target, const std
 
 bool AutosaveManager::saveRecovery(Clock::time_point now) {
     if (!m_root) { RCBN_ERROR("Autosave: recovery save skipped because root is null"); m_lastRecoveryAttempt = now; return false; }
-    const auto serialized = SceneLoader::serializeSceneResult(m_root, m_metadata);
+    const auto target = m_sessionDirectory / "recovery.rcbn";
+    const auto metadata = metadataForTransientScene(m_metadata, m_logicalScenePath, target);
+    const auto serialized = SceneLoader::serializeSceneResult(m_root, metadata);
     if (!serialized) { RCBN_ERROR("Autosave recovery serialization failed: " << serialized.message); m_lastRecoveryAttempt = now; return false; }
-    const bool ok = atomicWrite(m_sessionDirectory / "recovery.rcbn", serialized.yaml,
+    const bool ok = atomicWrite(target, serialized.yaml,
                                 "Write autosave recovery");
     if (!ok) m_lastRecoveryAttempt = now;
     return ok;
@@ -238,8 +253,6 @@ bool AutosaveManager::saveSnapshot(Clock::time_point now) {
     m_lastSnapshotAttempt = now;
     if (!m_root) { RCBN_ERROR("Autosave: snapshot save skipped because root is null"); return false; }
     if (m_config.snapshotCount == 0) { RCBN_ERROR("Autosave: snapshot count is zero"); return false; }
-    const auto serialized = SceneLoader::serializeSceneResult(m_root, m_metadata);
-    if (!serialized) { RCBN_ERROR("Autosave snapshot serialization failed: " << serialized.message); return false; }
     std::vector<std::filesystem::path> slots;
     std::error_code ec;
     std::filesystem::path selected;
@@ -281,6 +294,9 @@ bool AutosaveManager::saveSnapshot(Clock::time_point now) {
         }
         selected = oldest;
     }
+    const auto metadata = metadataForTransientScene(m_metadata, m_logicalScenePath, selected);
+    const auto serialized = SceneLoader::serializeSceneResult(m_root, metadata);
+    if (!serialized) { RCBN_ERROR("Autosave snapshot serialization failed: " << serialized.message); return false; }
     const bool ok = atomicWrite(selected, serialized.yaml, "Write autosave snapshot");
     if (ok) m_lastSnapshot = now;
     return ok;

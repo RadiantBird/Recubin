@@ -40,10 +40,12 @@ std::string logicalPath(std::string_view source);
 bool isExecutablePath(std::string_view path);
 
 // node配下の全依存を重複なく収集して out へ追加する。
-void collect(const YAML::Node& node, std::vector<Dependency>& out);
+void collect(const YAML::Node& node, std::vector<Dependency>& out,
+             const std::filesystem::path& baseDirectory = {});
 
 // dependency の実ファイル一覧。ファイル依存は1件、ディレクトリ依存は再帰列挙（.autosaveは除外）。
-std::vector<FileEntry> listFiles(const Dependency& dependency);
+std::vector<FileEntry> listFiles(const Dependency& dependency,
+                                 const std::filesystem::path& baseDirectory = {});
 
 // node配下の依存パスを map（元文字列→新文字列）で書き換える。map に無いものは触らない。
 void rewrite(YAML::Node node, const std::unordered_map<std::string, std::string>& map);

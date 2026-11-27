@@ -315,7 +315,8 @@ bool CodeEditorPanel::save() {
                 RCBN_ERROR("CodeEditorPanel: Script path is not allowed: " << script->Path);
                 return false;
             }
-            std::ofstream output(AssetPath::fromStored(script->Path),
+            std::ofstream output(AssetPath::resolveAgainst(
+                                     script->Path, AssetPath::sceneAssetBaseDirectory()),
                                  std::ios::binary | std::ios::trunc);
             if (!output.is_open()) {
                 RCBN_ERROR("CodeEditorPanel: failed to write Script " << script->getFullPath()
@@ -340,7 +341,9 @@ bool CodeEditorPanel::save() {
                 return false;
             }
         } else {
-            std::ofstream output(AssetPath::fromStored(textFile->Path), std::ios::binary | std::ios::trunc);
+            std::ofstream output(AssetPath::resolveAgainst(
+                                     textFile->Path, AssetPath::sceneAssetBaseDirectory()),
+                                 std::ios::binary | std::ios::trunc);
             if (!output.is_open()) {
                 std::cerr << "[CodeEditorPanel] Failed to write TextFile: " << textFile->Path << '\n';
                 return false;

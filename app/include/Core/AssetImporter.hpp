@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <filesystem>
 #include <vector>
 
 class Instance;
@@ -29,6 +30,9 @@ struct Loaded {
 struct Options {
     bool allowExecutables = false;                  // falseなら実行形式は展開せず、参照を空にする
     std::string extractRoot = "assets/imported";    // 展開先の親ディレクトリ
+    // YAML references are rewritten relative to this directory. When empty,
+    // legacy absolute/working-directory behavior is retained.
+    std::filesystem::path rewriteBaseDirectory;
 };
 
 struct Imported {

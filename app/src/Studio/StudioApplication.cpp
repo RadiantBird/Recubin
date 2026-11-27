@@ -421,7 +421,7 @@ void EditorSettings::saveEditorPreferences(EditorManager* ed, User* user) {
 
 // ウィンドウタイトルに現在開いているシーンのファイル名を付加する
 static void updateWindowTitle(GLFWwindow* window, const std::string& scenePath, bool dirty = false) {
-    std::string fileName = std::filesystem::path(scenePath).filename().string();
+    std::string fileName = AssetPath::toStored(AssetPath::fromStored(scenePath).filename());
     std::string title = fileName.empty() ? "Recubin Studio" : ("Recubin Studio - " + fileName);
     if (dirty) title = "*" + title;  // 未保存マーク
     glfwSetWindowTitle(window, title.c_str());
@@ -582,6 +582,10 @@ private:
         m_editor->setSceneMetadata(metadata);
         m_editor->engineExePath = m_options.executablePath.string();
         m_editor->scenePath = m_options.initialScenePath;
+        m_editor->refreshAssetRootDirectory();
+        GuiAutomation::registerSaveAsHandler([this](const std::string& target, bool copyAssets) {
+            return m_editor && m_editor->saveSceneAsForAutomation(target, copyAssets);
+        });
         m_editor->initializeAutosaveRecovery();
         m_settings.loadPanelVisibility(m_editor);
         m_settings.loadEditorPreferences(m_editor, m_user.get(), m_window);
@@ -678,6 +682,7 @@ private:
             return false;
         }
         m_editor->scenePath = request.logicalPath;
+        m_editor->refreshAssetRootDirectory();
         m_editor->beginAutosaveSession();
         if (request.markDirty) {
             m_editor->markDirty();
@@ -1076,7 +1081,15 @@ private:
             m_editor->animationPanel->endEditSession();
         }
         m_editor->flushAutosaveRecovery();
-        SceneLoader::saveSceneResult(m_system.get(), SNAPSHOT_PATH, m_editor->sceneMetadata());
+        SceneLoader::SceneDocumentMetadata snapshotMetadata = m_editor->sceneMetadata();
+        if (!m_editor->assetRootDirectory().empty()) {
+            const auto snapshotDirectory = std::filesystem::absolute(
+                std::filesystem::path(SNAPSHOT_PATH)).parent_path();
+            const auto relative = AssetPath::relativeTo(
+                m_editor->assetRootDirectory(), snapshotDirectory);
+            if (relative) snapshotMetadata.assetRoot = *relative;
+        }
+        SceneLoader::saveSceneResult(m_system.get(), SNAPSHOT_PATH, snapshotMetadata);
         SceneLoader::resolveConstraintRefs(m_system.get());
 
         for (auto& [name, child] : m_system->getChildren()) {
@@ -1374,6 +1387,7 @@ private:
         m_renderer->editor.reset();
         m_editor = nullptr;
         m_renderer->m_onButtonActivated = nullptr;
+        GuiAutomation::registerSaveAsHandler({});
 
         if (m_luau && m_system) {
             releaseSceneRuntime();

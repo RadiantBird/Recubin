@@ -126,8 +126,12 @@ void buildDefaultRigParts(const std::shared_ptr<Instance>& parent, const Vector3
     humanoid->Name = "Humanoid";
     auto walkAnimation = std::make_shared<Animation>();
     walkAnimation->Name = "R6Walk";
-    walkAnimation->ContentPath = "assets/anims/r6_walk.rcanim";
-    walkAnimation->loadContent();
+    // The generated runtime rig owns the default walk clip directly.  It is
+    // not a scene file reference, so resolving it through the scene's asset
+    // root would incorrectly turn a portable built-in into a missing file.
+    // User-authored Animation instances still use ContentPath and are loaded
+    // through the normal scene asset-base resolution path.
+    walkAnimation->setBuiltInClip(AnimationClip::defaultR6Walk());
 
     auto root     = std::make_shared<Cube>(basePos, Vector3(2.0f, 2.0f, 1.0f), TextureHandle{});
     auto head     = std::make_shared<Sphere>(basePos, Vector3(1.25f, 1.25f, 1.25f));

@@ -803,6 +803,24 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
     const std::string rawAppIconPath = findRootAppIconPath(sceneNode);
     const std::string legacyWalkContentPath = findLegacyWalkContentPath(sceneNode);
 
+    // Scene asset references are stored relative to the optional scene asset
+    // root. Legacy scenes without the header continue to use the process cwd.
+    fs::path assetBaseDirectory;
+    const YAML::Node header = sceneNode["recubin"];
+    if (header && header["assetRoot"] && !header["assetRoot"].IsScalar()) {
+        log("[ERROR] Scene assetRoot must be a scalar relative path");
+        return false;
+    }
+    if (header && header["assetRoot"] && header["assetRoot"].IsScalar()) {
+        const std::string storedRoot = header["assetRoot"].as<std::string>();
+        if (!storedRoot.empty() && !AssetPath::isPortableRelative(storedRoot)) {
+            log("[ERROR] Scene assetRoot must be a portable relative path");
+            return false;
+        }
+        assetBaseDirectory = scenePath.parent_path() /
+                             AssetPath::fromStored(storedRoot);
+    }
+
     // Collect all asset paths referenced in the scene
     std::vector<std::string> rawPaths;
     std::vector<std::string> rawDirPaths;
@@ -822,11 +840,13 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
             log("[WARN] Skipping editor autosave reference: " + rawPath);
             continue;
         }
-        fs::path src = AssetPath::fromStored(rawPath);
+        fs::path src = AssetPath::resolveAgainst(rawPath, assetBaseDirectory);
         // Only the retired scene-header reference used scene-relative paths.
         // Animation Instance ContentPath values follow normal project lookup.
-        if (!fs::exists(src) && rawPath == legacyWalkContentPath && src.is_relative()) {
-            const fs::path legacySource = scenePath.parent_path() / src;
+        if (!fs::exists(src) && rawPath == legacyWalkContentPath &&
+            AssetPath::fromStored(rawPath).is_relative()) {
+            const fs::path legacySource = scenePath.parent_path() /
+                                          AssetPath::fromStored(rawPath);
             if (fs::exists(legacySource)) src = legacySource;
         }
         if (!fs::exists(src)) {
@@ -884,7 +904,7 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
             log("[WARN] Skipping editor autosave terrain directory: " + rawDir);
             continue;
         }
-        fs::path src = AssetPath::fromStored(rawDir);
+        fs::path src = AssetPath::resolveAgainst(rawDir, assetBaseDirectory);
         if (!fs::exists(src) || !fs::is_directory(src)) {
             log("[WARN] Terrain data dir not found, skipping: " + rawDir);
             continue;
@@ -913,6 +933,11 @@ bool Packager::package(const Config& cfg, std::function<void(const std::string&)
 
     // Rewrite paths in YAML and write the scene file
     rewritePaths(sceneNode, pathMap);
+    // All packaged references are rewritten relative to the package root.
+    // The generated scene lives in assets/scenes, so record that root
+    // explicitly for runtime scene-relative resolution.
+    if (sceneNode["recubin"] && sceneNode["recubin"].IsMap())
+        sceneNode["recubin"]["assetRoot"] = "../..";
     {
         YAML::Emitter emit;
         emit << sceneNode;

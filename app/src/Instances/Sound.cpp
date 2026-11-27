@@ -178,7 +178,10 @@ void Sound::loadFromFile(const std::string& path) {
         m_currentPath.clear();
         return;
     }
-    if (!AssetGuard::allow(path)) return;
+    const std::filesystem::path resolvedPath = AssetPath::resolveAgainst(
+        path, AssetPath::sceneAssetBaseDirectory());
+    const std::string resolvedStoredPath = AssetPath::toStored(resolvedPath);
+    if (!AssetGuard::allow(resolvedStoredPath)) return;
     const std::string normalizedPath = AssetPath::normalize(path);
     if (loaded) {
         destroyTimeStretchNode();
@@ -188,7 +191,7 @@ void Sound::loadFromFile(const std::string& path) {
     m_currentPath.clear();
     if (m_audioService) {
         ma_uint32 flags = MA_SOUND_FLAG_DECODE;
-        if (initSoundFromFile(&m_audioService->engine, normalizedPath, flags,
+        if (initSoundFromFile(&m_audioService->engine, resolvedStoredPath, flags,
                               getTargetGroup(), &sound) == MA_SUCCESS) {
             loaded = true;
             m_currentPath = normalizedPath;

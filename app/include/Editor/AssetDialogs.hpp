@@ -17,6 +17,10 @@ class Instance;
 class AssetDialogs {
 public:
     CommandHistory*        history           = nullptr;
+    // .rcaet の埋め込みファイルを展開する基準ディレクトリ。
+    // EditorManager が現在シーンの AssetRoot から設定する。空の場合は
+    // AssetImporter の既定値 (assets/imported) を使う。
+    std::string             assetExtractRoot;
     // 取り込んだルートを選択状態にする（EditorManagerがExplorerの選択へ配線する）
     Instance**             selectedInstance  = nullptr;
     std::vector<Instance*>* selectedInstances = nullptr;

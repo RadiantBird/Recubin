@@ -36,6 +36,18 @@ bool Animation::IsA(std::string className) {
 }
 
 void Animation::setProperty(const std::string& name, const YAML::Node& value) {
+    if (name == "Source") {
+        const std::string source = value.as<std::string>("");
+        if (source == "BuiltIn") {
+            m_source = AnimationSource::BuiltIn;
+            m_loadStatus = AnimationClipLoadStatus::Success;
+            m_loadMessage.clear();
+            m_usingBuiltInFallback = false;
+        } else {
+            RCBN_WARN("Animation: unsupported serialized Source '" << source << "'");
+        }
+        return;
+    }
     if (PropertyRegistry::loadProperty(this, "Animation", name, value)) return;
 
     if (name == "Space") {
@@ -255,7 +267,9 @@ bool Animation::importFromFile(const std::string& path) {
     // Compatibility adapter for the pre-.rcanim form:
     // Animation: { Length, Speed, Looped, Tracks: [{ PartName, Keyframes }] }.
     try {
-        const YAML::Node legacy = YAML::LoadFile(path)["Animation"];
+        const std::filesystem::path resolvedPath = AssetPath::resolveAgainst(
+            path, AssetPath::sceneAssetBaseDirectory());
+        const YAML::Node legacy = YAML::LoadFile(AssetPath::toStored(resolvedPath))["Animation"];
         if (!legacy || !legacy.IsMap() || !legacy["Tracks"] ||
             !legacy["Tracks"].IsSequence()) {
             return false;

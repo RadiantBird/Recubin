@@ -55,6 +55,11 @@ static FontFile* findFontFile(Instance* node, const std::string& reference) {
 static std::filesystem::path resolveStoredFontPath(const std::string& storedPath) {
     const std::filesystem::path path = AssetPath::fromStored(storedPath);
     if (path.is_absolute()) return path;
+    // Every FontFile is a scene asset. In particular, "assets/" is not a
+    // reserved prefix: a user may legitimately store a font below an assets
+    // directory relative to the scene's asset root.
+    const std::filesystem::path sceneBase = AssetPath::sceneAssetBaseDirectory();
+    if (!sceneBase.empty()) return AssetPath::resolveAgainst(storedPath, sceneBase);
 
     std::error_code ec;
     const std::filesystem::path current = std::filesystem::current_path(ec);

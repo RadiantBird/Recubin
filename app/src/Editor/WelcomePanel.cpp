@@ -3,6 +3,7 @@
 #include <Editor/UiHelpers.hpp>
 #include <include/stb_image.h>
 #include <Util/Logger.hpp>
+#include <Util/AssetPath.hpp>
 #include <algorithm>
 #include <filesystem>
 
@@ -124,7 +125,7 @@ void WelcomePanel::onRender() {
             isOpen = false;
         }
 
-        bool canContinue = !lastScenePath.empty() && std::filesystem::exists(lastScenePath);
+        bool canContinue = !lastScenePath.empty() && std::filesystem::exists(AssetPath::fromStored(lastScenePath));
         ImGui::SetCursorPosX(buttonStartX);
         if (!canContinue) ImGui::BeginDisabled();
         if (ImGui::Button(Loc::t(Loc::LocKey::WelcomeBtnContinue), ImVec2(buttonWidth, 0))) {

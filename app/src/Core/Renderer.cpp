@@ -1548,7 +1548,8 @@ static GLuint getCustomPostEffectProgram(
     Renderer::CustomPostEffectProgram& entry, const std::string& path,
     const std::string& vertexSource) {
     std::error_code ec;
-    const std::filesystem::path sourcePath = AssetPath::fromStored(path);
+    const std::filesystem::path sourcePath = AssetPath::resolveAgainst(
+        path, AssetPath::sceneAssetBaseDirectory());
     const bool exists = std::filesystem::is_regular_file(sourcePath, ec) && !ec;
     std::filesystem::file_time_type writeTime{};
     if (exists) writeTime = std::filesystem::last_write_time(sourcePath, ec);
@@ -1563,7 +1564,7 @@ static GLuint getCustomPostEffectProgram(
         RCBN_ERROR("Custom PostEffect shader file cannot be read: " << path);
         return entry.program;
     }
-    const std::string fragmentSource = FileLoader::readText(path);
+    const std::string fragmentSource = FileLoader::readText(AssetPath::toStored(sourcePath));
     GLuint program = compileCustomPostEffectProgram(path, vertexSource, fragmentSource);
     if (program) {
         if (entry.program) glDeleteProgram(entry.program);
@@ -1899,9 +1900,12 @@ void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int wid
         bool custom = effect->Type == PostEffectKind::Custom;
         if (custom) {
             const std::string path = AssetPath::normalize(effect->FragmentShaderFile);
-            if (!path.empty() && AssetGuard::allow(path)) {
-                auto& entry = m_customPostEffectPrograms[path];
-                customProgram = getCustomPostEffectProgram(entry, path, postVertexSource);
+            const std::string resolvedPath = path.empty()
+                ? std::string{} : AssetPath::toStored(AssetPath::resolveAgainst(
+                    path, AssetPath::sceneAssetBaseDirectory()));
+            if (!path.empty() && AssetGuard::allow(resolvedPath)) {
+                auto& entry = m_customPostEffectPrograms[resolvedPath];
+                customProgram = getCustomPostEffectProgram(entry, resolvedPath, postVertexSource);
             } else if (path.empty()) {
                 auto& entry = m_customPostEffectPrograms["<empty>"];
                 if (!entry.attempted) {
@@ -1910,7 +1914,7 @@ void Renderer::renderPostEffects(Workspace& workspace, GLuint targetFbo, int wid
                 }
                 customProgram = entry.program;
             } else {
-                auto& entry = m_customPostEffectPrograms[path];
+                auto& entry = m_customPostEffectPrograms[resolvedPath];
                 if (!entry.attempted) {
                     entry.attempted = true;
                     RCBN_ERROR("Custom PostEffect shader path is not allowed: " << path);
@@ -3584,18 +3588,21 @@ int Renderer::decalArrayLayerFor(TextureHandle texture) {
 TextureHandle Renderer::loadTexture(const char* path) {
     std::string pathStr(path);
     const std::string normalizedPath = AssetPath::normalize(pathStr);
-    auto cachedTexture = textureCache.find(normalizedPath);
+    const std::filesystem::path resolvedPath = AssetPath::resolveAgainst(
+        normalizedPath, AssetPath::sceneAssetBaseDirectory());
+    const std::string resolvedStoredPath = AssetPath::toStored(resolvedPath);
+    auto cachedTexture = textureCache.find(resolvedStoredPath);
     if (cachedTexture != textureCache.end()) {
         std::error_code fileInfoError;
         const auto lastWriteTime = std::filesystem::last_write_time(
-            AssetPath::fromStored(normalizedPath), fileInfoError);
+            resolvedPath, fileInfoError);
         if (!fileInfoError) {
             const uintmax_t fileSize = std::filesystem::file_size(
-                AssetPath::fromStored(normalizedPath), fileInfoError);
+                resolvedPath, fileInfoError);
             if (!fileInfoError && cachedTexture->second.hasFileMetadata &&
                 (cachedTexture->second.lastWriteTime != lastWriteTime ||
                  cachedTexture->second.fileSize != fileSize)) {
-                if (!AssetGuard::allow(pathStr)) return {};
+                if (!AssetGuard::allow(resolvedStoredPath)) return {};
                 GfxTextures::destroy(cachedTexture->second.texture);
                 textureCache.erase(cachedTexture);
             } else {
@@ -3605,43 +3612,61 @@ TextureHandle Renderer::loadTexture(const char* path) {
             return cachedTexture->second.texture;
         }
     }
-    if (!AssetGuard::allow(pathStr)) return {};
+    if (!AssetGuard::allow(resolvedStoredPath)) return {};
 
     std::error_code fileInfoError;
     const auto lastWriteTime = std::filesystem::last_write_time(
-        AssetPath::fromStored(normalizedPath), fileInfoError);
+        resolvedPath, fileInfoError);
     const bool hasLastWriteTime = !fileInfoError;
     const uintmax_t fileSize = std::filesystem::file_size(
-        AssetPath::fromStored(normalizedPath), fileInfoError);
+        resolvedPath, fileInfoError);
     const bool hasFileMetadata = hasLastWriteTime && !fileInfoError;
 
     int width, height, nrChannels;
     unsigned char* data = nullptr;
     std::vector<unsigned char> svgPixels;
-    const std::filesystem::path assetFsPath = AssetPath::fromStored(normalizedPath);
+    std::vector<char> encodedImage;
+    bool stbImageData = false;
+    bool attemptedStbDecode = false;
+    const std::filesystem::path assetFsPath = resolvedPath;
     if (SvgRaster::isSvgPath(assetFsPath)) {
         if (SvgRaster::rasterizeFile(assetFsPath, svgPixels, width, height)) {
             data = svgPixels.data();
             nrChannels = 4;
         }
     } else {
-        data = stbi_load(normalizedPath.c_str(), &width, &height, &nrChannels, 4);
+        encodedImage = FileLoader::readBinary(resolvedStoredPath);
+        if (!encodedImage.empty()) {
+            if (encodedImage.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+                RCBN_ERROR("Texture file is too large for stb_image: " << resolvedStoredPath);
+            } else {
+                attemptedStbDecode = true;
+                data = stbi_load_from_memory(
+                    reinterpret_cast<const unsigned char*>(encodedImage.data()),
+                    static_cast<int>(encodedImage.size()), &width, &height,
+                    &nrChannels, 4);
+                stbImageData = data != nullptr;
+            }
+        }
     }
 
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     if (!data) {
-        RCBN_WARN("Failed to load texture: " << path);
+        const char* decoderReason = attemptedStbDecode ? stbi_failure_reason() : nullptr;
+        RCBN_WARN("Failed to load texture: " << path <<
+                  " (resolved: " << resolvedStoredPath << ")" <<
+                  (decoderReason ? std::string("; stb_image: ") + decoderReason : ""));
         return {};
     }
 
     const TextureHandle texture = createFileTexture(data, width, height, normalizedPath.c_str());
     if (texture) std::cout << "Success: " << path << " (" << nrChannels << "ch)" << std::endl;
-    if (svgPixels.empty()) stbi_image_free(data);
+    if (stbImageData) stbi_image_free(data);
     if (!texture) return {};
 
-    textureCache[normalizedPath] = {
+    textureCache[resolvedStoredPath] = {
         texture, lastWriteTime, fileSize, hasFileMetadata
     };
     return texture;

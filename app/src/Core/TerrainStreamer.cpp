@@ -147,7 +147,8 @@ TerrainStreamer::TerrainStreamer(Workspace* workspace, Instance* owner, const st
                                  uint32_t seed, bool flat)
     : m_workspace(workspace), m_owner(owner), m_noise(seed), m_flat(flat)
 {
-    terrainDir = AssetPath::normalize(dataDir);
+    terrainDir = AssetPath::toStored(AssetPath::resolveAgainst(
+        dataDir, AssetPath::sceneAssetBaseDirectory()));
     ensureDir(terrainDir);
     // ワーカースレッド起動（terrainDir 設定後・m_chunks 未使用の時点で開始）
     m_worker = std::thread([this]{ workerLoop(); });
@@ -197,7 +198,10 @@ void TerrainStreamer::setDataPath(const std::string& dir) {
         releaseChunkResources(entry.chunk);
     }
     m_chunks.clear();
-    { Job job; job.type = JobType::SetDir; job.dir = AssetPath::normalize(dir); enqueueJob(std::move(job)); }
+    { Job job; job.type = JobType::SetDir;
+      job.dir = AssetPath::toStored(AssetPath::resolveAgainst(
+          dir, AssetPath::sceneAssetBaseDirectory()));
+      enqueueJob(std::move(job)); }
     // 結果キューに残る旧チャンクの結果はキー不在で破棄される
 }
 

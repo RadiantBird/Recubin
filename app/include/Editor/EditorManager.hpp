@@ -23,6 +23,9 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include <unordered_map>
+#include <tuple>
+#include <unordered_set>
 #include <Util/RuntimeFileSystem.hpp>
 #include <include/imgui/imgui.h>
 
@@ -83,6 +86,9 @@ public:
 
     // アセット(.rcaet)の書き出しダイアログと取り込みフロー
     AssetDialogs                         m_assetDialogs;
+
+    // GUI automation hook; uses the same Save As implementation as the File menu.
+    bool saveSceneAsForAutomation(const std::string& target, bool copyAssets);
 
     // セカンダリビューポート（複数可）
     std::vector<std::unique_ptr<ViewportPanel>> secondaryViewports;
@@ -182,7 +188,8 @@ public:
     void requestSceneLoad(const std::string& path);
     void requestNewScene();
 
-    void setSceneMetadata(const SceneLoader::SceneDocumentMetadata& metadata) { m_sceneMetadata = metadata; m_autosave.setSceneMetadata(metadata); }
+    void setSceneMetadata(const SceneLoader::SceneDocumentMetadata& metadata);
+    void refreshAssetRootDirectory() { syncAssetRootDirectory(scenePath); }
     enum class CharacterAnimationMigrationResult {
         NotApplicable,
         AlreadyMigrated,
@@ -196,6 +203,7 @@ public:
     void evaluateSceneMigration();
     void showSceneLoadError(const std::string& message);
     const SceneLoader::SceneDocumentMetadata& sceneMetadata() const { return m_sceneMetadata; }
+    const std::filesystem::path& assetRootDirectory() const { return m_assetRootAbsolute; }
 
     CommandHistory m_history;
     PickerState    m_picker;          // PickerState は PropertiesPanel.hpp で定義
@@ -215,6 +223,7 @@ private:
     bool       m_isDirty   = false;
     AutosaveManager m_autosave;
     SceneLoader::SceneDocumentMetadata m_sceneMetadata;
+    std::filesystem::path m_assetRootAbsolute;
     bool m_showLoadError = false;
     std::string m_loadError;
     bool m_showRestoreR6Confirm = false;
@@ -232,6 +241,8 @@ private:
 
     // 未保存ダイアログ関連
     bool        m_showSaveDialog   = false;
+    bool        m_showSaveAsAssetDialog = false;
+    std::string m_pendingSaveAsPath;
     GLFWwindow* m_dialogWindow     = nullptr;
     double      m_saveDialogOpenedAt = 0.0;
     bool        m_showCodeEditorSaveDialog = false;
@@ -295,6 +306,7 @@ private:
     void updateResponsiveScale();
     void handleEditorShortcuts();
     void renderSaveDialog();
+    void renderSaveAsAssetDialog();
     void renderCodeEditorSaveDialog();
     void renderPlayLoadConfirmDialog();
     void renderPlaySaveBlockedDialog();
@@ -302,6 +314,19 @@ private:
     void renderPlayStartErrorDialog();
     void renderPackageDialog();
     bool saveCurrentScene();
+    bool saveSceneAs();
+    bool saveSceneAsToPath(const std::string& target, bool copyAssets);
+    bool chooseAssetRootDirectory();
+    bool repairAssetRootDirectory();
+    bool rebaseAssetReferences(const std::filesystem::path& oldBase,
+                               const std::filesystem::path& newBase,
+                               std::vector<std::string>& unresolved);
+    bool rewriteAssetReferences(const std::unordered_map<std::string, std::string>& rewrites,
+                                std::vector<std::string>& unresolved,
+                                const std::filesystem::path& baseDirectory,
+                                std::vector<std::tuple<Instance*, const PropertyDesc*, std::string,
+                                                       Skybox*, int, std::string>>* originals = nullptr);
+    void syncAssetRootDirectory(const std::string& sceneFilePath = {});
     bool saveDirtyCodeEditors();
     void openCodeEditor(const std::shared_ptr<Instance>& target);
     bool saveActiveCodeEditor();

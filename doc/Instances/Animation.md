@@ -23,6 +23,19 @@ Scene Tree上でアニメーション資産を表すインスタンス。唯一�
 `Keyframe`: `time`(秒) / `cframe`(対象Cubeのローカル(親=Model基準)CFrame) / `easing`(`EasingType`、次キーへの補間方法)。
 `AnimTrack`: `partName`(Model相対のCube名) / `keyframes`(time昇順)。
 
+## Scene保存とSource
+
+組み込みClipを保持するAnimation（例: 生成された標準R6 Walk）は、Scene保存時に
+`Source: BuiltIn`を明示的に出力する。`ContentPath`は空のままであり、再読込時にこのSourceを
+復元して組み込みClipとして扱う。これは、空の`ContentPath`を持つユーザー作成の埋め込みAnimation
+（`Tracks`を持つがSourceキーを持たないもの）とは区別される。cloneでもSourceと空のContentPathを
+維持する。
+
+`Source`は標準Animationの名前やContentPathから推測するためのキーではない。現在認識する値は
+`BuiltIn`だけであり、未知の値を読み込んだ場合は警告を出してその値を採用せず、他のSourceへ
+黙って変換しない。ファイルAnimationは`ContentPath`を基準ディレクトリから解決し、読み込みに
+失敗しても参照と保存内容を変更せず、必要な場合だけ実行時にBuiltInへフォールバックする。
+
 ## メソッド
 
 | メソッド | 説明 |

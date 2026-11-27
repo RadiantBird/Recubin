@@ -420,25 +420,28 @@ bool MeshCube::loadFromGLB(const std::string& path) {
         return false;
     }
     const std::string normalizedPath = AssetPath::normalize(path);
+    const std::filesystem::path resolvedPath = AssetPath::resolveAgainst(
+        normalizedPath, AssetPath::sceneAssetBaseDirectory());
+    const std::string resolvedStoredPath = AssetPath::toStored(resolvedPath);
     if (normalizedPath.size() < 4 ||
         normalizedPath.compare(normalizedPath.size() - 4, 4, ".glb") != 0) {
         RCBN_WARN("MeshCube: GLB以外のファイルは未対応です: " << path);
         activateFallback(path);
         return false;
     }
-    if (!AssetGuard::allow(path)) {
+    if (!AssetGuard::allow(resolvedStoredPath)) {
         activateFallback(path);
         return false;
     }
 
     cgltf_options options = {};
     cgltf_data* data = nullptr;
-    if (cgltf_parse_file(&options, normalizedPath.c_str(), &data) != cgltf_result_success) {
+    if (cgltf_parse_file(&options, resolvedStoredPath.c_str(), &data) != cgltf_result_success) {
         RCBN_WARN("MeshCube: GLBの解析に失敗しました: " << path);
         activateFallback(path);
         return false;
     }
-    if (cgltf_load_buffers(&options, data, normalizedPath.c_str()) != cgltf_result_success) {
+    if (cgltf_load_buffers(&options, data, resolvedStoredPath.c_str()) != cgltf_result_success) {
         RCBN_WARN("MeshCube: GLBのバッファ読み込みに失敗しました: " << path);
         cgltf_free(data);
         activateFallback(path);

@@ -231,9 +231,10 @@ void applyAppIcon(GLFWwindow* window, Instance* root) {
         (void)getPlatform().setApplicationIcon({});
         return;
     }
-    if (!AssetGuard::allow(iconPath)) return;
-
-    const std::string normalizedPath = AssetPath::normalize(iconPath);
+    const std::filesystem::path resolvedIconPath = AssetPath::resolveAgainst(
+        iconPath, AssetPath::sceneAssetBaseDirectory());
+    const std::string normalizedPath = AssetPath::toStored(resolvedIconPath);
+    if (!AssetGuard::allow(normalizedPath)) return;
     const ApplicationIconResult platformResult =
         getPlatform().setApplicationIcon(normalizedPath);
     if (platformResult == ApplicationIconResult::Applied) return;
@@ -305,13 +306,22 @@ StagedSceneLoad stageSceneLoad(const std::string& scenePath,
     SceneLoader::LoadContext context;
     context.registerMergeInstance("System", staged.system);
     context.registerMergeInstance("User", staged.user);
+    const auto assetBase = AssetPath::sceneAssetBaseDirectory(
+        scenePath, staged.metadata.assetRoot);
+    AssetPath::ScopedSceneAssetBaseDirectory assetBaseScope(assetBase);
     const auto result = SceneLoader::loadSceneResult(scenePath, context);
     staged.metadata.version = result.metadata.version;
+    staged.metadata.assetRoot = result.metadata.assetRoot;
     staged.metadata.characterAnimationBindingsVersion = result.metadata.characterAnimationBindingsVersion;
     staged.metadata.legacyDefaultR6AnimationDecision = result.metadata.legacyDefaultR6AnimationDecision;
     staged.metadata.legacyWalkContentPath = result.metadata.legacyWalkContentPath;
     staged.status = result.status;
     staged.message = result.message;
+    // SceneLoader applies the metadata-derived base while parsing. Keep that
+    // base active for the remaining staged-tree fixups, then restore the
+    // caller's base when stageSceneLoad returns.
+    AssetPath::setSceneAssetBaseDirectory(
+        AssetPath::sceneAssetBaseDirectory(scenePath, staged.metadata.assetRoot));
     if (result && result.root != staged.system && result.root != staged.user &&
         result.root->Parent.expired()) {
         staged.system->addChild(result.root);
@@ -327,6 +337,7 @@ Bound commitAndBind(StagedSceneLoad&& staged,
     if (!staged || !system || !user) {
         Bound failed;
         failed.metadata.version = staged.metadata.version;
+        failed.metadata.assetRoot = staged.metadata.assetRoot;
         failed.metadata.characterAnimationBindingsVersion = staged.metadata.characterAnimationBindingsVersion;
         failed.metadata.legacyDefaultR6AnimationDecision = staged.metadata.legacyDefaultR6AnimationDecision;
         failed.metadata.legacyWalkContentPath = staged.metadata.legacyWalkContentPath;
@@ -336,6 +347,10 @@ Bound commitAndBind(StagedSceneLoad&& staged,
         failed.loadMessage = staged.message.empty() ? "Invalid staged scene" : staged.message;
         return failed;
     }
+
+    const auto newAssetBase = AssetPath::sceneAssetBaseDirectory(
+        staged.scenePath, staged.metadata.assetRoot);
+    AssetPath::ScopedSceneAssetBaseDirectory assetBaseScope(newAssetBase);
 
     copySystemScalars(*staged.system, *system);
     copyUserScalars(*staged.user, *user);
@@ -412,6 +427,10 @@ Bound commitAndBind(StagedSceneLoad&& staged,
     bindStandardGlobals(engine, workspace, system, user);
     if (auto it = system->children.find("ChatService"); it != system->children.end())
         engine.setGlobalInstance("ChatService", it->second);
+
+    // Keep the new base only after all commit operations have succeeded.
+    // Any exception during commit is handled by the scope destructor.
+    assetBaseScope.commit();
 
     return Bound{ workspace, workspaces, staged.metadata, staged.scenePath,
                   SceneLoader::LoadStatus::Success, {} };

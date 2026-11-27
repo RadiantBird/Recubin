@@ -5,6 +5,7 @@
 #include <Instances/Instance.hpp>
 #include <Util/IPlatform.hpp>
 #include <Util/Logger.hpp>
+#include <Util/AssetPath.hpp>
 #include <Util/Platform.hpp>
 #include <include/imgui/imgui.h>
 #include <algorithm>
@@ -59,7 +60,8 @@ bool AssetDialogs::canExport(const std::vector<Instance*>& roots) {
 }
 
 void AssetDialogs::requestExport(const std::vector<Instance*>& roots) {
-    m_plan = AssetExporter::prepare(roots);
+    m_plan = AssetExporter::prepare(
+        roots, AssetPath::sceneAssetBaseDirectory());
     if (!m_plan) {
         showMessage(Loc::t(Loc::LocKey::AssetExportTitle),
                     {Loc::t(Loc::LocKey::AssetNothingToExport)});
@@ -315,6 +317,9 @@ void AssetDialogs::executeImport(bool allowExecutables) {
 
     AssetImporter::Options options;
     options.allowExecutables = allowExecutables;
+    if (!assetExtractRoot.empty()) options.extractRoot = assetExtractRoot;
+    if (!assetExtractRoot.empty()) options.rewriteBaseDirectory =
+        AssetPath::fromStored(assetExtractRoot);
     AssetImporter::Imported imported;
     const AssetImporter::Result result =
         AssetImporter::instantiate(loaded, options, materialService, imported);

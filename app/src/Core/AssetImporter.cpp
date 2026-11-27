@@ -113,7 +113,13 @@ Result extractSingleFile(const AssetContainer::EmbeddedFile& file, const Options
     if (!hasSameContent(chosen, file)) {
         if (Result r = writeNewFile(chosen, file.data); !r) return r;
     }
-    extraction.rewrites[file.source] = AssetPath::toStored(chosen);
+    if (!options.rewriteBaseDirectory.empty()) {
+        const auto relative = AssetPath::relativeTo(chosen, options.rewriteBaseDirectory);
+        if (!relative) return fail("Extracted asset path cannot be represented relative to asset base: " + file.source);
+        extraction.rewrites[file.source] = *relative;
+    } else {
+        extraction.rewrites[file.source] = AssetPath::toStored(chosen);
+    }
     if (AssetDependencies::isExecutablePath(file.file))
         extraction.warnings.push_back("Executable extracted: " + AssetPath::toStored(chosen));
     return ok();
@@ -150,7 +156,13 @@ Result extractDirectory(const std::vector<const AssetContainer::EmbeddedFile*>& 
         if (AssetDependencies::isExecutablePath(member->file))
             extraction.warnings.push_back("Executable extracted: " + AssetPath::toStored(target));
     }
-    extraction.rewrites[source] = AssetPath::toStored(chosen);
+    if (!options.rewriteBaseDirectory.empty()) {
+        const auto relative = AssetPath::relativeTo(chosen, options.rewriteBaseDirectory);
+        if (!relative) return fail("Extracted directory cannot be represented relative to asset base: " + source);
+        extraction.rewrites[source] = *relative;
+    } else {
+        extraction.rewrites[source] = AssetPath::toStored(chosen);
+    }
     return ok();
 }
 

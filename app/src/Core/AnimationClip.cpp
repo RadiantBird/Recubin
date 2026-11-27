@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <Core/CharacterRig.hpp>
 #include <Util/Logger.hpp>
+#include <Util/AssetPath.hpp>
 
 static bool finite(float v) { return std::isfinite(v); }
 static EasingType parseEasing(const YAML::Node& n, bool& ok) {
@@ -68,12 +69,15 @@ AnimationClip AnimationClip::defaultR6Walk() {
 
 AnimationClipLoadResult AnimationClipIO::load(const std::string& path) {
     AnimationClipLoadResult r;
-    std::ifstream test(path, std::ios::binary); if (!test) {
-        r.status = std::filesystem::exists(path) ? AnimationClipLoadStatus::IOError : AnimationClipLoadStatus::NotFound;
+    const std::filesystem::path resolvedPath = AssetPath::resolveAgainst(
+        path, AssetPath::sceneAssetBaseDirectory());
+    const std::string resolvedStoredPath = AssetPath::toStored(resolvedPath);
+    std::ifstream test(resolvedPath, std::ios::binary); if (!test) {
+        r.status = std::filesystem::exists(resolvedPath) ? AnimationClipLoadStatus::IOError : AnimationClipLoadStatus::NotFound;
         r.message = r.status == AnimationClipLoadStatus::NotFound ? "file not found" : "unable to open file"; return r;
     }
     try {
-        YAML::Node root = YAML::LoadFile(path), h = root["recubin"];
+        YAML::Node root = YAML::LoadFile(resolvedStoredPath), h = root["recubin"];
         if (!h || h["type"].as<std::string>("") != "animation") { 
             r.status = AnimationClipLoadStatus::TypeMismatch;
             r.message = "not an animation"; return r;

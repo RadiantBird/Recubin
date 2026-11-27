@@ -1,6 +1,7 @@
 #pragma once
 #include <Core/AssetContainer.hpp>
 #include <Core/AssetDependencies.hpp>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -21,6 +22,7 @@ struct Plan {
     std::vector<std::string> materialNames;                 // 同梱するMaterial
     std::vector<std::string> warnings;                      // 外部参照クリア・スキップ等
     int rootCount = 0;
+    std::filesystem::path dependencyBaseDirectory;
     explicit operator bool() const { return rootCount > 0; }
 };
 
@@ -34,6 +36,8 @@ bool isExportableClass(std::string_view className);
 bool isExportable(Instance& instance);
 
 Plan prepare(const std::vector<Instance*>& roots);
+Plan prepare(const std::vector<Instance*>& roots,
+             const std::filesystem::path& dependencyBaseDirectory);
 
 AssetContainer::Result write(const Plan& plan, const Options& options, const std::string& path);
 

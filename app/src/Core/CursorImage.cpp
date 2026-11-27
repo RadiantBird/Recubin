@@ -123,7 +123,9 @@ const CursorImageData* CursorImageProcessor::prepare(std::size_t slotIndex, cons
         return nullptr;
     }
 
-    const bool pathAllowed = AssetGuard::allow(key.path);
+    const std::filesystem::path resolvedFilePath = AssetPath::resolveAgainst(
+        key.path, AssetPath::sceneAssetBaseDirectory());
+    const bool pathAllowed = AssetGuard::allow(AssetPath::toStored(resolvedFilePath));
     if (!pathAllowed) {
         entry.key = key;
         entry.attempted = true;
@@ -131,8 +133,7 @@ const CursorImageData* CursorImageProcessor::prepare(std::size_t slotIndex, cons
         entry.data = {};
         return nullptr;
     }
-    std::filesystem::path filePath;
-    filePath = AssetPath::fromStored(key.path);
+    std::filesystem::path filePath = resolvedFilePath;
     std::error_code error;
     key.writeTime = std::filesystem::last_write_time(filePath, error);
     key.hasWriteTime = !error;

@@ -58,6 +58,10 @@ Editorだけが標準入力を行単位で読み取り、結果を `[UIAUTO] OK 
   新しい計測点は `ApiProfiler::Scope scope("名前")`（詳細名つきは `Scope("get", key)`）を置くだけでよい。
 - **`wait_frames <n>`**: n フレーム待つ(スクリプトの実行や物理の安定を待つため)。
 - Playの操作は `click "Editor/Toolbar/Play"` / `click "Editor/Toolbar/Stop"` で行える。
+- Save As は `save_as "<scene path>" copy` または `save_as "<scene path>" keep` で実行できる。
+  これはネイティブ保存ダイアログを介さず、File メニューと同じ保存境界を呼び出す専用コマンドである。
+  `copy` は新しいアセット基準ディレクトリへ参照ファイルをコピーし、`keep` は元の基準ディレクトリを参照したまま保存する。
+  成否は `[UIAUTO] OK save_as ...` / `[UIAUTO] ERROR save_as failed ...` で報告される。
 
 例（非表示モードでシーンをPlayしてスクリプトのホットパスを測る）:
 

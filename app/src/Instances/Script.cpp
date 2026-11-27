@@ -3,6 +3,7 @@
 #include <Core/FileLoader.hpp>
 #include <Core/PropertyRegistry.hpp>
 #include <Util/Logger.hpp>
+#include <Util/AssetPath.hpp>
 #include <algorithm>
 #include <cctype>
 
@@ -31,7 +32,9 @@ void setScriptPath(Script& script, const std::string& path) {
     const bool isBytecode = script.Path.size() >= 6 &&
                             script.Path.rfind(".luauc") == script.Path.size() - 6;
     if (isBytecode) {
-        auto bytes = FileLoader::readBinary(script.Path);
+        const std::string resolved = AssetPath::toStored(AssetPath::resolveAgainst(
+            script.Path, AssetPath::sceneAssetBaseDirectory()));
+        auto bytes = FileLoader::readBinary(resolved);
         if (!bytes.empty()) {
             script.Source = std::string(bytes.begin(), bytes.end());
             script.isPrecompiled = true;
@@ -44,7 +47,9 @@ void setScriptPath(Script& script, const std::string& path) {
         return;
     }
 
-    script.Source = FileLoader::readText(script.Path);
+    const std::string resolved = AssetPath::toStored(AssetPath::resolveAgainst(
+        script.Path, AssetPath::sceneAssetBaseDirectory()));
+    script.Source = FileLoader::readText(resolved);
     script.isPrecompiled = false;
     if (script.Source.empty()) {
         RCBN_WARN("Failed to load script source: " << script.Path);
@@ -89,7 +94,9 @@ const char* scriptExtensionSuffix(ScriptExtension extension) {
 Script::Script(string path) : Instance("Script"), Coroutine(nullptr), Path(path) {
     followPathExtension(*this);
     if (!path.empty()) {
-        Source = FileLoader::readText(path);
+        const std::string resolved = AssetPath::toStored(AssetPath::resolveAgainst(
+            path, AssetPath::sceneAssetBaseDirectory()));
+        Source = FileLoader::readText(resolved);
         if (Source.empty()) {
             RCBN_WARN("Failed to load script source: " << path);
             Source = "print('Error: Failed to load script source')";

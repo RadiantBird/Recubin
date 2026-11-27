@@ -797,3 +797,22 @@
 - xmake 出力先の初回起動に出た autosave エラーを修正。未作成の .autosave を復元候補なしとして処理。空の出力先からの Studio 非表示起動・状態取得・終了コード0と autosave 回帰を確認。YAML、Box3D、スクリプト拡張の対象回帰も成功。
 - Release の再セットアップで全依存のキャッシュ再利用を確認。検証用 clone では上流取得、CMake 依存と Luar の構築まで確認。旧版の検証が sokol-shdc の MSBuild で止まっていたため、再構築を抑える方針に従い、その検証プロセスだけ停止。
 - 未完了: 最終版のクリーン clone 完走、Debug / macOS の検証、SDK・配布・旧構成の廃止。Debug の初回は Box3D の出力名が box3dd.lib で中断。setup.lua の出力名を修正済み、再構築は未確認。
+
+## 2026-11-27 シーン単位アセット基準（未完了）
+
+- Scene の `recubin.assetRoot`、シーン読み込み時の基準の適用、描画・スクリプト等の読み込み経路、AssetImporter/Exporter、Packager、Autosave/Play snapshot に対する途中実装を追加した。基準なしの旧シーンは従来の CWD 基準。
+- 未完了: エディターの基準ディレクトリ指定と旧基準指定による修復は UI 非公開。名前を付けて保存時の確認付きアセットコピーは未実装。既存シーンの実修復は未実施。ユーザー指定の計画は未達。
+- 既定 R6 Animation は新しい基準に標準ファイルがないと NotFound になり、組み込み歩行 Clip にフォールバックする。標準参照を文字列から推測せずに扱う設計が必要。アセット参照全種、Play snapshot の GUI 実動作、配布パッケージの新基準による実行も未検証。
+- `xmake build RecubinTest`、`xmake build Recubin RecubinEngine` は途中段階で成功。`--asset-regression`、`--asset-path-regression`、`--scene-load-transaction-regression`、`--autosave-regression` は成功。ただし最後の変更を含む再ビルドと全対象テストの最終再確認が必要。
+- `the_last.rcbn` の検証用コピーに assetRoot を設定して Engine self-check を実行し、草の画像4枚の読み込みを確認。元のシーンとアセットは変更していない。
+- 次: 未公開の EditorManager 基準設定・修復コードを完全実装・検証し、別名保存のコピー／拒否／失敗時の参照と metadata の整合性を実装。標準 Animation の基準を設計し、全アセット種・UTF-8 パス・複数基準のキャッシュ・パッケージ・Play/Autosave を検証してから完了報告する。
+- 最終再確認: Windows xmake で Recubin / RecubinEngine / RecubinTest をビルドし、asset、asset-path、scene-load-transaction、autosave の各回帰を再実行して成功。既知の APIENTRY 再定義警告あり。
+- EditorManager File メニューへ `Set Asset Directory...` と `Repair Asset Paths...` を再接続。未保存シーンは先に保存し、同一ドライブ・相対化可能性・全依存の実在確認後にだけ基準と参照を更新する。既存の rebase は失敗時に全変更を適用しない。RecubinTest Release ビルド成功。
+## 2026-11-27 シーン単位アセット基準の継続
+
+- Scene の `recubin.assetRoot`、旧シーンの CWD 基準互換、読込・保存・自動保存・Play snapshot・Packager・`.rcaet`・画像/スクリプト等の参照解決を実装。Editor の File メニューに `Set Asset Directory...`、`Repair Asset Paths...`、`Save Scene As...` を追加。別名保存はコピー、元参照維持、キャンセルを選択できる。未解決参照は一覧表示し、コピー時の欠落や異内容の衝突は失敗を報告する。
+- 組み込み R6 Walk は Source を明示して保存・再読込・clone する。旧移行で外部パスが明示される場合は維持。日本語パスの画像読み込み、Scene 名のタイトル、ようこそ画面の存在確認を修正。
+- xmake で Recubin / RecubinEngine / RecubinTest をビルドし、asset、asset-path、scene-load-transaction、autosave、scene-asset-copy、animation-clip、gui-automation の各回帰が成功。`git diff --check` は CRLF 警告のみ。
+- 非表示 Studio の検証用シーンでコピー・元参照維持・保存失敗時の復旧・異内容衝突を確認。コピー後に元画像を一時移動して再読込し、新しい画像から読み込むことを確認。日本語名保存後の終了と再起動、Play / Stop も成功。実際の `the_last.rcbn` は変更していない。
+- 未検証: 基準設定／旧基準修復の OS フォルダ選択を含む実画面操作、macOS、実際の配布パッケージの起動。ランタイムの AssetGuard により、外部基準を使う場合は配布前のパッケージングが必要。GUI 操作の多様なシーンでの確認を継続する。
+- 最終追加検証: 日本語フォルダへ Save As 後の画像読み込みと正常終了、日本語 Scene を最後に開いた状態での再起動、非表示 Studio の Play / Stop、保存失敗後の元参照での再保存を確認。Recubin / RecubinEngine / RecubinTest の最新 xmake ビルドと上記7回帰を再実行し成功。

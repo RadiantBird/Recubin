@@ -20,6 +20,9 @@ public:
 
     struct SceneDocumentMetadata {
         int version = 0;
+        // Scene-relative (portable) directory used as the base for external
+        // asset references. Empty preserves legacy cwd-based resolution.
+        std::string assetRoot;
         int characterAnimationBindingsVersion = 0;
         // Read-only compatibility data from the retired default_r6_animations
         // header. New saves never emit these fields.

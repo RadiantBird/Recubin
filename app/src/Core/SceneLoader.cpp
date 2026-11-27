@@ -204,6 +204,22 @@ SceneLoader::LoadResult SceneLoader::loadSceneResult(
                 return result;
             }
             result.metadata.version = version;
+            // assetRoot was added without changing the scene format version;
+            // scenes that do not contain it retain the legacy cwd behavior.
+            if (header["assetRoot"] && !header["assetRoot"].IsScalar()) {
+                result.status = LoadStatus::InvalidType;
+                result.message = "Scene assetRoot must be a scalar relative path";
+                return result;
+            }
+            if (header["assetRoot"] && header["assetRoot"].IsScalar()) {
+                result.metadata.assetRoot = header["assetRoot"].as<std::string>();
+                if (!result.metadata.assetRoot.empty() &&
+                    !AssetPath::isPortableRelative(result.metadata.assetRoot)) {
+                    result.status = LoadStatus::InvalidType;
+                    result.message = "Scene assetRoot must be relative: " + result.metadata.assetRoot;
+                    return result;
+                }
+            }
             const auto migrations = header["migrations"];
             const auto bindingMigration = migrations
                 ? migrations["character_animation_bindings"] : YAML::Node();
@@ -218,6 +234,8 @@ SceneLoader::LoadResult SceneLoader::loadSceneResult(
             if (walk && walk["ContentPath"])
                 result.metadata.legacyWalkContentPath = walk["ContentPath"].as<std::string>();
         }
+        AssetPath::ScopedSceneAssetBaseDirectory assetBaseScope(
+            AssetPath::sceneAssetBaseDirectory(filePath, result.metadata.assetRoot));
         if (!config["Root"]) {
             std::cerr << "[SceneLoader] Error: No Root defined in " << filePath << std::endl;
             result.status = LoadStatus::MissingRoot;
@@ -685,6 +703,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
                     out << YAML::EndSeq;
                 }
             }
+            if (anim->getSource() == AnimationSource::BuiltIn)
+                out << YAML::Key << "Source" << YAML::Value << "BuiltIn";
         }
         if (inst->getClassName() == "Skybox") {
             const Skybox* sb = static_cast<const Skybox*>(inst);
@@ -777,12 +797,19 @@ SceneLoader::SerializeResult SceneLoader::serializeSceneResult(
         result.message = "scene root is null";
         return result;
     }
+    if (!metadata.assetRoot.empty() && !AssetPath::isPortableRelative(metadata.assetRoot)) {
+        result.message = "scene assetRoot must be relative";
+        return result;
+    }
     try {
         YAML::Emitter out;
         out << YAML::BeginMap;
     out << YAML::Key << "recubin" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << "scene";
     out << YAML::Key << "version" << YAML::Value << 0;
+    if (!metadata.assetRoot.empty()) {
+        out << YAML::Key << "assetRoot" << YAML::Value << metadata.assetRoot;
+    }
     if (metadata.characterAnimationBindingsVersion > 0) {
         out << YAML::Key << "migrations" << YAML::Value << YAML::BeginMap
             << YAML::Key << "character_animation_bindings" << YAML::Value << YAML::BeginMap

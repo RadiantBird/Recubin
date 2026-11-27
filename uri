@@ -1,0 +1,18 @@
+550-                for (cgltf_size vi = 0; vi < posAcc->count; ++vi) {
+551-                    indices.push_back(baseIndex + static_cast<unsigned int>(vi));
+552-                }
+553-            }
+554-
+555-            // 最初に見つかった埋め込みテクスチャのみ使用する(複数マテリアルは対象外)
+556-            if (!loadedTexture && prim.material && prim.material->has_pbr_metallic_roughness) {
+557-                const cgltf_texture* tex = prim.material->pbr_metallic_roughness.base_color_texture.texture;
+558:                if (tex && tex->image && tex->image->buffer_view) {
+559:                    const cgltf_buffer_view* bv = tex->image->buffer_view;
+560-                    const unsigned char* bytes = static_cast<const unsigned char*>(bv->buffer->data) + bv->offset;
+561-                    if (Renderer::instance) {
+562-                        loadedTexture = Renderer::instance->loadTextureFromMemory(bytes, bv->size);
+563-                    }
+564-                }
+565-            }
+566-        }
+567-    }
