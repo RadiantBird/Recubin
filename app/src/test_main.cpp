@@ -146,6 +146,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <thread>
 #include <iostream>
@@ -19529,6 +19530,192 @@ int runSecurityRegression() {
     return SecurityRegression::g_failures == 0 ? 0 : 1;
 }
 
+int runDeterministicRcbnSerializationRegression() {
+    namespace fs = std::filesystem;
+    int failures = 0;
+    auto expect = [&](bool condition, const std::string& message) {
+        std::cout << "[DeterministicRcbn] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+
+    auto makeScene = [](bool reverseInsertionOrder) {
+        auto system = std::make_shared<System>();
+        auto parent = std::make_shared<Folder>();
+        parent->Name = "OrderParent";
+        system->addChild(parent);
+
+        auto folder = std::make_shared<Folder>();
+        folder->Name = "FolderChild";
+        auto model = std::make_shared<Model>();
+        model->Name = "ModelChild";
+        auto value = std::make_shared<BoolValue>();
+        value->Name = "BooleanValue";
+        auto cube10 = std::static_pointer_cast<BaseCube>(createBaseCubeInstance("Cube"));
+        cube10->Name = "Cube10";
+        auto cube2 = std::static_pointer_cast<BaseCube>(createBaseCubeInstance("Cube"));
+        cube2->Name = "Cube2";
+
+        std::vector<std::shared_ptr<Instance>> children = {
+            cube10, value, model, cube2, folder
+        };
+        if (reverseInsertionOrder)
+            std::reverse(children.begin(), children.end());
+        for (const auto& child : children)
+            parent->addChild(child);
+        return system;
+    };
+
+    const auto firstScene = SceneLoader::serializeSceneResult(makeScene(false).get());
+    const auto reversedScene = SceneLoader::serializeSceneResult(makeScene(true).get());
+    expect(firstScene.success && reversedScene.success,
+           "both equivalent scenes serialize successfully");
+    if (firstScene.success && reversedScene.success) {
+        expect(firstScene.yaml == reversedScene.yaml,
+               "scene YAML is independent of sibling insertion order");
+
+        const YAML::Node document = YAML::Load(firstScene.yaml);
+        std::function<YAML::Node(const YAML::Node&)> findOrderParent =
+            [&](const YAML::Node& node) -> YAML::Node {
+                if (node.IsMap() && node["Name"] &&
+                    node["Name"].as<std::string>() == "OrderParent") {
+                    return node;
+                }
+                const YAML::Node children = node["Children"];
+                if (!children.IsSequence()) return YAML::Node();
+                for (const YAML::Node& child : children) {
+                    YAML::Node found = findOrderParent(child);
+                    if (found) return found;
+                }
+                return YAML::Node();
+            };
+        const YAML::Node parent = findOrderParent(document["Root"]);
+        expect(parent && parent["Children"].IsSequence(),
+               "serialized scene contains the ordered parent and children");
+        if (parent && parent["Children"].IsSequence()) {
+            std::vector<std::pair<std::string, std::string>> childOrder;
+            for (const YAML::Node& child : parent["Children"]) {
+                childOrder.emplace_back(
+                    child["ClassName"].as<std::string>(),
+                    child["Name"].as<std::string>());
+            }
+            const std::vector<std::pair<std::string, std::string>> expected = {
+                {"Folder", "FolderChild"},
+                {"Model", "ModelChild"},
+                {"BoolValue", "BooleanValue"},
+                {"Cube", "Cube2"},
+                {"Cube", "Cube10"}
+            };
+            expect(childOrder == expected,
+                   "scene children follow Explorer categories and natural Name order");
+        }
+    }
+
+    const fs::path work = fs::temp_directory_path() / "recubin_deterministic_rcbn_regression";
+    std::error_code ec;
+    fs::remove_all(work, ec);
+    fs::create_directories(work, ec);
+    expect(!ec, "temporary conversion directory is available");
+    if (ec) return failures;
+
+    auto makePartXml = [](const std::string& referent, const std::string& name, float size) {
+        return "    <Item class=\"Part\" referent=\"" + referent + "\">"
+               "<Properties><string name=\"Name\">" + name +
+               "</string><Vector3 name=\"size\"><X>" + std::to_string(size) +
+               "</X><Y>1</Y><Z>1</Z></Vector3>" +
+               "</Properties></Item>\n";
+    };
+    const std::string folderXml =
+        "    <Item class=\"Folder\" referent=\"folder\">"
+        "<Properties><string name=\"Name\">FolderChild</string></Properties></Item>\n";
+    auto writeRbxFile = [&](const fs::path& path, bool reverseInputOrder) {
+        std::vector<std::string> items = {
+            makePartXml("part10", "Cube10", 10.0f),
+            makePartXml("part2", "Cube2", 2.0f),
+            makePartXml("", "DuplicatePart", 10.0f),
+            makePartXml("", "DuplicatePart", 2.0f),
+            folderXml
+        };
+        if (reverseInputOrder)
+            std::reverse(items.begin(), items.end());
+
+        std::ofstream out(path, std::ios::binary);
+        out << "<roblox version=\"4\"><Item class=\"Workspace\" referent=\"workspace\">"
+               "<Properties><string name=\"Name\">Workspace</string></Properties>";
+        for (const std::string& item : items)
+            out << item;
+        out << "</Item></roblox>";
+        return out.good();
+    };
+
+    const fs::path firstInput = work / "first.rbxlx";
+    const fs::path reversedInput = work / "reversed.rbxlx";
+    const fs::path firstOutput = work / "first.rcbn";
+    const fs::path reversedOutput = work / "reversed.rcbn";
+    expect(writeRbxFile(firstInput, false) && writeRbxFile(reversedInput, true),
+           "RBXLX test inputs are written");
+
+    const auto firstConversion = RbxlxConverter::convertFile(firstInput, firstOutput);
+    const auto reversedConversion = RbxlxConverter::convertFile(reversedInput, reversedOutput);
+    expect(static_cast<bool>(firstConversion) && static_cast<bool>(reversedConversion),
+           "RBXLX inputs convert successfully");
+    if (firstConversion && reversedConversion) {
+        const std::string firstYaml = FileLoader::readText(firstOutput.string());
+        const std::string reversedYaml = FileLoader::readText(reversedOutput.string());
+        expect(!firstYaml.empty() && !reversedYaml.empty(),
+               "converted YAML files can be read");
+        if (firstYaml.empty() || reversedYaml.empty()) {
+            fs::remove_all(work, ec);
+            return failures;
+        }
+        expect(firstYaml == reversedYaml,
+               "converted .rcbn output is independent of RBXLX child order");
+
+        const YAML::Node converted = YAML::Load(firstYaml);
+        YAML::Node workspace;
+        for (const YAML::Node& child : converted["Root"]["Children"]) {
+            if (child["ClassName"].as<std::string>() == "Workspace") {
+                workspace = child;
+                break;
+            }
+        }
+        expect(workspace && workspace["Children"].IsSequence(),
+               "converted scene contains ordered Workspace children");
+        if (workspace && workspace["Children"].IsSequence()) {
+            std::vector<std::pair<std::string, std::string>> childOrder;
+            for (const YAML::Node& child : workspace["Children"]) {
+                childOrder.emplace_back(
+                    child["ClassName"].as<std::string>(),
+                    child["Name"].as<std::string>());
+            }
+            const std::vector<std::pair<std::string, std::string>> expected = {
+                {"Folder", "FolderChild"},
+                {"Cube", "Cube2"},
+                {"Cube", "Cube10"},
+                {"Cube", "DuplicatePart"},
+                {"Cube", "DuplicatePart_2"},
+                {"Lighting", "Lighting"}
+            };
+            expect(childOrder == expected,
+                   "RBXLX output follows Explorer categories and natural Name order");
+
+            std::vector<float> duplicateSizes;
+            for (const YAML::Node& child : workspace["Children"]) {
+                if (child["Name"].as<std::string>().find("DuplicatePart") != 0)
+                    continue;
+                duplicateSizes.push_back(child["Properties"]["Size"][0].as<float>());
+            }
+            std::sort(duplicateSizes.begin(), duplicateSizes.end());
+            expect(duplicateSizes == std::vector<float>{2.0f, 10.0f},
+                   "same-class, same-name siblings retain distinct properties");
+        }
+    }
+
+    fs::remove_all(work, ec);
+    std::cout << "[DeterministicRcbn] " << (failures == 0 ? "all passed" : "failures present")
+              << " (failures=" << failures << ")\n";
+    return failures == 0 ? 0 : 1;
+}
+
 // assets/scenes/AddonTest.rbxlx を変換し、SceneLoader で読み直して中身を確かめる。
 int runRbxlxConvertRegression() {
     namespace fs = std::filesystem;
@@ -20146,6 +20333,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--autosave-regression", runAutosaveRegression),
         REG("--asset-path-regression", runAssetPathRegression),
         REG("--scene-asset-copy-regression", runSceneAssetCopyRegression),
+        REG("--deterministic-rcbn-serialization-regression", runDeterministicRcbnSerializationRegression),
         REG("--rbxlx-convert-regression", runRbxlxConvertRegression),
         REG("--app-image-regression", runAppImageRegression),
         REG("--runtime-launch-args-regression", runRuntimeLaunchArgsRegression),

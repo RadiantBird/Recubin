@@ -874,3 +874,10 @@
 - Windows xmake Release RecubinCore / RecubinTest ビルド成功。`--rbxlx-convert-regression` 全 PASS（failures=0）。`--embedded-script-regression` も全 PASS。`git diff --check` 警告のみ（CRLF）。
 - 未検証: LocalScript / ModuleScript の埋め込みが実 GUI で正常に動くか、変換後スクリプトの実行動作。
 - 次: 実際の Roblox プロジェクトを変換してスクリプトの挙動を確認し、必要なら変換対象 API を追加する。
+
+## 2026-11-28 RCBN シリアライズ順の決定性
+
+- `codex/deterministic-rcbn-serialization` の変更を `e4d27c1` として確定し、`master` に `11b3c73` でマージ。
+- `RbxlxConverter.cpp` の競合では既存の埋め込みスクリプト出力を保持し、ordered children の出力を統合。
+- Windows xmake Release の `RecubinTest` ビルド成功。`--deterministic-rcbn-serialization-regression` 全 PASS（failures=0）。マージ差分の `git diff --check` 成功。
+- 未完了: なし。既存の RobloxScriptTranspiler 変更を含む `750bc5a` は保持。

@@ -37,6 +37,11 @@ Scene YAMLは`recubin.type: scene`、`version: 0`を使用する。ヘッダー�
 差し替えたり削除した結果を尊重する。標準参照を再設定できるのは、ユーザーが明示的に
 `Restore Default Animations`を実行した場合だけとする。
 
+Scene YAML（`.rcbn`）の各`Children`配列は、Explorerと同じカテゴリ優先度、クラス名、
+自然なInstance名の順で保存する。同じカテゴリ・クラス・名前のInstanceは、正規化した内容で順序を
+決定する。RBXLX変換では、この順序で重複名を一意化する。これは通常のScene保存とRBXLX変換出力の
+両方に適用する。プロパティは従来のschema定義順を維持する。
+
 ## アセット保存形式（.rcaet v1）
 
 選択したInstance部分木を再利用可能なアセットとして書き出す。ExplorerでInstanceを右クリックして

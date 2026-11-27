@@ -2,6 +2,7 @@
 #include <Core/RbxlxDocument.hpp>
 #include <Core/RobloxScriptTranspiler.hpp>
 #include <Util/AtomicFile.hpp>
+#include <Util/InstanceOrdering.hpp>
 #include <Util/Logger.hpp>
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
@@ -35,12 +36,14 @@ struct PendingRef {
 struct OutNode {
     std::string className;
     std::string name;
+    std::string sourceReferent;
     YAML::Node properties = YAML::Node(YAML::NodeType::Map);
     std::vector<std::unique_ptr<OutNode>> children;
     OutNode* parent = nullptr;
 
     bool spatial = false;   // Position/Rotation を座標親からのローカル値で書き出す
     bool isCube = false;    // ジョイントの参照先として有効か
+    bool isValueBase = false;
     CFrame world;           // spatial のときのワールド CFrame
     CFrame local;           // resolveTransforms で求める
 
@@ -82,6 +85,7 @@ std::unique_ptr<OutNode> makeNode(const char* className, const RbxNode& rbx) {
     auto node = std::make_unique<OutNode>();
     node->className = className;
     node->name = rbx.name();
+    node->sourceReferent = rbx.referent;
     return node;
 }
 
@@ -340,30 +344,35 @@ std::unique_ptr<OutNode> mapHumanoid(const RbxNode& rbx, Context&) {
 
 std::unique_ptr<OutNode> mapIntValue(const RbxNode& rbx, Context&) {
     auto out = makeNode("IntValue", rbx);
+    out->isValueBase = true;
     out->properties["Value"] = static_cast<long long>(rbx.getNumber("Value", 0.0));
     return out;
 }
 
 std::unique_ptr<OutNode> mapNumberValue(const RbxNode& rbx, Context&) {
     auto out = makeNode("NumberValue", rbx);
+    out->isValueBase = true;
     out->properties["Value"] = rbx.getNumber("Value", 0.0);
     return out;
 }
 
 std::unique_ptr<OutNode> mapBoolValue(const RbxNode& rbx, Context&) {
     auto out = makeNode("BoolValue", rbx);
+    out->isValueBase = true;
     out->properties["Value"] = rbx.getBool("Value", false);
     return out;
 }
 
 std::unique_ptr<OutNode> mapVector3Value(const RbxNode& rbx, Context&) {
     auto out = makeNode("Vector3Value", rbx);
+    out->isValueBase = true;
     out->properties["Value"] = toYaml(rbx.getVector3("Value").value_or(Vector3(0, 0, 0)));
     return out;
 }
 
 std::unique_ptr<OutNode> mapObjectValue(const RbxNode& rbx, Context&) {
     auto out = makeNode("ObjectValue", rbx);
+    out->isValueBase = true;
     const std::string referent = rbx.getRef("Value");
     if (!referent.empty()) out->refs.push_back(PendingRef{ "Value", referent });
     return out;
@@ -587,10 +596,122 @@ std::string sanitizeInstanceName(const std::string& name, const std::string& fal
     return result.empty() ? fallback : result;
 }
 
+std::string canonicalNodeKey(const OutNode& node) {
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << "ClassName" << YAML::Value << node.className;
+    out << YAML::Key << "Name" << YAML::Value << node.name;
+    out << YAML::Key << "SourceReferent" << YAML::Value << node.sourceReferent;
+    out << YAML::Key << "Spatial" << YAML::Value << node.spatial;
+    if (node.spatial)
+        out << YAML::Key << "World" << YAML::Value << toYaml(node.world);
+    out << YAML::Key << "IsCube" << YAML::Value << node.isCube;
+    out << YAML::Key << "IsValueBase" << YAML::Value << node.isValueBase;
+    out << YAML::Key << "RequireRefs" << YAML::Value << node.requireRefs;
+
+    std::vector<std::pair<std::string, YAML::Node>> properties;
+    properties.reserve(node.properties.size());
+    for (const auto& entry : node.properties)
+        properties.emplace_back(entry.first.as<std::string>(), entry.second);
+    std::sort(properties.begin(), properties.end(),
+        [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+    out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
+    for (const auto& [key, value] : properties)
+        out << YAML::Key << key << YAML::Value << value;
+    out << YAML::EndMap;
+
+    std::vector<std::pair<std::string, std::string>> refs;
+    refs.reserve(node.refs.size());
+    for (const PendingRef& ref : node.refs)
+        refs.emplace_back(ref.key, ref.referent);
+    std::sort(refs.begin(), refs.end());
+    out << YAML::Key << "References" << YAML::Value << YAML::BeginSeq;
+    for (const auto& [key, referent] : refs)
+        out << YAML::BeginMap
+            << YAML::Key << "Key" << YAML::Value << key
+            << YAML::Key << "Referent" << YAML::Value << referent
+            << YAML::EndMap;
+    out << YAML::EndSeq;
+
+    std::vector<std::string> childKeys;
+    childKeys.reserve(node.children.size());
+    for (const auto& child : node.children) {
+        if (child && !child->removed)
+            childKeys.push_back(canonicalNodeKey(*child));
+    }
+    std::sort(childKeys.begin(), childKeys.end());
+    out << YAML::Key << "Children" << YAML::Value << YAML::BeginSeq;
+    for (const std::string& childKey : childKeys)
+        out << childKey;
+    out << YAML::EndSeq;
+    out << YAML::EndMap;
+    return out.c_str();
+}
+
+InstanceOrdering::Key orderingKey(const OutNode& node) {
+    return InstanceOrdering::makeKey(
+        node.className, node.name, false, node.isValueBase, node.isCube);
+}
+
+std::vector<std::size_t> orderedChildIndices(const OutNode& node, bool includeRemoved) {
+    struct Entry {
+        std::size_t index;
+        InstanceOrdering::Key key;
+    };
+
+    std::vector<Entry> entries;
+    entries.reserve(node.children.size());
+    for (std::size_t i = 0; i < node.children.size(); ++i) {
+        const auto& child = node.children[i];
+        if (!child || (!includeRemoved && child->removed)) continue;
+        entries.push_back({i, orderingKey(*child)});
+    }
+    std::sort(entries.begin(), entries.end(), [](const Entry& lhs, const Entry& rhs) {
+        return InstanceOrdering::less(lhs.key, rhs.key);
+    });
+
+    std::size_t groupStart = 0;
+    while (groupStart < entries.size()) {
+        std::size_t groupEnd = groupStart + 1;
+        while (groupEnd < entries.size() &&
+               !InstanceOrdering::less(entries[groupStart].key, entries[groupEnd].key) &&
+               !InstanceOrdering::less(entries[groupEnd].key, entries[groupStart].key)) {
+            ++groupEnd;
+        }
+
+        if (groupEnd - groupStart > 1) {
+            struct TieBreakEntry {
+                Entry entry;
+                std::string contentKey;
+            };
+            std::vector<TieBreakEntry> tiedEntries;
+            tiedEntries.reserve(groupEnd - groupStart);
+            for (std::size_t i = groupStart; i < groupEnd; ++i) {
+                const OutNode& child = *node.children[entries[i].index];
+                tiedEntries.push_back({entries[i], canonicalNodeKey(child)});
+            }
+            std::sort(tiedEntries.begin(), tiedEntries.end(),
+                [](const TieBreakEntry& lhs, const TieBreakEntry& rhs) {
+                    return lhs.contentKey < rhs.contentKey;
+                });
+            for (std::size_t i = 0; i < tiedEntries.size(); ++i)
+                entries[groupStart + i] = tiedEntries[i].entry;
+        }
+        groupStart = groupEnd;
+    }
+
+    std::vector<std::size_t> result;
+    result.reserve(entries.size());
+    for (const Entry& entry : entries)
+        result.push_back(entry.index);
+    return result;
+}
+
 // Recubin は兄弟の名前が重なると自動でリネームし、パス参照が壊れるので先に一意にする。
 void uniquifyNames(OutNode& node) {
     std::set<std::string> used;
-    for (auto& child : node.children) {
+    for (std::size_t index : orderedChildIndices(node, true)) {
+        auto& child = node.children[index];
         const std::string base = sanitizeInstanceName(child->name, child->className);
         std::string candidate = base;
         for (int index = 2; used.count(candidate); ++index) {
@@ -665,13 +786,11 @@ void emitNode(YAML::Emitter& out, const OutNode& node, int& count) {
         out << YAML::Key << "Embedded" << YAML::Value << true;
         out << YAML::Key << "EmbeddedSource" << YAML::Value << node.embeddedSource;
     }
-    const bool hasChildren = std::any_of(node.children.begin(), node.children.end(),
-        [](const auto& child) { return !child->removed; });
-    if (hasChildren) {
+    const std::vector<std::size_t> children = orderedChildIndices(node, false);
+    if (!children.empty()) {
         out << YAML::Key << "Children" << YAML::Value << YAML::BeginSeq;
-        for (const auto& child : node.children) {
-            if (!child->removed) emitNode(out, *child, count);
-        }
+        for (std::size_t index : children)
+            emitNode(out, *node.children[index], count);
         out << YAML::EndSeq;
     }
     out << YAML::EndMap;
@@ -689,9 +808,8 @@ std::string emitScene(const OutNode& root, int& count) {
         << YAML::Key << "DefaultCameraMode" << YAML::Value << "Character"
         << YAML::EndMap;
     out << YAML::Key << "Children" << YAML::Value << YAML::BeginSeq;
-    for (const auto& child : root.children) {
-        if (!child->removed) emitNode(out, *child, count);
-    }
+    for (std::size_t index : orderedChildIndices(root, false))
+        emitNode(out, *root.children[index], count);
     out << YAML::EndSeq;
     out << YAML::EndMap;
     out << YAML::EndMap;
