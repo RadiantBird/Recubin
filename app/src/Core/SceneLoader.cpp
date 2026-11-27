@@ -76,6 +76,7 @@
 #include <Util/Logger.hpp>
 #include <Util/AtomicFile.hpp>
 #include <Util/AssetPath.hpp>
+#include <Util/InstanceOrdering.hpp>
 #include <iostream>
 #include <fstream>
 #include <memory>
@@ -146,6 +147,18 @@ bool isRuntimeCharacterInstance(const Instance* instance) {
     if (!instance) return false;
     return const_cast<Instance*>(instance)->getClassName() == "Model" &&
            isCanonicalRuntimeCharacterName(instance->Name);
+}
+
+std::vector<Instance*> serializedChildren(Instance& parent) {
+    std::vector<Instance*> children;
+    children.reserve(parent.children.size());
+    for (const auto& entry : parent.children) {
+        const auto& child = entry.second;
+        if (child && !child->IsA("ChatService"))
+            children.push_back(child.get());
+    }
+    InstanceOrdering::sortForSerialization(children);
+    return children;
 }
 
 }
@@ -761,10 +774,8 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     // ensureChildren() が既存の子を名前で採用（adopt）するため、再読込時に重複しない。
     if (!inst->children.empty()) {
         out << YAML::Key << "Children" << YAML::Value << YAML::BeginSeq;
-        for (auto const& [name, child] : inst->children) {
-            if (child && child->IsA("ChatService")) continue;
-            saveNode(out, child.get());
-        }
+        for (Instance* child : serializedChildren(*inst))
+            saveNode(out, child);
         out << YAML::EndSeq;
     }
 
@@ -851,10 +862,8 @@ SceneLoader::SerializeResult SceneLoader::serializeSceneResult(
     // Root は仮想的な親。その全ての子を Children として保存
     if (!root->children.empty()) {
         out << YAML::Key << "Children" << YAML::Value << YAML::BeginSeq;
-        for (auto const& [name, child] : root->children) {
-            if (child && child->IsA("ChatService")) continue;
-            saveNode(out, child.get());
-        }
+        for (Instance* child : serializedChildren(*root))
+            saveNode(out, child);
         out << YAML::EndSeq;
     }
     
