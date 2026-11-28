@@ -1040,3 +1040,47 @@
 - レビュー時に委譲差分がコンストラクタ内addChildを再導入していたため除去し、構築後の既存接続を維持。
 - Windows xmake Release Recubin/RecubinTest build成功。--active-camera-regressionは7チェックPASS、--free-camera-stop-regressionもPASS。git diff --check成功（CRLF警告のみ）。
 - 未検証: Studio実画面のマウス操作、No Signalの画面表示、Luau実スクリプトからのnil代入。次: 対象画面で操作確認し、問題が残る場合はNo Signalログのactive Camera名とWorkspacePathを確認する。
+## 2026-11-28 Camera右クリック視点移動と錐台表示
+
+- Cameraの視点コピーをExplorerのCamera専用右クリックメニュー「このカメラの視点へ移動」へ移動。Ctrl+Fは全InstanceでExplorer Revealに戻し、Ctrl押下中は通常FのSpatialフォーカスを実行しない。
+- PrimaryはFreeへ切り替えてから選択Cameraをコピーし、Secondaryは独立視点へコピー。User.Camera参照は変更しない。日英ローカライズを追加。
+- Rendering Debugにシーン全体のCamera錐台表示を追加。参照Workspaceと表示Workspaceが一致したCameraを、水色の短い錐台（near .25 / far 4）、光軸、上方向で表示。FOV45度とViewport aspectを使用。User配下や他Workspace階層下のCameraも参照先で判定する。
+- Windows xmake Release Recubin build成功。レビューでWorkspaceポインタの誤ったaddress取得とラインシェーダー再設定漏れを修正。仕様/Explorer/Renderer文書を更新。
+- 未検証: Studio実画面のメニュー・錐台表示。次: Rendering DebugをONにし、異なるWorkspace参照を持つCameraの描画先、回転、メニューによるPrimary/Secondary視点移動を確認。
+## 2026-11-28 制約なしCubeのフリング調査
+
+- test_scene.yamlのCharacterをspawnし、同Workspaceの隔離床上に制約なし1kg Cubeを置いて通常歩行させる`--character-cube-fling-probe`を追加。Studioと同じPhysics→User入力→Humanoid更新順で360tick実行。
+- 再現: root最大16.0341 studs/s、Cube最大73.5628 studs/s、角速度48.5611 rad/s。tick142で速度が[0.813715,18.0492,17.5049]→[1.18611,16.1891,-71.7495]へ変化（dv89.2745）。記録された接触開始は床のみ。
+- opt-in `RCBN_TRACE_FLING=1`でbefore-solver / after-solver / after-maintainの速度・位置急変と、動的足場へのpoint forceを記録。tick142でHumanoid hover反作用が1kg Cubeへ[-263.856,-7770.3,-8758.79] kg*stud/s^2、Cube端付近の一点へ適用され、そのステップのafter-solverで急変。Humanoid::updateGroundHoverの集約力反作用経路が修正候補。時間倍率だけの問題ではない。
+- YawForceを試験内だけで除去してもCube最大47.2324 studs/s、root34.9867となったため、Yaw補正だけを原因と断定しない。
+- 診断用コードのみ追加、物理パラメータ・計算挙動・Sceneデータは変更していない。Recubin/RecubinTestのWindows xmake Release build実施、probe実行成功。SoundはheadlessでAudioService未初期化のためskip警告あり。
+- 未完了: 動的足場に対するhover反作用の安定な連成設計と修正。ユーザーの実画面ログとの照合。次: 同一probeで反作用と接触解決の整合を修正し、Cube速度とCharacter移動の回帰を比較する。診断ログは原因修正と検証完了後に削除する。
+## 2026-11-28 動的足場hover反作用のフリング修正
+
+- Humanoid::updateGroundHoverが固定床前提の全Character質量×加速度を軽い足場の端へ返していた問題を修正。支持点の並進・回転逆有効質量とCharacterの重複しないnative body質量を使い、連成有効質量で支持力・接線力を求める。反力自体は同じ支持点へ返し、速度clampや軽い物体の除外は追加していない。
+- Physics/IPhysicsBackend/Box3DへgetPointInverseMassを追加。native COMと慣性、meter変換を使用。静的/kinematic支持は逆有効質量0で固定床応答を維持。無効な必須状態はログを出す。native接触でhover加速度0になる正常系はgroundedを維持する。
+- 同一test_scene由来CharacterのCube接触probeで最大Cube速度73.5628→8.52525 studs/s、最大角速度48.5611→18.5628 rad/s。root最大24.4045 studs/s。probeに接触後速度、有限性、tick数、有効質量のCOM/端/Anchored検査を追加し全PASS。
+- --moving-platform-regression、--character-hover-regressionとも全PASS。Windows xmake Release Recubin/RecubinTest build成功。git diff --check成功（CRLF警告のみ）。再現後の一時FlingTrace/FlingSupportログとRCBN_TRACE_FLING処理は削除済み。
+- Humanoid文書とspec更新。ユーザーのSceneデータは変更していない。未検証: Studio実画面での接触・ロープの体感確認。次: ユーザーのtest_sceneテストプレイで改善を確認する。
+## 2026-11-28 a10b9f2導入の相対歩行力と支持荷重の分離
+
+- 指定コミットa10b9f2を確認。水平速度指定から支持点速度を含む力ベース歩行への切替、接線力と動的支持点への反力を導入した変更だった。現在ソースにもその経路が残る。
+- 前回の補正は重力支持まで有効質量で縮小していた。追加検査で単独Cube時にRoot高さ1.17515・2秒の直進距離5.09886、隣接Cube時に高さ1.82869・直進5.08186と沈み込み/停滞を再現（速度上限だけの既存probeでは検出できなかった）。
+- Humanoid::updateGroundHoverで重力支持を分離して維持し、有効質量は法線方向の高さPD補正と接線方向の相対速度補正に個別適用するよう修正。指定コミットの動く床・慣性機能は維持。速度clampや物体除外は追加しない。
+- 修正後: 単独Cube最大15.3285 studs/s、Root最低高さ2.95971、直進29.3495。隣接Cube最大0.66955、Root最低2.97233、直進29.1875。両ケースTorso up.y最低1。両方で動的支持をshape castで確認し、支持高さ/姿勢/通過もassertする回帰へ拡張。
+- --character-cube-fling-probe、--character-cube-gap-regression、--character-hover-regression、--moving-platform-regression全PASS。Windows xmake Release Recubin/RecubinTest build成功。spec/Humanoid文書を修正。headless probeのSound未初期化skipは既知。
+- 未検証: ユーザー画像と完全に同じ位置・形状でのStudio GUI操作。次: test_sceneのテストプレイでCube間の歩行とフリングを実画面確認。
+## 2026-11-28 Character慣性制御をベータ機能へ隔離
+
+- ユーザー指示によりa10b9f2のCharacter相対慣性/反作用制御と、その後の有効質量補正を`RCBN_BETA_CHARACTER_INERTIA`で囲んだ。`app/include/Instances/Humanoid.hpp`で既定0、コンパイル時に上書き可能。ベータの再設計・リグ変更は行わず停止扱い。
+- 通常側は導入前のRoot水平速度指定、world Y速度を使う鉛直hover、JumpPower、Free/Program・focus loss時の全身XZ/角速度停止（Y保持）を使用。動的支持点への反力、床速度由来の慣性/空中補正、有効質量補正は実行しない。既存の高速落下ragdoll判定は維持。
+- ベータ側の元コードと一般のkinematic target/物理問い合わせAPIは保持。Camera、Sceneデータ、一般物理制約はこの切替の変更対象外。
+- 回帰を通常/ベータの期待動作で分岐し、moving-platform回帰の登録はベータ時のみ。停止の瞬間の速度は物理step前に検査し、その後の接触による微小速度とは区別する。
+- Windows xmake Release Recubin/RecubinTest build成功。既定OFFで--character-hover-regression、--free-camera-stop-regression、--character-cube-fling-probe、--character-cube-gap-regression全PASS。通常側のCube最大速度0.00784251 studs/s、Root最低高さ2.97538、2秒直進29.3964。停止後drift0.000778273。
+- spec、Humanoid、Physics文書へ既定OFFと対象機能を記録。未検証: ベータONでの再ビルド/実行、ユーザー実画面。次: 通常ビルドで操作確認。ベータ機能を再開する場合のみ別途設計・検証する。
+
+## 2026-11-28 編集開始時のFreeCamera選択
+
+- 起動時に設定したFreeがSceneRuntimeの保存ControlMode復元で上書きされ、編集開始時にもCharacter/Programが残る経路を確認。StudioApplication::installSceneで編集用の読込完了時にFreeへ切り替える。毎フレームの強制設定はしない。Sceneデータは変更していない。
+- active-camera回帰にCharacter未生成・編集入力での右ドラッグ回転、捕捉/解放、翌フレームの姿勢維持を追加し11チェックPASS。Windows xmake Release Recubin/RecubinTest build成功。MSVC/Windows依存のためGCC構文検査は省略。
+- ソースレビュー済み。未検証: Studio実画面での右ドラッグとフォーカス。保存modeの上書きは確認したが、ユーザーの回転不能の全原因とは断定していない。次: 起動直後のPrimary Viewportで右ドラッグを確認し、残る場合は実入力・focus・active Camera姿勢を同フレームで観測する。

@@ -627,6 +627,22 @@ std::optional<float> Physics::getBodyMass(const BaseCube& cube) const {
     return m_backend->getBodyMass(cube);
 }
 
+std::optional<float> Physics::getPointInverseMass(
+    const BaseCube& cube, const Vector3& worldPoint,
+    const Vector3& direction) const {
+    if (!isAvailable()) {
+        RCBN_ERROR("Cannot read point inverse mass: physics is unavailable for \""
+                   << cube.getFullPath() << "\"");
+        return std::nullopt;
+    }
+    if (!ownsBody(cube)) {
+        RCBN_ERROR("Cannot read point inverse mass for foreign or invalid body \""
+                   << cube.getFullPath() << "\"");
+        return std::nullopt;
+    }
+    return m_backend->getPointInverseMass(cube, worldPoint, direction);
+}
+
 void Physics::setLinearVelocity(BaseCube& cube, const Vector3& velocity) {
     if (isAvailable() && ownsBody(cube)) m_backend->setLinearVelocity(cube, velocity);
 }

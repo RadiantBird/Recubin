@@ -107,6 +107,10 @@ public:
     virtual std::optional<float> getBodyMass(const BaseCube&) const {
         return std::nullopt;
     }
+    virtual std::optional<float> getPointInverseMass(
+        const BaseCube&, const Vector3&, const Vector3&) const {
+        return std::nullopt;
+    }
     virtual void setLinearVelocity(BaseCube& cube, const Vector3& velocity) = 0;
     virtual void setAngularVelocity(BaseCube& cube, const Vector3& velocity) = 0;
     virtual void setGravityEnabled(BaseCube& cube, bool enabled) = 0;

@@ -939,6 +939,56 @@ std::optional<float> Box3DPhysicsBackend::getBodyMass(
     return mass;
 }
 
+std::optional<float> Box3DPhysicsBackend::getPointInverseMass(
+    const BaseCube& cube, const Vector3& worldPoint,
+    const Vector3& direction) const {
+    const b3BodyId id = bodyId(cube);
+    if (B3_IS_NULL(id) || !b3Body_IsValid(id)) {
+        RCBN_ERROR("Cannot read Box3D point inverse mass for \""
+                   << cube.getFullPath() << "\": invalid body");
+        return std::nullopt;
+    }
+    const float pointLengthSquared = worldPoint.lengthSquared();
+    const float directionLengthSquared = direction.lengthSquared();
+    if (!std::isfinite(pointLengthSquared) ||
+        !std::isfinite(directionLengthSquared) ||
+        directionLengthSquared <= 0.0f) {
+        RCBN_ERROR("Cannot read Box3D point inverse mass for \""
+                   << cube.getFullPath()
+                   << "\": invalid point or direction");
+        return std::nullopt;
+    }
+    if (b3Body_GetType(id) != b3_dynamicBody) {
+        return 0.0f;
+    }
+
+    const float directionLength = std::sqrt(directionLengthSquared);
+    const b3Vec3 normal{
+        direction.x / directionLength,
+        direction.y / directionLength,
+        direction.z / directionLength,
+    };
+    const b3Pos point = toB3Position(worldPoint);
+    const b3Pos center = b3Body_GetWorldCenterOfMass(id);
+    const b3Vec3 r{point.x - center.x, point.y - center.y, point.z - center.z};
+    const b3Vec3 angularImpulse{
+        r.y * normal.z - r.z * normal.y,
+        r.z * normal.x - r.x * normal.z,
+        r.x * normal.y - r.y * normal.x,
+    };
+    const b3Vec3 angularVelocity = b3MulMV(
+        b3Body_GetWorldInverseRotationalInertia(id), angularImpulse);
+    const float mass = b3Body_GetMass(id);
+    const float inverseMass = 1.0f / mass + b3Dot(angularImpulse, angularVelocity);
+    if (!std::isfinite(mass) || mass <= 0.0f ||
+        !std::isfinite(inverseMass) || inverseMass < 0.0f) {
+        RCBN_ERROR("Cannot read Box3D point inverse mass for \""
+                   << cube.getFullPath() << "\": invalid result=" << inverseMass);
+        return std::nullopt;
+    }
+    return inverseMass;
+}
+
 void Box3DPhysicsBackend::setLinearVelocity(
     BaseCube& cube, const Vector3& velocity) {
     const b3BodyId id = bodyId(cube);

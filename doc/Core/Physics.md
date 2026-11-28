@@ -51,7 +51,7 @@ Box3D worldは内蔵スケジューラを使用する。worker数は論理プロ
 
 `syncAllCubes()`はBodyEntryに保持した共有body状態を使い、Cubeごとの全Body再検索を行わない。単独Anchored Cubeは最後にnative bodyへ送ったworld CFrameと現在値が同一ならBox3Dへのtarget transform更新を省略する。親Spatialの移動等でworld CFrameが変わった場合は次の同期で更新する。Weld共有bodyとdynamic bodyは従来どおりnative bodyを正としてmember姿勢を反映する。
 
-連続移動の kinematic target は固定ステップのコールバック後、Humanoid の接地判定前に適用する。移動中の姿勢は native body から読み戻し、最後のステップの次で並進・角速度を止める。支持面の shape cast は Box3D の接触点速度を返す。Humanoid は支持点で動的な床へ反力を加える。
+連続移動の kinematic target は固定ステップのコールバック後、Humanoid の接地判定前に適用する。移動中の姿勢は native body から読み戻し、最後のステップの次で並進・角速度を止める。支持面の shape cast は Box3D の接触点速度を返す。Humanoid の支持点反力・床相対慣性制御は `RCBN_BETA_CHARACTER_INERTIA=1` のベータビルドに限定する（既定0）。
 
 浮力処理は、登録済みLiquidCubeがない固定ステップでは即時終了する。LiquidCubeの波面平面とworld AABBを固定ステップごとに一度だけ構築し、Dynamic BodyはBodyEntryをBody IDごとに一度だけグループ化する。各memberとLiquidCubeのworld AABBが交差した場合だけ、MeshCubeを含む動的頂点vectorで正確なpolyhedron clippingを行う。狭域計算の作業vectorはcapacityを再利用するが、MeshCubeの頂点数に固定上限は設けない。
 

@@ -13,6 +13,10 @@
 #include <utility>
 #include <vector>
 
+#ifndef RCBN_BETA_CHARACTER_INERTIA
+#define RCBN_BETA_CHARACTER_INERTIA 0
+#endif
+
 class Physics;   // Forward declaration
 class AnimationClip;
 struct ShapeCastHit;

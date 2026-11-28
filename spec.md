@@ -406,8 +406,13 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
   地面までの距離として使う。SpawnLocationがある場合はSpawnLocation上面へHipHeightを加えた位置へ配置する。
   SpawnLocationがない場合もfallback位置へ配置し、同じHipHeightをhover目標として使う。
   GroundHeight、接地、Truss中の重力設定は操作入力とは独立した物理更新として毎フレーム評価する。
+  `RCBN_BETA_CHARACTER_INERTIA`（既定0）が無効の場合、a10b9f2導入前の水平速度制御と鉛直ホバーを使用する。
+  動的支持点への反力と有効質量補正は無効。以下の床相対慣性制御はマクロ1のベータビルドに限定する。
   接地中の歩行速度は足元の床に対する速度とする。支持荷重と摩擦係数で制限した接線力で歩行・停止し、
   動的な支持剛体には支持力と接線力の反力を支持点に適用する。床との相対速度には床の並進と回転を含める。
+  支持点の並進・回転を含む逆有効質量とCharacter全身の質量から連成有効質量を求め、法線・接線それぞれの相対運動補正へ反映する。
+  重力を釣り合わせる支持荷重は相対運動補正と分離し、有効質量で縮小しない。
+  Anchoredの床では従来の支持応答を維持する。
   ジャンプと床の端からの離床では水平のワールド速度を引き継ぐ。地上ジャンプのJumpPowerは支持点に対する上向きの初速とする。
   空中入力の加速には上限を設ける。Anchoredの支持剛体を連続移動させるスクリプトは`BaseCube:SetKinematicTarget`を使う。
   Truss接触時はCharacter Modelに属する全dynamic R6 bodyの重力を無効化する。W入力中は`ClimbingUp`、S入力中は
@@ -500,9 +505,11 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
   Cameraは明示したWorkspaceをワールド座標で描画する。CameraのCFrameは親階層の変形や付替えの影響を受けない。
   Characterでは従来の追従・ズーム処理が参照Cameraを更新し、ProgramではLuauがCamera.CFrameを制御する。
   Freeでは内部FreeCameraが従来の自由操作を行い、Freeへ入る際は直前の姿勢とWorkspaceを引き継ぐ。
+  Studioの起動および編集用Scene読込後は、保存されたControlModeにかかわらずFreeで編集を開始する。
   CameraまたはWorkspace参照が不正なら青背景の“No Signal”を表示して理由をログへ記録する。
-- Camera選択時のCtrl+Fは選択Cameraの姿勢とWorkspaceを対象ViewportのFreeCameraへコピーする。
-  User.Cameraは変更せず、以後のCamera変更にも追従しない。通常InstanceのCtrl+FはExplorer表示を維持する。
+- Camera専用の右クリックメニュー「このカメラの視点へ移動」は、姿勢とWorkspaceを対象ViewportのFreeCameraへコピーする。
+  User.Cameraは変更せず、以後のCamera変更にも追従しない。Ctrl+FはすべてのInstanceでExplorer表示に使用する。
+  描画デバッグでは、表示Workspaceを参照するCameraを短い錐台・前方向・上方向の線で表示する。
 - 旧シーンにCamera参照がない場合は旧Userカメラ設定を既定Cameraへ移行する。新形式のCamera値を優先する。
 - 入力を管理する
 - `MovementInputEnabled`/`CameraInputEnabled`/`HotkeyInputEnabled`/`ToolInputEnabled`は既定trueの保存対象で、

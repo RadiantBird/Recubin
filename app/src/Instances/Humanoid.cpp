@@ -485,6 +485,7 @@ void Humanoid::updateGroundHover(
     ShapeCastHit groundHit;
     bool hasFloor = sampleGround(*physics, *root, floorDetectionDistance, groundHit);
     float relativeY = verticalVelocity;
+#if RCBN_BETA_CHARACTER_INERTIA
     if (hasFloor) {
         relativeY -= groundHit.pointVelocity.y;
         // A nearby support moving toward us can require earlier braking.
@@ -497,6 +498,7 @@ void Humanoid::updateGroundHover(
         }
         dynamicLandingCaptureDistance = captureDistance(relativeY);
     }
+#endif
     RaycastHit floor;
     if (hasFloor) {
         floor.hit = true;
@@ -577,6 +579,7 @@ void Humanoid::updateGroundHover(
             settings.landingCaptureDistance;
     const Vector3 desiredVelocity = currentMoveDir * WalkSpeed;
     const auto applyAirControl = [&] {
+#if RCBN_BETA_CHARACTER_INERTIA
         if (m_hasWalkInput) {
             constexpr float AIR_ACCELERATION = 12.0f;
             const Vector3 velocity = physics->getLinearVelocity(*root);
@@ -589,6 +592,7 @@ void Humanoid::updateGroundHover(
                 return;
             }
         }
+#endif
         setHoverForces(physics, false, {});
     };
     // HipHeight is the hover setpoint, not a continuously evaluated jump
@@ -607,11 +611,16 @@ void Humanoid::updateGroundHover(
         m_hoverSuppressedForJump = false;
     }
     if (enteringAirborneLandingCapture) {
+#if RCBN_BETA_CHARACTER_INERTIA
+        const Vector3 supportVelocity = groundHit.pointVelocity;
+#else
+        const Vector3 supportVelocity{};
+#endif
         const auto landingImpact = getLandingImpactEquivalentSpeed(
             physics,
             std::max(0.0f, maximumNetUpwardAcceleration),
             settings.landingCaptureDistance,
-            groundHit.pointVelocity
+            supportVelocity
         );
         if (landingImpact && *landingImpact >= ImpactRagdollThreshold) {
             enterRagdoll(physics, *landingImpact);
@@ -619,12 +628,24 @@ void Humanoid::updateGroundHover(
             return;
         }
     }
+#if RCBN_BETA_CHARACTER_INERTIA
     if (!hasFloor || !withinLandingCapture) {
         isGrounded = false;
     } else if (atHipHeight) {
         isGrounded = true;
     }
+#else
+    if (!hasFloor) {
+        isGrounded = false;
+    } else if (atHipHeight) {
+        isGrounded = true;
+    }
+#endif
+#if RCBN_BETA_CHARACTER_INERTIA
     if (!hasFloor || (!isGrounded && !withinLandingCapture)) {
+#else
+    if (!hasFloor) {
+#endif
         applyAirControl();
         return;
     }
@@ -635,14 +656,80 @@ void Humanoid::updateGroundHover(
         isGrounded = false;
         return;
     }
+#if RCBN_BETA_CHARACTER_INERTIA
     const Vector3 normal = groundHit.normal;
-    const float verticalAcceleration = std::clamp(
-        gravityMagnitude * settings.gravityCompensationScale +
-            settings.stiffness * (HipHeight - floor.distance) - settings.damping * relativeY,
-        0.0f, settings.maxUpwardAcceleration);
+    const float gravityVertical = gravityMagnitude * settings.gravityCompensationScale;
+    const float verticalCorrection =
+        settings.stiffness * (HipHeight - floor.distance) -
+        settings.damping * relativeY;
     const bool nativeSupport = support && floor.distance >= HipHeight &&
         physics->hasSupportContact(*root, *support);
-    const float normalAcceleration = nativeSupport ? 0.0f : verticalAcceleration / normal.y;
+    float totalMass = 0.0f;
+    std::vector<PhysicsBodyHandle> handledBodies;
+    for (const auto& body : collectCharacterBodies()) {
+        if (!body || body->Anchored || !physics->hasBody(*body)) {
+            continue;
+        }
+        const auto handle = physics->getBodyHandle(*body);
+        if (std::ranges::find(handledBodies, handle) != handledBodies.end()) {
+            continue;
+        }
+        const auto mass = physics->getBodyMass(*body);
+        if (!mass) {
+            RCBN_ERROR("Humanoid \"" << getFullPath() << "\": cannot read hover body mass for " << body->getFullPath());
+            setHoverForces(physics, false, {});
+            isGrounded = false;
+            return;
+        }
+        handledBodies.push_back(handle);
+        totalMass += *mass;
+    }
+    if (!std::isfinite(totalMass) || totalMass <= 0.0f) {
+        RCBN_ERROR("Humanoid \"" << getFullPath() << "\": invalid hover mass=" << totalMass
+                   << " for coupled support response");
+        setHoverForces(physics, false, {});
+        isGrounded = false;
+        return;
+    }
+
+    auto getSupportScale = [&](const Vector3& direction) -> std::optional<float> {
+        if (!support) {
+            return 1.0f;
+        }
+        const auto inverseMass = physics->getPointInverseMass(
+            *support, groundHit.position, direction);
+        if (!inverseMass || !std::isfinite(*inverseMass) || *inverseMass < 0.0f) {
+            RCBN_ERROR("Humanoid \"" << getFullPath()
+                       << "\": invalid hover support inverse mass for "
+                       << support->getFullPath());
+            return std::nullopt;
+        }
+        const float denominator = 1.0f + totalMass * *inverseMass;
+        if (!std::isfinite(denominator) || denominator <= 0.0f) {
+            RCBN_ERROR("Humanoid \"" << getFullPath()
+                       << "\": invalid coupled hover mass denominator="
+                       << denominator);
+            return std::nullopt;
+        }
+        return 1.0f / denominator;
+    };
+
+    float normalScale = 1.0f;
+    if (!nativeSupport && std::abs(verticalCorrection) > 0.0f) {
+        const auto scale = getSupportScale(normal);
+        if (!scale) {
+            setHoverForces(physics, false, {});
+            isGrounded = false;
+            return;
+        }
+        normalScale = *scale;
+    }
+    // Effective mass governs relative motion corrections, not the load needed
+    // to balance Character gravity. Scaling that load makes a supported rig sink.
+    const float normalLoad = std::clamp(
+        gravityVertical + verticalCorrection * normalScale,
+        0.0f, settings.maxUpwardAcceleration);
+    const float normalAcceleration = nativeSupport ? 0.0f : normalLoad / normal.y;
     Vector3 acceleration = normal * normalAcceleration;
     if (isGrounded && (normalAcceleration > 0.0f || (nativeSupport && m_hasWalkInput))) {
         const Vector3 error = groundHit.pointVelocity + desiredVelocity -
@@ -657,8 +744,27 @@ void Humanoid::updateGroundHover(
             const float driveLoad = nativeSupport ? gravityMagnitude / normal.y : normalAcceleration;
             const float gain = std::min(
                 1.0f / CONTROL_STEP, friction * driveLoad / speedError);
-            acceleration += tangentError * gain;
+            const auto tangentScale = getSupportScale(tangentError / speedError);
+            if (!tangentScale) {
+                setHoverForces(physics, false, {});
+                isGrounded = false;
+                return;
+            }
+            acceleration += tangentError * (gain * *tangentScale);
         }
+    }
+    const float accelerationLengthSquared = acceleration.lengthSquared();
+    if (!std::isfinite(accelerationLengthSquared)) {
+        RCBN_ERROR("Humanoid \"" << getFullPath()
+                   << "\": invalid hover accelerationSquared="
+                   << accelerationLengthSquared);
+        setHoverForces(physics, false, {});
+        isGrounded = false;
+        return;
+    }
+    if (accelerationLengthSquared == 0.0f) {
+        setHoverForces(physics, false, {});
+        return;
     }
     const Vector3 force = setHoverForces(physics, true, acceleration);
     if (support && force.lengthSquared() > 0.0f &&
@@ -666,7 +772,16 @@ void Humanoid::updateGroundHover(
         setHoverForces(physics, false, {});
         isGrounded = false;
     }
+    logGroundDebug("hover", normalLoad);
+#else
+    const float verticalAcceleration = std::clamp(
+        gravityMagnitude * settings.gravityCompensationScale +
+            settings.stiffness * (HipHeight - floor.distance) -
+            settings.damping * verticalVelocity,
+        0.0f, settings.maxUpwardAcceleration);
+    setHoverForces(physics, true, Vector3(0.0f, verticalAcceleration, 0.0f));
     logGroundDebug("hover", verticalAcceleration);
+#endif
 }
 
 // プロパティ・メタデータ表（単一の正）。ここから Luau getter/setter・YAML 読込/保存・
@@ -1764,6 +1879,18 @@ void Humanoid::stopCharacterMotion(Physics* physics) {
 
     currentMoveDir = {};
     m_hasWalkInput = false;
+#if !RCBN_BETA_CHARACTER_INERTIA
+    for (const auto& body : collectCharacterBodies()) {
+        if (!body || !physics->hasBody(*body)) {
+            continue;
+        }
+        Vector3 velocity = physics->getLinearVelocity(*body);
+        velocity.x = 0.0f;
+        velocity.z = 0.0f;
+        physics->setLinearVelocity(*body, velocity);
+        physics->setAngularVelocity(*body, Vector3());
+    }
+#endif
 }
 
 void Humanoid::setHealth(float v) {
@@ -2141,6 +2268,18 @@ void Humanoid::move(const Vector3& flatForward, const Vector3& flatRight, bool i
         setClimbForces(physics, true, climbVel);
     }
     m_hasWalkInput = !trussCube && isPressingMove && currentMoveDir.lengthSquared() > 0.0001f;
+#if !RCBN_BETA_CHARACTER_INERTIA
+    if (!trussCube && currentMoveDir.length() > 0.01f) {
+        const Vector3 velocity = currentMoveDir * WalkSpeed;
+        const Vector3 currentVelocity = physics->getLinearVelocity(*root);
+        physics->setLinearVelocity(
+            *root, Vector3(velocity.x, currentVelocity.y, velocity.z));
+    } else if (!trussCube) {
+        const Vector3 currentVelocity = physics->getLinearVelocity(*root);
+        physics->setLinearVelocity(
+            *root, Vector3(0.0f, currentVelocity.y, 0.0f));
+    }
+#endif
 
     // --- アニメーションサイクル（0.0 ~ 1.0）の更新 ---
     const float animationStep = 0.025f * frameScale;
@@ -2236,12 +2375,14 @@ void Humanoid::jump(Physics* physics) {
     }
 
     ShapeCastHit support;
+#if RCBN_BETA_CHARACTER_INERTIA
     if (!climbingJump && !submerged &&
         !sampleGround(*physics, *root,
             HipHeight + CharacterRig::groundHeightSettings().landingCaptureDistance,
             support)) {
         return;
     }
+#endif
 
     if (climbingJump) {
         m_state = State::Normal;
@@ -2277,7 +2418,10 @@ void Humanoid::jump(Physics* physics) {
                     *part
                 );
 
-            velocity.y = JumpPower + support.pointVelocity.y;
+            velocity.y = JumpPower;
+#if RCBN_BETA_CHARACTER_INERTIA
+            velocity.y += support.pointVelocity.y;
+#endif
 
             physics->setLinearVelocity(
                 *part,

@@ -108,6 +108,9 @@ public:
     Vector3 getAngularVelocity(const BaseCube& cube) const;
     float consumeContactImpact(const BaseCube& cube) const;
     std::optional<float> getBodyMass(const BaseCube& cube) const;
+    std::optional<float> getPointInverseMass(
+        const BaseCube& cube, const Vector3& worldPoint,
+        const Vector3& direction) const;
     void setLinearVelocity(BaseCube& cube, const Vector3& velocity);
     void setAngularVelocity(BaseCube& cube, const Vector3& velocity);
     void setGravityEnabled(BaseCube& cube, bool enabled);

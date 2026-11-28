@@ -16025,6 +16025,22 @@ int runActiveCameraRegression() {
            "rotation changes active Camera property");
     expect((user->getCamera()->getRotation().getForward() - initial.Rotation.getForward()).lengthSquared() < 0.0001f,
            "Free input preserves inactive Character Camera");
+    input->pressedKeys.clear();
+    const Vector3 beforeDrag = freeCamera->getRotation().getForward();
+    input->pressedMouseButtons.insert(MouseButton::Right);
+    user->processInput(nullptr, 1.0f / 60, true, true, false, false);
+    expect(input->mouseCaptured, "editor right drag captures cursor");
+    input->cursorX += 40.0;
+    input->cursorY += 20.0;
+    user->processInput(nullptr, 1.0f / 60, true, true, false, false);
+    const Vector3 afterDrag = freeCamera->getRotation().getForward();
+    expect((afterDrag - beforeDrag).lengthSquared() > 0.0001f,
+           "editor right drag rotates FreeCamera without Character");
+    input->pressedMouseButtons.clear();
+    user->processInput(nullptr, 1.0f / 60, true, true, false, false);
+    expect(!input->mouseCaptured, "editor right drag releases cursor");
+    expect((freeCamera->getRotation().getForward() - afterDrag).lengthSquared() < 0.0001f,
+           "editor rotation survives next input frame");
     auto workspace = std::make_shared<Workspace>();
     freeCamera->WorkspacePath = "Workspace";
     freeCamera->setRuntimeWorkspace(workspace.get());
@@ -16033,6 +16049,166 @@ int runActiveCameraRegression() {
     expect(freeCamera->WorkspacePath.empty() && !freeCamera->getReferencedWorkspace(),
            "nil clears both Workspace reference sources");
     return failures ? 1 : 0;
+}
+
+int runCharacterCubeContactRegression(bool adjacentCubes) {
+    auto findFirst = [](auto&& self, Instance* root, const std::string& className) -> Instance* {
+        if (!root) return nullptr;
+        if (root->getClassName() == className) return root;
+        for (const auto& [_, child] : root->children) {
+            if (Instance* found = self(self, child.get(), className)) return found;
+        }
+        return nullptr;
+    };
+    const std::filesystem::path scenePath = "assets/scenes/test_scene.yaml";
+    auto backend = std::make_unique<FrameRateTestInputBackend>();
+    auto* input = backend.get();
+    auto user = std::make_shared<User>(std::move(backend));
+    auto sceneSystem = std::make_shared<System>();
+    SceneLoader::LoadContext context;
+    context.registerMergeInstance("System", sceneSystem);
+    context.registerMergeInstance("User", user);
+    auto loaded = SceneLoader::loadSceneResult(scenePath.string(), context);
+    if (!loaded) {
+        std::cout << "[CharacterCubeFlingProbe] load failed: " << loaded.message << '\n';
+        return 1;
+    }
+    auto system = std::dynamic_pointer_cast<System>(loaded.root);
+    Instance* workspaceNode = system ? findFirst(findFirst, system.get(), "Workspace") : nullptr;
+    auto workspace = workspaceNode ? std::dynamic_pointer_cast<Workspace>(workspaceNode->shared_from_this()) : nullptr;
+    if (!system || !workspace) {
+        std::cout << "[CharacterCubeFlingProbe] missing System/Workspace\n";
+        return 1;
+    }
+    workspace->initPhysics();
+    Physics* physics = workspace->getPhysicsEngine();
+    auto floor = std::make_shared<Cube>(Vector3(10000, -0.5f, 0), Vector3(100, 1, 100), Cube::defaultTextureID);
+    floor->Name = "FlingProbeFloor";
+    floor->Anchored = true;
+    workspace->addChild(floor);
+    user->spawnCharacter(system.get(), workspace.get(), Vector3(10000, 3, 0));
+    user->setControlMode(User::ControlMode::Character);
+    if (!user->character) {
+        std::cout << "[CharacterCubeFlingProbe] character spawn failed\n";
+        return 1;
+    }
+    if (user->character->Parent.expired()) workspace->addChild(user->character);
+    auto cube = std::make_shared<Cube>(Vector3(3.0f, 2.0f, 0.0f), Vector3(1, 1, 1), Cube::defaultTextureID);
+    cube->Name = "FlingProbeCube";
+    cube->Anchored = false;
+    cube->CanCollide = true;
+    workspace->addChild(cube);
+    constexpr float dt = 1.0f / 60.0f;
+    float maxCubeLinear = 0.0f, maxCubeAngular = 0.0f;
+    float maxRootLinear = 0.0f, maxRootAngular = 0.0f;
+    auto root = user->humanoid ? user->humanoid->getRootPart() : nullptr;
+    float maxLimbLinear = 0.0f;
+    bool finiteMotion = true;
+    cube->teleportTo(Vector3(10000, 0.5f, -4));
+    std::shared_ptr<Cube> secondCube;
+    if (adjacentCubes) {
+        secondCube = std::make_shared<Cube>(Vector3(10001.1f, 0.5f, -4), Vector3(1, 1, 1), Cube::defaultTextureID);
+        secondCube->Name = "FlingProbeAdjacentCube";
+        secondCube->CanCollide = true;
+        workspace->addChild(secondCube);
+    }
+    bool walking = false;
+    bool sampledDynamicSupport = false;
+    float minimumRootHeight = std::numeric_limits<float>::max();
+    float minimumTorsoUpY = 1.0f;
+    const auto torso = user->humanoid->getTorsoPart();
+    int probeContacts = 0;
+    auto previousContactCallback = Physics::s_contactCallback;
+    Physics::s_contactCallback = [&](BaseCube* first, BaseCube* second) {
+        if (first == cube.get() || second == cube.get()) {
+            ++probeContacts;
+        }
+    };
+    auto frame = [&]() {
+        physics->update(*workspace, dt);
+        user->processInput(physics, dt, true, true, true, false);
+        Humanoid::updateAll(workspace->getRenderHumanoids(), dt, physics);
+        for (const auto& body : CharacterRig::collectR6Bodies(user->character.get())) {
+            maxLimbLinear = std::max(maxLimbLinear, physics->getLinearVelocity(*body).length());
+        }
+        const Vector3 cv = physics->getLinearVelocity(*cube);
+        const Vector3 ca = physics->getAngularVelocity(*cube);
+        finiteMotion = finiteMotion && std::isfinite(cv.length()) && std::isfinite(ca.length());
+        maxCubeLinear = std::max(maxCubeLinear, cv.length());
+        maxCubeAngular = std::max(maxCubeAngular, ca.length());
+        if (root) {
+            maxRootLinear = std::max(maxRootLinear, physics->getLinearVelocity(*root).length());
+            maxRootAngular = std::max(maxRootAngular, physics->getAngularVelocity(*root).length());
+            if (walking) {
+                minimumRootHeight = std::min(minimumRootHeight, root->getWorldPosition().y);
+                if (torso) minimumTorsoUpY = std::min(minimumTorsoUpY, torso->getWorldCFrame().Rotation.getUp().y);
+                ShapeCastHit supportHit;
+                const CFrame rootFrame = physics->getMemberWorldCFrame(*root);
+                const CFrame probeFrame(rootFrame.pointToWorld(Vector3(0, 0.05f, 0)), rootFrame.Rotation);
+                if (physics->shapeCastBox(probeFrame, Vector3(root->Size.x, 0.1f, root->Size.z),
+                        Vector3(0, -1, 0), user->humanoid->getHipHeight() + 3.0f,
+                        supportHit, user->character.get(), 0.5f)) {
+                    sampledDynamicSupport = sampledDynamicSupport || supportHit.instance == cube.get() ||
+                        (secondCube && supportHit.instance == secondCube.get());
+                }
+            }
+        }
+    };
+    for (int i = 0; i < 120; ++i) frame();
+    walking = true;
+    input->pressedKeys.insert(KeyCode::W);
+    for (int i = 0; i < 120; ++i) frame();
+    const float straightProgress = -root->getWorldPosition().z;
+    input->pressedKeys.insert(KeyCode::Right);
+    for (int i = 0; i < 120; ++i) frame();
+    std::cout << "[CharacterCubeFlingProbe] cubeLinearMax=" << maxCubeLinear
+              << " cubeAngularMax=" << maxCubeAngular
+              << " rootLinearMax=" << maxRootLinear
+              << " rootAngularMax=" << maxRootAngular << " limbLinearMax=" << maxLimbLinear
+              << " cubePosition=" << cube->getWorldPosition().x << ','
+              << cube->getWorldPosition().y << ',' << cube->getWorldPosition().z
+              << " contacts=" << probeContacts << " mass=" << physics->getBodyMass(*cube).value_or(-1)
+              << " ticks=" << physics->getSimulationTick() << '\n';
+    std::cout << "[CharacterCubeFlingProbe] adjacent=" << adjacentCubes
+              << " minRootHeight=" << minimumRootHeight << " minTorsoUpY=" << minimumTorsoUpY
+              << " straightProgress=" << straightProgress << '\n';
+    Physics::s_contactCallback = previousContactCallback;
+    int failures = 0;
+    auto expect = [&](bool condition, const char* message) {
+        std::cout << "[CharacterCubeFlingProbe] " << (condition ? "PASS: " : "FAIL: ") << message << '\n';
+        if (!condition) ++failures;
+    };
+    expect(sampledDynamicSupport, "the walking character samples the dynamic cubes as support");
+    expect(finiteMotion, "contact velocities remain finite");
+    expect(maxCubeLinear <= user->humanoid->WalkSpeed * 2.0f,
+           "the unconstrained cube is not launched above twice walking speed");
+    expect(maxRootLinear <= user->humanoid->WalkSpeed * 2.0f,
+           "the reaction does not launch the character");
+    expect(physics->getSimulationTick() == 360, "six seconds advances exactly 360 fixed steps");
+    expect(minimumRootHeight > 2.5f, "the character retains support height while crossing cubes");
+    expect(minimumTorsoUpY > 0.8f, "the torso remains upright while crossing cubes");
+    expect(straightProgress > 12.0f, "walking passes the cube instead of remaining trapped");
+    const CFrame cubeFrame = physics->getMemberWorldCFrame(*cube);
+    const Vector3 direction = cubeFrame.Rotation.getUp();
+    const auto centerMobility = physics->getPointInverseMass(*cube, cubeFrame.Position, direction);
+    const auto edgeMobility = physics->getPointInverseMass(
+        *cube, cubeFrame.pointToWorld(Vector3(0.5f, 0, 0)), direction);
+    const auto floorMobility = physics->getPointInverseMass(*floor, floor->getWorldPosition(), direction);
+    expect(centerMobility && std::abs(*centerMobility - 1.0f) < 0.01f,
+           "center mobility uses the native one-kilogram mass");
+    expect(edgeMobility && std::abs(*edgeMobility - 2.5f) < 0.05f,
+           "edge mobility includes rotational inertia and correct length units");
+    expect(floorMobility && *floorMobility == 0.0f,
+           "anchored support has zero mobility and preserves fixed-floor response");
+    return failures == 0 ? 0 : 1;
+}
+
+int runCharacterCubeFlingProbe() {
+    return runCharacterCubeContactRegression(false);
+}
+
+int runCharacterCubeGapRegression() {
+    return runCharacterCubeContactRegression(true);
 }
 
 int runFreeCameraStopRegression() {
@@ -16084,10 +16260,32 @@ int runFreeCameraStopRegression() {
            "the character walks while W is held");
 
     // W を押したまま L で Free へ
+    const Vector3 velocityBeforeFree = physics->getLinearVelocity(*root);
     input->pressedKeys.insert(KeyCode::L);
-    frame();
+    user->processInput(physics, dt, true, true, true, false);
     expect(user->getControlMode() == User::ControlMode::Free, "L switches to Free");
     input->pressedKeys.clear();
+
+    const Vector3 velocityAfterFree = physics->getLinearVelocity(*root);
+#if defined(RCBN_BETA_CHARACTER_INERTIA) && RCBN_BETA_CHARACTER_INERTIA
+    expect(Vector3(velocityAfterFree.x, 0.0f, velocityAfterFree.z).length() > 8.0f,
+           "entering Free preserves existing world momentum");
+#else
+    bool rigMotionStopped = true;
+    for (const auto& body : CharacterRig::collectR6Bodies(character.get())) {
+        if (!body || !physics->hasBody(*body)) {
+            continue;
+        }
+        const Vector3 bodyVelocity = physics->getLinearVelocity(*body);
+        const Vector3 bodyAngularVelocity = physics->getAngularVelocity(*body);
+        rigMotionStopped = rigMotionStopped &&
+            std::abs(bodyVelocity.x) < 0.01f && std::abs(bodyVelocity.z) < 0.01f &&
+            bodyAngularVelocity.lengthSquared() < 0.0001f;
+    }
+    expect(rigMotionStopped, "entering Free stops rig horizontal and angular motion");
+    expect(std::abs(velocityAfterFree.y - velocityBeforeFree.y) < 0.01f,
+           "entering Free preserves the Root vertical velocity");
+#endif
 
     const Vector3 stopped = root->getWorldPosition();
     for (int i = 0; i < 60; ++i) frame();
@@ -16095,10 +16293,15 @@ int runFreeCameraStopRegression() {
     const float drift = Vector3(after.x - stopped.x, 0.0f, after.z - stopped.z).length();
     const Vector3 velocity = physics->getLinearVelocity(*root);
     std::cout << "[FreeCameraStop] drift=" << drift << '\n';
+#if defined(RCBN_BETA_CHARACTER_INERTIA) && RCBN_BETA_CHARACTER_INERTIA
     expect(drift < 1.5f, "the character brakes within a limited distance after switching to Free");
     expect(Vector3(velocity.x, 0.0f, velocity.z).lengthSquared() < 1.0f,
            "the character has only residual horizontal velocity in Free");
-
+#else
+    expect(drift < 0.2f, "the character remains stopped after switching to Free");
+    expect(Vector3(velocity.x, 0.0f, velocity.z).lengthSquared() < 0.01f,
+           "the character has no horizontal velocity in Free");
+#endif
     return failures == 0 ? 0 : 1;
 }
 
@@ -16249,7 +16452,11 @@ int runCharacterHoverRegression() {
         const Vector3 velocity = physics->getLinearVelocity(*root);
         return Vector3(velocity.x, 0.0f, velocity.z).length();
     };
+#if RCBN_BETA_CHARACTER_INERTIA
     expect(horizontalSpeed() > 8.0f, "entering Free preserves existing world momentum");
+#else
+    expect(horizontalSpeed() < 0.01f, "entering Free stops legacy horizontal motion");
+#endif
     for (int step = 0; step < 30; ++step) {
         physics->update(*workspace, 1.0f / 60.0f);
     }
@@ -16271,11 +16478,15 @@ int runCharacterHoverRegression() {
         }
     }
     modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
+#if defined(RCBN_BETA_CHARACTER_INERTIA) && RCBN_BETA_CHARACTER_INERTIA
     expect(horizontalSpeed() > 8.0f, "losing focus preserves existing world momentum");
     for (int step = 0; step < 30; ++step) {
         physics->update(*workspace, 1.0f / 60.0f);
     }
     expect(horizontalSpeed() < 0.5f, "ground traction brakes the character after focus loss");
+#else
+    expect(horizontalSpeed() < 0.01f, "losing focus stops existing horizontal momentum");
+#endif
 
     modeUser->setControlMode(User::ControlMode::Character);
     modeUser->processInput(physics, 1.0f / 60.0f, false, false, false, false);
@@ -20638,9 +20849,13 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--motor6d-gyro-regression", runMotor6DGyroRegression),
         REG("--ragdoll-motor-recovery-regression", runRagdollMotorRecoveryRegression),
         REG("--character-hover-regression", runCharacterHoverRegression),
+#if defined(RCBN_BETA_CHARACTER_INERTIA) && RCBN_BETA_CHARACTER_INERTIA
         REG("--moving-platform-regression", runMovingPlatformRegression),
+#endif
         REG("--free-camera-stop-regression", runFreeCameraStopRegression),
         REG("--active-camera-regression", runActiveCameraRegression),
+        REG("--character-cube-fling-probe", runCharacterCubeFlingProbe),
+        REG("--character-cube-gap-regression", runCharacterCubeGapRegression),
         REG("--default-camera-mode-regression", runDefaultCameraModeRegression),
         REG("--scene-load-transaction-regression", runSceneLoadTransactionRegression),
         REG("--system-extension-regression", runSystemExtensionRegression),
