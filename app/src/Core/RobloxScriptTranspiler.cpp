@@ -93,6 +93,13 @@ bool isKnownRecubinCreatableClass(std::string_view name) {
     return known.find(name) != known.end();
 }
 
+std::string_view recubinClassName(std::string_view name) {
+    if (name == "BasePart") {
+        return "BaseCube";
+    }
+    return name;
+}
+
 // 元ソースの実際の開き引用符文字を使用して再現する。
 // AST の quoteStyle は古い Luau バージョンでは常に QuotedSimple になる場合があるため、
 // 元ソース文字を直接参照する方が確実。
@@ -120,6 +127,24 @@ public:
     const std::vector<std::string>& warnings() const { return m_warnings; }
 
     bool visit(Luau::AstExprCall* node) override {
+        if (auto* method = node->func->as<Luau::AstExprIndexName>()) {
+            if (method->op == ':') {
+                const std::string_view methodName = method->index.value;
+                if (methodName == "IsA") {
+                    rewriteRobloxClassArgument(node);
+                }
+                if (methodName == "GetPlayerFromCharacter") {
+                    addWarning("Unsupported Instance method: :GetPlayerFromCharacter()");
+                }
+            }
+        }
+
+        if (auto* global = node->func->as<Luau::AstExprGlobal>()) {
+            if (global->name.value == "tick") {
+                addWarning("Unsupported global function: tick()");
+            }
+        }
+
         if (auto* idx = node->func->as<Luau::AstExprIndexName>()) {
             if (auto* global = idx->expr->as<Luau::AstExprGlobal>()) {
                 const std::string_view gName = global->name.value;
@@ -179,10 +204,16 @@ public:
             } else if (method == "FindFirstChildOfClass" ||
                        method == "FindFirstChildWhichIsA" ||
                        method == "GetDescendants" ||
-                       method == "ClearAllChildren" ||
-                       method == "GetFullName") {
+                       method == "GetFullName" ||
+                       method == "GetAttribute" ||
+                       method == "SetAttribute" ||
+                       method == "TakeDamage") {
+                addWarning("Unsupported Instance method: :" + std::string(method) + "()");
+            } else if (method == "ClearAllChildren") {
                 addWarning("Unsupported Instance method: :" + std::string(method) + "()");
             }
+        } else if (node->op == '.' && node->index.value == "DescendantAdded") {
+            addWarning("Unsupported Instance event: .DescendantAdded");
         }
         return true;
     }
@@ -287,6 +318,34 @@ private:
         }
         addWarning("Unsupported service: game:GetService(\"" + std::string(service) + "\")");
         return false;
+    }
+
+    void rewriteRobloxClassArgument(Luau::AstExprCall* node) {
+        if (node->args.size < 1) {
+            return;
+        }
+
+        auto* className = node->args.data[0]->as<Luau::AstExprConstantString>();
+        if (!className) {
+            return;
+        }
+
+        const std::string_view original(className->value.data, className->value.size);
+        const std::string_view replacement = recubinClassName(original);
+        if (replacement == original) {
+            return;
+        }
+
+        char sourceQuoteChar = '"';
+        size_t stringBegin = 0;
+        if (m_lines.toOffset(className->location.begin, stringBegin) &&
+            stringBegin < m_source.size()) {
+            const char ch = m_source[stringBegin];
+            if (ch == '\'' || ch == '"') {
+                sourceQuoteChar = ch;
+            }
+        }
+        addEdit(className->location, quoteStringLiteral(replacement, sourceQuoteChar));
     }
 };
 

@@ -75,6 +75,7 @@ DispatchTable["Decal"]["TextureID"]   = getter lambda
 | `game:add(className)` | `LuauEngine::global_add` |
 | `print(msg)` | `Logger` 経由でコンソールへ |
 | `wait(seconds)` | コルーチンを yield |
+| `task.wait(seconds)` / `task.spawn(function)` | `wait` とエンジン管理コルーチン |
 
 ## wait() の仕組み
 

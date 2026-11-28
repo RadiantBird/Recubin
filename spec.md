@@ -144,6 +144,11 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
 - パッケージ時、`.luar`は`LuarCompiler`でLuau化してから`.luauc`に出力する（パッケージ済みゲームにLuar DLLは不要）。
 - `luar_compiler.dll`は`python build.py`のビルド/実行時に`Luar Programming Language/luar-rs`を`cargo build --release`し、`dlls/luar_compiler.dll`へ自動反映する。cargoが無い環境はコミット済みDLLを使う。
 
+## Roblox Script の変換
+- RBXLXのScript / LocalScript / ModuleScriptはLuau ASTで変換し、コメント・文字列リテラルを誤置換しない。
+- Recubinに既存の対応APIがある場合だけ変換し、未対応APIは元の呼び出しを残して変換警告を出す。Roblox APIを実行時に模倣する機能追加はこの変換器の責務に含めない。
+- `IsA("BasePart")` はRecubinの対応型名 `BaseCube` に変換する。`Players`、Instance子孫列挙・通知、Attributesなど対応実装のないAPIは警告対象とする。
+
 ## 特殊なインスタンス
 
 ### Process（C++ DLL）

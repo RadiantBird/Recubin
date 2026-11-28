@@ -20004,7 +20004,23 @@ int runRbxlxConvertRegression() {
             "local c1 = Color3.new(0.1, 0.2, 0.3)\n"
             "local a = game.Workspace:FindFirstChild(\"Baseplate\")\n"
             "local b = ws:WaitForChild(\"SpawnLocation\")\n"
-            "local pl = game:GetService(\"Players\")\n";
+            "local pl = game:GetService(\"Players\")\n"
+            "local model = ws:FindFirstChild(\"Obby\")\n"
+            "local humanoid = model:FindFirstChildOfClass(\"Humanoid\")\n"
+            "local part = model:FindFirstChildWhichIsA(\"BasePart\", true)\n"
+            "local descendants = model:GetDescendants()\n"
+            "local isPart = part:IsA(\"BasePart\")\n"
+            "model.DescendantAdded:Connect(function(instance) end)\n"
+            "part.Touched:Connect(function(otherPart)\n"
+            "  local character = otherPart.Parent\n"
+            "  local player = Players:GetPlayerFromCharacter(character)\n"
+            "  local targetHumanoid = character:FindFirstChildOfClass(\"Humanoid\")\n"
+            "  if player and targetHumanoid then targetHumanoid:TakeDamage(15) end\n"
+            "end)\n"
+            "local baseX = part:GetAttribute(\"BaseX\")\n"
+            "task.spawn(function() task.wait(0.5) end)\n"
+            "local now = tick()\n"
+            "part.CFrame = CFrame.new(baseX + math.sin(now), part.Position.Y, part.Position.Z)\n";
         const RobloxScriptTranspiler::Result tr = RobloxScriptTranspiler::transpile(rbxSrc);
         expect(tr.source.find("-- Instance.new(\"Part\") FindFirstChild") != std::string::npos,
                "transpiler preserves comments");
@@ -20028,7 +20044,38 @@ int runRbxlxConvertRegression() {
                "transpiler converts game.Workspace:FindFirstChild to workspace:FindChild");
         expect(tr.source.find("ws:WaitChild(\"SpawnLocation\")") != std::string::npos,
                "transpiler converts :WaitForChild to :WaitChild");
-        expect(!tr.warnings.empty(), "transpiler reports unsupported service warning");
+        expect(tr.source.find("local pl = game:GetService(\"Players\")") != std::string::npos,
+               "transpiler preserves unsupported Players service usage");
+        expect(tr.source.find("FindFirstChildOfClass(\"Humanoid\")") != std::string::npos,
+               "transpiler preserves unsupported FindFirstChildOfClass");
+        expect(tr.source.find("FindFirstChildWhichIsA(\"BasePart\", true)") != std::string::npos,
+               "transpiler preserves unsupported FindFirstChildWhichIsA");
+        expect(tr.source.find("part:IsA(\"BaseCube\")") != std::string::npos,
+               "transpiler converts BasePart IsA to BaseCube");
+        expect(tr.source.find("model:GetDescendants()") != std::string::npos,
+               "transpiler preserves unsupported GetDescendants");
+        expect(!tr.warnings.empty(), "transpiler reports unsupported API warnings");
+        auto hasTranspileWarning = [&](const std::string& fragment) {
+            return std::any_of(tr.warnings.begin(), tr.warnings.end(), [&](const std::string& warning) {
+                return warning.find(fragment) != std::string::npos;
+            });
+        };
+        expect(hasTranspileWarning("Unsupported service: game:GetService(\"Players\")"),
+               "transpiler warns for unsupported Players service");
+        expect(hasTranspileWarning("FindFirstChildOfClass"),
+               "transpiler warns for unsupported class lookup");
+        expect(hasTranspileWarning("FindFirstChildWhichIsA"),
+               "transpiler warns for unsupported type lookup");
+        expect(hasTranspileWarning("GetDescendants"),
+               "transpiler warns for unsupported descendant enumeration");
+        expect(hasTranspileWarning("DescendantAdded"),
+               "transpiler warns for unsupported descendant event");
+        expect(hasTranspileWarning("GetAttribute") && hasTranspileWarning("SetAttribute"),
+               "transpiler warns for unsupported attribute methods");
+        expect(hasTranspileWarning("TakeDamage"),
+               "transpiler warns for unsupported Humanoid damage method");
+        expect(hasTranspileWarning("tick()"),
+               "transpiler warns for unsupported tick global");
     }
 
     // .rbxlx の Script が埋め込み出力＋トランスパイルされることの検証
@@ -20105,7 +20152,8 @@ int runRbxlxConvertRegression() {
             "<Item class=\"Script\" referent=\"RBX4\"><Properties>"
             "<string name=\"Name\">WarningScript</string>"
             "<ProtectedString name=\"Source\"><![CDATA["
-            "local humanoid = character:FindFirstChildOfClass(\"Humanoid\")"
+            "local humanoid = character:FindFirstChildOfClass(\"Humanoid\")\n"
+            "local unsupported = game:GetService(\"TweenService\")"
             "]]></ProtectedString></Properties></Item>"
             "<Item class=\"Atmosphere\" referent=\"RBX5\"><Properties>"
             "<string name=\"Name\">DroppedAtmosphere</string>"
@@ -20128,8 +20176,10 @@ int runRbxlxConvertRegression() {
         };
         expect(hasWarning("Texture.Texture: Roblox asset not imported"),
                "Roblox asset warning is reported");
-        expect(hasWarning("Unsupported Instance method: :FindFirstChildOfClass()"),
+        expect(hasWarning("FindFirstChildOfClass"),
                "unsupported script API warning is reported");
+        expect(hasWarning("Unsupported service: game:GetService(\"TweenService\")"),
+               "unsupported Roblox services still produce a conversion warning");
         expect(hasWarning("Skipped Atmosphere x1"),
                "dropped class warning is reported");
 

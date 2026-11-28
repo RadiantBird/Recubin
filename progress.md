@@ -989,3 +989,13 @@
 - `LocKey`とテーブルの宣言順を対応させ、EditorManagerから新しいキーを使う。
 - `C:\Program Files\xmake\xmake.exe build Recubin`成功。`git diff --check`成功。
 - 未検証: Studio実画面。次: 日本語／英語を切り替え、Fileメニューの表示を確認する。
+
+## 2026-11-28 Roblox Script 変換範囲の整理
+
+- Roblox runtime機能をLuauEngine / Instance / BaseCubeへ追加した差分を取り消し、変更範囲をRBXLX Luau AST変換器へ限定。
+- 既存対応のない`Players`サービス、`FindFirstChildOfClass`、`FindFirstChildWhichIsA`、`GetDescendants`、`DescendantAdded`、Attributes、`tick()`は元ソースを保ち、変換警告を出す方針に変更。`Players`を偽のグローバルへ変換しない。
+- `IsA("BasePart")`のみ、既存型に対応する`IsA("BaseCube")`へ変換。コメントや文字列を誤置換しないAST編集は維持。
+- 変換回帰テストを未対応APIの保持と警告確認へ変更。`Players`、クラス検索、子孫API、Attributes、`TakeDamage`、`tick()`を確認。
+- Windows `C:\Program Files\xmake\xmake.exe build RecubinTest`成功。`build/Release/RecubinTest.exe --rbxlx-convert-regression`成功。`git diff --check`成功。ビルドに既存の`APIENTRY`再定義warningあり。
+- 対象差分を再読し、LuauEngine / Instance / Vector3 / BaseCubeのランタイム変更が残っていないことを確認。
+- 未完了: この差分では未対応Roblox APIの実行機能は提供せず、変換警告に留めている。提示Obbyの全動作を実行するには、ランタイム互換レイヤーの追加設計と別範囲の実装が必要。次: ランタイム対応を独立した互換レイヤーとして切り出す設計を確定する。
