@@ -1,6 +1,7 @@
 recubin:
   type: scene
   version: 0
+  # assetRoot: C:/assets/scenes/
   migrations:
     character_animation_bindings:
       version: 1
@@ -319,7 +320,7 @@ Root:
             - ClassName: Decal
               Name: Decal
               Properties:
-                Texture: assets/image/hehe.png
+                Texture: C:/Users/Ryarta/Documents/Recubin/assets/image/hehe.png
                 Face: 0
                 Color: [1, 1, 1, 1]
                 UVCenter: [0.5, 0.5]
@@ -331,7 +332,7 @@ Root:
             Length: 0.6666667
             Speed: 1
             Looped: true
-            ContentPath: assets/anims/r6_walk.rcanim
+            ContentPath: C:/Users/Ryarta/Documents/Recubin/assets/anims/r6_walk.rcanim
         - ClassName: BallSocket
           Name: LeftHipRagdoll
           Properties:
@@ -598,13 +599,13 @@ Root:
           Name: 2006
           Properties:
             Enabled: false
-            ContentPath: scripts/2006.luau
+            ContentPath: C:/Users/Ryarta/Documents/Recubin/scripts/2006.luau
             ScriptExtension: Luau
         - ClassName: Script
           Name: HelloLuar
           Properties:
             Enabled: false
-            ContentPath: scripts/HelloLuar.luar
+            ContentPath: C:/Users/Ryarta/Documents/Recubin/scripts/HelloLuar.luar
             ScriptExtension: Luar
         - ClassName: Script
           Name: HiGeorge
@@ -639,7 +640,7 @@ Root:
             - ClassName: Texture
               Name: Texture_Top
               Properties:
-                Texture: assets/image/Grass_Texture.png
+                Texture: C:/Users/Ryarta/Documents/Recubin/assets/image/Grass_Texture.png
                 Face: 2
                 Color: [1, 1, 1, 1]
                 StudsPerTileU: 1
@@ -717,9 +718,9 @@ Root:
             - ClassName: Process
               Name: Process
               Properties:
-                ContentPath: scripts/ProcessShowcase.cpp
+                ContentPath: C:/Users/Ryarta/Documents/Recubin/scripts/ProcessShowcase.cpp
                 Enabled: true
-                DllPath: build/windows/x64/release/RecubinProcessShowcase.dll
+                DllPath: C:/Users/Ryarta/Documents/Recubin/build/windows/x64/release/RecubinProcessShowcase.dll
         - ClassName: Cube
           Name: Cube
           Properties:
@@ -932,7 +933,7 @@ Root:
             - ClassName: Decal
               Name: Decal_Back
               Properties:
-                Texture: assets/image/the-cat.png
+                Texture: C:/Users/Ryarta/Documents/Recubin/assets/image/the-cat.png
                 Face: 1
                 Color: [1, 1, 1, 1]
                 UVCenter: [0.5, 0.5]
@@ -941,7 +942,7 @@ Root:
             - ClassName: Decal
               Name: Decal_Bottom
               Properties:
-                Texture: assets/image/smile.png
+                Texture: C:/Users/Ryarta/Documents/Recubin/assets/image/smile.png
                 Face: 3
                 Color: [1, 1, 1, 1]
                 UVCenter: [0.5, 0.5]
@@ -950,7 +951,7 @@ Root:
             - ClassName: Decal
               Name: Decal_Front
               Properties:
-                Texture: assets/image/floppa2048.jpg
+                Texture: C:/Users/Ryarta/Documents/Recubin/assets/image/floppa2048.jpg
                 Face: 0
                 Color: [1, 1, 1, 1]
                 UVCenter: [0.5, 0.5]
@@ -959,7 +960,7 @@ Root:
             - ClassName: Decal
               Name: Decal_Left
               Properties:
-                Texture: assets/image/Limabis_logo.png
+                Texture: C:/Users/Ryarta/Documents/Recubin/assets/image/Limabis_logo.png
                 Face: 5
                 Color: [1, 1, 1, 1]
                 UVCenter: [0.5, 0.5]
@@ -968,7 +969,7 @@ Root:
             - ClassName: Decal
               Name: Decal_Right
               Properties:
-                Texture: assets/image/bliss.jpg
+                Texture: C:/Users/Ryarta/Documents/Recubin/assets/image/bliss.jpg
                 Face: 4
                 Color: [1, 1, 1, 1]
                 UVCenter: [0.5, 0.5]
@@ -977,7 +978,7 @@ Root:
             - ClassName: Decal
               Name: Decal_Top
               Properties:
-                Texture: assets/image/salad-cat.jpg
+                Texture: C:/Users/Ryarta/Documents/Recubin/assets/image/salad-cat.jpg
                 Face: 2
                 Color: [1, 1, 1, 1]
                 UVCenter: [0.5, 0.5]
@@ -1198,7 +1199,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [26.690096, -3.5406911, 54.952328]
+            Position: [-75.78132, 40.7271, 107.4347]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -1372,7 +1373,7 @@ Root:
     - ClassName: AppImage
       Name: AppImage
       Properties:
-        IconPath: assets/image/the-cat.png
+        IconPath: C:/Users/Ryarta/Documents/Recubin/assets/image/the-cat.png
     - ClassName: MaterialService
       Name: MaterialService
       Children:

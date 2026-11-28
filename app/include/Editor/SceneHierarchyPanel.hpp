@@ -169,6 +169,9 @@ private:
         bool registerVisible = true,
         bool renderChildren = true);
     std::vector<std::string> collectAssetWarningMessages(Instance* root) const;
+    bool hasAssetRepairLabelInSubtree(Instance* root) const;
+    bool hasMissingAssetReferenceInSubtree(Instance* root) const;
+    void acknowledgeAssetRepairLabelsInSubtree(Instance* root);
     void renderAssetWarningsDialog();
     void renderTextFileDialog();
     void renderContextMenu(Instance* inst);

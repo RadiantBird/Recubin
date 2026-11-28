@@ -922,8 +922,56 @@
 - 警告ごとに対象クラス・名前・パスを付けたスクロール可能なモーダルを追加し、OKで閉じる。日本語・英語のメニューとダイアログ文言をLocalizationへ追加。
 - 未検証: ビルドおよびStudio実画面。次: 長文警告の行と祖先を右クリックし、案内、スクロール、OKでの終了を確認する。
 
+## 2026-11-28 警告の確認解除と参照修復
+
+- 右クリックメニューからノード以下の変換警告を確認済みにし、保存済みの修復ラベル／理由をクリア可能にした。動的な欠損ファイル参照はこの操作で消さず、無効な参照をプロパティから有効な参照へ変更するとPropertyRegistryがそのInstanceの依存を再検査して解除する。
+- PropertyRegistryのEditor/Luau共通setter後にAssetDependenciesを再評価し、以前と同じ無効参照の警告を重複ログしない。日本語・英語のメニュー文言とspec/docを更新。
+- 未検証: ビルド、回帰テスト、Studio上での確認。次: 変換警告を右クリックで確認解除し、別途欠落ファイルの参照を有効なファイルへ変更して対象行と祖先の表示が消えることを確認する。
+
+## 2026-11-28 Recovery後のWelcomeパネル
+
+- 原因: 起動時にWelcomeパネルを開き、Recovery要求をキューに入れる経路だけが通常のScene load requestと異なり、成功後にWelcomeを閉じていなかった。
+- `StudioApplication::loadPendingScene` でSceneのinstall成功後にWelcomeパネルを閉じるよう修正。Recoveryが失敗した場合はパネル状態を変更しない。
+- 未検証: ビルドと異常終了復旧の実画面確認。次: RecoveryダイアログからRecoverし、復旧Scene表示後にWelcomeパネルが閉じることを確認する。
+
 ## 2026-11-28 ネットワーク CI/CD 一時停止
 
 - .github/workflows/network.yml を .github/workflows/network.yml.disabled へ変更し、GitHub Actions の自動検出対象から外した。必要なら拡張子を .yml に戻して再開できる。
 - 停止対象は rendezvous server の unittest、Windows/macOS Network Probe のビルド・loopback テスト・artifact package、v* tag時の GitHub Release への ZIP upload。
 - 未実施: 実行中 workflow のキャンセル確認（GitHub 接続なし）。
+
+## 2026-11-28 xmake Studio Release リソース配置
+
+- 原因: `Recubin` は Release 出力ディレクトリを作業ディレクトリとして起動するが、xmake のビルド後処理は `luar_compiler.dll` しか配置せず、Studioパッケージに含める `shaders/*.glsl`、`assets/fonts`、`assets/image/rcbnstudio.png` が欠けていた。
+- `Recubin` ターゲットだけに必要なシェーダー、フォント階層、Studioロゴのコピーを追加。必須ファイルが見つからない場合はビルド後処理を失敗させ、欠落をログに明示する。
+- 実機の `xmake run Recubin` でStudioリソース配置callback内の `os.mkdir` が nil として失敗した報告を受け、Studioリソース配置を `after_buildcmd` の `batchcmds:mkdir` / `batchcmds:cp` に移した。続いて `os.cp` も nil と報告されたため、xmakeのbatch command APIを使う専用ruleへ置換。既存の生成シェーダーとDLL配置処理は従来のscript APIのまま維持。run directoryの変数は `$(builddir)` に更新。
+- `RecubinEngine` / `RecubinTest` の配置処理は変更していない。Release build と実機起動は未実施。
+- 次: `xmake build Recubin` 後、Release出力に3種のリソースが存在し、`xmake run Recubin` でロゴと日本語フォントが読み込まれることを確認する。
+
+## 2026-11-28 Repair Asset Paths の旧ルート解決
+
+- 原因: 修復は選択フォルダを旧基準として参照文字列をそのまま解決していたため、プロジェクトルートを選んで `scripts/...` を直す場合と、`assets`ルートを選んで `assets/image/...` を直す場合を同時に扱えなかった。修復関数は未解決参照も表示していなかった。
+- `AssetPath::resolveForRepair` を追加し、選択ルート直下、`assets/`を除いた配置、または`assets/`を補う配置を順に照合。未解決ファイルは保持して一覧表示する。
+- スクリーンショットの保存ログはRelease CWDに`assets/scenes`がなく、Scene snapshotの一時ファイルを作れない状態を示す。xmake Studioリソースruleで同ディレクトリを生成する。
+- 構文検査・回帰実行・実機表示は未実施。
+- 次: Windows xmake Releaseで`Recubin`を再ビルドし、両方のフォルダ選択形態でテクスチャ／Script参照が修復され、欠損Scriptだけが未解決一覧へ出ること、およびPlay snapshot書込が成功することを確認する。
+
+## 2026-11-28 AppImage IconPath の画像Picker
+
+- 調査: ファイルを参照する編集可能な文字列プロパティの登録を確認。AppImage.IconPathだけ`.filePath()`がなく通常の文字列欄になっていた。Texture/Decal/SurfaceMark、GUI画像、Animation、Sound、Script、PostEffect、MeshCube、Process、WeatherおよびPhysicalFileInstance群にはPicker設定がある。FontFileやMaterialはInstance参照として別のPickerを使う。Skyboxの6面パスはYAML専用データで、編集可能なDecal.Texture側に画像Pickerがある。
+- `AppImage.IconPath`へ画像ファイルPickerを設定し、`omitEmpty()`の保存動作を維持。AppImageの仕様文書にも反映。
+- 未検証: Studioでボタン表示および選択後の保存・再読込。次: AppImageを選択し、IconPathの参照ボタンから画像を選んで保存・再読込する。
+
+## 2026-11-28 Sceneアセット参照の絶対パス保存
+
+- 原因調査: Scene YAMLは`ContentPath`、`Texture`、`SkyboxPaths`、`DataPath`等の参照をそのまま保存し、相対参照はasset base directoryに依存していた。`assetRoot`も相対形式のみを許可していた。
+- `AssetPath.hpp`に`RCBN_STORE_ABSOLUTE_ASSET_PATHS`（既定1）を追加。Scene YAMLの出力後、AssetDependenciesの依存キー集合を使って既存の相対参照を現在のasset base directoryから解決し、絶対パスへ書き換える。`assetRoot`も絶対パスで出力し、読み込み時に許可する。
+- 相対パスの既存シリアライズとassetRoot検証は条件付きで維持。マクロを0にすると従来形式へ戻る。spec、SceneLoader、EditorManager文書を更新。
+- 未検証: 構文検査、回帰テスト、Studio実画面。次: Releaseで相対参照を含むSceneを保存し、依存参照とassetRootが絶対パスになり、再起動後も解決することを確認する。
+
+## 2026-11-28 xmake Release のProcess SDK配置
+
+- 原因: Studioは実行ファイル隣の`sdk/include`を優先し、ソース側は`current_path()/app/include`を探す。xmakeはReleaseディレクトリでStudioを起動するのにProcess SDKヘッダーを配置していなかったため、両方の探索先が不成立だった。
+- `recubin.studio_runtime_assets`でProcess SDK公開ヘッダーと依存するMath/Color/Loggerヘッダーを`Release/sdk/include`へコピーし、ソースヘッダー欠落はビルド後処理で明示的に失敗させる。
+- `C:\Program Files\xmake\xmake.exe build Recubin` 成功。Release出力の`sdk/include`に公開SDK 3ヘッダーとMath/Color/Loggerの依存6ヘッダーが配置されたことを確認。`git diff --check`成功。
+- 未検証: Process付きSceneのTest Play。次: xmakeでStudioを起動し、該当SceneのPlayでProcess SDKヘッダー検出とDLLビルドへ進むことを確認する。

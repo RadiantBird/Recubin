@@ -4,7 +4,8 @@
 static const bool s_appImageRegistered = []{
     using namespace PropertyRegistry;
     registerClass("AppImage", {
-        field<&AppImage::iconPath>("IconPath").omitEmpty(),  // 空なら YAML へ出力しない（既存挙動）
+        field<&AppImage::iconPath>("IconPath").omitEmpty()  // 空なら YAML へ出力しない（既存挙動）
+            .filePath("Image (*.png;*.jpg;*.bmp;*.tga;*.svg)", "*.png;*.jpg;*.bmp;*.tga;*.svg"),
     });
     return true;
 }();

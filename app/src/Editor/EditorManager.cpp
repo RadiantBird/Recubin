@@ -1212,12 +1212,22 @@ bool EditorManager::repairAssetRootDirectory() {
     m_assetDialogs.assetExtractRoot = AssetPath::toStored(newBase);
     AssetPath::setSceneAssetBaseDirectory(newBase);
     markDirty();
+    if (!unresolved.empty()) {
+        std::string message = "Unresolved asset references after repair:";
+        for (const auto& path : unresolved) message += "\n" + path;
+        showSceneLoadError(message);
+    }
     return true;
 }
 
 bool EditorManager::rebaseAssetReferences(const std::filesystem::path& oldBase,
                                           const std::filesystem::path& newBase,
                                           std::vector<std::string>& unresolved) {
+    auto recordUnresolved = [&](const std::string& source) {
+        if (std::find(unresolved.begin(), unresolved.end(), source) == unresolved.end()) {
+            unresolved.push_back(source);
+        }
+    };
     struct Change { Instance* object; const PropertyDesc* property; std::string value; };
     std::vector<Change> changes;
     struct SkyboxChange { Skybox* object; int face; std::string value; };
@@ -1228,14 +1238,13 @@ bool EditorManager::rebaseAssetReferences(const std::filesystem::path& oldBase,
             for (std::size_t faceIndex = 0; faceIndex < 6; ++faceIndex) {
                 const std::string source = skybox.skyboxPaths[faceIndex];
                 if (source.empty()) continue;
-                const std::filesystem::path resolved = AssetPath::resolveAgainst(source, oldBase);
-                std::error_code ec;
-                if (!std::filesystem::is_regular_file(resolved, ec)) {
-                    unresolved.push_back(source);
+                const auto resolved = AssetPath::resolveForRepair(source, oldBase, false);
+                if (!resolved) {
+                    recordUnresolved(source);
                     continue;
                 }
-                const auto stored = AssetPath::relativeTo(resolved, newBase);
-                if (!stored) { unresolved.push_back(source); continue; }
+                const auto stored = AssetPath::relativeTo(*resolved, newBase);
+                if (!stored) { recordUnresolved(source); continue; }
                 skyboxChanges.push_back({&skybox, static_cast<int>(faceIndex), *stored});
             }
         }
@@ -1247,16 +1256,15 @@ bool EditorManager::rebaseAssetReferences(const std::filesystem::path& oldBase,
             const auto value = property->get(&object);
             const std::string source = std::get<std::string>(value);
             if (source.empty()) continue;
-            const std::filesystem::path resolved = AssetPath::resolveAgainst(source, oldBase);
-            std::error_code ec;
-            if (!std::filesystem::is_regular_file(resolved, ec) &&
-                !std::filesystem::is_directory(resolved, ec)) {
-                unresolved.push_back(source);
+            const bool expectDirectory = property->name == "DataPath";
+            const auto resolved = AssetPath::resolveForRepair(source, oldBase, expectDirectory);
+            if (!resolved) {
+                recordUnresolved(source);
                 continue;
             }
-            const auto stored = AssetPath::relativeTo(resolved, newBase);
+            const auto stored = AssetPath::relativeTo(*resolved, newBase);
             if (!stored) {
-                unresolved.push_back(source);
+                recordUnresolved(source);
                 continue;
             }
             changes.push_back({&object, property, *stored});

@@ -77,11 +77,13 @@ read-only互換データとして読み取るが、新規保存へは出力し�
 
 ### シーンのアセット基準ディレクトリ
 
-`recubin.assetRoot` が存在する場合、その値はシーンファイルの親ディレクトリからの
-相対ディレクトリとして扱う。`Texture`、Materialの画像マップ、Skyboxなど、ロード中に
-生成される外部ファイル参照は、SceneLoaderのロード期間中この基準を一時的に使用する。
+`recubin.assetRoot` が存在する場合、相対値はシーンファイルの親ディレクトリから、
+絶対値はその場所からアセットを解決する。`Texture`、Materialの画像マップ、Skyboxなど、
+ロード中に生成される外部ファイル参照は、SceneLoaderのロード期間中この基準を一時的に使用する。
+通常の相対保存ではassetRootも相対パスだが、`RCBN_STORE_ABSOLUTE_ASSET_PATHS`有効時のScene保存は
+assetRootと外部ファイル参照を絶対化する。既存の相対参照は現在のasset base directoryから解決する。
 `assetRoot` が空または存在しない旧形式のシーンは、従来どおりプロセスのカレント
-ディレクトリを基準とする。絶対パスの`assetRoot`は共有性を損なうため拒否する。
+ディレクトリを基準とする。絶対パス形式を有効にしたビルドでは絶対`assetRoot`を受け入れる。
 
 SceneRuntimeのstageではロード失敗時に以前のアセット基準へ戻し、commitが完了した場合だけ
 新しい基準を有効にする。実行時の外部ファイルアクセス制限（AssetGuard等）はこの基準を

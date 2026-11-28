@@ -1,12 +1,77 @@
 #include "include/Core/PropertyRegistry.hpp"
+#include <Core/AssetDependencies.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/Script.hpp>
+#include <Util/AssetPath.hpp>
 #include <algorithm>
 #include <unordered_set>
 #include <Util/Logger.hpp>
 #include <cmath>
 
 namespace PropertyRegistry {
+
+namespace {
+bool isAssetDependencyField(const PropertyDesc& property) {
+    const std::string_view key = property.effYamlKey();
+    const auto contains = [key](const std::vector<std::string_view>& keys) {
+        return std::find(keys.begin(), keys.end(), key) != keys.end();
+    };
+    return contains(AssetDependencies::fileKeys()) ||
+           contains(AssetDependencies::sequenceKeys()) ||
+           contains(AssetDependencies::directoryKeys());
+}
+
+void refreshMissingAssetReferences(Instance* instance) {
+    if (!instance) return;
+
+    try {
+        YAML::Emitter emitter;
+        emitter << YAML::BeginMap;
+        saveApplicableProperties(emitter, instance);
+        emitter << YAML::EndMap;
+        if (!emitter.good()) {
+            RCBN_ERROR("Failed to serialize asset references for "
+                       << instance->getClassName() << " \"" << instance->Name << "\"");
+            return;
+        }
+
+        const YAML::Node properties = YAML::Load(emitter.c_str());
+        std::vector<AssetDependencies::Dependency> dependencies;
+        AssetDependencies::collect(
+            properties, dependencies, AssetPath::sceneAssetBaseDirectory());
+
+        const std::vector<std::string>& previous = instance->missingAssetReferences();
+        std::vector<std::string> missingReferences;
+        for (const AssetDependencies::Dependency& dependency : dependencies) {
+            if (dependency.exists) continue;
+
+            const char* expectedKind = dependency.directory ? "directory" : "file";
+            const std::string reference = std::string("Missing ") + expectedKind
+                + " dependency: " + dependency.source;
+            if (std::find(missingReferences.begin(), missingReferences.end(), reference)
+                == missingReferences.end()) {
+                missingReferences.push_back(reference);
+            }
+            if (std::find(previous.begin(), previous.end(), reference) == previous.end()) {
+                RCBN_WARN("[PropertyRegistry] " << instance->getClassName() << " \""
+                          << instance->Name << "\" has missing " << expectedKind
+                          << " asset dependency \"" << dependency.source << "\"");
+            }
+        }
+
+        instance->setMissingAssetReferences(missingReferences);
+        instance->setHasMissingAssetReference(!missingReferences.empty());
+    } catch (const std::exception& error) {
+        RCBN_ERROR("Failed to refresh asset references for "
+                   << instance->getClassName() << " \"" << instance->Name
+                   << "\": " << error.what());
+    } catch (...) {
+        RCBN_ERROR("Failed to refresh asset references for "
+                   << instance->getClassName() << " \"" << instance->Name
+                   << "\": unknown error");
+    }
+}
+}
 
 struct ClassSchema {
     std::string_view base;
@@ -383,6 +448,7 @@ void applyToDispatch(std::string_view className, GetterMap& getters, SetterMap& 
                 }
                 if (dp->luaSet) dp->luaSet(o, v);
                 else if (dp->set) dp->set(o, v);
+                if (isAssetDependencyField(*dp)) refreshMissingAssetReferences(o);
                 return 0;
             };
         }
@@ -390,6 +456,10 @@ void applyToDispatch(std::string_view className, GetterMap& getters, SetterMap& 
 }
 
 PropValue readValue(Instance* obj, const PropertyDesc& d) { return d.get(obj); }
-void writeValue(Instance* obj, const PropertyDesc& d, const PropValue& v) { if (d.set) d.set(obj, v); }
+void writeValue(Instance* obj, const PropertyDesc& d, const PropValue& v) {
+    if (!d.set) return;
+    d.set(obj, v);
+    if (isAssetDependencyField(d)) refreshMissingAssetReferences(obj);
+}
 
 } // namespace PropertyRegistry

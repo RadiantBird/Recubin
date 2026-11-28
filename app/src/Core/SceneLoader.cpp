@@ -229,10 +229,17 @@ SceneLoader::LoadResult SceneLoader::loadSceneResult(
             }
             if (header["assetRoot"] && header["assetRoot"].IsScalar()) {
                 result.metadata.assetRoot = header["assetRoot"].as<std::string>();
-                if (!result.metadata.assetRoot.empty() &&
-                    !AssetPath::isPortableRelative(result.metadata.assetRoot)) {
+                const bool validAssetRoot =
+#if RCBN_STORE_ABSOLUTE_ASSET_PATHS
+                    AssetPath::fromStored(result.metadata.assetRoot).is_absolute() ||
+                    AssetPath::isPortableRelative(result.metadata.assetRoot);
+#else
+                    AssetPath::isPortableRelative(result.metadata.assetRoot);
+#endif
+                if (!result.metadata.assetRoot.empty() && !validAssetRoot) {
                     result.status = LoadStatus::InvalidType;
-                    result.message = "Scene assetRoot must be relative: " + result.metadata.assetRoot;
+                    result.message = "Scene assetRoot must be an absolute or portable relative path: " +
+                        result.metadata.assetRoot;
                     return result;
                 }
             }
@@ -876,18 +883,54 @@ SceneLoader::SerializeResult SceneLoader::serializeSceneResult(
         result.message = "scene root is null";
         return result;
     }
-    if (!metadata.assetRoot.empty() && !AssetPath::isPortableRelative(metadata.assetRoot)) {
-        result.message = "scene assetRoot must be relative";
+    const bool validAssetRoot =
+#if RCBN_STORE_ABSOLUTE_ASSET_PATHS
+        AssetPath::fromStored(metadata.assetRoot).is_absolute() ||
+        AssetPath::isPortableRelative(metadata.assetRoot);
+#else
+        AssetPath::isPortableRelative(metadata.assetRoot);
+#endif
+    if (!metadata.assetRoot.empty() && !validAssetRoot) {
+        result.message = "scene assetRoot must be an absolute or portable relative path";
         return result;
     }
     try {
+#if RCBN_STORE_ABSOLUTE_ASSET_PATHS
+        std::filesystem::path serializationBase = AssetPath::sceneAssetBaseDirectory();
+        if (serializationBase.empty()) {
+            std::error_code currentPathError;
+            serializationBase = std::filesystem::current_path(currentPathError);
+            if (currentPathError) {
+                result.message = "Failed to get current directory for absolute asset paths: " +
+                    currentPathError.message();
+                return result;
+            }
+            if (!metadata.assetRoot.empty()) {
+                serializationBase = AssetPath::resolveAgainst(
+                    metadata.assetRoot, serializationBase);
+            }
+        }
+        std::error_code absoluteBaseError;
+        serializationBase = std::filesystem::absolute(
+            serializationBase, absoluteBaseError).lexically_normal();
+        if (absoluteBaseError) {
+            result.message = "Failed to make asset base directory absolute: " +
+                absoluteBaseError.message();
+            return result;
+        }
+#endif
         YAML::Emitter out;
         out << YAML::BeginMap;
     out << YAML::Key << "recubin" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << "scene";
     out << YAML::Key << "version" << YAML::Value << 0;
     if (!metadata.assetRoot.empty()) {
+#if RCBN_STORE_ABSOLUTE_ASSET_PATHS
+        out << YAML::Key << "assetRoot" << YAML::Value
+            << AssetPath::toStored(serializationBase);
+#else
         out << YAML::Key << "assetRoot" << YAML::Value << metadata.assetRoot;
+#endif
     }
     if (metadata.characterAnimationBindingsVersion > 0) {
         out << YAML::Key << "migrations" << YAML::Value << YAML::BeginMap
@@ -922,6 +965,35 @@ SceneLoader::SerializeResult SceneLoader::serializeSceneResult(
             return result;
         }
         result.yaml = out.c_str();
+#if RCBN_STORE_ABSOLUTE_ASSET_PATHS
+        YAML::Node serialized = YAML::Load(result.yaml);
+        std::vector<AssetDependencies::Dependency> dependencies;
+        AssetDependencies::collect(serialized, dependencies, serializationBase);
+        std::unordered_map<std::string, std::string> absolutePaths;
+        for (const auto& dependency : dependencies) {
+            const std::filesystem::path resolved = AssetPath::resolveAgainst(
+                dependency.source, serializationBase);
+            std::error_code absolutePathError;
+            const std::filesystem::path absolute = std::filesystem::absolute(
+                resolved, absolutePathError);
+            if (absolutePathError) {
+                result.message = "Failed to make asset path absolute ('" +
+                    dependency.source + "'): " + absolutePathError.message();
+                result.yaml.clear();
+                return result;
+            }
+            absolutePaths[dependency.source] = AssetPath::toStored(absolute.lexically_normal());
+        }
+        AssetDependencies::rewrite(serialized, absolutePaths);
+        YAML::Emitter absoluteEmitter;
+        absoluteEmitter << serialized;
+        if (!absoluteEmitter.good()) {
+            result.message = "Failed to serialize scene with absolute asset paths";
+            result.yaml.clear();
+            return result;
+        }
+        result.yaml = absoluteEmitter.c_str();
+#endif
         result.success = true;
         return result;
     } catch (const std::exception& e) {

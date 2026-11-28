@@ -212,6 +212,8 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "インスタンスの警告", "Instance warnings" },
     { "警告が長いため、右クリックメニューから詳細を開いてください。", "This warning is too long to show here. Open its details from the right-click menu." },
     { "%s の警告", "%s warnings" },
+    { "変換警告を確認済みにする", "Mark conversion warnings as reviewed" },
+    { "ファイル参照の警告は、有効な参照に直すと解除されます", "File-reference warnings clear when the reference points to a valid asset." },
     { "グループ化",            "Group" },
     { "座標を再計算",          "Recalculate Coordinates" },
     { "マテリアルプリセットを追加", "Add Material Preset" },

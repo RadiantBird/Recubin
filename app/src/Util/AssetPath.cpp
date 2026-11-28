@@ -1,6 +1,7 @@
 #include <Util/AssetPath.hpp>
 
 #include <algorithm>
+#include <vector>
 
 namespace AssetPath {
 
@@ -44,6 +45,43 @@ std::filesystem::path resolveAgainst(std::string_view stored,
     const std::filesystem::path value = fromStored(stored);
     if (value.is_absolute() || baseDirectory.empty()) return value;
     return (baseDirectory / value).lexically_normal();
+}
+
+std::optional<std::filesystem::path> resolveForRepair(
+    std::string_view stored, const std::filesystem::path& selectedRoot,
+    bool expectDirectory) {
+    if (stored.empty() || selectedRoot.empty()) return std::nullopt;
+
+    const std::filesystem::path storedPath = fromStored(stored).lexically_normal();
+    std::vector<std::filesystem::path> candidates;
+    if (storedPath.is_absolute() || storedPath.has_root_name() ||
+        storedPath.has_root_directory()) {
+        candidates.push_back(storedPath.lexically_normal());
+    } else {
+        candidates.push_back((selectedRoot / storedPath).lexically_normal());
+
+        auto component = storedPath.begin();
+        if (component != storedPath.end() && *component == "assets") {
+            std::filesystem::path withoutAssets;
+            for (++component; component != storedPath.end(); ++component) {
+                withoutAssets /= *component;
+            }
+            if (!withoutAssets.empty()) {
+                candidates.push_back((selectedRoot / withoutAssets).lexically_normal());
+            }
+        } else {
+            candidates.push_back((selectedRoot / "assets" / storedPath).lexically_normal());
+        }
+    }
+
+    for (const std::filesystem::path& candidate : candidates) {
+        std::error_code ec;
+        const bool exists = expectDirectory
+            ? std::filesystem::is_directory(candidate, ec)
+            : std::filesystem::is_regular_file(candidate, ec);
+        if (!ec && exists) return candidate;
+    }
+    return std::nullopt;
 }
 
 std::optional<std::string> relativeTo(const std::filesystem::path& target,

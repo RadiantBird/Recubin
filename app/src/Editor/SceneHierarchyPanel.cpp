@@ -752,6 +752,32 @@ std::vector<std::string> SceneHierarchyPanel::collectAssetWarningMessages(
     return messages;
 }
 
+bool SceneHierarchyPanel::hasAssetRepairLabelInSubtree(Instance* root) const {
+    if (!root) return false;
+    if (root->isAssetRepairRequired()) return true;
+    for (const auto& [_, child] : root->children) {
+        if (child && hasAssetRepairLabelInSubtree(child.get())) return true;
+    }
+    return false;
+}
+
+bool SceneHierarchyPanel::hasMissingAssetReferenceInSubtree(Instance* root) const {
+    if (!root) return false;
+    if (root->hasMissingAssetReference()) return true;
+    for (const auto& [_, child] : root->children) {
+        if (child && hasMissingAssetReferenceInSubtree(child.get())) return true;
+    }
+    return false;
+}
+
+void SceneHierarchyPanel::acknowledgeAssetRepairLabelsInSubtree(Instance* root) {
+    if (!root) return;
+    root->clearAssetRepairWarnings();
+    for (const auto& [_, child] : root->children) {
+        if (child) acknowledgeAssetRepairLabelsInSubtree(child.get());
+    }
+}
+
 void SceneHierarchyPanel::renderAssetWarningsDialog() {
     if (m_openAssetWarningsDialog) {
         ImGui::OpenPopup("###AssetWarningsDialog");
@@ -1689,6 +1715,18 @@ void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
             m_openAssetWarningsDialog = true;
         }
         GuiAutomation::registerLastItem("Explorer/Context/AssetWarnings");
+
+        if (hasAssetRepairLabelInSubtree(inst) &&
+            ImGui::MenuItem(Loc::t(Loc::LocKey::AssetWarningsAcknowledge))) {
+            acknowledgeAssetRepairLabelsInSubtree(inst);
+        }
+        GuiAutomation::registerLastItem("Explorer/Context/AcknowledgeAssetWarnings");
+
+        if (hasMissingAssetReferenceInSubtree(inst)) {
+            ImGui::BeginDisabled();
+            ImGui::MenuItem(Loc::t(Loc::LocKey::AssetWarningsFileReferenceHint));
+            ImGui::EndDisabled();
+        }
         ImGui::Separator();
     }
 

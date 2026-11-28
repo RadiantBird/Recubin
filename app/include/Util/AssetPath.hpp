@@ -5,6 +5,13 @@
 #include <string>
 #include <string_view>
 
+// TEMPORARY: store scene asset references and assetRoot as absolute paths while
+// relative-path resolution is being stabilized. Set to 0 to restore the
+// portable relative-path serialization path without deleting its implementation.
+#ifndef RCBN_STORE_ABSOLUTE_ASSET_PATHS
+#define RCBN_STORE_ABSOLUTE_ASSET_PATHS 1
+#endif
+
 // シーンYAML等に保存されたアセットパスをOS非依存に扱うための変換。
 // 読み込み時はWindows/Unix双方の区切りを受け入れ、保存時は'/'へ統一する。
 namespace AssetPath {
@@ -21,6 +28,13 @@ namespace AssetPath {
     // Absolute stored paths are returned unchanged for legacy compatibility.
     std::filesystem::path resolveAgainst(std::string_view stored,
                                           const std::filesystem::path& baseDirectory);
+
+    // Resolve legacy references using a user-selected Studio root. The picker
+    // may point either at the project directory (paths include `assets/`) or
+    // directly at the `assets` directory (paths omit it).
+    std::optional<std::filesystem::path> resolveForRepair(
+        std::string_view stored, const std::filesystem::path& selectedRoot,
+        bool expectDirectory);
 
     // Return a portable stored path from baseDirectory to target. An empty
     // optional means the two paths have no relative representation (for

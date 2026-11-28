@@ -10,7 +10,7 @@
 ## メンバ変数
 | 変数 | 型 | 説明 |
 |---|---|---|
-| `iconPath` | `string` | アイコン画像ファイルへのパス |
+| `iconPath` | `string` | アイコン画像ファイルへのパス。Propertiesパネルの画像Pickerから設定できる |
 
 ## メソッド
 | メソッド | 説明 |
@@ -21,7 +21,7 @@
 | `clone()` | 自身を複製（子を持たない想定） |
 
 ## 依存関係
-- `PropertyRegistry`（`IconPath` フィールド登録、`omitEmpty()`）
+- `PropertyRegistry`（`IconPath` フィールド登録、`omitEmpty()`、画像ファイルPicker）
 
 ## 継承クラス
 なし

@@ -202,6 +202,70 @@ local function configure_binary(editor_disabled)
     end)
 end
 
+rule("recubin.studio_runtime_assets")
+    after_buildcmd(function(target, batchcmds)
+        local project_dir = os.projectdir()
+        local target_dir = target:targetdir()
+
+        local shader_sources = os.files(path.join(project_dir, "shaders", "*.glsl"))
+        if #shader_sources == 0 then
+            raise("No runtime GLSL shaders found in " .. path.join(project_dir, "shaders"))
+        end
+        local shader_dir = path.join(target_dir, "shaders")
+        batchcmds:mkdir(shader_dir)
+        batchcmds:cp(path.join(project_dir, "shaders", "*.glsl"), shader_dir)
+
+        local fonts_dir = path.join(project_dir, "assets", "fonts")
+        local font_sources = os.files(path.join(fonts_dir, "**"))
+        if #font_sources == 0 then
+            raise("Studio font assets are missing from " .. fonts_dir)
+        end
+        local fonts_target_dir = path.join(target_dir, "assets", "fonts")
+        batchcmds:mkdir(fonts_target_dir)
+        batchcmds:cp(path.join(fonts_dir, "**"), fonts_target_dir, {rootdir = fonts_dir})
+
+        local logo_source = path.join(project_dir, "assets", "image", "rcbnstudio.png")
+        if not os.isfile(logo_source) then
+            raise("Studio logo asset is missing: " .. logo_source)
+        end
+        local image_dir = path.join(target_dir, "assets", "image")
+        batchcmds:mkdir(image_dir)
+        batchcmds:cp(logo_source, path.join(image_dir, "rcbnstudio.png"))
+
+        -- Process compilation runs from the Studio output directory, so keep
+        -- its public SDK headers beside the executable instead of relying on
+        -- the source tree as the current working directory.
+        local sdk_source_dir = path.join(project_dir, "app", "include")
+        local sdk_include_dir = path.join(target_dir, "sdk", "include")
+        local sdk_headers = {
+            {"recubin.h", "recubin.h"},
+            {"recubin_process.h", "recubin_process.h"},
+            {"recubin_process_api.h", "recubin_process_api.h"},
+            {"Math/Vector3.hpp", "Math/Vector3.hpp"},
+            {"Math/CFrame.hpp", "Math/CFrame.hpp"},
+            {"Math/Quaternion.hpp", "Math/Quaternion.hpp"},
+            {"Math/Matrix4.hpp", "Math/Matrix4.hpp"},
+            {"Util/Color4.hpp", "Util/Color4.hpp"},
+            {"Util/Logger.hpp", "Util/Logger.hpp"},
+        }
+        for _, header in ipairs(sdk_headers) do
+            local source = path.join(sdk_source_dir, header[1])
+            if not os.isfile(source) then
+                raise("Process SDK header is missing: " .. source)
+            end
+        end
+        batchcmds:mkdir(sdk_include_dir)
+        batchcmds:mkdir(path.join(sdk_include_dir, "Math"))
+        batchcmds:mkdir(path.join(sdk_include_dir, "Util"))
+        for _, header in ipairs(sdk_headers) do
+            batchcmds:cp(path.join(sdk_source_dir, header[1]),
+                         path.join(sdk_include_dir, header[2]))
+        end
+
+        batchcmds:mkdir(path.join(target_dir, "assets", "scenes"))
+    end)
+rule_end()
+
 target("RecubinCore")
     set_kind("object")
     set_policy("build.fence", true)
@@ -217,6 +281,8 @@ target("Recubin")
     add_files("app/src/main.cpp", "app/src/Studio/StudioLaunch.cpp", "app/src/Studio/StudioApplication.cpp",
               "app/src/Core/User.cpp", "app/src/Core/Renderer.cpp")
     configure_binary(false)
+    set_rundir("$(builddir)/$(plat)/$(arch)/$(mode)")
+    add_rules("recubin.studio_runtime_assets")
     if is_plat("windows") then
         add_deps("Watcher", {inherit = false})
     end

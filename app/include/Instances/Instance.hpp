@@ -49,6 +49,10 @@ class Instance : public std::enable_shared_from_this<Instance> {
         }
         void setAssetRepairWarnings(const std::vector<std::string>& warnings);
         void addAssetRepairWarning(const std::string& warning);
+        void clearAssetRepairWarnings() {
+            m_assetRepairRequired = false;
+            m_assetRepairWarnings.clear();
+        }
         const std::vector<std::string>& assetRepairWarnings() const {
             return m_assetRepairWarnings;
         }

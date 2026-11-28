@@ -86,6 +86,7 @@ enum class LocKey {
     MenuDelete, MenuCopy, MenuPaste, MenuPasteAsChild, MenuSelectAllChildren,
     AssetWarningsContextMenu, AssetWarningsDialogTitle,
     AssetWarningsDialogHint, AssetWarningsInstanceHeader,
+    AssetWarningsAcknowledge, AssetWarningsFileReferenceHint,
     MenuGroup, MenuRecalculateCoordinates,
     MenuMaterialPresets, PresetRoughPlastic, PresetWoodPlanks, PresetScratchedMetal,
     InstancePickerTitleInsert, InstancePickerTitleGroup, InstancePickerTitleReplace,
