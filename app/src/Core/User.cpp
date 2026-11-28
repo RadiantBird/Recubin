@@ -47,12 +47,7 @@ const bool s_userRegistered = [] {
     registerClass("User", {
         controlMode,
         field<&User::speed>("Speed", 0.0f, 10.0f, 0.01f),
-        field<&User::rotationSpeed>("RotationSpeed", 0.0f, 10.0f, 0.01f),
-        field<&User::mouseRotationSpeed>("MouseRotationSpeed", 0.0f, 2.0f, 0.01f),
         smoothing,
-        field<&User::cameraDistance>("CameraDistance", 1.0f, 50.0f, 0.1f),
-        field<&User::zoomSpeed>("ZoomSpeed", 0.0f, 1.0f, 0.01f),
-        field<&User::mouseZoomSpeed>("MouseZoomSpeed", 0.0f, 10.0f, 0.1f),
         field<&User::gizmoSize>("GizmoSize", 0.05f, 0.50f, 0.01f).noYaml().luaReadOnly(),
         custom("MovementInputEnabled", PropType::Bool,
             [](Instance* object) { return PropValue(static_cast<User*>(object)->isMovementInputEnabled()); },
@@ -131,6 +126,20 @@ User::User(std::unique_ptr<IInputBackend> input, bool isRemoteUser)
       lastFKeyPressed(false),
       isRemoteUser(isRemoteUser)
 {
+    Camera = std::make_shared<::Camera>();
+    Camera->Name = "Camera";
+    FreeCamera = std::make_shared<::Camera>();
+    FreeCamera->Name = "FreeCamera";
+    // Keep the old public fields as a source-compatible mirror for native
+    // callers while all persisted/editor settings live on Camera.
+    rotationSpeed = Camera->rotationSpeed;
+    mouseRotationSpeed = Camera->mouseRotationSpeed;
+    cameraDistance = Camera->cameraDistance;
+    zoomSpeed = Camera->zoomSpeed;
+    mouseZoomSpeed = Camera->mouseZoomSpeed;
+    firstPersonThreshold = Camera->firstPersonThreshold;
+    minCameraDistance = Camera->minCameraDistance;
+    ctrlLockOffsetDistance = Camera->ctrlLockOffsetDistance;
     if (!isRemoteUser) s_instance = this;
     updateVectors();
 
@@ -141,6 +150,33 @@ User::User(std::unique_ptr<IInputBackend> input, bool isRemoteUser)
 
     CharacterAdded = std::make_shared<RCBNScriptSignal>();
     ExitRequested = std::make_shared<RCBNScriptSignal>();
+}
+
+void User::setControlMode(ControlMode mode) {
+    if (mode == m_controlMode) return;
+    if (mode == ControlMode::Free && FreeCamera && Camera) {
+        setFreeCameraFrom(*Camera);
+    }
+    m_controlMode = mode;
+}
+
+std::shared_ptr<::Camera> User::getActiveCamera() const {
+    return m_controlMode == ControlMode::Free ? FreeCamera : Camera;
+}
+
+void User::setFreeCameraFrom(const ::Camera& source) {
+    if (!FreeCamera) return;
+    FreeCamera->setCFrame(source.getCFrame());
+    FreeCamera->rotationSpeed = source.rotationSpeed;
+    FreeCamera->mouseRotationSpeed = source.mouseRotationSpeed;
+    FreeCamera->cameraDistance = source.cameraDistance;
+    FreeCamera->zoomSpeed = source.zoomSpeed;
+    FreeCamera->mouseZoomSpeed = source.mouseZoomSpeed;
+    FreeCamera->firstPersonThreshold = source.firstPersonThreshold;
+    FreeCamera->minCameraDistance = source.minCameraDistance;
+    FreeCamera->ctrlLockOffsetDistance = source.ctrlLockOffsetDistance;
+    FreeCamera->WorkspacePath = source.WorkspacePath;
+    FreeCamera->setRuntimeWorkspace(source.getReferencedWorkspace());
 }
 
 std::shared_ptr<User> User::createRemoteUser(uint32_t peerId) {
@@ -169,6 +205,9 @@ bool User::applyNetworkIdentity(uint32_t newPeerId) {
 }
 
 void User::initializeInventory() {
+    if (Camera && Camera->Parent.expired()) {
+        addChild(Camera);
+    }
     // Inventory を User の子として追加（コンストラクタ後に呼ぶ）
     if (Inventory) {
         Inventory->Name = "Inventory";
@@ -313,10 +352,12 @@ void User::updateVectors() {
 void User::setCameraCFrame(const CFrame& cf) {
     cpos            = cf.Position;
     cam.Orientation = cf.Rotation;
+    if (auto active = getActiveCamera()) active->setCFrame(cf);
     updateVectors();
 }
 
 CFrame User::getCameraCFrame() const {
+    if (auto active = getActiveCamera()) return active->getCFrame();
     return CFrame(cpos, cam.Orientation);
 }
 
@@ -538,6 +579,13 @@ void User::resetInputRuntimeState() {
 bool User::processCameraRotation(bool viewportFocused, float deltaTime, bool builtinInputEnabled) {
     const bool physicalAltDown = m_input->isKeyDown(KeyCode::LeftAlt) ||
         m_input->isKeyDown(KeyCode::RightAlt);
+    if (m_externalDragActive) {
+        m_altLookActive = false;
+        m_altKeyWasDown = physicalAltDown;
+        isRightMouseRotating = false;
+        updateMouseCapture();
+        return false;
+    }
     if (getControlMode() == ControlMode::Program) {
         // Program はカメラを回さない。右ドラッグ/Alt が残した一時捕捉だけを
         // 解放し、MouseLock と外部ドラッグの所有分は updateMouseCapture() に任せる。
@@ -886,6 +934,21 @@ void User::processMouse(bool isGameplayInput) {
 
 void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
                         bool viewportHovered, bool isGameplayInput, bool wantsTextInput) {
+    auto activeCamera = getActiveCamera();
+    const ControlMode processingMode = getControlMode();
+    if (activeCamera) {
+        cpos = activeCamera->getCFrame().Position;
+        cam.Orientation = activeCamera->getCFrame().Rotation;
+        rotationSpeed = activeCamera->rotationSpeed;
+        mouseRotationSpeed = activeCamera->mouseRotationSpeed;
+        cameraDistance = activeCamera->cameraDistance;
+        zoomSpeed = activeCamera->zoomSpeed;
+        mouseZoomSpeed = activeCamera->mouseZoomSpeed;
+        firstPersonThreshold = activeCamera->firstPersonThreshold;
+        minCameraDistance = activeCamera->minCameraDistance;
+        ctrlLockOffsetDistance = activeCamera->ctrlLockOffsetDistance;
+        updateVectors();
+    }
     if (!m_input) return;
     const bool lostViewportFocus = m_lastViewportFocused && !viewportFocused;
     m_lastViewportFocused = viewportFocused;
@@ -981,6 +1044,10 @@ void User::processInput(Physics* physics, float deltaTime, bool viewportFocused,
         for (int i = 0; i < 10; ++i) lastToolKeyPressed[i] = m_input->isKeyDown(keys[i]);
     }
     applyQueuedJump(physics);
+    if (activeCamera && processingMode == getControlMode() && processingMode != ControlMode::Program) {
+        activeCamera->setCFrame(CFrame(cpos, cam.Orientation));
+        activeCamera->cameraDistance = cameraDistance;
+    }
 }
 
 
@@ -1393,8 +1460,41 @@ bool User::IsA(std::string className) {
     return Instance::IsA(className);
 }
 
+void User::addChild(std::shared_ptr<Instance> child) {
+    if (child && child->IsA("Camera") && Camera &&
+        Camera->Parent.lock().get() == this && child->Name == Camera->Name) {
+        removeChild(Camera->Name);
+        Camera.reset();
+    }
+    Instance::addChild(std::move(child));
+    if (!Camera) {
+        auto it = children.find("Camera");
+        if (it != children.end() && it->second->IsA("Camera"))
+            Camera = std::static_pointer_cast<::Camera>(it->second);
+    }
+}
+
 void User::setProperty(const std::string& name, const YAML::Node& value) {
     if (PropertyRegistry::loadProperty(this, "User", name, value)) return;
+    // Legacy scenes stored camera settings directly on User. Read them once
+    // into the default Camera; new serialization uses Camera properties.
+    if (Camera) {
+        if (name == "RotationSpeed" || name == "MouseRotationSpeed" ||
+            name == "CameraDistance" || name == "ZoomSpeed" ||
+            name == "MouseZoomSpeed" || name == "FirstPersonThreshold" ||
+            name == "MinCameraDistance" || name == "CtrlLockOffsetDistance") {
+            Camera->setProperty(name, value);
+            rotationSpeed = Camera->rotationSpeed;
+            mouseRotationSpeed = Camera->mouseRotationSpeed;
+            cameraDistance = Camera->cameraDistance;
+            zoomSpeed = Camera->zoomSpeed;
+            mouseZoomSpeed = Camera->mouseZoomSpeed;
+            firstPersonThreshold = Camera->firstPersonThreshold;
+            minCameraDistance = Camera->minCameraDistance;
+            ctrlLockOffsetDistance = Camera->ctrlLockOffsetDistance;
+            return;
+        }
+    }
     if (name == "CursorType") {
         const std::string s = value.as<std::string>();
         if (s == "Type1") setCursorType(CursorType::Type1); else if (s == "Type2") setCursorType(CursorType::Type2);

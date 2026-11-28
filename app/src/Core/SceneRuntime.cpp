@@ -5,6 +5,7 @@
 #include <Core/NullInputBackend.hpp>
 #include <Instances/System.hpp>
 #include <Instances/Workspace.hpp>
+#include <Instances/Camera.hpp>
 #include <Instances/Lighting.hpp>
 #include <Instances/Sun.hpp>
 #include <Instances/AppImage.hpp>
@@ -66,6 +67,18 @@ void copyUserScalars(const User& source, User& destination) {
     destination.cameraDistance = source.cameraDistance;
     destination.zoomSpeed = source.zoomSpeed;
     destination.mouseZoomSpeed = source.mouseZoomSpeed;
+    if (source.Camera && destination.Camera) {
+        destination.Camera->rotationSpeed = source.Camera->rotationSpeed;
+        destination.Camera->mouseRotationSpeed = source.Camera->mouseRotationSpeed;
+        destination.Camera->cameraDistance = source.Camera->cameraDistance;
+        destination.Camera->zoomSpeed = source.Camera->zoomSpeed;
+        destination.Camera->mouseZoomSpeed = source.Camera->mouseZoomSpeed;
+        destination.Camera->firstPersonThreshold = source.Camera->firstPersonThreshold;
+        destination.Camera->minCameraDistance = source.Camera->minCameraDistance;
+        destination.Camera->ctrlLockOffsetDistance = source.Camera->ctrlLockOffsetDistance;
+        destination.Camera->WorkspacePath = source.Camera->WorkspacePath;
+        destination.Camera->setCFrame(source.Camera->getCFrame());
+    }
     destination.setCursorType(source.getCursorType());
     for (std::size_t i = 0; i < User::CURSOR_IMAGE_SLOT_COUNT; ++i) {
         const auto& slot = source.getCursorImageSlot(i);
@@ -368,6 +381,17 @@ Bound commitAndBind(StagedSceneLoad&& staged,
     user->resetInventory();
     moveAllChildren(std::static_pointer_cast<Instance>(staged.user),
                     std::static_pointer_cast<Instance>(user));
+    auto defaultCamera = user->Camera;
+    user->Camera.reset();
+    if (auto it = user->children.find("Camera"); it != user->children.end() &&
+        it->second->IsA("Camera")) {
+        user->Camera = std::static_pointer_cast<Camera>(it->second);
+    }
+    if (!user->Camera && defaultCamera) {
+        user->Camera = defaultCamera;
+        user->Camera->Name = "Camera";
+        user->addChild(user->Camera);
+    }
     if (auto stagedParent = staged.user->Parent.lock())
         stagedParent->removeChild(staged.user->Name);
 
@@ -402,6 +426,8 @@ Bound commitAndBind(StagedSceneLoad&& staged,
     }
     for (const auto& ws : workspaces) migrateLegacyLightingDirection(*ws);
     auto workspace = workspaces.front();
+    if (user->Camera && user->Camera->WorkspacePath.empty())
+        user->Camera->WorkspacePath = workspace->Name;
 
     // PathfindingService も Workspace 同様、System直下に無ければ自動生成する
     if (system->children.find("PathfindingService") == system->children.end()) {
@@ -424,6 +450,9 @@ Bound commitAndBind(StagedSceneLoad&& staged,
 
     // staged Userをlive Userへ置換し、既定サービスも揃った最終ツリーで参照を張り直す。
     SceneLoader::resolveConstraintRefs(system.get());
+    if (user->getCamera()) {
+        user->setFreeCameraFrom(*user->getCamera());
+    }
 
     applyAppIcon(window, system.get());
     bindStandardGlobals(engine, workspace, system, user);

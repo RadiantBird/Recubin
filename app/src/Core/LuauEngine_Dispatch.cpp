@@ -23,6 +23,7 @@
 #include "include/Instances/Humanoid.hpp"
 #include "include/Instances/Animation.hpp"
 #include "include/Core/User.hpp"
+#include "include/Instances/Camera.hpp"
 #include "include/Instances/UserInput.hpp"
 #include "include/Instances/AppImage.hpp"
 #include "include/Instances/MeshCube.hpp"
@@ -592,6 +593,23 @@ void LuauEngine::InitDispatchTable_Misc() {
         lua_setmetatable(L, -2);
         return 1;
     };
+    DispatchTable["User"]["Camera"] = [](lua_State* L, Instance* obj) -> int {
+        auto camera = static_cast<User*>(obj)->getCamera();
+        if (!camera) { lua_pushnil(L); return 1; }
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(camera);
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+    DispatchTable["User"]["FreeCamera"] = [](lua_State* L, Instance* obj) -> int {
+        auto camera = static_cast<User*>(obj)->getFreeCamera();
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(camera);
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
     // User.Character (読み書き可能): clone後のキャラクター本体(PlayerCharacter)。spawn前/despawn後はnil。
     // Luauから代入すると Humanoid を自動解決し CharacterAdded を発火する。nil代入で ControlMode::Free に切り替わる
     DispatchTable["User"]["Character"] = [](lua_State* L, Instance* obj) -> int {
@@ -707,11 +725,6 @@ void LuauEngine::InitDispatchTable_Misc() {
                        : u->getControlMode() == User::ControlMode::Program  ? "Program"
                                                                         : "Character";
         lua_pushstring(L, s);
-        return 1;
-    };
-    // User.CameraCFrame — ControlMode::Program 中にLuauからカメラを直接制御する
-    DispatchTable["User"]["CameraCFrame"] = [](lua_State* L, Instance* obj) {
-        pushCFrame(L, static_cast<User*>(obj)->getCameraCFrame());
         return 1;
     };
     // User の通常 property は schema を唯一の宣言元にする。Character/Cursor
@@ -966,10 +979,18 @@ void LuauEngine::InitSetterTable_Misc() {
     SetterTable["User"]["CameraInputEnabled"] = [](lua_State* L, Instance* obj) { YAML::Node value; value = lua_toboolean(L, 3) != 0; obj->setProperty("CameraInputEnabled", value); return 0; };
     SetterTable["User"]["HotkeyInputEnabled"] = [](lua_State* L, Instance* obj) { YAML::Node value; value = lua_toboolean(L, 3) != 0; obj->setProperty("HotkeyInputEnabled", value); return 0; };
     SetterTable["User"]["ToolInputEnabled"] = [](lua_State* L, Instance* obj) { YAML::Node value; value = lua_toboolean(L, 3) != 0; obj->setProperty("ToolInputEnabled", value); return 0; };
-    // User.CameraCFrame — ControlMode::Program 中にLuauからカメラを直接制御する
-    SetterTable["User"]["CameraCFrame"] = [](lua_State* L, Instance* obj) {
-        CFrame* cf = (CFrame*)luaL_checkudata(L, 3, LuauEngine::RCBN_CFRAME_METATABLE);
-        static_cast<User*>(obj)->setCameraCFrame(*cf);
+    SetterTable["User"]["Camera"] = [](lua_State* L, Instance* obj) {
+        if (lua_isnil(L, 3)) {
+            static_cast<User*>(obj)->setCamera(nullptr);
+            return 0;
+        }
+        auto* ud = (std::weak_ptr<Instance>*)luaL_checkudata(L, 3, RCBN_INST_METATABLE);
+        auto camera = std::dynamic_pointer_cast<Camera>(ud->lock());
+        if (!camera) {
+            luaL_error(L, "User.Camera expects a Camera instance or nil");
+            return 0;
+        }
+        static_cast<User*>(obj)->setCamera(camera);
         return 0;
     };
     // User.Character セッター: setCharacterFromScript() 参照(Humanoid自動解決/CharacterAdded発火/nil→Free切替はUser側に集約)
@@ -990,6 +1011,33 @@ void LuauEngine::InitSetterTable_Misc() {
     };
 
     PropertyRegistry::applyToDispatch("User", DispatchTable, SetterTable);
+    PropertyRegistry::applyToDispatch("Camera", DispatchTable, SetterTable);
+    DispatchTable["Camera"]["Workspace"] = [](lua_State* L, Instance* obj) -> int {
+        auto* camera = static_cast<Camera*>(obj);
+        Workspace* workspace = camera->getReferencedWorkspace();
+        if (!workspace) { lua_pushnil(L); return 1; }
+        auto* ud = (std::weak_ptr<Instance>*)lua_newuserdata(L, sizeof(std::weak_ptr<Instance>));
+        new (ud) std::weak_ptr<Instance>(workspace->shared_from_this());
+        luaL_getmetatable(L, RCBN_INST_METATABLE);
+        lua_setmetatable(L, -2);
+        return 1;
+    };
+    SetterTable["Camera"]["Workspace"] = [](lua_State* L, Instance* obj) {
+        auto* camera = static_cast<Camera*>(obj);
+        if (lua_isnil(L, 3)) {
+            camera->setRuntimeWorkspace(nullptr);
+            return 0;
+        }
+        auto* ud = (std::weak_ptr<Instance>*)luaL_checkudata(L, 3, RCBN_INST_METATABLE);
+        auto workspace = std::dynamic_pointer_cast<Workspace>(ud->lock());
+        if (!workspace) {
+            luaL_error(L, "Camera.Workspace expects a Workspace instance or nil");
+            return 0;
+        }
+        camera->WorkspacePath = workspace->Name;
+        camera->setRuntimeWorkspace(workspace.get());
+        return 0;
+    };
     PropertyRegistry::applyToDispatch("Sound", DispatchTable, SetterTable);
     PropertyRegistry::applyToDispatch("Script", DispatchTable, SetterTable);
 

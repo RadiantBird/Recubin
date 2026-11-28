@@ -496,6 +496,14 @@ Viewメニューの「音声デバッグ」で開く、音声の異常（ノイ�
 - clone後のキャラクター本体(`character`, Model)を持つ。個別の身体パーツへの参照は持たず、
   移動・ジャンプ・接地判定・歩行アニメーションは`character`内のHumanoidに委譲する
 - Cameraを持つ
+- `Camera` は `Spatial` Instanceで、User直下に既定Cameraを1つ生成する。`User.Camera` が使用視点を参照し、
+  Cameraは明示したWorkspaceをワールド座標で描画する。CameraのCFrameは親階層の変形や付替えの影響を受けない。
+  Characterでは従来の追従・ズーム処理が参照Cameraを更新し、ProgramではLuauがCamera.CFrameを制御する。
+  Freeでは内部FreeCameraが従来の自由操作を行い、Freeへ入る際は直前の姿勢とWorkspaceを引き継ぐ。
+  CameraまたはWorkspace参照が不正なら青背景の“No Signal”を表示して理由をログへ記録する。
+- Camera選択時のCtrl+Fは選択Cameraの姿勢とWorkspaceを対象ViewportのFreeCameraへコピーする。
+  User.Cameraは変更せず、以後のCamera変更にも追従しない。通常InstanceのCtrl+FはExplorer表示を維持する。
+- 旧シーンにCamera参照がない場合は旧Userカメラ設定を既定Cameraへ移行する。新形式のCamera値を優先する。
 - 入力を管理する
 - `MovementInputEnabled`/`CameraInputEnabled`/`HotkeyInputEnabled`/`ToolInputEnabled`は既定trueの保存対象で、
   対応する組み込み操作のみをgateする。`User.Input`の生ポーリングとLuau Direct APIは常に利用可能。

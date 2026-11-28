@@ -20,6 +20,7 @@
 #include <Core/Physics.hpp>
 #include <Core/Terrain.hpp>
 #include <Core/TerrainStreamer.hpp>
+#include <Util/Logger.hpp>
 #include <Core/SceneRuntime.hpp>
 #include <algorithm>
 #include <cmath>
@@ -69,18 +70,70 @@ Quaternion ViewportPanel::ownCamRot() const {
     return qYaw * qPitch;
 }
 
-Vector3 ViewportPanel::camPos() const     { return m_useOwnCamera ? m_camPos : user->cpos; }
-Vector3 ViewportPanel::camForward() const { return m_useOwnCamera ? ownCamRot().getForward() : user->forward; }
-Vector3 ViewportPanel::camRight() const   { return m_useOwnCamera ? ownCamRot().getRight()   : user->right; }
-Vector3 ViewportPanel::camUp() const      { return m_useOwnCamera ? ownCamRot().getUp()      : user->up; }
+Vector3 ViewportPanel::camPos() const {
+    if (m_useOwnCamera) return m_camPos;
+    if (user && user->getActiveCamera()) return user->getActiveCamera()->getCFrame().Position;
+    return user ? user->cpos : Vector3{};
+}
+Vector3 ViewportPanel::camForward() const {
+    if (m_useOwnCamera) return ownCamRot().getForward();
+    if (user && user->getActiveCamera()) return user->getActiveCamera()->getCFrame().Rotation.getForward();
+    return user ? user->forward : Vector3(0, 0, -1);
+}
+Vector3 ViewportPanel::camRight() const {
+    if (m_useOwnCamera) return ownCamRot().getRight();
+    if (user && user->getActiveCamera()) return user->getActiveCamera()->getCFrame().Rotation.getRight();
+    return user ? user->right : Vector3(1, 0, 0);
+}
+Vector3 ViewportPanel::camUp() const {
+    if (m_useOwnCamera) return ownCamRot().getUp();
+    if (user && user->getActiveCamera()) return user->getActiveCamera()->getCFrame().Rotation.getUp();
+    return user ? user->up : Vector3(0, 1, 0);
+}
 
 // userカメラの位置/向きから独立カメラを初期化（yaw/pitchをforwardから復元）
 void ViewportPanel::initOwnCameraFrom(const User& u) {
-    m_camPos = u.cpos;
-    Vector3 f = u.forward;
+    m_camPos = u.getCamera() ? u.getCamera()->getCFrame().Position : u.cpos;
+    Vector3 f = u.getCamera() ? u.getCamera()->getCFrame().Rotation.getForward() : u.forward;
     float fy = std::clamp(f.y, -1.0f, 1.0f);
     m_camPitch = std::asin(fy) * 180.0f / 3.14159265f;
     m_camYaw   = std::atan2(-f.x, -f.z) * 180.0f / 3.14159265f;
+}
+
+void ViewportPanel::initOwnCameraFrom(const Camera& camera, Workspace* targetWorkspace) {
+    if (!m_useOwnCamera && user) {
+        user->setControlMode(User::ControlMode::Free);
+        user->setFreeCameraFrom(camera);
+        return;
+    }
+    m_useOwnCamera = true;
+    workspace = targetWorkspace;
+    m_camPos = camera.getCFrame().Position;
+    const Vector3 f = camera.getCFrame().Rotation.getForward();
+    m_camPitch = std::asin(std::clamp(f.y, -1.0f, 1.0f)) * 180.0f / 3.14159265f;
+    m_camYaw = std::atan2(-f.x, -f.z) * 180.0f / 3.14159265f;
+}
+
+void ViewportPanel::onSceneWorkspaceChanged(Workspace* newWorkspace) {
+    if (m_ownCamDragging && user) {
+        user->endExternalCameraDrag();
+        m_ownCamDragging = false;
+    }
+    workspace = newWorkspace;
+    m_noSignal = false;
+    m_noSignalReason.clear();
+    m_lastSignalLog.clear();
+}
+
+void ViewportPanel::drawNoSignal(const ViewportLayout& layout) {
+    if (!m_noSignal) return;
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    const ImVec2 center(layout.contentOrigin.x + layout.width * 0.5f,
+                        layout.contentOrigin.y + layout.height * 0.5f);
+    const char* label = "No Signal";
+    const ImVec2 textSize = ImGui::CalcTextSize(label);
+    draw->AddText(ImVec2(center.x - textSize.x * 0.5f, center.y - textSize.y * 0.5f),
+                  IM_COL32(255, 255, 255, 255), label);
 }
 
 void ViewportPanel::resizeFBO(int w, int h) {
@@ -126,8 +179,10 @@ void ViewportPanel::onRender() {
     updateOwnCameraInput();
     // ツールバーのGUIタブ中は画面GUIだけを編集し、3Dのクリック操作（ブラシ・Weld・選択・
     // 矩形選択・ギズモ・自由ドラッグ・ピボット）を止める。GUIタブ以外ではGUIはクリックを素通りする
-    updateGuiEdit(layout);
-    if (isGuiEditMode()) {
+    if (m_noSignal) {
+        drawFocusBorder();
+    } else if (isGuiEditMode()) {
+        updateGuiEdit(layout);
         drawFocusBorder();
     } else {
         const bool terrainBrushActive = updateTerrainBrush(layout);
@@ -149,7 +204,7 @@ void ViewportPanel::onRender() {
         }
         handlePivotShortcut(layout);
     }
-    handleFocusShortcut();
+    if (!m_noSignal) handleFocusShortcut();
 
     ImGuizmo::PopID();
     ImGui::PopStyleVar();
@@ -164,12 +219,35 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
     if (avail.x < 1.0f) avail.x = 1.0f;
     if (avail.y < 1.0f) avail.y = 1.0f;
 
+    const bool useFreeCamera = m_useOwnCamera || (user && user->getControlMode() == User::ControlMode::Free);
+    Workspace* renderWorkspace = workspace;
+    if (!m_useOwnCamera) {
+        auto camera = user ? user->getActiveCamera() : nullptr;
+        renderWorkspace = camera ? camera->getReferencedWorkspace() : nullptr;
+        m_noSignal = !camera || !renderWorkspace;
+        m_noSignalReason = !camera ? (user && user->getControlMode() == User::ControlMode::Free
+            ? "User.FreeCamera is unset" : "User.Camera is unset") :
+            (!renderWorkspace ? "Active Camera '" + camera->Name + "' Workspace '" +
+                camera->WorkspacePath + "' is unset or invalid" : "");
+    } else {
+        m_noSignal = renderWorkspace == nullptr;
+        m_noSignalReason = m_noSignal ? "FreeCamera has no Workspace" : "";
+    }
+    if (m_noSignal) {
+        if (m_noSignalReason != m_lastSignalLog) {
+            RCBN_WARN("ViewportPanel: " << m_noSignalReason);
+            m_lastSignalLog = m_noSignalReason;
+        }
+    } else {
+        m_lastSignalLog.clear();
+    }
+
     // System.BaseResolution のアスペクト比を維持したレターボックスサイズを計算
     // (System が見つからない/不正な場合は既定 1920x1080 のアスペクトにフォールバック)
     float baseW = 1920.f, baseH = 1080.f;
     bool useFixedResolution = true;
-    if (workspace) {
-        if (auto parent = workspace->Parent.lock(); parent && parent->IsA("System")) {
+    if (renderWorkspace) {
+        if (auto parent = renderWorkspace->Parent.lock(); parent && parent->IsA("System")) {
             auto* sys = static_cast<System*>(parent.get());
             if (sys->BaseResolution.x > 0.f) baseW = sys->BaseResolution.x;
             if (sys->BaseResolution.y > 0.f) baseH = sys->BaseResolution.y;
@@ -184,9 +262,9 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
     if (h < 1) h = 1;
     resizeFBO(w, h);
 
-    if (workspace && user && Renderer::instance) {
+    if (renderWorkspace && user && Renderer::instance && !m_noSignal) {
         ViewportRenderDesc desc;
-        desc.workspace         = workspace;          // 有効なワークスペース
+        desc.workspace         = renderWorkspace;   // Camera or FreeCamera workspace
         desc.primarySelection  = selectedInstance ? *selectedInstance : nullptr;
         desc.selectionTargets  = selectedInstances;
         desc.fbo               = framebuffer;       // ログでCompleteだったこのパネルのFBOテクスチャ
@@ -205,6 +283,12 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
         // レンダラーにこのサブテクスチャへ描き込ませる！
         FrameProfiler::Scope viewportScene("ui.viewportScene");
         Renderer::instance->renderViewport(desc);
+    } else {
+        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+        glViewport(0, 0, w, h);
+        glClearColor(0.02f, 0.12f, 0.55f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
     // パネルの画面座標原点（タイトルバー分を除いた正確な左上）
@@ -232,7 +316,7 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
     ImGui::Image(texRef, ImVec2((float)w, (float)h), ImVec2(0, 1), ImVec2(1, 0)); // Y 反転
 
     // ゲーム内 GUI をビューポート上に重ねて描画
-    if (workspace && Renderer::instance) {
+    if (renderWorkspace && Renderer::instance && !m_noSignal) {
         const GameGuiRenderContext guiContext = Renderer::makeGameGuiRenderContext(
             contentOrigin.x, contentOrigin.y, static_cast<float>(w), static_cast<float>(h),
             camPos(), camForward(), camRight(), camUp(),
@@ -241,7 +325,7 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
         GameGuiRenderContext viewportGuiContext = guiContext;
         // 黒帯なしでは縦横比がBaseResolutionと違うため、Pixel単位のGUIを縦横同率で拡大して歪ませない
         viewportGuiContext.uniformPixelScale = !useFixedResolution;
-        Renderer::instance->renderGameGui(*workspace, user, viewportGuiContext);
+        Renderer::instance->renderGameGui(*renderWorkspace, user, viewportGuiContext);
     }
 
     // レターボックス外側の黒帯を最前面に重ね描きする（BillboardGui等の3D投影GUIは
@@ -264,6 +348,7 @@ ViewportPanel::ViewportLayout ViewportPanel::renderLayoutAndScene() {
     layout.width = w;
     layout.height = h;
     layout.uniformGuiScale = !useFixedResolution;
+    drawNoSignal(layout);
     return layout;
 }
 
@@ -299,8 +384,10 @@ void ViewportPanel::updateOwnCameraInput() {
         } else if (rightDown) {
             double dx = 0.0, dy = 0.0;
             user->sampleExternalCameraDrag(dx, dy);
-            m_camYaw   -= static_cast<float>(dx) * user->mouseRotationSpeed;
-            m_camPitch -= static_cast<float>(dy) * user->mouseRotationSpeed;
+            const float rotationSpeed = user->getCamera()
+                ? user->getCamera()->mouseRotationSpeed : user->mouseRotationSpeed;
+            m_camYaw   -= static_cast<float>(dx) * rotationSpeed;
+            m_camPitch -= static_cast<float>(dy) * rotationSpeed;
             if (m_camPitch >  89.0f) m_camPitch =  89.0f;
             if (m_camPitch < -89.0f) m_camPitch = -89.0f;
         } else {
@@ -321,7 +408,9 @@ void ViewportPanel::updateOwnCameraInput() {
         }
         // ホバー中ホイールで前後ドリー
         if (isHoveringViewport && io.MouseWheel != 0.0f) {
-            m_camPos = m_camPos + camForward() * (io.MouseWheel * user->mouseZoomSpeed);
+            const float zoomSpeed = user->getCamera()
+                ? user->getCamera()->mouseZoomSpeed : user->mouseZoomSpeed;
+            m_camPos = m_camPos + camForward() * (io.MouseWheel * zoomSpeed);
         }
     }
 }
@@ -1400,6 +1489,16 @@ void ViewportPanel::handleFocusShortcut() {
     if (isViewportFocused && user && selectedInstance && *selectedInstance
             && ImGui::IsKeyPressed(ImGuiKey_F)) {
         Instance* inst = *selectedInstance;
+        if (inst->IsA("Camera")) {
+            auto* camera = static_cast<Camera*>(inst);
+            if (!m_useOwnCamera && user) {
+                user->setFreeCameraFrom(*camera);
+                user->setControlMode(User::ControlMode::Free);
+            } else {
+                initOwnCameraFrom(*camera, camera->getReferencedWorkspace());
+            }
+            return;
+        }
         if (inst->IsA("Spatial")) {
             Spatial* s = static_cast<Spatial*>(inst);
             Vector3 objPos = s->getPosition();

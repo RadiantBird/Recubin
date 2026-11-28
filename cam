@@ -1,0 +1,61 @@
+app/src/game_main.cpp:647:        if (id == 0 || !user->applyNetworkIdentity(id)) {
+app/src/game_main.cpp:737:        Workspace* characterWorkspace = user->getCharacterWorkspace();
+app/src/game_main.cpp:781:        user->spawnCharacter(system.get(), workspace.get());
+app/src/game_main.cpp:784:    if (user->character) workspace->addChild(user->character);
+app/src/game_main.cpp:800:        user->setControlMode(User::ControlMode::Program);
+app/src/game_main.cpp:838:        if (authoritativeId != 0 && user->peerId != authoritativeId) {
+app/src/game_main.cpp:839:            if (!user->applyNetworkIdentity(authoritativeId)) {
+app/src/game_main.cpp:890:        if (!navMeshBusy && user->consumeWorkspaceSwitchRequest() && system->AllowWorkspaceSwitch) {
+app/src/game_main.cpp:899:                    if (user->character && !user->moveCharacterToWorkspace(*next)) continue;
+app/src/game_main.cpp:915:        if (selfCheck) user->setCameraCFrame(selfCheckCamera());
+app/src/game_main.cpp:924:        audioService->updateSounds(user->cpos, user->right);
+app/src/Studio\StudioApplication.cpp:334:            user->setCameraCFrame(CFrame(pos, rot));
+app/src/Studio\StudioApplication.cpp:346:    if (p["GizmoSize"])        user->gizmoSize = std::clamp(p["GizmoSize"].as<float>(), 0.05f, 0.50f);
+app/src/Studio\StudioApplication.cpp:398:    CFrame camCf = user->getCameraCFrame();
+app/src/Studio\StudioApplication.cpp:421:    p["GizmoSize"]        = std::clamp(user->gizmoSize, 0.05f, 0.50f);
+app/src/Studio\StudioApplication.cpp:567:        m_user->setControlMode(User::ControlMode::Free);
+app/src/Studio\StudioApplication.cpp:733:        if (playing && m_user->character && !m_user->moveCharacterToWorkspace(*workspace)) {
+app/src/Studio\StudioApplication.cpp:742:        m_user->despawnCharacter();
+app/src/Studio\StudioApplication.cpp:886:            m_user->processInput(
+app/src/Studio\StudioApplication.cpp:891:        return m_user->consumeExitRequest() && checkExit();
+app/src/Studio\StudioApplication.cpp:906:        auto* workspace = m_user->getCharacterWorkspace();
+app/src/Studio\StudioApplication.cpp:915:            !m_user->consumeWorkspaceSwitchRequest() || !frame.isPlaying) {
+app/src/Studio\StudioApplication.cpp:929:            if (m_user->character && !m_user->moveCharacterToWorkspace(**next)) {
+app/src/Studio\StudioApplication.cpp:958:            Vector3 center = m_user->cpos;
+app/src/Studio\StudioApplication.cpp:959:            if (m_user->humanoid) {
+app/src/Studio\StudioApplication.cpp:960:                if (auto root = m_user->humanoid->getRootPart()) {
+app/src/Studio\StudioApplication.cpp:970:                frame.deltaTime, m_user->cpos);
+app/src/Studio\StudioApplication.cpp:1045:            m_user->setControlMode(User::ControlMode::Free);
+app/src/Studio\StudioApplication.cpp:1092:        m_user->setControlMode(User::ControlMode::Free);
+app/src/Studio\StudioApplication.cpp:1101:            ? std::optional<Vector3>(m_user->getCameraCFrame().Position)
+app/src/Studio\StudioApplication.cpp:1138:                m_user->spawnCharacter(m_system.get(), m_workspace.get(), spawnPosition);
+app/src/Studio\StudioApplication.cpp:1141:            if (m_user->character) {
+app/src/Studio\StudioApplication.cpp:1142:                m_workspace->addChild(m_user->character);
+app/src/Studio\StudioApplication.cpp:1152:        m_user->syncToolsFromInventory();
+app/src/Studio\StudioApplication.cpp:1393:        m_user->setControlMode(User::ControlMode::Free);
+app/src/Studio\StudioApplication.cpp:1394:        m_user->despawnCharacter();
+app/src/Studio\StudioApplication.cpp:1395:        if (auto parent = m_user->Parent.lock()) {
+app/src/Studio\StudioApplication.cpp:1396:            parent->removeChild(m_user->Name);
+app/src/Studio\StudioApplication.cpp:1437:                if (m_user->Parent.expired()) {
+app/src/Studio\StudioApplication.cpp:1444:        m_user->setControlMode(User::ControlMode::Free);
+app/src/Studio\StudioApplication.cpp:1455:        m_user->setControlMode(User::ControlMode::Free);
+app/src/Studio\StudioApplication.cpp:1579:        m_audio->updateSounds(m_user->cpos, m_user->right);
+app/src/Editor\EditorManager.cpp:539:        m_user->allowControlModeSwitch = !isEditMode() && !localServerActive;
+app/src/Editor\EditorManager.cpp:1562:                m_user->setControlMode(User::ControlMode::Free);
+app/src/Editor\EditorManager.cpp:2039:    if (m_user) m_user->setAltLookAllowed(!m_guiEdit.active || SystemState::get().isPlaying);
+app/src/Editor\EditorManager.cpp:2173:            m_user->setControlMode(User::ControlMode::Free);
+app/src/Editor\ViewportPanel.cpp:39:    if (m_ownCamDragging && user) user->endExternalCameraDrag();
+app/src/Editor\ViewportPanel.cpp:72:Vector3 ViewportPanel::camPos() const     { return m_useOwnCamera ? m_camPos : user->cpos; }
+app/src/Editor\ViewportPanel.cpp:73:Vector3 ViewportPanel::camForward() const { return m_useOwnCamera ? ownCamRot().getForward() : user->forward; }
+app/src/Editor\ViewportPanel.cpp:74:Vector3 ViewportPanel::camRight() const   { return m_useOwnCamera ? ownCamRot().getRight()   : user->right; }
+app/src/Editor\ViewportPanel.cpp:75:Vector3 ViewportPanel::camUp() const      { return m_useOwnCamera ? ownCamRot().getUp()      : user->up; }
+app/src/Editor\ViewportPanel.cpp:296:                user->beginExternalCameraDrag();
+app/src/Editor\ViewportPanel.cpp:301:            user->sampleExternalCameraDrag(dx, dy);
+app/src/Editor\ViewportPanel.cpp:302:            m_camYaw   -= static_cast<float>(dx) * user->mouseRotationSpeed;
+app/src/Editor\ViewportPanel.cpp:303:            m_camPitch -= static_cast<float>(dy) * user->mouseRotationSpeed;
+app/src/Editor\ViewportPanel.cpp:307:            user->endExternalCameraDrag();
+app/src/Editor\ViewportPanel.cpp:313:            float spd = user->speed;
+app/src/Editor\ViewportPanel.cpp:324:            m_camPos = m_camPos + camForward() * (io.MouseWheel * user->mouseZoomSpeed);
+app/src/Editor\ViewportPanel.cpp:891:            ImGuizmo::SetGizmoSizeClipSpace(std::clamp(user->gizmoSize, 0.05f, 0.50f));
+app/src/Editor\ViewportPanel.cpp:1411:                user->cpos = objPos - user->forward * dist;
+app/src/Editor\ViewportPanel.cpp:1412:                user->updateVectors();

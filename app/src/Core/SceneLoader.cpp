@@ -4,6 +4,7 @@
 #include <Instances/System.hpp>
 #include <Instances/TextFile.hpp>
 #include <Instances/Workspace.hpp>
+#include <Instances/Camera.hpp>
 #include <Instances/Spatial.hpp>
 #include <Instances/MeshCube.hpp>
 #include <Instances/LiquidCube.hpp>
@@ -517,6 +518,7 @@ std::shared_ptr<Instance> SceneLoader::createInstance(const std::string& classNa
         return physicalFile;
     if (className == "System")    return std::make_shared<System>();
     if (className == "Workspace") return std::make_shared<Workspace>();
+    if (className == "Camera") return std::make_shared<Camera>();
     if (className == "PathfindingService") return std::make_shared<PathfindingService>();
     if (className == "MaterialService") return std::make_shared<MaterialService>();
     if (className == "Material")  return std::make_shared<MaterialInstance>();

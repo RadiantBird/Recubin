@@ -22,7 +22,7 @@ public:
 
     // 親チェーンを辿ってワールド CFrame を合成する
     // Workspace より上は合成しないため、Workspace 直下の Spatial は自身の cframe がワールド値
-    CFrame getWorldCFrame() const;
+    virtual CFrame getWorldCFrame() const;
     Vector3 getWorldPosition() const { return getWorldCFrame().Position; }
     // Transform mutation entry points.  These preserve the world poses of
     // Spatial descendants when this node is moved.

@@ -31,12 +31,7 @@ Root:
           Properties:
             ControlMode: Free
             Speed: 0.25
-            RotationSpeed: 1
-            MouseRotationSpeed: 0.15
             CharacterSmoothing: 0.15
-            CameraDistance: 10
-            ZoomSpeed: 0.1
-            MouseZoomSpeed: 1
             MovementInputEnabled: true
             CameraInputEnabled: true
             HotkeyInputEnabled: true
@@ -137,6 +132,21 @@ Root:
                     GripC1:
                       Position: [0, 0, 0]
                       Rotation: [-0, -0, -0, 1]
+            - ClassName: Camera
+              Name: Camera
+              Properties:
+                Position: [-72.86036, 4.261633, 54.16136]
+                Size: [1, 1, 1]
+                Rotation: [0.14132437, -0.17142527, 0.024854941, 0.9746913]
+                RotationSpeed: 1
+                MouseRotationSpeed: 0.15
+                CameraDistance: 10
+                ZoomSpeed: 0.1
+                MouseZoomSpeed: 1
+                FirstPersonThreshold: 1.5
+                MinCameraDistance: 0.5
+                CtrlLockOffsetDistance: 2
+                Workspace: Workspace
     - ClassName: StarterCharacter
       Name: Model
       Properties:
@@ -1198,7 +1208,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [-75.78132, 40.7271, 107.4347]
+            Position: [-53.51903, 27.52717, 55.634735]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]

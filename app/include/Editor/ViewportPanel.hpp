@@ -159,8 +159,13 @@ public:
     float   m_camYaw   = 0.0f;   // 度
     float   m_camPitch = 0.0f;   // 度
     bool    m_ownCamDragging = false;  // 右ドラッグでカーソルロック中か
+    bool    m_noSignal = false;
+    std::string m_noSignalReason;
+    std::string m_lastSignalLog;
 
     void initOwnCameraFrom(const User& u);  // userカメラの位置/向きから初期化
+    void initOwnCameraFrom(const class Camera& camera, Workspace* targetWorkspace);
+    void onSceneWorkspaceChanged(Workspace* newWorkspace);
     Quaternion ownCamRot() const;           // yaw/pitchから回転を合成
     // カメラアクセサ（own/userカメラを切替）
     Vector3 camPos() const;
@@ -235,6 +240,7 @@ private:
     void collapseToPendingSingleSelect();
     void handlePivotShortcut(const ViewportLayout& layout);
     void handleFocusShortcut();
+    void drawNoSignal(const ViewportLayout& layout);
 
     ViewportGeometry::Ray makeMouseRay(const ViewportLayout& layout) const;
     static float scaleGrabSign(int axis);

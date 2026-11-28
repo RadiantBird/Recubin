@@ -16000,6 +16000,41 @@ int runMotor6DGyroRegression() {
 
 // 歩行中に L キーで Free へ切り替えたとき、キャラクターが滑り続けないことを確認する。
 // 同じフレームの processMovement が積んだ移動入力が次の固定stepで速度を戻していた。
+int runActiveCameraRegression() {
+    int failures = 0;
+    auto expect = [&](bool ok, const char* label) {
+        std::cout << "[ActiveCamera] " << (ok ? "PASS: " : "FAIL: ") << label << '\n';
+        if (!ok) ++failures;
+    };
+    auto backend = std::make_unique<FrameRateTestInputBackend>();
+    auto* input = backend.get();
+    auto user = std::make_shared<User>(std::move(backend));
+    const CFrame initial(Vector3(5, 6, 7), Quaternion::fromAxisAngle(Vector3(0, 1, 0), 60));
+    user->getCamera()->setCFrame(initial);
+    user->setControlMode(User::ControlMode::Program);
+    user->processInput(nullptr, 1.0f / 60, true, true, false, false);
+    expect(user->getCamera()->getPosition() == initial.Position, "Program keeps script position");
+    expect((user->forward - initial.Rotation.getForward()).lengthSquared() < 0.0001f,
+           "movement basis uses Camera orientation");
+    user->setControlMode(User::ControlMode::Free);
+    auto freeCamera = user->getFreeCamera();
+    expect(user->getActiveCamera() == freeCamera, "Free renders the input Camera");
+    input->pressedKeys.insert(KeyCode::Right);
+    user->processInput(nullptr, 1.0f / 60, true, true, false, false);
+    expect((freeCamera->getRotation().getForward() - initial.Rotation.getForward()).lengthSquared() > 0,
+           "rotation changes active Camera property");
+    expect((user->getCamera()->getRotation().getForward() - initial.Rotation.getForward()).lengthSquared() < 0.0001f,
+           "Free input preserves inactive Character Camera");
+    auto workspace = std::make_shared<Workspace>();
+    freeCamera->WorkspacePath = "Workspace";
+    freeCamera->setRuntimeWorkspace(workspace.get());
+    expect(freeCamera->getReferencedWorkspace() == workspace.get(), "active Workspace resolves");
+    freeCamera->setRuntimeWorkspace(nullptr);
+    expect(freeCamera->WorkspacePath.empty() && !freeCamera->getReferencedWorkspace(),
+           "nil clears both Workspace reference sources");
+    return failures ? 1 : 0;
+}
+
 int runFreeCameraStopRegression() {
     int failures = 0;
     auto expect = [&](bool condition, const char* message) {
@@ -20605,6 +20640,7 @@ const std::vector<RegressionEntry>& regressionRegistry() {
         REG("--character-hover-regression", runCharacterHoverRegression),
         REG("--moving-platform-regression", runMovingPlatformRegression),
         REG("--free-camera-stop-regression", runFreeCameraStopRegression),
+        REG("--active-camera-regression", runActiveCameraRegression),
         REG("--default-camera-mode-regression", runDefaultCameraModeRegression),
         REG("--scene-load-transaction-regression", runSceneLoadTransactionRegression),
         REG("--system-extension-regression", runSystemExtensionRegression),

@@ -9,7 +9,7 @@ Weld を同期してワールド CFrame を維持したまま移動する。同�
 
 `include/Core/User.hpp`
 
-プレイヤーのカメラ制御とキャラクター操作を担う。Free モード（エディタ視点）と Character モード（キャラクター操作）の 2 モードを持つ。
+プレイヤーのカメラ制御とキャラクター操作を担う。使用する視点は`Camera` Instance参照で保持し、Free/Character/Programのモードを持つ。カメラ姿勢とズーム等の視点設定はCamera側にある。
 
 ## メンバ変数
 
@@ -17,13 +17,19 @@ Weld を同期してワールド CFrame を維持したまま移動する。同�
 
 | 変数 | 型 | 説明 |
 |---|---|---|
-| `cam.Orientation` | `Quaternion` | カメラの向き |
-| `cam.Position` | `Vector3` | カメラ位置 |
-| `cpos` | `Vector3&` | `cam.Position` への参照エイリアス |
-| `forward` / `right` / `up` | `Vector3` | カメラのローカル基底ベクトル |
-| `cameraDistance` | `float` | キャラクターからのズーム距離 |
 | `characterSmoothing` | `float` | 移動方向・向きの補間率。既定値は`0.15`、`1`で補間なし、`0`で目標に追従しない。YAML/Luau入力は`[0,1]`へクランプする |
 | `MovementInputEnabled` / `CameraInputEnabled` / `HotkeyInputEnabled` / `ToolInputEnabled` | `bool` | 既定`true`の保存対象カテゴリ。対応する組み込み入力だけを停止し、`User.Input`の生イベントとDirect APIは停止しない |
+
+`Camera` Instanceの`CFrame`/`Position`/`Rotation`が視点姿勢を持つ。回転・ズーム・一人称・CtrlLockの設定も
+Camera側に保存する。`Camera.Workspace`は明示参照で、Cameraの座標は親階層に影響されない。
+Programスクリプトは`User.Camera.CFrame`を読み書きする。
+
+入力とPrimary Viewportは同じactive Cameraを使用する。Character/Programでは`User.Camera`、
+Freeでは保存対象外の内部`User.FreeCamera`を使用する。Free中に`User.Camera`の姿勢を変更しても
+表示は切り替わらず、内部FreeCameraの姿勢を変更すると表示へ反映する。Characterの移動方向も
+active Cameraの向きから計算する。Programの姿勢は組み込み入力で上書きしない。
+`Camera.Workspace`のLuau APIはWorkspace Instanceまたはnilであり、使用中Cameraの参照がnilなら
+No Signalを表示する。
 
 ### キャラクター
 

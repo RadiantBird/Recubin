@@ -30,6 +30,10 @@
 `PhysicsEnabled`、`PhysicsSubsteps` と子ツリーを複製する。物理エンジン、物理登録待ちリスト、制約待ちリスト、
 スクリプト登録などの実行時状態は複製せず、新しい祖先関係により必要な登録が行われる。
 
+Cameraは`Workspace`参照プロパティで描画対象を指定する。Instance階層に置かれた位置とは独立して、
+CameraのCFrameはそのWorkspaceに対するワールド姿勢として扱う。Characterの移動先Workspaceが変わっても
+Cameraの参照は自動変更しない。
+
 ## フレンドクラス
 
 `Script` と `BaseCube` は Workspace の登録メソッドに直接アクセスできる。

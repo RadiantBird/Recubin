@@ -1007,3 +1007,36 @@
 - specとEditorManager文書へ復元・破棄それぞれの状態を記録。
 - `C:\Program Files\xmake\xmake.exe build Recubin`成功。`git diff --check`成功。
 - 未検証: Studio実画面。次: RecoveryダイアログでRecover時にWelcomeが閉じ、Discard時には正式Scene／新規Scene表示後もWelcomeが残ることを確認する。
+## 2026-11-28 Camera Instance 導入
+
+- `Camera : Spatial`を追加。視点設定、Workspace参照、親階層非依存のワールドCFrameを実装し、User直下の既定Camera、Luau/Properties/SceneLoaderへ接続。
+- User旧形式プロパティを旧Sceneロード時に既定Cameraへ移行。SceneRuntimeのStage/CommitでCameraを保持しWorkspace参照を再結合。
+- Primary ViewportをCharacter/Program CameraとFreeCameraで切り替え、Ctrl+FのCamera選択で姿勢・WorkspaceをFreeCameraへコピー。参照欠落時は青背景の“No Signal”と状態変化時ログを表示し、編集入力を停止。
+- spec、User、Spatial、Workspace文書を更新。
+- Windows xmake Release `Recubin` build成功。最初のビルドでCameraのconst参照解決に失敗したため、読み取り専用のルート取得を修正後、再ビルド成功。`git diff --check`実行（SceneLoaderのCRLF警告のみ）。
+- 未検証: Camera専用回帰なし。Studio実画面でCtrl+F、Free/Character切替、No Signal、複数Workspaceの描画を確認する。次: Studioでこれらの手動確認を行う。
+
+## 2026-11-28 Camera追加後の起動クラッシュ修正
+
+- 原因: `User`コンストラクタ中に`addChild(Camera)`を呼び、`Instance::setParent()`が未初期化の`shared_from_this()`を使っていた。Userを`make_shared`で構築中に例外が発生し、プロセスが`-1073740791` (0xC0000409)で終了していた。
+- コンストラクタからCameraのツリー接続を外し、構築後の`initializeInventory()`で接続。SceneRuntime CommitではシーンにCamera子がない場合にlive既定CameraをUserへ接続する。
+- Windows xmake Release `Recubin` build成功。`xmake run Recubin`でEditor初期化・終了まで進み、終了コード0。`git diff --check`は最終確認予定。
+- 未確認: Studioの通常GUIをユーザー環境で表示し続けられること。次: ユーザーが再度`xmake run Recubin`を実行して確認。
+
+- 追加調査: scene reload後にもViewportPanelが`m_freeWorkspace`とWorkspaceを生ポインタで保持し、SceneRuntimeが旧Workspaceを解放した後にPrimary/Secondary Viewportから参照し得る。SceneのWorkspace変更時に全Viewportの自由カメラ状態を破棄し、新Scene Workspaceへ付け替えるよう修正。
+- Windows xmake Release `Recubin` build成功、`git diff --check`成功（CRLF警告のみ）。ユーザーの再現Scene `_rbxPlace1.rcbn` は作業環境にはなく同じscene reload経路の実画面再現は未確認。次: ユーザーが問題のSceneを再読込し、起動・scene replace後もViewportが動作するか確認。
+
+## 2026-11-28 FreeCameraの右ドラッグ回転修正
+
+- 原因: Studioの`User::processCameraRotation()`がViewportのFreeCamera入力より先に同じマウス捕捉カーソルを毎フレームアンカーへ戻し、Viewportが受け取る差分を0にしていた。
+- `m_externalDragActive`中はUser側カメラ回転を抑制し、外部Viewportの捕捉状態を維持。ViewportのFreeCameraがカーソル差分を単独で処理する。
+- Windows xmake Release `Recubin` build成功。`git diff --check`成功（CRLF警告のみ）。未確認: Studio実画面での右ドラッグ。
+
+## 2026-11-28 Camera入力と描画の二重管理修正
+
+- 原因: Userの旧姿勢からCameraへ書き戻す一方、Primary Viewportは別の位置・Yaw/PitchとWorkspaceキャッシュを使用していた。Characterの移動基底もCamera編集値を読んでいなかった。Camera.WorkspaceのLuau公開も文字列だった。
+- Userに内部FreeCameraとgetActiveCameraを追加し、入力前にactive Cameraから姿勢・基底を取得、入力後も同じCameraだけ更新。Programは姿勢を上書きしない。Primary描画もactive CameraとそのWorkspaceを使用し、独立入力はSecondaryだけに限定。
+- Free中は既定Cameraを更新しない。内部CameraはLuauのUser.FreeCameraで参照可能。Camera.WorkspaceはWorkspace/nilを受け、nilでweak参照と保存パスを両方クリア。Scene Commit後にFreeCameraを新Sceneへ同期。
+- レビュー時に委譲差分がコンストラクタ内addChildを再導入していたため除去し、構築後の既存接続を維持。
+- Windows xmake Release Recubin/RecubinTest build成功。--active-camera-regressionは7チェックPASS、--free-camera-stop-regressionもPASS。git diff --check成功（CRLF警告のみ）。
+- 未検証: Studio実画面のマウス操作、No Signalの画面表示、Luau実スクリプトからのnil代入。次: 対象画面で操作確認し、問題が残る場合はNo Signalログのactive Camera名とWorkspacePathを確認する。

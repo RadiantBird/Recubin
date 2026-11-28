@@ -877,8 +877,23 @@ void EditorManager::handleEditorShortcuts() {
 
         // Ctrl+F: 選択中インスタンスをエクスプローラーで自動展開・スクロール
         if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_F)) {
-            if (hierarchyPanel->selectedInstance)
+            if (hierarchyPanel->selectedInstance &&
+                hierarchyPanel->selectedInstance->IsA("Camera")) {
+                ViewportPanel* targetViewport = GetFocusedViewport();
+                if (!targetViewport) targetViewport = GetLastFocusedViewport();
+                if (!targetViewport) targetViewport = viewportPanel.get();
+                if (targetViewport) {
+                    auto* camera = static_cast<Camera*>(hierarchyPanel->selectedInstance);
+                    if (targetViewport == viewportPanel.get() && m_user) {
+                        m_user->setFreeCameraFrom(*camera);
+                        m_user->setControlMode(User::ControlMode::Free);
+                    } else {
+                        targetViewport->initOwnCameraFrom(*camera, camera->getReferencedWorkspace());
+                    }
+                }
+            } else if (hierarchyPanel->selectedInstance) {
                 hierarchyPanel->requestReveal(hierarchyPanel->selectedInstance);
+            }
         }
 
         // F2: 選択中インスタンスをアウトライナー上でインラインリネーム開始
@@ -2706,7 +2721,10 @@ void EditorManager::setWorkspace(Workspace* ws, bool preserveCodeEditors) {
     }
     m_workspace                  = ws;
     hierarchyPanel->workspace    = ws;
-    viewportPanel->workspace     = ws;
+    viewportPanel->onSceneWorkspaceChanged(ws);
+    for (auto& secondary : secondaryViewports) {
+        if (secondary) secondary->onSceneWorkspaceChanged(ws);
+    }
     hierarchyPanel->selectedInstance = nullptr;
     hierarchyPanel->selectedInstances.clear();
     m_history.clear();

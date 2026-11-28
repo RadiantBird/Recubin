@@ -15,6 +15,7 @@
 #include <Core/IInputBackend.hpp>
 #include <Core/RCBNScriptSignal.hpp>
 #include <Instances/Tool.hpp>
+#include <Instances/Camera.hpp>
 
 #include <cmath>
 #include <cstdint>
@@ -52,6 +53,11 @@ public:
     float zoomSpeed = 0.1f;
     float mouseZoomSpeed = 1.0f; // キーボードより早めに
     float gizmoSize = 0.20f;     // Editorローカル設定。シーン/Luauには保存・公開しない
+
+    // The selected world-space camera.  It is normally a child named Camera.
+    std::shared_ptr<::Camera> Camera;
+    // Runtime-only free camera. It is not a child and is never serialized.
+    std::shared_ptr<::Camera> FreeCamera;
 
     float movingTime = 0.0f;
     float accelerationDelay = 1.5f;
@@ -142,7 +148,7 @@ public:
     };
 
     ControlMode getControlMode() const { return m_controlMode; }
-    void setControlMode(ControlMode mode) { m_controlMode = mode; }
+    void setControlMode(ControlMode mode);
 
     // ネットワークレプリケーション用: 直近のprocessCharacterMovement()で使われた移動入力
     // (Clientはこれをそのままホストへ送信し、ホスト側で権威的に再シミュレートする)
@@ -171,6 +177,7 @@ public:
 
     std::string getClassName() override;
     bool IsA(std::string className) override;
+    void addChild(std::shared_ptr<Instance> child) override;
     void setProperty(const std::string& name, const YAML::Node& value) override;
     std::shared_ptr<Instance> clone() const override;
 
@@ -178,6 +185,11 @@ public:
     // ControlMode::Program 用: Luauからカメラを直接設定する
     void setCameraCFrame(const CFrame& cf);
     CFrame getCameraCFrame() const;
+    std::shared_ptr<::Camera> getCamera() const { return Camera; }
+    void setCamera(const std::shared_ptr<::Camera>& value) { Camera = value; }
+    std::shared_ptr<::Camera> getFreeCamera() const { return FreeCamera; }
+    std::shared_ptr<::Camera> getActiveCamera() const;
+    void setFreeCameraFrom(const ::Camera& camera);
     void initializeInventory();  // Inventory を User の子として追加（コンストラクタ後に呼ぶ）
     // ホットバー(Slots/currentTool)を全クリアする。シーン再読込の前に呼ぶこと。
     // Userはreloadをまたいで使い回されるため、これを呼ばないと前回シーンの
