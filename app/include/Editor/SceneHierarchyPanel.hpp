@@ -113,6 +113,10 @@ private:
     };
     std::vector<PendingReparent> m_pendingReparents;
     Instance*                    m_pendingSelect = nullptr;
+    std::unordered_set<Instance*> m_instancesWithAssetRepairInSubtree;
+    bool m_openAssetWarningsDialog = false;
+    std::string m_assetWarningsDialogInstance;
+    std::vector<std::string> m_assetWarningsDialogMessages;
 
     // フォルダ/ファイル選択待ち（ピッカーはポップアップ外で実行）
     bool                      m_doPick      = false;
@@ -164,6 +168,8 @@ private:
         Instance* inst,
         bool registerVisible = true,
         bool renderChildren = true);
+    std::vector<std::string> collectAssetWarningMessages(Instance* root) const;
+    void renderAssetWarningsDialog();
     void renderTextFileDialog();
     void renderContextMenu(Instance* inst);
     void renderNewScriptDialog();

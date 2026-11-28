@@ -20,6 +20,7 @@
 #define ICON_GUI          "\xef\x8b\x90"  // f2d0 fa-window-maximize
 #define ICON_DECAL        "\xef\x80\xbe"  // f03e fa-image
 #define ICON_INSTANCE     "\xef\x91\xa6"  // f466 fa-box
+#define ICON_WARNING      "\xef\x81\xb1"  // f071 fa-exclamation-triangle
 #define ICON_FILE         "\xef\x85\x9b"  // f15b fa-file
 #define ICON_SKYBOX       ""  // map?
 #define ICON_CONSTRAINT   "\xef\x81\xa1"  // f061 fa-arrow-right (link)

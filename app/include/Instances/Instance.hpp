@@ -44,11 +44,25 @@ class Instance : public std::enable_shared_from_this<Instance> {
         bool isRuntimeNameLocked() const { return m_runtimeNameLocked; }
         bool renameToAuthoritative(const std::string& newName);
         void setAssetRepairRequired(bool required) { m_assetRepairRequired = required; }
-        bool isAssetRepairRequired() const { return m_assetRepairRequired; }
+        bool isAssetRepairRequired() const {
+            return m_assetRepairRequired || !m_assetRepairWarnings.empty();
+        }
+        void setAssetRepairWarnings(const std::vector<std::string>& warnings);
+        void addAssetRepairWarning(const std::string& warning);
+        const std::vector<std::string>& assetRepairWarnings() const {
+            return m_assetRepairWarnings;
+        }
         void setHasMissingAssetReference(bool missing) { m_hasMissingAssetReference = missing; }
-        bool hasMissingAssetReference() const { return m_hasMissingAssetReference; }
+        bool hasMissingAssetReference() const {
+            return m_hasMissingAssetReference || !m_missingAssetReferences.empty();
+        }
+        void setMissingAssetReferences(const std::vector<std::string>& references);
+        void addMissingAssetReference(const std::string& reference);
+        const std::vector<std::string>& missingAssetReferences() const {
+            return m_missingAssetReferences;
+        }
         bool needsAssetRepair() const {
-            return m_assetRepairRequired || m_hasMissingAssetReference;
+            return isAssetRepairRequired() || hasMissingAssetReference();
         }
 
         Instance* findFirstAncestorWorkspace();
@@ -65,6 +79,8 @@ class Instance : public std::enable_shared_from_this<Instance> {
         virtual void init() {
             m_assetRepairRequired = false;
             m_hasMissingAssetReference = false;
+            m_assetRepairWarnings.clear();
+            m_missingAssetReferences.clear();
         }
 
         virtual string getClassName();
@@ -117,5 +133,7 @@ class Instance : public std::enable_shared_from_this<Instance> {
         bool m_runtimeNameLocked = false;
         bool m_assetRepairRequired = false;
         bool m_hasMissingAssetReference = false;
+        std::vector<std::string> m_assetRepairWarnings;
+        std::vector<std::string> m_missingAssetReferences;
         std::uint64_t m_childrenRevision = 0;
 };

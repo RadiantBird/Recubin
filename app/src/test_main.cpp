@@ -11407,7 +11407,13 @@ static int runAssetRepairHighlightRegression() {
         return 1;
     }
 
+    std::vector<std::string> missingAssetWarnings;
+    auto previousLogHook = std::move(g_logHook);
+    g_logHook = [&](const std::string& message) {
+        missingAssetWarnings.push_back(message);
+    };
     const auto loaded = SceneLoader::loadSceneResult(scenePath.string());
+    g_logHook = std::move(previousLogHook);
     expect(static_cast<bool>(loaded), "scene with file references loads");
     if (!loaded || !loaded.root) {
         std::filesystem::remove_all(work, ec);
@@ -11421,8 +11427,23 @@ static int runAssetRepairHighlightRegression() {
     const auto* explicitLabel = loaded.root->getChild("Explicit");
     expect(missing && missing->hasMissingAssetReference() && missing->needsAssetRepair(),
            "missing file dependency is detected on its owning Instance");
+    expect(missing && !missing->missingAssetReferences().empty() &&
+               missing->missingAssetReferences().front().find("missing.luau") != std::string::npos,
+           "missing file dependency detail is retained for the Explorer tooltip");
     expect(wrongKind && wrongKind->hasMissingAssetReference(),
            "a directory is invalid for a regular file dependency");
+    expect(std::any_of(missingAssetWarnings.begin(), missingAssetWarnings.end(),
+               [](const std::string& message) {
+                   return message.find("Script \"Missing\"") != std::string::npos &&
+                          message.find("missing.luau") != std::string::npos;
+               }),
+           "missing file dependency emits an instance-specific warning");
+    expect(std::any_of(missingAssetWarnings.begin(), missingAssetWarnings.end(),
+               [](const std::string& message) {
+                   return message.find("Script \"WrongKind\"") != std::string::npos &&
+                          message.find("wrong-kind.luau") != std::string::npos;
+               }),
+           "wrong-kind file dependency emits an instance-specific warning");
     expect(valid && !valid->hasMissingAssetReference() && !valid->needsAssetRepair(),
            "existing file dependency is not highlighted");
     expect(empty && !empty->hasMissingAssetReference(),
@@ -20060,6 +20081,102 @@ int runRbxlxConvertRegression() {
                            foundScript->Source.find("workspace:FindChild(\"Part\")") != std::string::npos,
                        "HelloScript source is transpiled");
             }
+        }
+    }
+
+    // インポート時の警告は、対応する出力ノードか、削除された子の残存親へ記録する。
+    {
+        const fs::path warningRbxlx = work / "WarningTest.rbxlx";
+        const fs::path warningOut = work / "WarningTest.rcbn";
+        const std::string xml =
+            "<roblox version=\"4\">"
+            "<Item class=\"Workspace\" referent=\"RBX1\"><Properties>"
+            "<string name=\"Name\">Workspace</string></Properties>"
+            "<Item class=\"Part\" referent=\"RBX2\"><Properties>"
+            "<string name=\"Name\">AssetOwner</string>"
+            "</Properties><Item class=\"Texture\" referent=\"RBX3\"><Properties>"
+            "<string name=\"Name\">TextureWarning</string>"
+            "<Content name=\"Texture\"><url>rbxassetid://12345</url></Content>"
+            "</Properties></Item>"
+            "<Item class=\"Decal\" referent=\"RBX6\"><Properties>"
+            "<string name=\"Name\">EmptyDecal</string>"
+            "<Content name=\"Texture\"><null></null></Content>"
+            "</Properties></Item></Item>"
+            "<Item class=\"Script\" referent=\"RBX4\"><Properties>"
+            "<string name=\"Name\">WarningScript</string>"
+            "<ProtectedString name=\"Source\"><![CDATA["
+            "local humanoid = character:FindFirstChildOfClass(\"Humanoid\")"
+            "]]></ProtectedString></Properties></Item>"
+            "<Item class=\"Atmosphere\" referent=\"RBX5\"><Properties>"
+            "<string name=\"Name\">DroppedAtmosphere</string>"
+            "</Properties></Item>"
+            "</Item></roblox>";
+        {
+            std::ofstream ofs(warningRbxlx, std::ios::binary);
+            ofs << xml;
+        }
+
+        const RbxlxConverter::Result warningConversion =
+            RbxlxConverter::convertFile(warningRbxlx, warningOut);
+        expect(static_cast<bool>(warningConversion),
+               "warning rbxlx converts successfully");
+        const auto hasWarning = [&](std::string_view fragment) {
+            return std::any_of(warningConversion.warnings.begin(),
+                warningConversion.warnings.end(), [&](const std::string& warning) {
+                    return warning.find(fragment) != std::string::npos;
+                });
+        };
+        expect(hasWarning("Texture.Texture: Roblox asset not imported"),
+               "Roblox asset warning is reported");
+        expect(hasWarning("Unsupported Instance method: :FindFirstChildOfClass()"),
+               "unsupported script API warning is reported");
+        expect(hasWarning("Skipped Atmosphere x1"),
+               "dropped class warning is reported");
+
+        if (warningConversion) {
+            const auto warningScene = SceneLoader::loadSceneResult(warningOut.string());
+            const auto findInstance = [&](auto& self, Instance* parent,
+                                          const std::string& name) -> Instance* {
+                if (!parent) return nullptr;
+                for (auto& [childName, child] : parent->children) {
+                    if (child->Name == name) return child.get();
+                    if (Instance* found = self(self, child.get(), name)) return found;
+                }
+                return nullptr;
+            };
+            Instance* loadedWorkspace = warningScene && warningScene.root
+                ? findInstance(findInstance, warningScene.root.get(), "Workspace")
+                : nullptr;
+            Instance* loadedTexture = warningScene && warningScene.root
+                ? findInstance(findInstance, warningScene.root.get(), "TextureWarning")
+                : nullptr;
+            Instance* loadedEmptyDecal = warningScene && warningScene.root
+                ? findInstance(findInstance, warningScene.root.get(), "EmptyDecal")
+                : nullptr;
+            Instance* loadedScript = warningScene && warningScene.root
+                ? findInstance(findInstance, warningScene.root.get(), "WarningScript")
+                : nullptr;
+            expect(loadedWorkspace && loadedWorkspace->isAssetRepairRequired() &&
+                       loadedTexture && loadedTexture->isAssetRepairRequired() &&
+                       loadedScript && loadedScript->isAssetRepairRequired(),
+                   "conversion warning labels survive YAML output and Scene loading");
+            expect(loadedTexture && !loadedTexture->assetRepairWarnings().empty(),
+                   "Roblox asset warning detail survives YAML output");
+            expect(loadedEmptyDecal && loadedEmptyDecal->isAssetRepairRequired() &&
+                       std::any_of(loadedEmptyDecal->assetRepairWarnings().begin(),
+                           loadedEmptyDecal->assetRepairWarnings().end(),
+                           [](const std::string& warning) {
+                               return warning.find("Texture content is empty") != std::string::npos;
+                           }),
+                   "empty Decal Texture is warned and its reason survives Scene loading");
+            expect(loadedWorkspace &&
+                       std::any_of(loadedWorkspace->assetRepairWarnings().begin(),
+                           loadedWorkspace->assetRepairWarnings().end(),
+                           [](const std::string& warning) {
+                               return warning.find("Atmosphere") != std::string::npos &&
+                                      warning.find("DroppedAtmosphere") != std::string::npos;
+                           }),
+                   "dropped child class and name are visible on its surviving parent");
         }
     }
 

@@ -38,6 +38,27 @@ void restoreSpatialTree(const std::vector<SpatialPose>& poses) {
               });
     for (const SpatialPose* pose : ordered) pose->spatial->setWorldCFrame(pose->world);
 }
+
+}
+
+void Instance::setAssetRepairWarnings(const std::vector<std::string>& warnings) {
+    m_assetRepairWarnings.clear();
+    for (const auto& warning : warnings) addAssetRepairWarning(warning);
+}
+
+void Instance::addAssetRepairWarning(const std::string& warning) {
+    if (!warning.empty() && std::find(m_assetRepairWarnings.begin(), m_assetRepairWarnings.end(), warning)
+        == m_assetRepairWarnings.end()) m_assetRepairWarnings.push_back(warning);
+}
+
+void Instance::setMissingAssetReferences(const std::vector<std::string>& references) {
+    m_missingAssetReferences.clear();
+    for (const auto& reference : references) addMissingAssetReference(reference);
+}
+
+void Instance::addMissingAssetReference(const std::string& reference) {
+    if (!reference.empty() && std::find(m_missingAssetReferences.begin(), m_missingAssetReferences.end(), reference)
+        == m_missingAssetReferences.end()) m_missingAssetReferences.push_back(reference);
 }
 
 #ifdef _WIN32
@@ -425,7 +446,9 @@ std::vector<std::shared_ptr<Instance>> Instance::cloneForest(
                 const_cast<Instance*>(&original)
             ] = copy;
             copy->setAssetRepairRequired(original.isAssetRepairRequired());
+            copy->setAssetRepairWarnings(original.assetRepairWarnings());
             copy->setHasMissingAssetReference(original.hasMissingAssetReference());
+            copy->setMissingAssetReferences(original.missingAssetReferences());
 
             auto* originalSpatial =
                 dynamic_cast<const Spatial*>(&original);

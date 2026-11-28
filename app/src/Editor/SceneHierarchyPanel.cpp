@@ -177,7 +177,25 @@ void SceneHierarchyPanel::onRender() {
         m_selectionAnchor = nullptr;
 
     m_visibleNodes.clear();
+    m_instancesWithAssetRepairInSubtree.clear();
+    const auto collectAssetRepairSubtree = [&](const auto& self, Instance* node) -> bool {
+        if (!node) return false;
+
+        bool hasAssetRepair = node->needsAssetRepair();
+        for (const auto& [_, child] : node->children) {
+            if (child && self(self, child.get())) {
+                hasAssetRepair = true;
+            }
+        }
+
+        if (hasAssetRepair) {
+            m_instancesWithAssetRepairInSubtree.insert(node);
+        }
+        return hasAssetRepair;
+    };
+    collectAssetRepairSubtree(collectAssetRepairSubtree, root);
     drawNode(root);
+    renderAssetWarningsDialog();
 
     if (m_pendingRangeTarget) {
         const bool anchorVisible =
@@ -378,18 +396,58 @@ void SceneHierarchyPanel::drawNode(
     }
     bool renaming = !readOnly && !inst->isRuntimeNameLocked() && (inst == renamingInstance);
     const bool needsAssetRepair = inst->needsAssetRepair();
-    if (needsAssetRepair) {
-        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.65f, 0.48f, 0.05f, 0.72f));
-        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.78f, 0.60f, 0.08f, 0.86f));
-        ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.92f, 0.70f, 0.10f, 0.94f));
+    const bool hasAssetRepairInSubtree =
+        m_instancesWithAssetRepairInSubtree.contains(inst);
+    bool hasAssetRepairDescendant = false;
+    if (hasAssetRepairInSubtree) {
+        for (const auto& [_, child] : inst->children) {
+            if (child && m_instancesWithAssetRepairInSubtree.contains(child.get())) {
+                hasAssetRepairDescendant = true;
+                break;
+            }
+        }
     }
+    if (hasAssetRepairInSubtree) {
+        flags |= ImGuiTreeNodeFlags_Framed;
+        const float highlightAlpha = needsAssetRepair ? 0.24f : 0.12f;
+        ImGui::PushStyleColor(ImGuiCol_Header,
+                              ImVec4(0.78f, 0.64f, 0.18f, highlightAlpha));
+        ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
+                              ImVec4(0.84f, 0.69f, 0.20f, highlightAlpha + 0.10f));
+        ImGui::PushStyleColor(ImGuiCol_HeaderActive,
+                              ImVec4(0.90f, 0.74f, 0.22f, highlightAlpha + 0.20f));
+    }
+    const char* warningPrefix = hasAssetRepairDescendant ? ICON_WARNING " " : "";
     bool open = renaming
-        ? ImGui::TreeNodeEx(inst, flags, "%s", getClassIcon(inst->getClassName()))
-        : ImGui::TreeNodeEx(inst, flags, "%s %s", getClassIcon(inst->getClassName()), inst->Name.c_str());
-    if (needsAssetRepair) {
+        ? ImGui::TreeNodeEx(inst, flags, "%s%s",
+                            warningPrefix, getClassIcon(inst->getClassName()))
+        : ImGui::TreeNodeEx(inst, flags, "%s%s %s",
+                            warningPrefix, getClassIcon(inst->getClassName()),
+                            inst->Name.c_str());
+    if (hasAssetRepairInSubtree) {
         ImGui::PopStyleColor(3);
     }
     GuiAutomation::registerLastItem(std::string("Explorer/Node/") + inst->getFullPath());
+    if (hasAssetRepairInSubtree && ImGui::IsItemHovered()) {
+        const float maxTooltipHeight = ImGui::GetIO().DisplaySize.y * 0.8f;
+        ImGui::SetNextWindowSizeConstraints(
+            ImVec2(320.0f, 0.0f),
+            ImVec2(560.0f, maxTooltipHeight));
+        ImGui::BeginTooltip();
+        const std::vector<std::string> warnings = collectAssetWarningMessages(inst);
+        std::size_t warningCharacterCount = 0;
+        for (const std::string& warning : warnings)
+            warningCharacterCount += warning.size();
+
+        const bool warningIsLong = warnings.size() > 3 || warningCharacterCount > 240;
+        if (warningIsLong) {
+            ImGui::TextWrapped("%s", Loc::t(Loc::LocKey::AssetWarningsDialogHint));
+        } else {
+            for (const std::string& warning : warnings)
+                ImGui::TextWrapped("%s", warning.c_str());
+        }
+        ImGui::EndTooltip();
+    }
 
     if (inst == m_revealRequest) {
         ImGui::SetScrollHereY(0.5f);
@@ -660,6 +718,78 @@ void SceneHierarchyPanel::requestNewTextFile(const std::shared_ptr<Instance>& pa
     m_pendingTextFileParent = parent;
     m_openTextFileDialog = true;
     m_textFileDialogError.clear();
+}
+
+std::vector<std::string> SceneHierarchyPanel::collectAssetWarningMessages(
+    Instance* root) const {
+    std::vector<std::string> messages;
+    const auto collect = [&](const auto& self, Instance* node) -> void {
+        if (!node) return;
+
+        if (node->needsAssetRepair()) {
+            const std::string source = node->getClassName() + " \"" + node->Name
+                + "\" (" + node->getFullPath() + ")";
+            bool hasDetail = false;
+            for (const std::string& warning : node->assetRepairWarnings()) {
+                messages.push_back(source + ": " + warning);
+                hasDetail = true;
+            }
+            for (const std::string& reference : node->missingAssetReferences()) {
+                messages.push_back(source + ": " + reference);
+                hasDetail = true;
+            }
+            if (!hasDetail) {
+                messages.push_back(source + ": Asset repair required.");
+            }
+        }
+
+        for (const auto& [_, child] : node->children) {
+            if (child) self(self, child.get());
+        }
+    };
+
+    collect(collect, root);
+    return messages;
+}
+
+void SceneHierarchyPanel::renderAssetWarningsDialog() {
+    if (m_openAssetWarningsDialog) {
+        ImGui::OpenPopup("###AssetWarningsDialog");
+        const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+        const float width = std::min(760.0f, displaySize.x * 0.82f);
+        const float height = std::min(600.0f, displaySize.y * 0.78f);
+        ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Appearing);
+        m_openAssetWarningsDialog = false;
+    }
+
+    const std::string title = std::string(Loc::t(Loc::LocKey::AssetWarningsDialogTitle))
+        + "###AssetWarningsDialog";
+    if (!ImGui::BeginPopupModal(title.c_str(), nullptr)) return;
+
+    ImGui::Text(Loc::t(Loc::LocKey::AssetWarningsInstanceHeader),
+                m_assetWarningsDialogInstance.c_str());
+    ImGui::Separator();
+
+    const float reservedHeight = ImGui::GetFrameHeightWithSpacing()
+        + ImGui::GetStyle().ItemSpacing.y;
+    const float messagesHeight = std::max(
+        120.0f, ImGui::GetContentRegionAvail().y - reservedHeight);
+    if (ImGui::BeginChild("##AssetWarningMessages", ImVec2(0.0f, messagesHeight), true)) {
+        for (std::size_t index = 0; index < m_assetWarningsDialogMessages.size(); ++index) {
+            if (index > 0) ImGui::Separator();
+            ImGui::TextWrapped("%s", m_assetWarningsDialogMessages[index].c_str());
+        }
+    }
+    ImGui::EndChild();
+
+    if (ImGui::Button(Loc::t(Loc::LocKey::OK))) {
+        m_assetWarningsDialogMessages.clear();
+        m_assetWarningsDialogInstance.clear();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SetItemDefaultFocus();
+    GuiAutomation::registerLastItem("Explorer/Warnings/OK");
+    ImGui::EndPopup();
 }
 
 void SceneHierarchyPanel::renderTextFileDialog() {
@@ -1551,6 +1681,16 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
 
 void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
     if (!inst) return;
+
+    if (m_instancesWithAssetRepairInSubtree.contains(inst)) {
+        if (ImGui::MenuItem(Loc::t(Loc::LocKey::AssetWarningsContextMenu))) {
+            m_assetWarningsDialogInstance = inst->getFullPath();
+            m_assetWarningsDialogMessages = collectAssetWarningMessages(inst);
+            m_openAssetWarningsDialog = true;
+        }
+        GuiAutomation::registerLastItem("Explorer/Context/AssetWarnings");
+        ImGui::Separator();
+    }
 
     // ---- Workspace 専用ボタン ----
     if (inst->IsA("Workspace")) {

@@ -44,6 +44,8 @@ struct OutNode {
     bool spatial = false;   // Position/Rotation を座標親からのローカル値で書き出す
     bool isCube = false;    // ジョイントの参照先として有効か
     bool isValueBase = false;
+    bool assetRepairRequired = false;
+    std::vector<std::string> assetRepairWarnings;
     CFrame world;           // spatial のときのワールド CFrame
     CFrame local;           // resolveTransforms で求める
 
@@ -147,11 +149,22 @@ bool isRobloxAsset(const std::string& url) {
     return url.rfind("rbxasset", 0) == 0 || url.rfind("http", 0) == 0;
 }
 
-std::string contentPath(const RbxNode& rbx, const char* key, Context& ctx) {
+void markAssetRepair(OutNode& node, std::string warning) {
+    node.assetRepairRequired = true;
+    if (!warning.empty() && std::find(node.assetRepairWarnings.begin(), node.assetRepairWarnings.end(), warning)
+        == node.assetRepairWarnings.end()) {
+        node.assetRepairWarnings.push_back(std::move(warning));
+    }
+}
+
+std::string contentPath(const RbxNode& rbx, const char* key, Context& ctx,
+                        OutNode& outputNode) {
     const std::string url = rbx.getContent(key);
     if (url.empty()) return {};
     if (isRobloxAsset(url)) {
         addNote(ctx, rbx.className + "." + key + ": Roblox asset not imported");
+        markAssetRepair(outputNode, rbx.className + " \"" + rbx.name()
+                        + "\": Roblox asset " + key + " was not imported.");
         return {};
     }
     return url;
@@ -244,7 +257,11 @@ std::unique_ptr<OutNode> mapPart(const RbxNode& rbx, Context& ctx) {
     case 3: return mapPartAs(rbx, ctx, "Wedge");
     case 4:
         addNote(ctx, "Part(CornerWedge) converted to Cube");
-        return mapPartAs(rbx, ctx, "Cube");
+        {
+            auto out = mapPartAs(rbx, ctx, "Cube");
+            markAssetRepair(*out, rbx.className + " converted to Cube; CornerWedge shape was not preserved.");
+            return out;
+        }
     default: return mapPartAs(rbx, ctx, "Cube");
     }
 }
@@ -255,7 +272,9 @@ std::unique_ptr<OutNode> mapSeat(const RbxNode& rbx, Context& ctx) { return mapP
 
 std::unique_ptr<OutNode> mapAsPlainCube(const RbxNode& rbx, Context& ctx) {
     addNote(ctx, rbx.className + " converted to Cube (shape not imported)");
-    return mapPartAs(rbx, ctx, "Cube");
+    auto out = mapPartAs(rbx, ctx, "Cube");
+    markAssetRepair(*out, rbx.className + " converted to Cube; original shape was not imported.");
+    return out;
 }
 
 std::unique_ptr<OutNode> mapSpawnLocation(const RbxNode& rbx, Context& ctx) {
@@ -313,7 +332,13 @@ std::unique_ptr<OutNode> mapAttachment(const RbxNode& rbx, Context&) {
 std::unique_ptr<OutNode> mapSurfaceImage(const RbxNode& rbx, Context& ctx, const char* className) {
     auto out = makeNode(className, rbx);
     YAML::Node& props = out->properties;
-    const std::string texture = contentPath(rbx, "Texture", ctx);
+    const std::string texture = contentPath(rbx, "Texture", ctx, *out);
+    if (texture.empty()) {
+        const std::string warning = std::string(className) + " \"" + rbx.name()
+            + "\": Texture content is empty after Roblox import.";
+        addNote(ctx, warning);
+        markAssetRepair(*out, warning);
+    }
     if (!texture.empty()) props["Texture"] = texture;
     props["Face"] = faceFromRoblox(static_cast<int>(rbx.getNumber("Face", 5)));
     props["Color"] = colorYaml(rbx.getColor("Color3").value_or(RbxlxDocument::Color3{ 1, 1, 1 }),
@@ -389,6 +414,7 @@ std::unique_ptr<OutNode> mapScriptAs(const RbxNode& rbx, Context& ctx, const cha
         RobloxScriptTranspiler::transpile(rbx.getString("Source"));
     for (const std::string& warning : transpiled.warnings) {
         addNote(ctx, std::string(className) + ": " + warning);
+        markAssetRepair(*out, std::string(className) + " \"" + rbx.name() + "\": " + warning);
     }
     out->embedded = true;
     out->embeddedSource = transpiled.source;
@@ -465,7 +491,11 @@ std::unique_ptr<OutNode> convertNode(const RbxNode& rbx, Context& ctx);
 void convertChildren(const RbxNode& rbx, OutNode& out, Context& ctx) {
     for (const auto& child : rbx.children) {
         auto converted = convertNode(*child, ctx);
-        if (!converted) continue;
+        if (!converted) {
+            markAssetRepair(out, "Skipped Roblox child " + child->className + " \""
+                            + child->name() + "\"; no Recubin Instance was created.");
+            continue;
+        }
         converted->parent = &out;
         out.children.push_back(std::move(converted));
     }
@@ -481,6 +511,7 @@ std::unique_ptr<OutNode> convertUnmapped(const RbxNode& rbx, Context& ctx) {
         else ++ctx.skippedCount;
         return nullptr;
     }
+    markAssetRepair(*folder, rbx.className + " converted to Folder; original class is unsupported.");
     if (rbx.parent) addNote(ctx, rbx.className + " converted to Folder");
     ctx.byReferent[rbx.referent] = folder.get();
     return folder;
@@ -507,6 +538,12 @@ void appendLighting(OutNode& workspace, Context& ctx) {
     lighting->className = "Lighting";
     lighting->name = "Lighting";
     lighting->parent = &workspace;
+    if (ctx.lighting && !ctx.lighting->children.empty()) {
+        for (const auto& child : ctx.lighting->children) {
+            markAssetRepair(*lighting, "Skipped Roblox child " + child->className + " \""
+                            + child->name() + "\" from Lighting; no Recubin Instance was created.");
+        }
+    }
     workspace.children.insert(workspace.children.begin(), std::move(lighting));
 
     if (!ctx.lighting) return;
@@ -561,27 +598,43 @@ std::unique_ptr<OutNode> buildScene(const RbxlxDocument::Document& document, Con
     }
 
     bool hasWorkspace = false;
+    std::vector<std::string> unrepresentedTopLevelInstances;
+    OutNode* workspaceOutput = nullptr;
     for (const auto& service : document.roots) {
         if (service->className == "Workspace") {
             if (hasWorkspace) {
                 addNote(ctx, "Extra Workspace ignored");
                 skipSubtree(*service, ctx);
+                if (workspaceOutput)
+                    markAssetRepair(*workspaceOutput, "Skipped extra Workspace; only the first Workspace was imported.");
                 continue;
             }
             auto workspace = convertWorkspace(*service, ctx);
+            workspaceOutput = workspace.get();
             appendLighting(*workspace, ctx);
             attachChild(*root, std::move(workspace));
             hasWorkspace = true;
         } else if (service->className != "Lighting") {
-            if (auto converted = convertNode(*service, ctx)) attachChild(*root, std::move(converted));
+            if (auto converted = convertNode(*service, ctx)) {
+                attachChild(*root, std::move(converted));
+            } else {
+                unrepresentedTopLevelInstances.push_back(
+                    "Skipped top-level Roblox " + service->className + " \""
+                    + service->name() + "\"; no Recubin Instance was created.");
+            }
         }
     }
     if (!hasWorkspace) {
         auto workspace = std::make_unique<OutNode>();
         workspace->className = "Workspace";
         workspace->name = "Workspace";
+        workspaceOutput = workspace.get();
         appendLighting(*workspace, ctx);
         attachChild(*root, std::move(workspace));
+    }
+    if (workspaceOutput) {
+        for (const std::string& warning : unrepresentedTopLevelInstances)
+            markAssetRepair(*workspaceOutput, warning);
     }
     return root;
 }
@@ -607,17 +660,22 @@ std::string canonicalNodeKey(const OutNode& node) {
         out << YAML::Key << "World" << YAML::Value << toYaml(node.world);
     out << YAML::Key << "IsCube" << YAML::Value << node.isCube;
     out << YAML::Key << "IsValueBase" << YAML::Value << node.isValueBase;
+    out << YAML::Key << "AssetRepairRequired" << YAML::Value << node.assetRepairRequired;
+    if (!node.assetRepairWarnings.empty()) {
+        out << YAML::Key << "AssetRepairWarnings" << YAML::Value << YAML::BeginSeq;
+        for (const auto& warning : node.assetRepairWarnings) out << warning;
+        out << YAML::EndSeq;
+    }
     out << YAML::Key << "RequireRefs" << YAML::Value << node.requireRefs;
 
-    std::vector<std::pair<std::string, YAML::Node>> properties;
-    properties.reserve(node.properties.size());
+    std::vector<std::string> propertyKeys;
+    propertyKeys.reserve(node.properties.size());
     for (const auto& entry : node.properties)
-        properties.emplace_back(entry.first.as<std::string>(), entry.second);
-    std::sort(properties.begin(), properties.end(),
-        [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
+        propertyKeys.push_back(entry.first.as<std::string>());
+    std::sort(propertyKeys.begin(), propertyKeys.end());
     out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
-    for (const auto& [key, value] : properties)
-        out << YAML::Key << key << YAML::Value << value;
+    for (const std::string& key : propertyKeys)
+        out << YAML::Key << key << YAML::Value << node.properties[key];
     out << YAML::EndMap;
 
     std::vector<std::pair<std::string, std::string>> refs;
@@ -757,6 +815,8 @@ void resolveReferences(OutNode& node, Context& ctx) {
         } else if (node.requireRefs) {
             node.removed = true;
             addNote(ctx, node.className + " removed: connected part not converted");
+            if (node.parent)
+                markAssetRepair(*node.parent, node.className + " removed: connected part not converted.");
         }
     }
     for (auto& child : node.children) resolveReferences(*child, ctx);
@@ -771,6 +831,13 @@ void emitNode(YAML::Emitter& out, const OutNode& node, int& count) {
     out << YAML::BeginMap;
     out << YAML::Key << "ClassName" << YAML::Value << node.className;
     out << YAML::Key << "Name" << YAML::Value << node.name;
+    if (node.assetRepairRequired)
+        out << YAML::Key << "AssetRepairRequired" << YAML::Value << true;
+    if (!node.assetRepairWarnings.empty()) {
+        out << YAML::Key << "AssetRepairWarnings" << YAML::Value << YAML::BeginSeq;
+        for (const auto& warning : node.assetRepairWarnings) out << warning;
+        out << YAML::EndSeq;
+    }
     if (node.spatial || node.properties.size() > 0) {
         out << YAML::Key << "Properties" << YAML::Value << YAML::BeginMap;
         if (node.spatial) {

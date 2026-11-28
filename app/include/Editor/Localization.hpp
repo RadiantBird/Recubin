@@ -84,6 +84,8 @@ enum class LocKey {
     CategoryScript, CategoryScriptDesc,
     SwitchToWorkspace, OpenInNewViewport, InsertObjectMenu,
     MenuDelete, MenuCopy, MenuPaste, MenuPasteAsChild, MenuSelectAllChildren,
+    AssetWarningsContextMenu, AssetWarningsDialogTitle,
+    AssetWarningsDialogHint, AssetWarningsInstanceHeader,
     MenuGroup, MenuRecalculateCoordinates,
     MenuMaterialPresets, PresetRoughPlastic, PresetWoodPlanks, PresetScratchedMetal,
     InstancePickerTitleInsert, InstancePickerTitleGroup, InstancePickerTitleReplace,

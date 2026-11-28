@@ -374,7 +374,16 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(
     }
     instance->setAssetRepairRequired(
         node["AssetRepairRequired"] ? node["AssetRepairRequired"].as<bool>() : false);
+    instance->setAssetRepairWarnings({});
+    if (node["AssetRepairWarnings"] && node["AssetRepairWarnings"].IsSequence()) {
+        for (const auto& warningNode : node["AssetRepairWarnings"]) {
+            if (warningNode.IsScalar()) {
+                instance->addAssetRepairWarning(warningNode.as<std::string>());
+            }
+        }
+    }
     instance->setHasMissingAssetReference(false);
+    instance->setMissingAssetReferences({});
 
     // プロパティの設定
     if (node["Properties"]) {
@@ -468,11 +477,18 @@ std::shared_ptr<Instance> SceneLoader::parseInstance(
     std::vector<AssetDependencies::Dependency> assetDependencies;
     AssetDependencies::collect(
         instanceAssetNode, assetDependencies, AssetPath::sceneAssetBaseDirectory());
-    const bool hasMissingAssetReference = std::any_of(
-        assetDependencies.begin(), assetDependencies.end(),
-        [](const AssetDependencies::Dependency& dependency) {
-            return !dependency.exists;
-        });
+    bool hasMissingAssetReference = false;
+    for (const AssetDependencies::Dependency& dependency : assetDependencies) {
+        if (dependency.exists) continue;
+
+        hasMissingAssetReference = true;
+        const char* expectedKind = dependency.directory ? "directory" : "file";
+        instance->addMissingAssetReference(
+            std::string("Missing ") + expectedKind + " dependency: " + dependency.source);
+        RCBN_WARN("[SceneLoader] " << instance->getClassName() << " \""
+                  << instance->Name << "\" has missing " << expectedKind
+                  << " asset dependency \"" << dependency.source << "\"");
+    }
     instance->setHasMissingAssetReference(hasMissingAssetReference);
 
     // 子要素の解析
@@ -704,6 +720,13 @@ void SceneLoader::saveNode(YAML::Emitter& out, Instance* inst) {
     out << YAML::Key << "Name"      << YAML::Value << inst->Name;
     if (inst->isAssetRepairRequired()) {
         out << YAML::Key << "AssetRepairRequired" << YAML::Value << true;
+    }
+    if (!inst->assetRepairWarnings().empty()) {
+        out << YAML::Key << "AssetRepairWarnings" << YAML::Value << YAML::BeginSeq;
+        for (const auto& warning : inst->assetRepairWarnings()) {
+            out << warning;
+        }
+        out << YAML::EndSeq;
     }
 
     // プロパティ

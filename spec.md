@@ -103,11 +103,14 @@ Studio の File メニューから「Set Asset Directory...」を選ぶと、任
 コピーを拒否した場合は元基準への相対参照を維持し、新しいシーンからも同じ基準を記録する。
 
 Scene の Instance node には、変換などで既知の破損を示す YAML 専用ラベル
-`AssetRepairRequired: true`を記録できる。これは`Properties`には含めず、false の場合は出力しない。
+`AssetRepairRequired: true`と、理由を列挙する`AssetRepairWarnings`を記録できる。これらは`Properties`には含めず、警告配列は空の場合に出力しない。
 Scene 読み込み時には`AssetDependencies`が扱うファイル・sequence・directory参照を各 Instance ごとに検査し、
 参照先が存在しない、または期待するファイル種別でない場合も、その Instance を修復対象として扱う。
-空の任意パスは欠損としない。自動検出状態は明示ラベルとは別の実行時状態であり、Scene YAMLへ自動保存しない。
-Explorer では明示ラベルまたは自動検出状態がある行を黄色で強調する。
+動的な欠損検出は Instance 名と参照パスをログと Explorer の行ツールチップへ報告する。動的な検出状態は明示ラベルとは別の実行時状態であり、Scene YAMLへ保存しない。空の任意パスは欠損としない。
+RBXLX 変換では、利用できない Roblox アセット（空の Texture / Decal の Texture を含む）、未対応 Script API、変換時に破棄した Instance など、
+変換警告の対象を出力 Instance の`AssetRepairRequired`と`AssetRepairWarnings`へ記録する。Instance 自体を出力しない場合は、
+placeholder Instanceを生成せず、その子を失った最寄りの出力親の警告詳細へ元のClassNameとNameを記録する。
+Explorer では警告がある行を淡い黄色で強調し、hover時のツールチップへ変換理由と動的欠損参照を表示する。問題を持つ子孫がある場合は、祖先行のクラスアイコンより前に警告三角形を表示する。警告が3件を超えるか本文が長い場合はツールチップで右クリックメニューを案内し、コンテキストメニューからスクロール可能な警告ダイアログを開ける。ダイアログはOKで閉じる。
 
 ## 音声デバッグパネル
 Viewメニューの「音声デバッグ」で開く、音声の異常（ノイズ・途切れ・小音量）の調査用パネル。開いている間だけ計測する。
