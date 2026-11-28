@@ -643,6 +643,11 @@ private:
 
         m_workspace = std::move(bound.workspace);
         m_workspaces = std::move(bound.workspaces);
+        // Scene binding restores the saved gameplay mode. Editing always starts
+        // with the internal FreeCamera, including the initial load before Editor exists.
+        if (!m_editor || m_editor->isEditMode()) {
+            m_user->setControlMode(User::ControlMode::Free);
+        }
         m_luau->setRuntimeFileSystem(std::make_shared<RuntimeFileSystem>(
             m_system->EnableExternalFileAccess));
         if (m_editor) {

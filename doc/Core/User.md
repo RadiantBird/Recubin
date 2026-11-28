@@ -28,6 +28,7 @@ Programスクリプトは`User.Camera.CFrame`を読み書きする。
 Freeでは保存対象外の内部`User.FreeCamera`を使用する。Free中に`User.Camera`の姿勢を変更しても
 表示は切り替わらず、内部FreeCameraの姿勢を変更すると表示へ反映する。Characterの移動方向も
 active Cameraの向きから計算する。Programの姿勢は組み込み入力で上書きしない。
+Studioでは起動・編集用Scene読込の完了時にFreeへ切り替える。保存されたControlModeは編集視点を固定しない。
 `Camera.Workspace`のLuau APIはWorkspace Instanceまたはnilであり、使用中Cameraの参照がnilなら
 No Signalを表示する。
 
