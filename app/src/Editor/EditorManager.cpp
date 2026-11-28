@@ -585,11 +585,12 @@ void EditorManager::render(GLFWwindow* window) {
                 if (!isEditMode()) m_showPlaySaveBlocked = true;
                 else if (!saveActiveCodeEditor()) saveCurrentScene();
             }
-            if (ImGui::MenuItem("Save Scene As...")) {
+            if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuSaveSceneAs))) {
                 if (isEditMode()) saveSceneAs();
             }
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuOpenScene), "Ctrl+O")) openSceneDialog();
             ImGui::BeginDisabled(!isEditMode());
+#if !RCBN_STORE_ABSOLUTE_ASSET_PATHS
             if (ImGui::MenuItem("Set Asset Directory...")) {
                 if (scenePath.empty()) {
                     if (saveCurrentScene()) chooseAssetRootDirectory();
@@ -604,6 +605,7 @@ void EditorManager::render(GLFWwindow* window) {
                     repairAssetRootDirectory();
                 }
             }
+#endif
             ImGui::Separator();
             if (ImGui::MenuItem(Loc::t(Loc::LocKey::MenuRestoreDefaultR6Animations)))
                 m_showRestoreR6Confirm = true;

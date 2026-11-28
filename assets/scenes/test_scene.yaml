@@ -1,7 +1,6 @@
 recubin:
   type: scene
   version: 0
-  # assetRoot: C:/assets/scenes/
   migrations:
     character_animation_bindings:
       version: 1

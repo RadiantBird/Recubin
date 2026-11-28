@@ -147,11 +147,11 @@ RuntimeFileSystem overlay を保存し、通常の Ctrl+S は従来どおり Sce
 
 ## Asset基準とSave As
 
-Fileメニューの`Set Asset Directory...`は任意フォルダを現在Sceneの基準に指定する。未保存Sceneは
-先に保存先を確定し、異なるドライブなどScene親から相対化できないフォルダは拒否する。
-`Repair Asset Paths...`は旧Studioの基準フォルダを利用者が指定して実行する。プロジェクトルートと
-`assets`ルートのどちらを指定しても、`assets/`付き・なし両方の参照形式を解決する。解決できた参照だけを
-書き換え、未解決参照は保持して一覧表示する。旧Sceneの基準を自動探索しない。
+相対パス形式ではFileメニューの`Set Asset Directory...`から現在Sceneの基準フォルダを指定し、
+`Repair Asset Paths...`から旧基準の参照を修復する。`RCBN_STORE_ABSOLUTE_ASSET_PATHS`が有効な間は
+この2項目を一時的にFileメニューへ表示しない。修復時はプロジェクトルートまたは`assets`ルートを選べる。
+`assets/`付き・なし両方の参照形式を解決し、解決できた参照だけを書き換える。未解決参照は保持して一覧表示する。
+旧Sceneの基準を自動探索しない。
 
 `Save Scene As...`では、依存アセットを新しい基準へコピーするか、元の基準を参照し続けるか、
 キャンセルするかを確認する。コピー時は`SceneAssetCopy`が依存を列挙し、欠落依存を報告して中止する。

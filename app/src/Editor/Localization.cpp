@@ -27,6 +27,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     // ---- EditorManager: メニューバー / パネルタイトル ----
     { "ファイル",           "File" },
     { "シーンを保存",        "Save Scene" },
+    { "シーンを別名で保存...", "Save Scene As..." },
     { "シーンを開く",        "Open Scene" },
     { "シーンの新規作成", "New Scene" },
     { "ゲームをパッケージ化...", "Package Game..." },

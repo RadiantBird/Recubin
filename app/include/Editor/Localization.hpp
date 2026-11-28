@@ -19,7 +19,7 @@ enum class LocKey {
     SettingsTheme, ThemeClassic, ThemeFrutiger,
 
     // ---- EditorManager: メニューバー / パネルタイトル ----
-    MenuFile, MenuSaveScene, MenuOpenScene, MenuNewScene, MenuPackageGame, MenuQuit,
+    MenuFile, MenuSaveScene, MenuSaveSceneAs, MenuOpenScene, MenuNewScene, MenuPackageGame, MenuQuit,
     MenuRestoreDefaultR6Animations,
     MenuView,
     PanelExplorer, PanelProperties, PanelViewport, PanelContentBrowser,

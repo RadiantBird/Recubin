@@ -975,3 +975,17 @@
 - `recubin.studio_runtime_assets`でProcess SDK公開ヘッダーと依存するMath/Color/Loggerヘッダーを`Release/sdk/include`へコピーし、ソースヘッダー欠落はビルド後処理で明示的に失敗させる。
 - `C:\Program Files\xmake\xmake.exe build Recubin` 成功。Release出力の`sdk/include`に公開SDK 3ヘッダーとMath/Color/Loggerの依存6ヘッダーが配置されたことを確認。`git diff --check`成功。
 - 未検証: Process付きSceneのTest Play。次: xmakeでStudioを起動し、該当SceneのPlayでProcess SDKヘッダー検出とDLLビルドへ進むことを確認する。
+
+## 2026-11-28 絶対パス暫定モードのFileメニュー
+
+- `RCBN_STORE_ABSOLUTE_ASSET_PATHS`有効時、Fileメニューの英語表記`Set Asset Directory...`と`Repair Asset Paths...`を非表示にする。マクロを0にした相対パスモードでは従来どおり表示する。
+- specとEditorManager文書を更新。
+- `C:\Program Files\xmake\xmake.exe build Recubin`成功。`git diff --check`成功。
+- 未検証: Studio実画面でのメニュー表示。次: Releaseを起動し、2項目が消え、Restore Default R6 Animationsなど隣接項目の表示・有効状態が変わらないことを確認する。
+
+## 2026-11-28 Save Scene As のローカライズ
+
+- Fileメニューにハードコードされていた`Save Scene As...`をLocalizationへ移し、日本語を「シーンを別名で保存...」、英語を従来どおり`Save Scene As...`にした。
+- `LocKey`とテーブルの宣言順を対応させ、EditorManagerから新しいキーを使う。
+- `C:\Program Files\xmake\xmake.exe build Recubin`成功。`git diff --check`成功。
+- 未検証: Studio実画面。次: 日本語／英語を切り替え、Fileメニューの表示を確認する。
