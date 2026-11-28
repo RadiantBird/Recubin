@@ -135,12 +135,12 @@ Root:
             - ClassName: Camera
               Name: Camera
               Properties:
-                Position: [-72.86036, 4.261633, 54.16136]
+                Position: [8.954381, -4.840037, 38.645397]
                 Size: [1, 1, 1]
-                Rotation: [0.14132437, -0.17142527, 0.024854941, 0.9746913]
+                Rotation: [-0.039562713, 0.35696968, 0.0040212907, 0.9332691]
                 RotationSpeed: 1
                 MouseRotationSpeed: 0.15
-                CameraDistance: 10
+                CameraDistance: 958
                 ZoomSpeed: 0.1
                 MouseZoomSpeed: 1
                 FirstPersonThreshold: 1.5
@@ -657,9 +657,9 @@ Root:
         - ClassName: Cube
           Name: Blue
           Properties:
-            Position: [-2, 0, -8]
+            Position: [-0.70680624, -7.6222963, -8.095974]
             Size: [1, 4, 1]
-            Rotation: [0, 0, 0, 1]
+            Rotation: [-0.0050746812, 0.0066286195, -0.32632482, 0.9452209]
             Color: [0, 0, 1, 1]
             CastShadow: true
             ShadowMode: Normal
@@ -703,9 +703,9 @@ Root:
         - ClassName: Cube
           Name: CCC
           Properties:
-            Position: [30.607662, -9, 50.33361]
+            Position: [30.602787, -9.017187, 50.340874]
             Size: [4, 1, 2]
-            Rotation: [0, 0, 0, 1]
+            Rotation: [0.00093026465, 1.600891e-05, -0.000697924, 0.9999994]
             Color: [1, 1, 1, 1]
             CastShadow: true
             ShadowMode: Normal
@@ -733,7 +733,7 @@ Root:
         - ClassName: Cube
           Name: Cube
           Properties:
-            Position: [0, 0, 0]
+            Position: [-0.1603849, -9.00552, 0.101704665]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -756,9 +756,9 @@ Root:
         - ClassName: Cube
           Name: Cube1
           Properties:
-            Position: [8.118143, -6.9850116, 35.223503]
+            Position: [8.115315, -7.1368065, 35.22776]
             Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
+            Rotation: [-6.206962e-06, 0.99995965, 1.441589e-06, -0.00899063]
             Color: [0, 1, 1, 1]
             CastShadow: true
             ShadowMode: Normal
@@ -779,9 +779,9 @@ Root:
         - ClassName: Cube
           Name: Cube2
           Properties:
-            Position: [-20.448927, -9, 16.048754]
+            Position: [-20.348774, -9.005524, 15.910157]
             Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
+            Rotation: [0.25147042, -0.25146613, -0.66088927, 0.66087276]
             Color: [1, 1, 1, 1]
             CastShadow: true
             ShadowMode: Normal
@@ -802,9 +802,9 @@ Root:
         - ClassName: Cube
           Name: Cube3
           Properties:
-            Position: [-9.912365, -9, 17.636595]
+            Position: [-9.464255, -9.00552, 18.71148]
             Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
+            Rotation: [0.5950743, 0.38196328, -0.3819587, 0.5950615]
             Color: [1, 1, 1, 1]
             CastShadow: true
             ShadowMode: Normal
@@ -826,9 +826,32 @@ Root:
         - ClassName: Cube
           Name: Cube4
           Properties:
-            Position: [20.405926, -9, 43.45034]
+            Position: [20.819805, -9.009599, 45.951916]
             Size: [4, 1, 2]
-            Rotation: [0, 0, 0, 1]
+            Rotation: [-0.00046193833, 0.029420825, -0.00012869247, 0.999567]
+            Color: [1, 1, 1, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: false
+            CanCollide: true
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: Cube5
+          Properties:
+            Position: [-18.858374, -7.0052567, 30.084755]
+            Size: [14.744219, 5, 1.0009999]
+            Rotation: [0.0001263268, 0.0012569566, -1.3024872e-07, 0.9999993]
             Color: [1, 1, 1, 1]
             CastShadow: true
             ShadowMode: Normal
@@ -872,9 +895,9 @@ Root:
         - ClassName: Cube
           Name: Cube12
           Properties:
-            Position: [8.118143, -8.859938, 35.223503]
+            Position: [8.115338, -9.011042, 35.227757]
             Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
+            Rotation: [2.251266e-06, -0.11883877, 5.9150475e-06, 0.99291354]
             Color: [1, 1, 1, 1]
             CastShadow: true
             ShadowMode: Normal
@@ -918,9 +941,9 @@ Root:
         - ClassName: Cube
           Name: Floppa1
           Properties:
-            Position: [1.0775726, -6.4693694, -8.327957]
+            Position: [1.0152482, -8.506103, -8.283783]
             Size: [2, 2, 2]
-            Rotation: [0, 0, 0, 1]
+            Rotation: [0.0004137858, 0.0002967287, -0.0005234668, 0.9999998]
             Color: [1, 1, 1, 1]
             CastShadow: true
             ShadowMode: Normal
@@ -996,7 +1019,7 @@ Root:
         - ClassName: Cube
           Name: Green
           Properties:
-            Position: [-2, 0, -4]
+            Position: [-2.1866086, -9.006762, -3.8440032]
             Size: [2, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [0, 1, 0, 1]
@@ -1017,9 +1040,285 @@ Root:
             Locked: false
             LockFlags: []
         - ClassName: Cube
+          Name: NEON 01
+          Properties:
+            Position: [-0.46490318, 4.149808, -12.39586]
+            Size: [3, 3, 3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.00035127997, 0.69088775, 0.84077406, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: NEON 02
+          Properties:
+            Position: [5.7952166, 2.3477387, -10.967631]
+            Size: [3, 3, 3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.05791989, 0.89637476, 0.6121799, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: NEON 03
+          Properties:
+            Position: [10.502664, 2.1979072, -6.6005697]
+            Size: [3, 3, 3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.23394614, 0.9956579, 0.3535209, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: NEON 04
+          Properties:
+            Position: [12.395854, 3.8501487, -0.46503708]
+            Size: [3, 3, 3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.4812554, 0.9621296, 0.13411704, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: NEON 05
+          Properties:
+            Position: [10.967606, 5.6522713, 5.795265]
+            Size: [3, 3, 3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.7335939, 0.804772, 0.012746304, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: NEON 06
+          Properties:
+            Position: [6.6006837, 5.8021116, 10.502592]
+            Size: [3, 3, 3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.92333543, 0.56575656, 0.02193579, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: NEON 07
+          Properties:
+            Position: [0.4649819, 4.1498337, 12.395857]
+            Size: [3, 3, 3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.9996486, 0.30911517, 0.15922362, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: NEON 08
+          Properties:
+            Position: [-5.7953143, 2.3477187, 10.96758]
+            Size: [3, 3, 3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.942078, 0.103622526, 0.38782445, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: NEON 09
+          Properties:
+            Position: [-10.502622, 2.1978962, 6.600636]
+            Size: [3, 3, 3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.76605654, 0.0043424964, 0.64647603, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: NEON 10
+          Properties:
+            Position: [-12.395859, 3.8501842, 0.4649267]
+            Size: [3, 3, 3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.5187401, 0.037872106, 0.865886, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: NEON 11
+          Properties:
+            Position: [-10.967643, 5.652257, -5.795196]
+            Size: [3, 3, 3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.26640892, 0.19522548, 0.98725295, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
+          Name: NEON 12
+          Properties:
+            Position: [-6.6005898, 5.802096, -10.502651]
+            Size: [3, 3, 3]
+            Rotation: [0, 0, 0, 1]
+            Color: [0.07666218, 0.43424788, 0.97806287, 1]
+            CastShadow: true
+            ShadowMode: Normal
+            Unlit: false
+            UseTriplanar: false
+            TextureScale: 1
+            Anchored: true
+            CanCollide: false
+            CanTouch: true
+            MassDensity: 1
+            CCDMode: Default
+            MaterialType: 0
+            StaticFriction: 0.5
+            DynamicFriction: 0.5
+            Restitution: 0.1
+            Locked: false
+            LockFlags: []
+        - ClassName: Cube
           Name: Radio
           Properties:
-            Position: [-17.76123, -2.9499998, -6.6466923]
+            Position: [-17.761654, -2.9535115, -6.6466146]
             Size: [13.340713, 13.1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -1043,9 +1342,9 @@ Root:
             - ClassName: Sound
               Name: Sound
               Properties:
-                Position: [0, 0, 0]
+                Position: [0.0004234314, 0.0035116673, -8.6307526e-05]
                 Size: [1, 1, 1]
-                Rotation: [0, 0, 0, 1]
+                Rotation: [-2.617288e-07, 1.0116613e-10, 2.1005109e-08, 1]
                 ContentPath: ""
                 AutoPlay: false
                 Looped: true
@@ -1056,7 +1355,7 @@ Root:
         - ClassName: Cube
           Name: Red
           Properties:
-            Position: [2, 0, -4]
+            Position: [1.8396888, -9.00552, -3.8983507]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 0, 0, 1]
@@ -1106,9 +1405,9 @@ Root:
         - ClassName: Cube
           Name: Saw
           Properties:
-            Position: [2.8425572, -8, 11.73605]
+            Position: [2.7508795, -6.984062, 11.8495865]
             Size: [0.66550756, 0.28469962, 1]
-            Rotation: [0, 0, 0, 1]
+            Rotation: [-0.0032736897, -7.03364e-05, -0.0021722917, 0.9999923]
             Color: [1, 1, 1, 1]
             CastShadow: true
             ShadowMode: Normal
@@ -1129,9 +1428,9 @@ Root:
         - ClassName: Cube
           Name: Saw2
           Properties:
-            Position: [2.1770496, -8, 11.73605]
+            Position: [2.0853782, -6.981171, 11.8494835]
             Size: [0.66550756, 0.28469962, 1]
-            Rotation: [0, 0, 0, 1]
+            Rotation: [-0.0032736897, -7.03364e-05, -0.0021722917, 0.9999923]
             Color: [1, 1, 1, 1]
             CastShadow: true
             ShadowMode: Normal
@@ -1152,10 +1451,10 @@ Root:
         - ClassName: Cube
           Name: SpecialCube
           Properties:
-            Position: [31.257055, -5.6158414, 50.550472]
+            Position: [31.769114, -8.033138, 50.92942]
             Size: [4, 1, 2]
-            Rotation: [0, 0, 0, 1]
-            Color: [1, 0.90851736, 0, 1]
+            Rotation: [0.0018676826, 0.0010529744, -0.0014983753, 0.99999654]
+            Color: [1, 1, 0, 1]
             CastShadow: true
             ShadowMode: Normal
             Unlit: false
@@ -1185,7 +1484,7 @@ Root:
         - ClassName: Cylinder
           Name: Cylinder
           Properties:
-            Position: [-7.639315, -9, -10.798485]
+            Position: [-7.638899, -9.003781, -10.798952]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
@@ -1208,7 +1507,7 @@ Root:
         - ClassName: Skybox
           Name: Skybox
           Properties:
-            Position: [-53.51903, 27.52717, 55.634735]
+            Position: [-37.89126, 13.239668, 22.940336]
             Size: [7500, 5000, 10000]
             Rotation: [0, 0, 0, 1]
             Color: [0, 0.5019608, 0.5019608, 1]
@@ -1265,9 +1564,9 @@ Root:
         - ClassName: Sphere
           Name: Sphere
           Properties:
-            Position: [2.7700124, 5, 0]
+            Position: [2.7644677, -9.005524, 0.005451561]
             Size: [1, 1, 1]
-            Rotation: [0, 0, 0, 1]
+            Rotation: [0.006391533, -6.180855e-06, 0.008306029, 0.99994516]
             Color: [1, 1, 1, 1]
             CastShadow: true
             ShadowMode: Normal
@@ -1288,7 +1587,7 @@ Root:
         - ClassName: TriangularPrism
           Name: TriangularPrism
           Properties:
-            Position: [1.03006, -9, 0.87993336]
+            Position: [1.0302339, -9.005855, 0.88003546]
             Size: [1, 1, 1]
             Rotation: [0, 0, 0, 1]
             Color: [1, 1, 1, 1]
