@@ -343,6 +343,19 @@ EditorManager::EditorManager(Workspace* workspace, User* user, Instance* system,
     hierarchyPanel->onOpenEditor = [this](const std::shared_ptr<Instance>& target) {
         openCodeEditor(target);
     };
+    hierarchyPanel->onMoveViewToCamera = [this](Camera* source) {
+        if (!source) return;
+        ViewportPanel* target = GetFocusedViewport();
+        if (!target) target = GetLastFocusedViewport();
+        if (!target) target = viewportPanel.get();
+        if (!target) return;
+        if (target == viewportPanel.get() && m_user) {
+            m_user->setControlMode(User::ControlMode::Free);
+            m_user->setFreeCameraFrom(*source);
+            return;
+        }
+        target->initOwnCameraFrom(*source, source->getReferencedWorkspace());
+    };
     hierarchyPanel->onCreateEmbeddedScript =
         [this](const std::shared_ptr<Script>& script, std::string& error) {
             return m_embeddedScripts.ensureWorkingFile(script, error);
@@ -877,21 +890,7 @@ void EditorManager::handleEditorShortcuts() {
 
         // Ctrl+F: 選択中インスタンスをエクスプローラーで自動展開・スクロール
         if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_F)) {
-            if (hierarchyPanel->selectedInstance &&
-                hierarchyPanel->selectedInstance->IsA("Camera")) {
-                ViewportPanel* targetViewport = GetFocusedViewport();
-                if (!targetViewport) targetViewport = GetLastFocusedViewport();
-                if (!targetViewport) targetViewport = viewportPanel.get();
-                if (targetViewport) {
-                    auto* camera = static_cast<Camera*>(hierarchyPanel->selectedInstance);
-                    if (targetViewport == viewportPanel.get() && m_user) {
-                        m_user->setFreeCameraFrom(*camera);
-                        m_user->setControlMode(User::ControlMode::Free);
-                    } else {
-                        targetViewport->initOwnCameraFrom(*camera, camera->getReferencedWorkspace());
-                    }
-                }
-            } else if (hierarchyPanel->selectedInstance) {
+            if (hierarchyPanel->selectedInstance) {
                 hierarchyPanel->requestReveal(hierarchyPanel->selectedInstance);
             }
         }

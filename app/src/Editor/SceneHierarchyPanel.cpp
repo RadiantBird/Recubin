@@ -1708,6 +1708,13 @@ void SceneHierarchyPanel::renderInsertMenu(Instance* inst) {
 void SceneHierarchyPanel::renderContextMenu(Instance* inst) {
     if (!inst) return;
 
+    if (inst->IsA("Camera")) {
+        if (ImGui::MenuItem(Loc::t(Loc::LocKey::MoveViewToCamera)) && onMoveViewToCamera) {
+            onMoveViewToCamera(static_cast<Camera*>(inst));
+        }
+        ImGui::Separator();
+    }
+
     if (m_instancesWithAssetRepairInSubtree.contains(inst)) {
         if (ImGui::MenuItem(Loc::t(Loc::LocKey::AssetWarningsContextMenu))) {
             m_assetWarningsDialogInstance = inst->getFullPath();

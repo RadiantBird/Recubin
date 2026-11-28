@@ -8,6 +8,7 @@
 #include <Instances/Instance.hpp>
 #include <Instances/Script.hpp>
 #include <Core/User.hpp>
+#include <Instances/Camera.hpp>
 #include <cctype>
 #include <functional>
 #include <iterator>
@@ -44,6 +45,7 @@ public:
     // Workspace 操作コールバック（main.cpp が設定）
     std::function<void(Workspace*)> onSwitchWorkspace;
     std::function<void(Workspace*)> onOpenSecondaryViewport;
+    std::function<void(Camera*)> onMoveViewToCamera;
     // Script/TextFile のダブルクリックを中央の補助エディタへ転送する。
     std::function<void(const std::shared_ptr<Instance>&)> onOpenEditor;
     std::function<bool(const std::shared_ptr<Script>&, std::string&)>

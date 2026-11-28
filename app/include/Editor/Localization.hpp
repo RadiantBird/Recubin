@@ -82,7 +82,7 @@ enum class LocKey {
     CategoryContainer, CategoryContainerDesc,
     CategoryFile, CategoryFileDesc,
     CategoryScript, CategoryScriptDesc,
-    SwitchToWorkspace, OpenInNewViewport, InsertObjectMenu,
+    SwitchToWorkspace, OpenInNewViewport, MoveViewToCamera, InsertObjectMenu,
     MenuDelete, MenuCopy, MenuPaste, MenuPasteAsChild, MenuSelectAllChildren,
     AssetWarningsContextMenu, AssetWarningsDialogTitle,
     AssetWarningsDialogHint, AssetWarningsInstanceHeader,

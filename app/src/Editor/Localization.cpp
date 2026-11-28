@@ -203,6 +203,7 @@ constexpr std::array<Entry, static_cast<size_t>(LocKey::Count)> kTable = { {
     { "実行可能なスクリプトです。", "Executable script instances." },
     { "このworkspaceに切り替える", "Switch to this Workspace" },
     { "新しいビューポートで開く", "Open in New Viewport" },
+    { "このカメラの視点へ移動", "Move View to Camera" },
     { "オブジェクトを挿入",    "Insert Object" },
     { "削除",               "Delete" },
     { "コピー",              "Copy" },

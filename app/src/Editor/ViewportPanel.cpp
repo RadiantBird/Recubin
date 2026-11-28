@@ -1487,18 +1487,8 @@ void ViewportPanel::handlePivotShortcut(const ViewportLayout& layout) {
 
 void ViewportPanel::handleFocusShortcut() {
     if (isViewportFocused && user && selectedInstance && *selectedInstance
-            && ImGui::IsKeyPressed(ImGuiKey_F)) {
+            && ImGui::IsKeyPressed(ImGuiKey_F) && !ImGui::GetIO().KeyCtrl) {
         Instance* inst = *selectedInstance;
-        if (inst->IsA("Camera")) {
-            auto* camera = static_cast<Camera*>(inst);
-            if (!m_useOwnCamera && user) {
-                user->setFreeCameraFrom(*camera);
-                user->setControlMode(User::ControlMode::Free);
-            } else {
-                initOwnCameraFrom(*camera, camera->getReferencedWorkspace());
-            }
-            return;
-        }
         if (inst->IsA("Spatial")) {
             Spatial* s = static_cast<Spatial*>(inst);
             Vector3 objPos = s->getPosition();

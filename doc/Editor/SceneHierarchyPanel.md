@@ -64,3 +64,6 @@
 ## 依存関係
 
 - `EditorPanel`, `Workspace`, `Instance`, `CommandHistory`, ImGui
+- Cameraの右クリックメニューに「このカメラの視点へ移動」を表示する。最後に操作したViewportを優先し、
+  Cameraの姿勢と参照WorkspaceをFreeCameraへコピーする。PrimaryではFreeへ切り替え、User.Cameraは変更しない。
+  Ctrl+FはCameraを含めExplorerでの表示操作とする。

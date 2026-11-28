@@ -37,6 +37,9 @@ OpenGL レンダリングパイプライン全体を管理するシングルト�
 
 `ViewportRenderDesc::renderRenderingDebug` は物理デバッグとは独立した描画デバッグの切替である。
 SurfaceMark の投影ボリューム表示など、レンダリング由来の可視化はこのフラグだけで有効化する。
+Cameraも、親階層にかかわらず表示Workspaceを参照しているものをシーン全体から収集して可視化する。
+水色の短い錐台で視野方向を示し、光軸と上方向マーカーを付ける。垂直視野角は描画と同じ45度、
+アスペクト比は対象Viewportを使用する。可視化の奥行きは見やすい長さに限定し、実際のクリップ距離は変更しない。
 
 SurfaceMark オーバーレイは既存の `shaderProgram` に組み込まれており、`uSurfaceMarkPass` が有効な
 候補再描画時だけ world position を投影ローカルへ変換する。画像は texture unit 2、マーク視点の

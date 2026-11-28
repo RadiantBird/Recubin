@@ -31,6 +31,7 @@
 #include <Instances/LightSource.hpp>
 #include <Instances/SpotLight.hpp>
 #include <Instances/Spatial.hpp>
+#include <Instances/Camera.hpp>
 #include <Instances/SurfaceMark.hpp>
 #include <Instances/SurfaceGui.hpp>
 #include <Instances/Decal.hpp>
@@ -3252,6 +3253,66 @@ void Renderer::renderViewport(const ViewportRenderDesc& desc) {
         glBindVertexArray(m_lineVAO); glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
         glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(ribbons.size() * sizeof(float)), ribbons.data(), GL_DYNAMIC_DRAW);
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(ribbons.size() / 3)); glBindVertexArray(0); glUseProgram(shaderProgram);
+
+        // Camera frusta are editor-only diagnostics. Cameras are collected from
+        // the top System so a Camera's parent hierarchy never decides which
+        // Workspace it visualizes.
+        useLineProgram(view, projection);
+        setLineColor(Color4(0.1f, 0.9f, 1.0f, 0.95f));
+        std::vector<Camera*> cameras;
+        Instance* sceneRoot = desc.workspace;
+        while (auto parent = sceneRoot->Parent.lock()) sceneRoot = parent.get();
+        auto collectCameras = [&](auto&& self, Instance* node) -> void {
+            if (!node) return;
+            if (node->IsA("Camera")) cameras.push_back(static_cast<Camera*>(node));
+            for (const auto& [_, child] : node->children) self(self, child.get());
+        };
+        collectCameras(collectCameras, sceneRoot);
+        std::vector<float> cameraSegs;
+        const float aspect = desc.height > 0 ? static_cast<float>(desc.width) /
+            static_cast<float>(desc.height) : 1.0f;
+        constexpr float nearDistance = 0.25f;
+        constexpr float farDistance = 4.0f;
+        const float tanHalfFov = std::tan(fovYDegrees * 3.14159265f / 360.0f);
+        const int edges[][2] = {{0,1},{1,3},{3,2},{2,0},{4,5},{5,7},{7,6},{6,4},{0,4},{1,5},{2,6},{3,7}};
+        for (Camera* camera : cameras) {
+            if (!camera || camera->getReferencedWorkspace() != desc.workspace) continue;
+            const CFrame cf = camera->getWorldCFrame();
+            const Vector3 forward = cf.Rotation.getForward();
+            const Vector3 right = cf.Rotation.getRight();
+            const Vector3 up = cf.Rotation.getUp();
+            Vector3 corners[8];
+            for (int i = 0; i < 8; ++i) {
+                const float distance = (i < 4) ? nearDistance : farDistance;
+                const float halfH = distance * tanHalfFov;
+                const float halfW = halfH * aspect;
+                const float x = (i & 1) ? halfW : -halfW;
+                const float y = (i & 2) ? halfH : -halfH;
+                corners[i] = cf.Position + forward * distance + right * x + up * y;
+            }
+            for (const auto& edge : edges) {
+                const Vector3& a = corners[edge[0]], &b = corners[edge[1]];
+                cameraSegs.insert(cameraSegs.end(), {a.x,a.y,a.z,b.x,b.y,b.z});
+            }
+            const Vector3 tip = cf.Position + forward * (farDistance * 0.35f);
+            const Vector3 upTip = cf.Position + up * 0.5f;
+            cameraSegs.insert(cameraSegs.end(), {cf.Position.x,cf.Position.y,cf.Position.z,tip.x,tip.y,tip.z});
+            cameraSegs.insert(cameraSegs.end(), {cf.Position.x,cf.Position.y,cf.Position.z,upTip.x,upTip.y,upTip.z});
+        }
+        if (!cameraSegs.empty()) {
+            std::vector<float> cameraRibbons;
+            buildSegmentRibbons(cameraSegs, desc.cameraPosition, fovYDegrees,
+                                desc.height, 2.0f, cameraRibbons);
+            useLineProgram(view, projection);
+            setLineColor(Color4(0.1f, 0.9f, 1.0f, 0.95f));
+            glBindVertexArray(m_lineVAO);
+            glBindBuffer(GL_ARRAY_BUFFER, m_lineVBO);
+            glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(cameraRibbons.size() * sizeof(float)),
+                         cameraRibbons.data(), GL_DYNAMIC_DRAW);
+            glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(cameraRibbons.size() / 3));
+            glBindVertexArray(0);
+        }
+        glUseProgram(shaderProgram);
     }
     FrameProfiler::get().endSection("renderDebug");
 
