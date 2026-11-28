@@ -1631,7 +1631,8 @@ void EditorManager::renderCrashRecoveryDialog() {
         if (m_autosave.discardRecovery(candidate)) {
             pendingScene = {true, candidate.untitled ? PendingSceneKind::New : PendingSceneKind::Formal,
                             candidate.untitled ? std::string() : candidate.logicalScenePath,
-                            candidate.untitled ? std::string() : candidate.logicalScenePath, false};
+                            candidate.untitled ? std::string() : candidate.logicalScenePath,
+                            false, true};
             m_recoveryCandidate.reset();
             ImGui::CloseCurrentPopup();
         } else {

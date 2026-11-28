@@ -999,3 +999,11 @@
 - Windows `C:\Program Files\xmake\xmake.exe build RecubinTest`成功。`build/Release/RecubinTest.exe --rbxlx-convert-regression`成功。`git diff --check`成功。ビルドに既存の`APIENTRY`再定義warningあり。
 - 対象差分を再読し、LuauEngine / Instance / Vector3 / BaseCubeのランタイム変更が残っていないことを確認。
 - 未完了: この差分では未対応Roblox APIの実行機能は提供せず、変換警告に留めている。提示Obbyの全動作を実行するには、ランタイム互換レイヤーの追加設計と別範囲の実装が必要。次: ランタイム対応を独立した互換レイヤーとして切り出す設計を確定する。
+
+## 2026-11-28 Crash RecoveryのDiscard後にWelcomeを維持
+
+- 原因: Discardは通常のFormal/New pending loadを作り、`loadPendingScene`の成功後処理が全てのScene切替でWelcomeを閉じていた。
+- `PendingSceneRequest::preserveWelcome`を追加し、Discard時にだけ有効化。Recovery復元と通常のScene読込は成功後にWelcomeを閉じ、Discardは元の正式Sceneまたは空の新規Sceneを開いたままWelcomeを維持する。
+- specとEditorManager文書へ復元・破棄それぞれの状態を記録。
+- `C:\Program Files\xmake\xmake.exe build Recubin`成功。`git diff --check`成功。
+- 未検証: Studio実画面。次: RecoveryダイアログでRecover時にWelcomeが閉じ、Discard時には正式Scene／新規Scene表示後もWelcomeが残ることを確認する。

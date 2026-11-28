@@ -112,6 +112,7 @@ public:
         std::string sourcePath;
         std::string logicalPath;
         bool markDirty = false;
+        bool preserveWelcome = false;
     };
     PendingSceneRequest pendingScene;
 

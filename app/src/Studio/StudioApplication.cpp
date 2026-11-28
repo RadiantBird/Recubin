@@ -709,7 +709,7 @@ private:
                 std::move(staged), m_system, m_user, *m_luau, m_window), false)) {
             return false;
         }
-        if (m_editor->welcomePanel) {
+        if (!request.preserveWelcome && m_editor->welcomePanel) {
             m_editor->welcomePanel->isOpen = false;
         }
         m_editor->scenePath = request.logicalPath;

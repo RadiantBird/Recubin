@@ -170,7 +170,8 @@ Edit中の変更は1秒debounceの`recovery.rcbn`と5分周期の世代snapshot�
 正常なScene切替・終了時はlockとrecoveryだけを削除する。起動時に有効な残存lockを検出した場合は
 Welcomeより先にRecoveryモーダルを表示し、Recover、Autosaveフォルダー表示、Discardを提供する。
 Recoverはrecoveryをsource、lock記録のScenePathをlogical pathとしてtransactional loadし、
-正式Sceneファイルを上書きしない。
+正式Sceneファイルを上書きしない。復元の読込成功時はWelcomeを閉じる。Discardはrecoveryだけを破棄し、
+元の正式Scene（無題Recoveryなら空の新規Scene）を開いてWelcomeを表示したままにする。
 設定ファイルとAutosaveの実I/O失敗は日英のOS標準ダイアログへoperation、絶対path、OS理由を表示する。
 SettingsメニューのVSync診断トグルは既定で有効とし、変更時にメインOpenGL contextへ即時適用する。
 値は`editor_settings.yaml`の`Preferences.VSync`として保存・復元する。
