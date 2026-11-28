@@ -888,3 +888,42 @@
 - Instance ごとに明示修復ラベルと AssetDependencies の欠損／種別不一致状態を保持し、Explorer の該当行を黄色で表示する。
 - Windows xmake Release `RecubinTest` build 成功。`--asset-repair-highlight-regression` 全 PASS（failures=0）。欠落・誤種別 fixture に伴う Script 読込警告あり。
 - 未検証: Studio の Explorer 実画面でハイライト表示と、正常・空任意参照が非強調であること。次: ユーザーが Studio で表示を確認する。
+
+## 2026-11-28 Explorer ハイライトの描画修正
+
+- 原因: `SceneHierarchyPanel::drawNode` は Header 色を push していたが、通常の TreeNode は hover または Selected 時だけ背景を描画する。修復対象へ `ImGuiTreeNodeFlags_Framed` を付け、非 hover 時も黄色フレームを表示するよう修正。
+- `doc/Editor/SceneHierarchyPanel.md` に常時背景表示を記録。`Recubin` / `RecubinTest` の Windows xmake Release ビルドと `--asset-repair-highlight-regression` 成功。`git diff --check` 成功。
+- 未検証: Studio 実画面で黄色フレームが見えること。次: 修復対象、正常参照、空任意参照を Explorer で確認。
+
+## 2026-11-28 Roblox インポート警告のハイライト
+
+- `_rbxPlace1.rcbn` には `AssetRepairRequired` がなく、RBX asset URL を落とした後の `ContentPath` も空。SceneLoader の動的依存検査ではこの情報を復元できず、空パスを欠損扱いしない仕様のため警告・強調の対象にならなかった。提供シーンは変更していない。
+- RBXLX 変換で Roblox アセット欠落・未対応 Script API・損失変換を行った出力 Instance に `AssetRepairRequired` を記録。完全に破棄した子がある場合は最寄りの残存親へ記録。SceneLoader は動的な欠落／種別不一致を Instance 名と参照パス付きで警告する。
+- tie-break で `YAML::Node` の浅いコピーをソートしていたため元プロパティ値が壊れる問題も修正。プロパティキーだけをソートし値は元 map から読む。
+- Windows xmake Release の `Recubin` / `RecubinTest` ビルド成功。`--rbxlx-convert-regression` と `--asset-repair-highlight-regression` が全 PASS。`git diff --check` 成功。
+- 未検証: Studio での実表示。古い `.rcbn` に欠落情報は残っていないため、次は元 `.rbxlx` を再インポートして修復対象の黄色表示を確認する。
+
+## 2026-11-28 Roblox 欠損理由の表示
+
+- `AssetRepairWarnings` をScene nodeに保存し、Explorerの黄色行をhoverした際に警告詳細をtooltip表示するよう変更。SceneLoaderで検出する動的欠損参照もtooltipに表示するが、実行時のみ保持しScene YAMLには保存しない。
+- Roblox `Texture` / `Decal` の空Textureを警告・修復対象とし、利用不能なRoblox asset、Script API変換警告、損失変換を理由付きで保持。変換時に子を破棄した場合はplaceholderを生成せず、最寄りの残存親の詳細へ元ClassNameとNameを記録する。
+- `--rbxlx-convert-regression` と `--asset-repair-highlight-regression` 成功。Windows xmake Release `RecubinTest` build成功。
+- 未検証: Studioで再インポート後のtooltipと黄色表示。次: 元RBXLXを再インポートし、黄色のTexture/Decalと親行をhoverして詳細を確認する。
+
+## 2026-11-28 Explorer 警告の祖先伝搬
+
+- Explorer描画前にInstance階層を走査し、修復対象を含む祖先行も警告表示するよう変更。直接対象より淡い背景にし、子孫に問題がある行はクラスアイコンより前に警告三角形を表示する。
+- `SceneHierarchyPanel` と `IconsDef.hpp` を変更し、SceneHierarchyPanel文書とspecへ表示仕様を追記。
+- 未検証: ビルドおよびStudio実画面の確認。次: Windows xmakeでStudioをビルドし、直接対象・親・祖先それぞれの表示濃度とマーカー位置を確認する。
+
+## 2026-11-28 長い警告の閲覧ダイアログ
+
+- 警告が3件超または本文が長い場合、Explorer tooltipを右クリックメニューへの案内に切り替える。警告行・警告子孫を含む祖先行のコンテキストメニューから詳細を開ける。
+- 警告ごとに対象クラス・名前・パスを付けたスクロール可能なモーダルを追加し、OKで閉じる。日本語・英語のメニューとダイアログ文言をLocalizationへ追加。
+- 未検証: ビルドおよびStudio実画面。次: 長文警告の行と祖先を右クリックし、案内、スクロール、OKでの終了を確認する。
+
+## 2026-11-28 ネットワーク CI/CD 一時停止
+
+- .github/workflows/network.yml を .github/workflows/network.yml.disabled へ変更し、GitHub Actions の自動検出対象から外した。必要なら拡張子を .yml に戻して再開できる。
+- 停止対象は rendezvous server の unittest、Windows/macOS Network Probe のビルド・loopback テスト・artifact package、v* tag時の GitHub Release への ZIP upload。
+- 未実施: 実行中 workflow のキャンセル確認（GitHub 接続なし）。
